@@ -4,8 +4,8 @@
 PY ?= python
 BACKEND := backend
 
-.PHONY: help install seed demo demo-check test test-optimizer determinism \
-        typecheck lint float-audit gate-m1 clean
+.PHONY: help install seed demo demo-check test test-optimizer test-transfer \
+        determinism typecheck lint float-audit gate-m1 gate-m1b clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -29,6 +29,9 @@ test: ## Run the full eval suite
 test-optimizer: ## Gate M1: optimizer golden tests
 	cd $(BACKEND) && $(PY) -m pytest evals/ -k optimizer -q
 
+test-transfer: ## Gate M1b: transfer pathfinder golden and edge tests
+	cd $(BACKEND) && $(PY) -m pytest evals/test_transfer_pathfinder.py evals/test_transfer_determinism.py -q
+
 determinism: ## Gate M1: two runs, identical bytes
 	cd $(BACKEND) && $(PY) -m pytest evals/ -k determinism -q
 
@@ -44,6 +47,9 @@ float-audit: ## Gate M1: no float in money paths (review by eye)
 
 gate-m1: test-optimizer determinism typecheck demo-check float-audit ## Run the whole Gate M1
 	@echo "Gate M1 checks executed — review float-audit output in the report."
+
+gate-m1b: test-transfer typecheck ## Run the complete Gate M1b
+	@echo "Gate M1b checks executed."
 
 clean: ## Remove caches and the local seeded DB
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true

@@ -56,7 +56,7 @@
 - Consumes: the existing M1 optimizer, golden fixtures, and spec 06 §5 gate.
 - Produces: the milestone report required before M1b begins.
 
-- [ ] **Step 1: Run the exact M1 tests**
+- [x] **Step 1: Run the exact M1 tests**
 
 Run from `backend/`:
 
@@ -76,7 +76,7 @@ Expected:
 - diff: no output and exit code 0;
 - float findings are limited to confidence/geo annotations and documentation, not money arithmetic.
 
-- [ ] **Step 2: Create the milestone report**
+- [x] **Step 2: Create the milestone report**
 
 Write `reports/milestone_1.md` with this structure and the observed command output:
 
@@ -109,7 +109,7 @@ Write `reports/milestone_1.md` with this structure and the observed command outp
 See the M1 section of `DEVIATIONS.md`; no golden value was changed.
 ```
 
-- [ ] **Step 3: Re-run the full existing suite**
+- [x] **Step 3: Re-run the full existing suite**
 
 Run:
 
@@ -119,7 +119,7 @@ Run:
 
 Expected: `20 passed`.
 
-- [ ] **Step 4: Commit the gate record**
+- [x] **Step 4: Commit the gate record**
 
 ```bash
 git add reports/milestone_1.md
@@ -140,7 +140,7 @@ If the workspace is still not a Git repository, omit the commit command and reco
 - Consumes: `Provenance`, `UserWallet`, and integer money conventions from `core.models`.
 - Produces: `LoyaltyProgram`, `TransferEdge`, `TransferBonus`, `AwardChartEntry`, `AwardTarget`, `TransferStep`, `TransferPlan`, `InfeasiblePlan`, `Recommendation`, and `TransferAdvice`.
 
-- [ ] **Step 1: Write model validation tests**
+- [x] **Step 1: Write model validation tests**
 
 Create `backend/evals/test_transfer_pathfinder.py` initially with:
 
@@ -195,7 +195,7 @@ def test_award_target_defaults_to_home_currency() -> None:
     assert RecommendationKind.NO_DATA.value == "NO_DATA"
 ```
 
-- [ ] **Step 2: Run the tests and verify failure**
+- [x] **Step 2: Run the tests and verify failure**
 
 Run:
 
@@ -205,7 +205,7 @@ Run:
 
 Expected: collection fails because the transfer models do not exist.
 
-- [ ] **Step 3: Add the transfer models**
+- [x] **Step 3: Add the transfer models**
 
 Append the following model family to `backend/core/models.py`, using `Field(gt=0)` for ratios, increments, travelers, and award costs, and `Field(ge=0)` for balances, times, fees, and computed amounts:
 
@@ -322,7 +322,7 @@ class TransferAdvice(BaseModel):
 
 `home_currency` is the conservative schema extension needed to make spec-07 edge case 9 deterministic. Record it in `DEVIATIONS.md`; it changes no golden value.
 
-- [ ] **Step 4: Run model tests**
+- [x] **Step 4: Run model tests**
 
 Run:
 
@@ -333,7 +333,7 @@ Run:
 
 Expected: both model tests pass; mypy is clean.
 
-- [ ] **Step 5: Commit the contracts**
+- [x] **Step 5: Commit the contracts**
 
 ```bash
 git add backend/core/models.py backend/evals/test_transfer_pathfinder.py DEVIATIONS.md
@@ -352,7 +352,7 @@ git commit -m "feat: add transfer pathfinder contracts"
 - Consumes: transfer-domain Pydantic models from Task 2.
 - Produces: `programs()`, `program(id)`, `edges_from(ids)`, `bonuses_active(ids, on_date)`, and the typed award-entry query shown in Step 3.
 
-- [ ] **Step 1: Add a deterministic facade test**
+- [x] **Step 1: Add a deterministic facade test**
 
 Append:
 
@@ -419,7 +419,7 @@ def test_transfer_kb_queries_are_filtered_and_sorted() -> None:
     )] == ["award"]
 ```
 
-- [ ] **Step 2: Run and verify the facade test fails**
+- [x] **Step 2: Run and verify the facade test fails**
 
 Run:
 
@@ -429,7 +429,7 @@ Run:
 
 Expected: failure because the constructor and query methods do not accept transfer facts.
 
-- [ ] **Step 3: Add storage rows and facade collections**
+- [x] **Step 3: Add storage rows and facade collections**
 
 In `backend/core/db.py`:
 
@@ -451,7 +451,7 @@ Use these public signatures:
 
 `bonuses_active` includes a row iff `valid_from <= on_date <= valid_to`. `award_entries` compares airport codes case-insensitively and returns rows sorted by id.
 
-- [ ] **Step 4: Run facade and existing regression tests**
+- [x] **Step 4: Run facade and existing regression tests**
 
 Run:
 
@@ -463,7 +463,7 @@ Run:
 
 Expected: all tests pass; existing optimizer behavior is unchanged.
 
-- [ ] **Step 5: Commit KB support**
+- [x] **Step 5: Commit KB support**
 
 ```bash
 git add backend/core/db.py backend/evals/test_transfer_pathfinder.py
@@ -482,7 +482,7 @@ git commit -m "feat: add transfer facts to knowledge base"
 - Consumes: `TransferEdge`, optional `TransferBonus`, and `FxRate`.
 - Produces: exact forward and inverse transfer math used by the pathfinder.
 
-- [ ] **Step 1: Add arithmetic tests**
+- [x] **Step 1: Add arithmetic tests**
 
 Append:
 
@@ -521,7 +521,7 @@ def test_redemption_value_uses_micro_major_units() -> None:
     ) == 1387096
 ```
 
-- [ ] **Step 2: Run and verify import failure**
+- [x] **Step 2: Run and verify import failure**
 
 Run:
 
@@ -531,7 +531,7 @@ Run:
 
 Expected: import failure because `arithmetic.py` does not exist.
 
-- [ ] **Step 3: Implement the arithmetic primitives**
+- [x] **Step 3: Implement the arithmetic primitives**
 
 Create `backend/core/transfer/arithmetic.py` with these functions:
 
@@ -584,7 +584,7 @@ def convert_minor(amount_minor: int, rate: FxRate) -> int:
 
 The two `MICRO_MAJOR_PER_MINOR` conversions deliberately follow the worked example and existing `points_value_minor` helper. Spec 07's prose divisors/multipliers are dimensionally inconsistent; record the hand audit in `DEVIATIONS.md` and keep the worked expected value `1_387_096`.
 
-- [ ] **Step 4: Run arithmetic tests and strict typing**
+- [x] **Step 4: Run arithmetic tests and strict typing**
 
 Run:
 
@@ -595,7 +595,7 @@ Run:
 
 Expected: all selected tests pass and mypy is clean.
 
-- [ ] **Step 5: Commit arithmetic**
+- [x] **Step 5: Commit arithmetic**
 
 ```bash
 git add backend/core/transfer/arithmetic.py backend/evals/test_transfer_pathfinder.py DEVIATIONS.md
@@ -616,7 +616,7 @@ git commit -m "feat: add integer transfer arithmetic"
 - Consumes: `AwardTarget`, `UserWallet`, `KnowledgeBase`, baseline valuations, cash price, and date.
 - Produces: the typed `find_transfer_plans` interface shown in Step 4.
 
-- [ ] **Step 1: Add the worked-example test**
+- [x] **Step 1: Add the worked-example test**
 
 Add a `worked_example_kb()` helper containing the fictional programs, E1–E4, B1, and two award entries from spec 07 §7. Then add:
 
@@ -657,7 +657,7 @@ def test_transfer_worked_example_recommends_lionmiles() -> None:
     assert sky.shortfall_points == 85000
 ```
 
-- [ ] **Step 2: Run and verify public-interface failure**
+- [x] **Step 2: Run and verify public-interface failure**
 
 Run:
 
@@ -667,7 +667,7 @@ Run:
 
 Expected: import failure because `find_transfer_plans` is not exported.
 
-- [ ] **Step 3: Implement deterministic checklists**
+- [x] **Step 3: Implement deterministic checklists**
 
 Create `backend/core/transfer/checklist.py` with:
 
@@ -721,7 +721,7 @@ def build_checklist(
     return rows
 ```
 
-- [ ] **Step 4: Implement pathfinder internals**
+- [x] **Step 4: Implement pathfinder internals**
 
 Create `backend/core/transfer/pathfinder.py` with `REDEEM_MARGIN_BP = 11_500` and these exact typed interfaces:
 
@@ -767,7 +767,7 @@ from core.transfer.pathfinder import find_transfer_plans
 __all__ = ["find_transfer_plans"]
 ```
 
-- [ ] **Step 5: Run the worked example**
+- [x] **Step 5: Run the worked example**
 
 Run:
 
@@ -777,7 +777,7 @@ Run:
 
 Expected: pass with the exact spec-07 values.
 
-- [ ] **Step 6: Commit pathfinding**
+- [x] **Step 6: Commit pathfinding**
 
 ```bash
 git add backend/core/transfer backend/evals/test_transfer_pathfinder.py
@@ -799,7 +799,7 @@ git commit -m "feat: implement deterministic transfer pathfinder"
 - Consumes: the public `find_transfer_plans` function only.
 - Produces: exact regression coverage for spec 07 §§7–8 and the M1b determinism gate.
 
-- [ ] **Step 1: Create the fixture loader**
+- [x] **Step 1: Create the fixture loader**
 
 Implement `backend/evals/transfer_harness.py` with:
 
@@ -873,7 +873,7 @@ def run_transfer_case(case: dict[str, Any]):
     )
 ```
 
-- [ ] **Step 2: Create the canonical worked fixture**
+- [x] **Step 2: Create the canonical worked fixture**
 
 Write `transfer_demo.yaml` from spec 07 §7 with:
 
@@ -886,7 +886,7 @@ Write `transfer_demo.yaml` from spec 07 §7 with:
 - cash price `19000000`;
 - exact expected P1 and infeasible SkyOrchid values asserted in Task 5.
 
-- [ ] **Step 3: Create the named edge-case fixture list**
+- [x] **Step 3: Create the named edge-case fixture list**
 
 Write `transfer_edge_cases.yaml` with a top-level `cases` list and these exact names and expectations:
 
@@ -916,11 +916,11 @@ cases:
 
 For each row, include full self-contained `programs`, `edges`, `bonuses`, `awards`, `target`, `wallet`, `baseline_valuations`, `cash_price_minor`, and `on_date`. For `foreign_fee_conversion`, use SGD 200.00 per traveler (`fees_minor=20000`), two travelers, and `SGD→INR rate_micro=63200000`, yielding INR 25,280.00 (`total_fees_minor=2528000`).
 
-- [ ] **Step 4: Parametrize exact edge assertions**
+- [x] **Step 4: Parametrize exact edge assertions**
 
 Add a parametrized test that loads each case, asserts the recommendation enum, and then asserts every expected plan field, bonus id, dominated count, or checklist prefix by key. Fail on unknown expectation keys so fixture typos cannot silently pass.
 
-- [ ] **Step 5: Add byte determinism**
+- [x] **Step 5: Add byte determinism**
 
 Create `backend/evals/test_transfer_determinism.py`:
 
@@ -947,7 +947,7 @@ def test_every_transfer_edge_case_is_byte_identical() -> None:
         assert first == second, case["name"]
 ```
 
-- [ ] **Step 6: Run the complete M1b test set**
+- [x] **Step 6: Run the complete M1b test set**
 
 Run:
 
@@ -958,7 +958,7 @@ Run:
 
 Expected: every worked and edge case passes; mypy is clean.
 
-- [ ] **Step 7: Commit the golden suite**
+- [x] **Step 7: Commit the golden suite**
 
 ```bash
 git add backend/evals/transfer_harness.py backend/evals/test_transfer_pathfinder.py backend/evals/test_transfer_determinism.py backend/evals/golden/transfer_demo.yaml backend/evals/golden/transfer_edge_cases.yaml
@@ -980,7 +980,7 @@ git commit -m "test: add transfer pathfinder golden suite"
 - Consumes: the fictional worked-example facts.
 - Produces: a complete local sample KB usable by M2 without real provider credentials.
 
-- [ ] **Step 1: Add a seed round-trip test**
+- [x] **Step 1: Add a seed round-trip test**
 
 Use `tmp_path` to call `seed_database`, then `load_kb`, and assert:
 
@@ -990,7 +990,7 @@ assert [row.id for row in kb.edges_from(["voyager-prime"])] == ["E1", "E2", "E3"
 assert kb.award_entries("DEL", "SIN", "business", "round_trip")
 ```
 
-- [ ] **Step 2: Run and verify the test fails**
+- [x] **Step 2: Run and verify the test fails**
 
 Run:
 
@@ -1000,7 +1000,7 @@ Run:
 
 Expected: failure because the new seed files do not exist.
 
-- [ ] **Step 3: Add fictional seed rows**
+- [x] **Step 3: Add fictional seed rows**
 
 Copy the canonical worked-example facts into the four seed files. Every row uses:
 
@@ -1017,7 +1017,7 @@ provenance:
 
 Do not insert real Indian card/program ratios without separate human verification.
 
-- [ ] **Step 4: Run seed and regression tests**
+- [x] **Step 4: Run seed and regression tests**
 
 Run:
 
@@ -1029,7 +1029,7 @@ Run:
 
 Expected: seed counts include all four transfer tables and the complete suite passes.
 
-- [ ] **Step 5: Commit sample data**
+- [x] **Step 5: Commit sample data**
 
 ```bash
 git add backend/core/seeds backend/evals/test_transfer_pathfinder.py
@@ -1049,7 +1049,7 @@ git commit -m "feat: seed fictional transfer demonstration data"
 - Consumes: all M1b code and tests.
 - Produces: a reproducible gate and authorization to begin M2.
 
-- [ ] **Step 1: Add Make targets**
+- [x] **Step 1: Add Make targets**
 
 Add:
 
@@ -1063,7 +1063,7 @@ gate-m1b: test-transfer typecheck ## Run the complete Gate M1b
 
 Add both names to `.PHONY`.
 
-- [ ] **Step 2: Run M1 and M1b together**
+- [x] **Step 2: Run M1 and M1b together**
 
 Run from the repository root with the existing venv interpreter:
 
@@ -1080,7 +1080,7 @@ Expected:
 - strict mypy passes;
 - the full suite has no regressions.
 
-- [ ] **Step 3: Review the transfer money-path float audit**
+- [x] **Step 3: Review the transfer money-path float audit**
 
 Run:
 
@@ -1090,7 +1090,7 @@ grep -rn "float" backend/core/transfer backend/core/models.py
 
 Expected: no float arithmetic in `core/transfer`; any hits in `core/models.py` remain provenance confidence or geographic fields.
 
-- [ ] **Step 4: Write the M1b report**
+- [x] **Step 4: Write the M1b report**
 
 Create `reports/milestone_1b.md` containing:
 
@@ -1102,7 +1102,7 @@ Create `reports/milestone_1b.md` containing:
 - confirmation that no provider, MCP, LLM, booking, or transfer execution was added;
 - links to every M1b deviation.
 
-- [ ] **Step 5: Commit the gate**
+- [x] **Step 5: Commit the gate**
 
 ```bash
 git add Makefile reports/milestone_1b.md DEVIATIONS.md

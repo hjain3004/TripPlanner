@@ -43,11 +43,12 @@ Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (front
 
 ## Current checkpoint (2026-07-24)
 
-- **M1 is functionally green but not formally closed:** the existing suite has 20 passing tests, the 12 optimizer golden cases and determinism checks pass, strict type checking is clean, and the canonical demo is byte-identical. `reports/milestone_1.md` is still missing and must be written from fresh gate output before advancing.
-- **M1b is the immediate implementation milestone:** `backend/core/transfer/` is still empty. Execute `docs/superpowers/plans/2026-07-24-m1b-transfer-pathfinder.md` test-first, pass Gate M1b, and write `reports/milestone_1b.md`. Do not begin M2 in the same change.
+- **M1 is formally complete:** `reports/milestone_1.md` records a fresh Gate M1 pass. The latest combined Gate M1 run has 12 optimizer golden cases passing, 5 determinism-selection tests passing, strict type checking clean for 16 source files, and the canonical demo byte-identical.
+- **M1b is formally complete:** `backend/core/transfer/` now implements the deterministic transfer pathfinder. `reports/milestone_1b.md` records Gate M1b with 20 transfer tests passing, strict type checking clean for 16 source files, and the full backend regression suite at 40 passing tests.
+- **M2 is the immediate implementation milestone:** implement spec 03 pipeline + FastAPI next. Do not begin frontend, provider gateway, crawling, APIs beyond M2 scope, or MCP/provider work in the same change.
 - **Later layers are scaffolds:** `backend/agents/`, `backend/api/`, `backend/ingestion/`, `frontend/`, and `contract/` contain no implementation yet. There is no provider gateway, runtime adapter, or project MCP configuration.
-- **Do not connect travel-provider MCPs during M1b.** Developer MCPs are added just-in-time during F1–F4; runtime providers begin only after G1 creates normalized contracts, the provider registry, and `SampleAdapter`. Gondola is the first planned read-only live spike; installation never activates an adapter.
-- **Git is initialized:** baseline commit `b3790e8` is on `main`; implementation work starts on `feat/m1b-transfer-pathfinder`. No remote is configured yet. Commit M1b changes in small test-green units on this branch; never claim a push or PR until a remote exists and the human requests it.
+- **Do not connect travel-provider MCPs yet.** Developer MCPs are added just-in-time during F1–F4; runtime providers begin only after G1 creates normalized contracts, the provider registry, and `SampleAdapter`. Gondola is the first planned read-only live spike; installation never activates an adapter.
+- **Git is initialized:** baseline commit `b3790e8` is on `main`; implementation work is on `feat/m1b-transfer-pathfinder`. No remote is configured yet. Never claim a push or PR until a remote exists and the human requests it.
 
 ## Repo boundaries
 
