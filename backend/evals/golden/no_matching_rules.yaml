@@ -1,0 +1,26 @@
+# Golden #10 — no card owns a matching rule → base earn everywhere (spec 02 §9.8).
+name: no_matching_rules
+booking_date: 2026-07-24
+kb:
+  cards:
+    - { id: cardN, issuer: N Bank, network: visa, country: IN, name: N, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 3, per_amount_minor: 10000, currency: INR } }
+  reward_rules: []
+  point_valuations:
+    - { id: cardN-val, card_id: cardN, path: cashback,
+        value_micro_major_per_point: 1000000, currency: INR }
+  offers: []
+wallet: { card_ids: [cardN] }
+prefs: { objective: max_savings }
+lines:
+  - { id: shopping, label: Shopping, category: shopping, amount_minor: 1000000, currency: INR,
+      available_channels: [pos_domestic] }
+  - { id: dining, label: Dining, category: dining, amount_minor: 500000, currency: INR,
+      available_channels: [pos_domestic] }
+expect:
+  assignments:
+    shopping: { card: cardN, points: 300, benefit_minor: 30000 }
+    dining:   { card: cardN, points: 150, benefit_minor: 15000 }
+  totals: { gross: 1500000, discounts: 0, rewards_value: 45000, forex_fees: 0,
+            effective_cost: 1455000, savings_pct_bp: 300 }

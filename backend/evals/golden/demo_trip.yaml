@@ -1,0 +1,100 @@
+# Golden #1 — the canonical worked example (spec 02 §8). Provenance auto-injected.
+name: demo_trip
+booking_date: 2026-07-24
+trip_start_date: 2026-08-15
+kb:
+  cards:
+    - id: voyager-prime
+      issuer: Voyager Bank
+      network: visa
+      country: IN
+      name: Voyager Prime
+      annual_fee_minor: 0
+      fee_currency: INR
+      forex_markup_bp: 350
+      forex_markup_tax_bp: 1800
+      base_earn: { points: 2, per_amount_minor: 10000, currency: INR }
+    - id: globesaver
+      issuer: Globe Bank
+      network: mastercard
+      country: IN
+      name: Globesaver
+      annual_fee_minor: 0
+      fee_currency: INR
+      forex_markup_bp: 100
+      forex_markup_tax_bp: 1800
+      base_earn: { points: 1, per_amount_minor: 10000, currency: INR }
+  reward_rules:
+    - id: R1
+      card_id: voyager-prime
+      description: 10 pts per Rs100 on flights & hotels via bank portal (shared cap)
+      earn: { points: 10, per_amount_minor: 10000, currency: INR }
+      categories: [flights, hotels]
+      channels: [bank_portal]
+      cap: { max_points: 4000, period: statement_cycle, shared_cap_group: portal }
+    - id: R2
+      card_id: globesaver
+      description: 5 pts per Rs100 on dining & general forex (any channel)
+      earn: { points: 5, per_amount_minor: 10000, currency: INR }
+      categories: [dining, forex_general]
+      cap: { max_points: 2500, period: calendar_month }
+  point_valuations:
+    - id: voyager-portal-val
+      card_id: voyager-prime
+      path: portal_flights
+      value_micro_major_per_point: 1000000
+      currency: INR
+    - id: globesaver-cashback-val
+      card_id: globesaver
+      path: cashback
+      value_micro_major_per_point: 500000
+      currency: INR
+  offers:
+    - id: O1
+      title: 10% instant off Agoda hotels
+      kind: instant_discount
+      card_ids: [globesaver]
+      merchant: Agoda
+      channels: [ota_generic]
+      categories: [hotels]
+      discount_bp: 1000
+      max_discount_minor: 300000
+      min_txn_minor: 1500000
+      currency: INR
+      valid_to: 2026-12-31
+      stacking_class: bank_offer
+    - id: O2
+      title: 5% instant off Klook
+      kind: instant_discount
+      networks: [visa]
+      merchant: Klook
+      channels: [ota_generic]
+      categories: [attractions]
+      discount_bp: 500
+      max_discount_minor: 50000
+      currency: INR
+      valid_to: 2026-12-31
+      stacking_class: bank_offer
+wallet: { card_ids: [voyager-prime, globesaver] }
+prefs: { objective: max_savings }
+lines:
+  - { id: flights, label: Flights, category: flights, amount_minor: 5600000, currency: INR,
+      available_channels: [direct_airline, ota_generic, bank_portal] }
+  - { id: hotel, label: Hotel, category: hotels, amount_minor: 4800000, currency: INR,
+      available_channels: [ota_generic, bank_portal, direct_hotel], merchant_hint: Agoda }
+  - { id: attractions, label: Attractions, category: attractions, amount_minor: 1400000,
+      currency: INR, available_channels: [ota_generic], merchant_hint: Klook }
+  - { id: dining, label: Dining, category: dining, amount_minor: 2000000, currency: INR,
+      available_channels: [pos_abroad] }
+  - { id: misc_forex, label: Misc forex, category: forex_general, amount_minor: 1500000,
+      currency: INR, available_channels: [pos_abroad] }
+expect:
+  assignments:
+    flights:     { card: voyager-prime, channel: bank_portal, points: 4320, benefit_minor: 432000 }
+    hotel:       { card: globesaver, channel: ota_generic, offers: [O1], discount_minor: 300000, points: 450, benefit_minor: 322500 }
+    attractions: { card: voyager-prime, channel: ota_generic, offers: [O2], discount_minor: 50000, points: 270, benefit_minor: 77000 }
+    dining:      { card: globesaver, channel: pos_abroad, points: 1000, forex_fee_minor: 23600, benefit_minor: 26400 }
+    misc_forex:  { card: globesaver, channel: pos_abroad, points: 750, forex_fee_minor: 17700, benefit_minor: 19800 }
+  totals: { gross: 15300000, discounts: 350000, rewards_value: 569000, forex_fees: 41300,
+            effective_cost: 14422300, cash_outlay_now: 14991300, deferred_value: 569000, savings_pct_bp: 573 }
+  pools_final: { "voyager-prime:portal": 0, "globesaver:R2": 750 }

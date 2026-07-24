@@ -1,0 +1,53 @@
+# seeds/point_valuations.yaml — PLACEHOLDER per-point values (micro-major units). VERIFY.
+- id: infinia-portal-val
+  card_id: hdfc-infinia
+  path: portal_flights
+  value_micro_major_per_point: 1000000   # ₹1.00/pt — VERIFY
+  currency: INR
+  min_points: 0
+  conditions: assumes redemption via SmartBuy portal flights
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: atlas-transfer-val
+  card_id: axis-atlas
+  path: transfer_airline
+  value_micro_major_per_point: 800000    # ₹0.80/pt — VERIFY
+  currency: INR
+  min_points: 5000
+  conditions: assumes 2:1-ish airline transfer sweet spot
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: sbi-cashback-val
+  card_id: sbi-cashback
+  path: cashback
+  value_micro_major_per_point: 500000    # ₹0.50/pt — VERIFY
+  currency: INR
+  min_points: 0
+  conditions: flat cashback redemption
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: emeralde-voucher-val
+  card_id: icici-emeralde
+  path: voucher
+  value_micro_major_per_point: 1000000   # ₹1.00/pt — VERIFY
+  currency: INR
+  min_points: 1000
+  conditions: assumes voucher redemption at par
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5

@@ -1,0 +1,71 @@
+# seeds/cards.yaml — REAL CARD NAMES, PLACEHOLDER VALUES. Verify every number
+# before any real use (spec 00 §5, 01 §9). All rows: needs_verification: true.
+- id: hdfc-infinia
+  issuer: HDFC Bank
+  network: visa
+  country: IN
+  name: Infinia Metal
+  annual_fee_minor: 1250000        # ₹12,500 — VERIFY
+  fee_currency: INR
+  forex_markup_bp: 200             # VERIFY
+  forex_markup_tax_bp: 1800        # 18% GST on markup (IN standard) — VERIFY
+  base_earn: { points: 5, per_amount_minor: 15000, currency: INR }
+  lounge_intl_visits_per_year: 12
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+    notes: placeholder structure only
+- id: axis-atlas
+  issuer: Axis Bank
+  network: visa
+  country: IN
+  name: Atlas
+  annual_fee_minor: 500000         # ₹5,000 — VERIFY
+  fee_currency: INR
+  forex_markup_bp: 150             # VERIFY
+  forex_markup_tax_bp: 1800
+  base_earn: { points: 2, per_amount_minor: 10000, currency: INR }
+  lounge_intl_visits_per_year: 8
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: sbi-cashback
+  issuer: SBI Card
+  network: visa
+  country: IN
+  name: Cashback
+  annual_fee_minor: 99900          # ₹999 — VERIFY
+  fee_currency: INR
+  forex_markup_bp: 375             # VERIFY
+  forex_markup_tax_bp: 1800
+  base_earn: { points: 1, per_amount_minor: 10000, currency: INR }
+  lounge_intl_visits_per_year: null
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: icici-emeralde
+  issuer: ICICI Bank
+  network: mastercard
+  country: IN
+  name: Emeralde Private Metal
+  annual_fee_minor: 1299900        # ₹12,999 — VERIFY
+  fee_currency: INR
+  forex_markup_bp: 200
+  forex_markup_tax_bp: 1800
+  base_earn: { points: 6, per_amount_minor: 20000, currency: INR }
+  lounge_intl_visits_per_year: 16
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5

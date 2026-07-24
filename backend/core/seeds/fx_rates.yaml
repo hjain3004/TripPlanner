@@ -1,0 +1,31 @@
+# seeds/fx_rates.yaml — mid-market SAMPLES (rate_micro = rate × 1e6). VERIFY.
+- base: SGD
+  quote: INR
+  rate_micro: 63200000            # SGD→INR 63.20 — SAMPLE
+  as_of: 2026-07-07
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- base: USD
+  quote: INR
+  rate_micro: 86500000            # USD→INR 86.50 — SAMPLE
+  as_of: 2026-07-07
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- base: SGD
+  quote: USD
+  rate_micro: 730000              # SGD→USD 0.73 — SAMPLE
+  as_of: 2026-07-07
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5

@@ -1,0 +1,28 @@
+# Golden #9 — rule expired vs booking date is ignored, explanation notes it
+# (spec 02 §9.7). Rexp (10 pts dining) expired 2025-01-01; only base 1pt applies.
+name: expired_rule
+booking_date: 2026-07-24
+trip_start_date: 2026-07-24
+kb:
+  cards:
+    - { id: cardE, issuer: E Bank, network: visa, country: IN, name: E, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 1, per_amount_minor: 10000, currency: INR } }
+  reward_rules:
+    - { id: Rexp, card_id: cardE, description: 10 pts/Rs100 dining (EXPIRED),
+        earn: { points: 10, per_amount_minor: 10000, currency: INR },
+        categories: [dining], valid_to: 2025-01-01 }
+  point_valuations:
+    - { id: cardE-val, card_id: cardE, path: cashback,
+        value_micro_major_per_point: 1000000, currency: INR }
+  offers: []
+wallet: { card_ids: [cardE] }
+prefs: { objective: max_savings }
+lines:
+  - { id: dining, label: Dining, category: dining, amount_minor: 1000000, currency: INR,
+      available_channels: [pos_domestic] }
+expect:
+  assignments:
+    dining: { card: cardE, points: 100, benefit_minor: 10000, explanation_contains: "expired" }
+  totals: { gross: 1000000, discounts: 0, rewards_value: 10000, forex_fees: 0,
+            effective_cost: 990000, savings_pct_bp: 100 }

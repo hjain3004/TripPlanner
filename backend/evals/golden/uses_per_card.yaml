@@ -1,0 +1,32 @@
+# Golden #8 — uses_per_card exhausted by an earlier line (spec 02 §9.6).
+# Ou (10% off StoreY, 1 use). 'big' ₹10,000 has higher regret (99,000) than 'small'
+# ₹8,000 (79,200), so big claims the single use; small falls back to no offer.
+name: uses_per_card
+booking_date: 2026-07-24
+kb:
+  cards:
+    - { id: cardU, issuer: U Bank, network: visa, country: IN, name: U, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 1, per_amount_minor: 10000, currency: INR } }
+  reward_rules: []
+  point_valuations:
+    - { id: cardU-val, card_id: cardU, path: cashback,
+        value_micro_major_per_point: 1000000, currency: INR }
+  offers:
+    - { id: Ou, title: 10% off StoreY (1 use), kind: instant_discount, card_ids: [cardU],
+        merchant: StoreY, channels: [ota_generic], categories: [shopping],
+        discount_bp: 1000, currency: INR, valid_to: 2026-12-31, stacking_class: bank_offer,
+        uses_per_card: 1 }
+wallet: { card_ids: [cardU] }
+prefs: { objective: max_savings }
+lines:
+  - { id: big, label: Big buy, category: shopping, amount_minor: 1000000, currency: INR,
+      available_channels: [ota_generic], merchant_hint: StoreY }
+  - { id: small, label: Small buy, category: shopping, amount_minor: 800000, currency: INR,
+      available_channels: [ota_generic], merchant_hint: StoreY }
+expect:
+  assignments:
+    big:   { card: cardU, offers: [Ou], discount_minor: 100000, points: 90, benefit_minor: 109000 }
+    small: { card: cardU, offers: [], discount_minor: 0, points: 80, benefit_minor: 8000 }
+  totals: { gross: 1800000, discounts: 100000, rewards_value: 17000, forex_fees: 0,
+            effective_cost: 1683000, savings_pct_bp: 650 }

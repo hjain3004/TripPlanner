@@ -1,0 +1,24 @@
+# Golden #12 — per-transaction points floor (spec 02 §9.10).
+# ₹14,999 at 5 pts/₹100 → floor(1,499,900/10,000)=149 blocks × 5 = 745 pts (not 750).
+name: floor_rounding
+booking_date: 2026-07-24
+kb:
+  cards:
+    - { id: cardF, issuer: F Bank, network: visa, country: IN, name: F, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 5, per_amount_minor: 10000, currency: INR } }
+  reward_rules: []
+  point_valuations:
+    - { id: cardF-val, card_id: cardF, path: cashback,
+        value_micro_major_per_point: 1000000, currency: INR }
+  offers: []
+wallet: { card_ids: [cardF] }
+prefs: { objective: max_savings }
+lines:
+  - { id: buy, label: Odd buy, category: shopping, amount_minor: 1499900, currency: INR,
+      available_channels: [pos_domestic] }
+expect:
+  assignments:
+    buy: { card: cardF, points: 745, benefit_minor: 74500 }
+  totals: { gross: 1499900, discounts: 0, rewards_value: 74500, forex_fees: 0,
+            effective_cost: 1425400, savings_pct_bp: 496 }

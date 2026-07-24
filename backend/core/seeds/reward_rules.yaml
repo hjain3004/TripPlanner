@@ -1,0 +1,61 @@
+# seeds/reward_rules.yaml — PLACEHOLDER accelerated-earn structures. VERIFY.
+- id: infinia-portal
+  card_id: hdfc-infinia
+  description: 10 pts per ₹100 on flights & hotels via SmartBuy portal (shared monthly cap)
+  earn: { points: 10, per_amount_minor: 10000, currency: INR }
+  categories: [flights, hotels]
+  channels: [bank_portal]
+  excluded_categories: []
+  cap: { max_points: 400000, period: statement_cycle, shared_cap_group: portal }
+  valid_to: 2026-12-31
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: atlas-travel
+  card_id: axis-atlas
+  description: 5 pts per ₹100 on direct airline & hotel spend
+  earn: { points: 5, per_amount_minor: 10000, currency: INR }
+  categories: [flights, hotels]
+  channels: [direct_airline, direct_hotel]
+  excluded_categories: []
+  cap: { max_points: 250000, period: calendar_month, shared_cap_group: null }
+  valid_to: 2026-12-31
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: sbi-dining
+  card_id: sbi-cashback
+  description: 5 pts per ₹100 on dining & online forex spend
+  earn: { points: 5, per_amount_minor: 10000, currency: INR }
+  categories: [dining, forex_general]
+  channels: null
+  excluded_categories: [insurance]
+  cap: { max_points: 150000, period: calendar_month, shared_cap_group: null }
+  valid_to: 2026-12-31
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: emeralde-attractions
+  card_id: icici-emeralde
+  description: 6 pts per ₹100 on attractions & shopping abroad
+  earn: { points: 6, per_amount_minor: 10000, currency: INR }
+  categories: [attractions, shopping]
+  channels: null
+  excluded_categories: []
+  cap: { max_points: 200000, period: statement_cycle, shared_cap_group: null }
+  valid_to: 2026-12-31
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5

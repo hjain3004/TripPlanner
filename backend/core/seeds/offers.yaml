@@ -1,0 +1,73 @@
+# seeds/offers.yaml — PLACEHOLDER offers. VERIFY (offers stale fast; STALENESS_DAYS=90).
+- id: agoda-bank-offer
+  title: 10% instant discount on Agoda hotels
+  kind: instant_discount
+  issuer: HDFC Bank
+  card_ids: [hdfc-infinia]
+  networks: null
+  merchant: Agoda
+  channels: [ota_generic]
+  categories: [hotels, ota]
+  discount_bp: 1000
+  discount_flat_minor: null
+  max_discount_minor: 300000       # ₹3,000 cap
+  min_txn_minor: 1500000           # ₹15,000 min
+  currency: INR
+  valid_to: 2026-12-31
+  promo_code: null
+  stacking_class: bank_offer
+  uses_per_card: 1
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: klook-visa-offer
+  title: 5% instant off Klook attractions on Visa
+  kind: instant_discount
+  issuer: null
+  card_ids: null
+  networks: [visa]
+  merchant: Klook
+  channels: [ota_generic]
+  categories: [attractions]
+  discount_bp: 500
+  discount_flat_minor: null
+  max_discount_minor: 50000        # ₹500 cap
+  min_txn_minor: null
+  currency: INR
+  valid_to: 2026-12-31
+  promo_code: KLOOKVISA
+  stacking_class: bank_offer
+  uses_per_card: 2
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: mmt-coupon
+  title: Flat ₹1,500 off MakeMyTrip flights
+  kind: instant_discount
+  issuer: null
+  card_ids: null
+  networks: null
+  merchant: MakeMyTrip
+  channels: [ota_generic]
+  categories: [flights, ota]
+  discount_bp: null
+  discount_flat_minor: 150000      # ₹1,500 flat
+  max_discount_minor: 150000
+  min_txn_minor: 2000000           # ₹20,000 min
+  currency: INR
+  valid_to: 2026-12-31
+  promo_code: MMTFLY
+  stacking_class: coupon
+  uses_per_card: null
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5

@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tripwise-backend"
+version = "0.1.0"
+description = "Trip-first travel rewards optimizer — deterministic kernel (Milestone 1)."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+    "sqlalchemy>=2.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "mypy>=1.8",
+    "ruff>=0.3",
+    "hypothesis>=6.98",
+    "types-PyYAML>=6.0",
+]
+
+[tool.setuptools]
+# Flat-layout packages that live directly under backend/ (gate commands run from backend/).
+packages = ["core", "core.optimizer", "core.transfer", "evals"]
+
+[tool.setuptools.package-data]
+"core" = ["seeds/*.yaml"]
+"evals" = ["golden/*.yaml", "golden/*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["evals"]
+python_files = ["test_*.py"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+# core/ is pure and fully typed; third-party stubs handled where needed.
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["yaml"]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

@@ -1,0 +1,45 @@
+# seeds/areas.yaml — Singapore neighbourhood keys (data-driven hotel-area pick).
+- id: marina_bay
+  city: Singapore
+  name: Marina Bay
+  good_for_tags: [landmark, nightlife, luxury]
+  centrality_score: 0.95
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: chinatown
+  city: Singapore
+  name: Chinatown
+  good_for_tags: [food, culture, budget]
+  centrality_score: 0.8
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: orchard
+  city: Singapore
+  name: Orchard Road
+  good_for_tags: [shopping, nightlife]
+  centrality_score: 0.85
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: sentosa
+  city: Singapore
+  name: Sentosa
+  good_for_tags: [kids, nature, beach]
+  centrality_score: 0.5
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5

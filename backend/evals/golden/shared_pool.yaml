@@ -1,0 +1,37 @@
+# Golden #3 — shared cap pool across two rules (spec 02 §9.2).
+# Rf (flights) & Rh (hotels) share pool 'portal' size 2,000. Flights processed
+# first (equal regret, id tie-break) consumes 1,500; hotel gets 500 pool + base.
+name: shared_pool
+booking_date: 2026-07-24
+kb:
+  cards:
+    - { id: cardB, issuer: B Bank, network: visa, country: IN, name: B, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 1, per_amount_minor: 10000, currency: INR } }
+  reward_rules:
+    - { id: Rf, card_id: cardB, description: 10 pts/Rs100 flights portal,
+        earn: { points: 10, per_amount_minor: 10000, currency: INR },
+        categories: [flights], channels: [bank_portal],
+        cap: { max_points: 2000, period: statement_cycle, shared_cap_group: portal } }
+    - { id: Rh, card_id: cardB, description: 10 pts/Rs100 hotels portal,
+        earn: { points: 10, per_amount_minor: 10000, currency: INR },
+        categories: [hotels], channels: [bank_portal],
+        cap: { max_points: 2000, period: statement_cycle, shared_cap_group: portal } }
+  point_valuations:
+    - { id: cardB-val, card_id: cardB, path: portal_flights,
+        value_micro_major_per_point: 1000000, currency: INR }
+  offers: []
+wallet: { card_ids: [cardB] }
+prefs: { objective: max_savings }
+lines:
+  - { id: flights, label: Flights, category: flights, amount_minor: 1500000, currency: INR,
+      available_channels: [bank_portal] }
+  - { id: hotel, label: Hotel, category: hotels, amount_minor: 1500000, currency: INR,
+      available_channels: [bank_portal] }
+expect:
+  assignments:
+    flights: { card: cardB, channel: bank_portal, points: 1500, benefit_minor: 150000 }
+    hotel:   { card: cardB, channel: bank_portal, points: 600, benefit_minor: 60000 }
+  totals: { gross: 3000000, discounts: 0, rewards_value: 210000, forex_fees: 0,
+            effective_cost: 2790000, savings_pct_bp: 700 }
+  pools_final: { "cardB:portal": 0 }

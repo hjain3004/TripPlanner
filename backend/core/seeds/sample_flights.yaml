@@ -1,0 +1,49 @@
+# seeds/sample_flights.yaml — curated price SAMPLES (no live pricing in MVP). VERIFY.
+- id: del-sin-si-eco
+  origin: DEL
+  destination: SIN
+  airline: Singapore Airlines
+  stops: 0
+  price_minor: 5600000            # ₹56,000 round trip pp — SAMPLE, VERIFY
+  currency: INR
+  cabin: economy
+  purchasable_channels: [direct_airline, ota_generic, bank_portal]
+  notes: nonstop ~5h40m
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: bom-sin-ai-eco
+  origin: BOM
+  destination: SIN
+  airline: Air India
+  stops: 0
+  price_minor: 5200000            # ₹52,000 — SAMPLE
+  currency: INR
+  cabin: economy
+  purchasable_channels: [direct_airline, ota_generic, bank_portal]
+  notes: nonstop
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: del-sin-6e-eco
+  origin: DEL
+  destination: SIN
+  airline: IndiGo
+  stops: 1
+  price_minor: 4100000            # ₹41,000 — SAMPLE
+  currency: INR
+  cabin: economy
+  purchasable_channels: [direct_airline, ota_generic]
+  notes: one stop
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5

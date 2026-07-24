@@ -1,0 +1,81 @@
+# seeds/pois.yaml — Singapore POI samples (structure only). VERIFY hours/prices.
+- id: sg-gardens-by-the-bay
+  city: Singapore
+  name: Gardens by the Bay
+  tags: [nature, landmark, kids]
+  typical_duration_min: 180
+  price_minor: 5300           # SGD 53 conservatory combo (minor = cents) — VERIFY
+  currency: SGD
+  lat: 1.2816
+  lon: 103.8636
+  area: marina_bay
+  open_hours: "09:00-21:00"
+  booking_channel: ota_generic
+  merchant_hint: Klook
+  description: Iconic Supertree Grove and cooled conservatories at Marina Bay.
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: sg-marina-bay-sands-skypark
+  city: Singapore
+  name: Marina Bay Sands SkyPark
+  tags: [landmark, nightlife]
+  typical_duration_min: 60
+  price_minor: 3200
+  currency: SGD
+  lat: 1.2834
+  lon: 103.8607
+  area: marina_bay
+  open_hours: "11:00-21:00"
+  booking_channel: pos_abroad
+  merchant_hint: null
+  description: Observation deck with panoramic skyline views.
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: sg-hawker-maxwell
+  city: Singapore
+  name: Maxwell Food Centre
+  tags: [food]
+  typical_duration_min: 75
+  price_minor: 1500
+  currency: SGD
+  lat: 1.2803
+  lon: 103.8449
+  area: chinatown
+  open_hours: "08:00-20:00; closed Mon"
+  booking_channel: pos_abroad
+  merchant_hint: null
+  description: Classic hawker centre famous for Hainanese chicken rice.
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: sg-sentosa-skyline-luge
+  city: Singapore
+  name: Skyline Luge Sentosa
+  tags: [kids, nature]
+  typical_duration_min: 120
+  price_minor: 2800
+  currency: SGD
+  lat: 1.2540
+  lon: 103.8238
+  area: sentosa
+  open_hours: "10:00-21:30"
+  booking_channel: ota_generic
+  merchant_hint: Klook
+  description: Gravity luge rides with harbour views on Sentosa island.
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5

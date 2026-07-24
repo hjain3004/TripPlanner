@@ -1,0 +1,21 @@
+Tripwise -- Rewards Optimizer
+Demo trip: DEL -> SIN (spec 02 section 8, fictional cards)
+==============================================================================
+Line         Card / channel / offers                   Points   Pts value   Discount     Forex     Benefit
+------------------------------------------------------------------------------
+flights      voyager-prime / bank_portal                 4320  Rs4,320.00     Rs0.00    Rs0.00  Rs4,320.00
+hotel        globesaver / ota_generic / O1                450    Rs225.00 Rs3,000.00    Rs0.00  Rs3,225.00
+attractions  voyager-prime / ota_generic / O2             270    Rs270.00   Rs500.00    Rs0.00    Rs770.00
+dining       globesaver / pos_abroad                     1000    Rs500.00     Rs0.00  Rs236.00    Rs264.00
+misc_forex   globesaver / pos_abroad                      750    Rs375.00     Rs0.00  Rs177.00    Rs198.00
+------------------------------------------------------------------------------
+Gross:            Rs153,000.00
+Instant discounts: Rs3,500.00
+Rewards value:    Rs5,690.00
+Forex fees:       Rs413.00
+Effective cost:   Rs144,223.00
+Savings:          Rs8,777.00 (5.74%, savings_pct_bp=573)
+Cash outlay now:  Rs149,913.00
+Deferred value:   Rs5,690.00
+Final cap pools:  globesaver:R2=750, voyager-prime:portal=0
+Confidence:       0.50

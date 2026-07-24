@@ -1,0 +1,35 @@
+# Golden #7 — negative-benefit forex line: high-markup high-points card loses
+# (spec 02 §9.5). cardHi: 2pts base (Rs1/pt) but 350bp+18% forex → −Rs426 on
+# ₹20,000 dining. cardLo: R2 5pts (Rs0.50) + 100bp+18% forex → +Rs264. cardLo wins.
+name: negative_forex
+booking_date: 2026-07-24
+trip_start_date: 2026-08-15
+kb:
+  cards:
+    - { id: cardHi, issuer: Hi Bank, network: visa, country: IN, name: Hi, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 350, forex_markup_tax_bp: 1800,
+        base_earn: { points: 2, per_amount_minor: 10000, currency: INR } }
+    - { id: cardLo, issuer: Lo Bank, network: mastercard, country: IN, name: Lo, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 100, forex_markup_tax_bp: 1800,
+        base_earn: { points: 1, per_amount_minor: 10000, currency: INR } }
+  reward_rules:
+    - { id: Rd, card_id: cardLo, description: 5 pts/Rs100 dining,
+        earn: { points: 5, per_amount_minor: 10000, currency: INR },
+        categories: [dining], cap: { max_points: 2500, period: calendar_month } }
+  point_valuations:
+    - { id: cardHi-val, card_id: cardHi, path: portal_flights,
+        value_micro_major_per_point: 1000000, currency: INR }
+    - { id: cardLo-val, card_id: cardLo, path: cashback,
+        value_micro_major_per_point: 500000, currency: INR }
+  offers: []
+wallet: { card_ids: [cardHi, cardLo] }
+prefs: { objective: max_savings }
+lines:
+  - { id: dining, label: Dining abroad, category: dining, amount_minor: 2000000, currency: INR,
+      available_channels: [pos_abroad] }
+expect:
+  assignments:
+    dining: { card: cardLo, channel: pos_abroad, points: 1000, forex_fee_minor: 23600, benefit_minor: 26400 }
+  totals: { gross: 2000000, discounts: 0, rewards_value: 50000, forex_fees: 23600,
+            effective_cost: 1973600, savings_pct_bp: 132 }
+  pools_final: { "cardLo:Rd": 1500 }

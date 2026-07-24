@@ -1,0 +1,46 @@
+# seeds/sample_hotels.yaml — curated hotel SAMPLES. VERIFY prices/stars.
+- id: sg-hotel-marina-balanced
+  city: Singapore
+  name: Marina Bay Harbourview
+  area: marina_bay
+  stars: 4
+  price_per_night_minor: 1600000   # ₹16,000/night — SAMPLE
+  currency: INR
+  style: balanced
+  purchasable_channels: [ota_generic, bank_portal, direct_hotel]
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: sg-hotel-chinatown-budget
+  city: Singapore
+  name: Chinatown Heritage Stay
+  area: chinatown
+  stars: 3
+  price_per_night_minor: 800000    # ₹8,000/night — SAMPLE
+  currency: INR
+  style: budget
+  purchasable_channels: [ota_generic, direct_hotel]
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- id: sg-hotel-orchard-luxury
+  city: Singapore
+  name: Orchard Grand
+  area: orchard
+  stars: 5
+  price_per_night_minor: 3200000   # ₹32,000/night — SAMPLE
+  currency: INR
+  style: luxury
+  purchasable_channels: [ota_generic, bank_portal, direct_hotel]
+  provenance:
+    source_type: manual_curation
+    last_verified: 2026-07-07
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5

@@ -1,0 +1,33 @@
+# Golden #6 — coupon→bank_offer order on running amount, discount cuts points base
+# (spec 02 §9.4). Coupon 10% off ₹20,000 → ₹18,000, then bank 50% capped ₹5,000 →
+# ₹13,000 (total discount ₹7,000). Points floored on ₹13,000 = 130 (not on ₹20,000).
+# Reversed order would give only ₹6,500 discount — pins coupon-first.
+name: discount_reduces_points
+booking_date: 2026-07-24
+kb:
+  cards:
+    - { id: cardD, issuer: D Bank, network: visa, country: IN, name: D, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 1, per_amount_minor: 10000, currency: INR } }
+  reward_rules: []
+  point_valuations:
+    - { id: cardD-val, card_id: cardD, path: cashback,
+        value_micro_major_per_point: 1000000, currency: INR }
+  offers:
+    - { id: Ocoupon, title: 10% coupon MegaStore, kind: instant_discount, card_ids: [cardD],
+        merchant: MegaStore, channels: [ota_generic], categories: [shopping],
+        discount_bp: 1000, currency: INR, valid_to: 2026-12-31, stacking_class: coupon }
+    - { id: Obank, title: 50% bank offer MegaStore (cap 5k), kind: instant_discount, card_ids: [cardD],
+        merchant: MegaStore, channels: [ota_generic], categories: [shopping],
+        discount_bp: 5000, max_discount_minor: 500000, currency: INR, valid_to: 2026-12-31,
+        stacking_class: bank_offer }
+wallet: { card_ids: [cardD] }
+prefs: { objective: max_savings }
+lines:
+  - { id: buy, label: Big buy, category: shopping, amount_minor: 2000000, currency: INR,
+      available_channels: [ota_generic], merchant_hint: MegaStore }
+expect:
+  assignments:
+    buy: { card: cardD, offers: [Obank, Ocoupon], discount_minor: 700000, points: 130, benefit_minor: 713000 }
+  totals: { gross: 2000000, discounts: 700000, rewards_value: 13000, forex_fees: 0,
+            effective_cost: 1287000, savings_pct_bp: 3565 }

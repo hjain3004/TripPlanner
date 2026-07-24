@@ -1,0 +1,46 @@
+# Golden #11 — simplicity objective collapses to <=2 cards (spec 02 §9.9).
+# Unrestricted uses 3 cards (one accelerated per category). Re-solve over 2-card
+# subsets all tie at 210,000 → lexicographic {cardP,cardQ} wins; shopping falls to
+# cardP base (tie-break) at 100 pts.
+name: simplicity
+booking_date: 2026-07-24
+kb:
+  cards:
+    - { id: cardP, issuer: P Bank, network: visa, country: IN, name: P, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 1, per_amount_minor: 10000, currency: INR } }
+    - { id: cardQ, issuer: Q Bank, network: visa, country: IN, name: Q, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 1, per_amount_minor: 10000, currency: INR } }
+    - { id: cardR, issuer: R Bank, network: visa, country: IN, name: R, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 1, per_amount_minor: 10000, currency: INR } }
+  reward_rules:
+    - { id: RP, card_id: cardP, description: 10 pts/Rs100 flights,
+        earn: { points: 10, per_amount_minor: 10000, currency: INR }, categories: [flights] }
+    - { id: RQ, card_id: cardQ, description: 10 pts/Rs100 dining,
+        earn: { points: 10, per_amount_minor: 10000, currency: INR }, categories: [dining] }
+    - { id: RR, card_id: cardR, description: 10 pts/Rs100 shopping,
+        earn: { points: 10, per_amount_minor: 10000, currency: INR }, categories: [shopping] }
+  point_valuations:
+    - { id: cardP-val, card_id: cardP, path: cashback, value_micro_major_per_point: 1000000, currency: INR }
+    - { id: cardQ-val, card_id: cardQ, path: cashback, value_micro_major_per_point: 1000000, currency: INR }
+    - { id: cardR-val, card_id: cardR, path: cashback, value_micro_major_per_point: 1000000, currency: INR }
+  offers: []
+wallet: { card_ids: [cardP, cardQ, cardR] }
+prefs: { objective: simplicity }
+lines:
+  - { id: flights, label: Flights, category: flights, amount_minor: 1000000, currency: INR,
+      available_channels: [pos_domestic] }
+  - { id: dining, label: Dining, category: dining, amount_minor: 1000000, currency: INR,
+      available_channels: [pos_domestic] }
+  - { id: shopping, label: Shopping, category: shopping, amount_minor: 1000000, currency: INR,
+      available_channels: [pos_domestic] }
+expect:
+  assignments:
+    flights:  { card: cardP, points: 1000, benefit_minor: 100000 }
+    dining:   { card: cardQ, points: 1000, benefit_minor: 100000 }
+    shopping: { card: cardP, points: 100, benefit_minor: 10000 }
+  totals: { gross: 3000000, discounts: 0, rewards_value: 210000, forex_fees: 0,
+            effective_cost: 2790000, savings_pct_bp: 700 }
+  distinct_cards: 2

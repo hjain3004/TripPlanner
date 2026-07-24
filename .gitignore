@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+*.sqlite
+*.sqlite3
+*.db
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Node / frontend
+node_modules/
+.next/
+out/
+coverage/
+
+# Git worktrees and generated local artifacts
+.worktrees/
+tmp/
+*.log
+
+# Local env
+.env
+.env.local
+.env.*
+!.env.example

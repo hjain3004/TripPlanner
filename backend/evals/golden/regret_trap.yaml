@@ -1,0 +1,43 @@
+# Golden #4 — regret ordering beats raw-value greedy (spec 02 §8 subtlety, 04 §1).
+# Hotel has HIGHER raw portal value than flights (4,200 vs 4,000 pts) but a strong
+# non-portal alt (cardG + offer). Raw-value greedy gives portal to hotel (total
+# 500,000); regret gives it to flights → hotel takes the offer (total 723,500).
+name: regret_trap
+booking_date: 2026-07-24
+kb:
+  cards:
+    - { id: cardV, issuer: V Bank, network: visa, country: IN, name: V, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 2, per_amount_minor: 10000, currency: INR } }
+    - { id: cardG, issuer: G Bank, network: mastercard, country: IN, name: G, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 1, per_amount_minor: 10000, currency: INR } }
+  reward_rules:
+    - { id: Rp, card_id: cardV, description: 10 pts/Rs100 flights+hotels portal,
+        earn: { points: 10, per_amount_minor: 10000, currency: INR },
+        categories: [flights, hotels], channels: [bank_portal],
+        cap: { max_points: 4000, period: statement_cycle, shared_cap_group: portal } }
+  point_valuations:
+    - { id: cardV-val, card_id: cardV, path: portal_flights,
+        value_micro_major_per_point: 1000000, currency: INR }
+    - { id: cardG-val, card_id: cardG, path: cashback,
+        value_micro_major_per_point: 500000, currency: INR }
+  offers:
+    - { id: Ohotel, title: 10% off Agoda, kind: instant_discount, card_ids: [cardG],
+        merchant: Agoda, channels: [ota_generic], categories: [hotels],
+        discount_bp: 1000, max_discount_minor: 300000, min_txn_minor: 1500000,
+        currency: INR, valid_to: 2026-12-31, stacking_class: bank_offer }
+wallet: { card_ids: [cardV, cardG] }
+prefs: { objective: max_savings }
+lines:
+  - { id: flights, label: Flights, category: flights, amount_minor: 4000000, currency: INR,
+      available_channels: [direct_airline, bank_portal] }
+  - { id: hotel, label: Hotel, category: hotels, amount_minor: 5000000, currency: INR,
+      available_channels: [ota_generic, bank_portal], merchant_hint: Agoda }
+expect:
+  assignments:
+    flights: { card: cardV, channel: bank_portal, points: 4000, benefit_minor: 400000 }
+    hotel:   { card: cardG, channel: ota_generic, offers: [Ohotel], discount_minor: 300000, points: 470, benefit_minor: 323500 }
+  totals: { gross: 9000000, discounts: 300000, rewards_value: 423500, forex_fees: 0,
+            effective_cost: 8276500, savings_pct_bp: 803 }
+  pools_final: { "cardV:portal": 0 }

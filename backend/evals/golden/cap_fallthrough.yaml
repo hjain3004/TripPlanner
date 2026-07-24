@@ -1,0 +1,29 @@
+# Golden #2 — cap fall-through mid-line (spec 02 §9.1).
+# ₹30,000 flights: R 10pts/₹100 cap 1,000 → 1,000 pts on first ₹10,000, then
+# base 2pts/₹100 on remaining ₹20,000 = 400 → total 1,400 pts (Rs1/pt = Rs1,400).
+name: cap_fallthrough
+booking_date: 2026-07-24
+kb:
+  cards:
+    - { id: cardA, issuer: A Bank, network: visa, country: IN, name: A, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 2, per_amount_minor: 10000, currency: INR } }
+  reward_rules:
+    - { id: Rc, card_id: cardA, description: 10 pts/Rs100 flights (capped),
+        earn: { points: 10, per_amount_minor: 10000, currency: INR },
+        categories: [flights], cap: { max_points: 1000, period: statement_cycle } }
+  point_valuations:
+    - { id: cardA-val, card_id: cardA, path: portal_flights,
+        value_micro_major_per_point: 1000000, currency: INR }
+  offers: []
+wallet: { card_ids: [cardA] }
+prefs: { objective: max_savings }
+lines:
+  - { id: flights, label: Flights, category: flights, amount_minor: 3000000, currency: INR,
+      available_channels: [bank_portal] }
+expect:
+  assignments:
+    flights: { card: cardA, channel: bank_portal, points: 1400, benefit_minor: 140000 }
+  totals: { gross: 3000000, discounts: 0, rewards_value: 140000, forex_fees: 0,
+            effective_cost: 2860000, savings_pct_bp: 466 }
+  pools_final: { "cardA:Rc": 0 }

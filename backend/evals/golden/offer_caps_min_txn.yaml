@@ -1,0 +1,32 @@
+# Golden #5 — offer max_discount cap AND min_txn gate (spec 02 §9.3).
+# Line1 ₹10,000: 20% = ₹2,000 capped ₹1,000; post ₹9,000 → 90 pts. benefit 109,000.
+# Line2 ₹4,000: below ₹5,000 min_txn → offer rejected; 40 pts base. benefit 4,000.
+name: offer_caps_min_txn
+booking_date: 2026-07-24
+kb:
+  cards:
+    - { id: cardO, issuer: O Bank, network: visa, country: IN, name: O, annual_fee_minor: 0,
+        fee_currency: INR, forex_markup_bp: 0, forex_markup_tax_bp: 0,
+        base_earn: { points: 1, per_amount_minor: 10000, currency: INR } }
+  reward_rules: []
+  point_valuations:
+    - { id: cardO-val, card_id: cardO, path: cashback,
+        value_micro_major_per_point: 1000000, currency: INR }
+  offers:
+    - { id: Ocap, title: 20% off ShopX, kind: instant_discount, card_ids: [cardO],
+        merchant: ShopX, channels: [ota_generic], categories: [shopping],
+        discount_bp: 2000, max_discount_minor: 100000, min_txn_minor: 500000,
+        currency: INR, valid_to: 2026-12-31, stacking_class: bank_offer }
+wallet: { card_ids: [cardO] }
+prefs: { objective: max_savings }
+lines:
+  - { id: big, label: Big buy, category: shopping, amount_minor: 1000000, currency: INR,
+      available_channels: [ota_generic], merchant_hint: ShopX }
+  - { id: small, label: Small buy, category: shopping, amount_minor: 400000, currency: INR,
+      available_channels: [ota_generic], merchant_hint: ShopX }
+expect:
+  assignments:
+    big:   { card: cardO, offers: [Ocap], discount_minor: 100000, points: 90, benefit_minor: 109000 }
+    small: { card: cardO, offers: [], discount_minor: 0, points: 40, benefit_minor: 4000 }
+  totals: { gross: 1400000, discounts: 100000, rewards_value: 13000, forex_fees: 0,
+            effective_cost: 1287000, savings_pct_bp: 807 }
