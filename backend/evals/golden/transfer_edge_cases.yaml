@@ -1,0 +1,335 @@
+cases:
+  - name: increment_rounding
+    programs:
+      - id: lionmiles
+        kind: airline
+        name: LionMiles
+        booking_url: https://example.test/lionmiles
+    edges:
+      - id: E1
+        from_id: voyager-prime
+        to_id: lionmiles
+        ratio_from: 1
+        ratio_to: 1
+        min_transfer: 1000
+        increment: 500
+        transfer_time_hours_typical: 0
+        transfer_time_hours_max: 0
+    awards:
+      - id: award
+        program_id: lionmiles
+        origin: DEL
+        destination: SIN
+        cabin: business
+        trip_type: round_trip
+        miles_cost: 123700
+        fees_minor: 0
+        fees_currency: INR
+    target: {origin: DEL, destination: SIN, cabin: business, trip_type: round_trip, travelers: 1}
+    wallet: {card_ids: [voyager-prime], points_balances: {voyager-prime: 124000}}
+    baseline_valuations: {voyager-prime: 1000000}
+    cash_price_minor: 20000000
+    on_date: 2026-07-24
+    expect: {points_consumed: 124000, leftover_miles: 300}
+
+  - name: existing_destination_balance
+    programs:
+      - id: lionmiles
+        kind: airline
+        name: LionMiles
+        booking_url: https://example.test/lionmiles
+    edges:
+      - id: E1
+        from_id: voyager-prime
+        to_id: lionmiles
+        ratio_from: 1
+        ratio_to: 1
+        min_transfer: 1000
+        increment: 500
+        transfer_time_hours_typical: 0
+        transfer_time_hours_max: 0
+    awards:
+      - id: award
+        program_id: lionmiles
+        origin: DEL
+        destination: SIN
+        cabin: business
+        trip_type: round_trip
+        miles_cost: 124000
+        fees_minor: 0
+        fees_currency: INR
+    target: {origin: DEL, destination: SIN, cabin: business, trip_type: round_trip, travelers: 1}
+    wallet: {card_ids: [voyager-prime], points_balances: {voyager-prime: 119000, lionmiles: 5000}}
+    baseline_valuations: {voyager-prime: 1000000}
+    cash_price_minor: 20000000
+    on_date: 2026-07-24
+    expect: {points_consumed: 119000, existing_miles_used: 5000}
+
+  - name: bonus_inside_window
+    programs:
+      - id: skyorchid
+        kind: airline
+        name: SkyOrchid
+        booking_url: https://example.test/skyorchid
+    edges:
+      - id: E2
+        from_id: voyager-prime
+        to_id: skyorchid
+        ratio_from: 3
+        ratio_to: 1
+        min_transfer: 1000
+        increment: 500
+        transfer_time_hours_typical: 0
+        transfer_time_hours_max: 0
+    bonuses:
+      - id: B1
+        edge_id: E2
+        bonus_bp: 2000
+        valid_from: 2026-07-01
+        valid_to: 2026-07-31
+    awards:
+      - id: award
+        program_id: skyorchid
+        origin: DEL
+        destination: SIN
+        cabin: business
+        trip_type: round_trip
+        miles_cost: 90000
+        fees_minor: 0
+        fees_currency: INR
+    target: {origin: DEL, destination: SIN, cabin: business, trip_type: round_trip, travelers: 1}
+    wallet: {card_ids: [voyager-prime], points_balances: {voyager-prime: 225000}}
+    baseline_valuations: {voyager-prime: 1000000}
+    cash_price_minor: 30000000
+    on_date: 2026-07-24
+    expect: {points_consumed: 225000, bonus_applied: B1}
+
+  - name: bonus_outside_window
+    programs:
+      - id: skyorchid
+        kind: airline
+        name: SkyOrchid
+        booking_url: https://example.test/skyorchid
+    edges:
+      - id: E2
+        from_id: voyager-prime
+        to_id: skyorchid
+        ratio_from: 3
+        ratio_to: 1
+        min_transfer: 1000
+        increment: 500
+        transfer_time_hours_typical: 0
+        transfer_time_hours_max: 0
+    bonuses:
+      - id: B1
+        edge_id: E2
+        bonus_bp: 2000
+        valid_from: 2026-07-01
+        valid_to: 2026-07-31
+    awards:
+      - id: award
+        program_id: skyorchid
+        origin: DEL
+        destination: SIN
+        cabin: business
+        trip_type: round_trip
+        miles_cost: 90000
+        fees_minor: 0
+        fees_currency: INR
+    target: {origin: DEL, destination: SIN, cabin: business, trip_type: round_trip, travelers: 1}
+    wallet: {card_ids: [voyager-prime], points_balances: {voyager-prime: 225000}}
+    baseline_valuations: {voyager-prime: 1000000}
+    cash_price_minor: 30000000
+    on_date: 2026-08-24
+    expect: {recommendation: PAY_CASH}
+
+  - name: zero_transfer
+    programs:
+      - id: lionmiles
+        kind: airline
+        name: LionMiles
+        booking_url: https://example.test/lionmiles
+    awards:
+      - id: award
+        program_id: lionmiles
+        origin: DEL
+        destination: SIN
+        cabin: business
+        trip_type: round_trip
+        miles_cost: 50000
+        fees_minor: 1000000
+        fees_currency: INR
+    target: {origin: DEL, destination: SIN, cabin: business, trip_type: round_trip, travelers: 1}
+    wallet: {card_ids: [], points_balances: {lionmiles: 50000}}
+    baseline_valuations: {}
+    cash_price_minor: 10000000
+    on_date: 2026-07-24
+    expect: {points_consumed: 0, first_checklist_prefix: "VERIFY (blocking):"}
+
+  - name: minimum_transfer
+    programs:
+      - id: lionmiles
+        kind: airline
+        name: LionMiles
+        booking_url: https://example.test/lionmiles
+    edges:
+      - id: E1
+        from_id: voyager-prime
+        to_id: lionmiles
+        ratio_from: 1
+        ratio_to: 1
+        min_transfer: 1000
+        increment: 500
+        transfer_time_hours_typical: 0
+        transfer_time_hours_max: 0
+    awards:
+      - id: award
+        program_id: lionmiles
+        origin: DEL
+        destination: SIN
+        cabin: business
+        trip_type: round_trip
+        miles_cost: 100
+        fees_minor: 0
+        fees_currency: INR
+    target: {origin: DEL, destination: SIN, cabin: business, trip_type: round_trip, travelers: 1}
+    wallet: {card_ids: [voyager-prime], points_balances: {voyager-prime: 1000}}
+    baseline_valuations: {voyager-prime: 1000000}
+    cash_price_minor: 200000000
+    on_date: 2026-07-24
+    expect: {points_consumed: 1000, leftover_miles: 900}
+
+  - name: margin_gate
+    programs:
+      - id: lionmiles
+        kind: airline
+        name: LionMiles
+        booking_url: https://example.test/lionmiles
+    edges:
+      - id: E1
+        from_id: voyager-prime
+        to_id: lionmiles
+        ratio_from: 1
+        ratio_to: 1
+        min_transfer: 1000
+        increment: 500
+        transfer_time_hours_typical: 0
+        transfer_time_hours_max: 0
+    awards:
+      - id: award
+        program_id: lionmiles
+        origin: DEL
+        destination: SIN
+        cabin: business
+        trip_type: round_trip
+        miles_cost: 100000
+        fees_minor: 0
+        fees_currency: INR
+    target: {origin: DEL, destination: SIN, cabin: business, trip_type: round_trip, travelers: 1}
+    wallet: {card_ids: [voyager-prime], points_balances: {voyager-prime: 100000}}
+    baseline_valuations: {voyager-prime: 1000000}
+    cash_price_minor: 11000000
+    on_date: 2026-07-24
+    expect: {recommendation: PAY_CASH}
+
+  - name: no_data
+    programs: []
+    target: {origin: DEL, destination: SIN, cabin: business, trip_type: round_trip, travelers: 1}
+    wallet: {card_ids: [voyager-prime], points_balances: {voyager-prime: 100000}}
+    baseline_valuations: {voyager-prime: 1000000}
+    cash_price_minor: 11000000
+    on_date: 2026-07-24
+    expect: {recommendation: NO_DATA}
+
+  - name: dominated_two_hop_retained
+    programs:
+      - id: lionmiles
+        kind: airline
+        name: LionMiles
+        booking_url: https://example.test/lionmiles
+      - id: grandstay
+        kind: hotel
+        name: GrandStay
+        booking_url: https://example.test/grandstay
+    edges:
+      - id: E1
+        from_id: voyager-prime
+        to_id: lionmiles
+        ratio_from: 1
+        ratio_to: 1
+        min_transfer: 1000
+        increment: 500
+        transfer_time_hours_typical: 0
+        transfer_time_hours_max: 0
+      - id: E2
+        from_id: voyager-prime
+        to_id: grandstay
+        ratio_from: 1
+        ratio_to: 1
+        min_transfer: 1000
+        increment: 500
+        transfer_time_hours_typical: 0
+        transfer_time_hours_max: 0
+      - id: E3
+        from_id: grandstay
+        to_id: lionmiles
+        ratio_from: 1
+        ratio_to: 1
+        min_transfer: 1000
+        increment: 500
+        transfer_time_hours_typical: 12
+        transfer_time_hours_max: 24
+    awards:
+      - id: award
+        program_id: lionmiles
+        origin: DEL
+        destination: SIN
+        cabin: business
+        trip_type: round_trip
+        miles_cost: 100000
+        fees_minor: 0
+        fees_currency: INR
+    target: {origin: DEL, destination: SIN, cabin: business, trip_type: round_trip, travelers: 1}
+    wallet: {card_ids: [voyager-prime], points_balances: {voyager-prime: 200000}}
+    baseline_valuations: {voyager-prime: 1000000}
+    cash_price_minor: 20000000
+    on_date: 2026-07-24
+    expect: {dominated_two_hop_count: 1}
+
+  - name: foreign_fee_conversion
+    programs:
+      - id: lionmiles
+        kind: airline
+        name: LionMiles
+        booking_url: https://example.test/lionmiles
+    edges:
+      - id: E1
+        from_id: voyager-prime
+        to_id: lionmiles
+        ratio_from: 1
+        ratio_to: 1
+        min_transfer: 1000
+        increment: 500
+        transfer_time_hours_typical: 0
+        transfer_time_hours_max: 0
+    awards:
+      - id: award
+        program_id: lionmiles
+        origin: DEL
+        destination: SIN
+        cabin: business
+        trip_type: round_trip
+        miles_cost: 100000
+        fees_minor: 20000
+        fees_currency: SGD
+    fx_rates:
+      - base: SGD
+        quote: INR
+        rate_micro: 63200000
+        as_of: 2026-07-24
+    target: {origin: DEL, destination: SIN, cabin: business, trip_type: round_trip, travelers: 2, home_currency: INR}
+    wallet: {card_ids: [voyager-prime], points_balances: {voyager-prime: 200000}}
+    baseline_valuations: {voyager-prime: 1000000}
+    cash_price_minor: 30000000
+    on_date: 2026-07-24
+    expect: {total_fees_minor: 2528000}

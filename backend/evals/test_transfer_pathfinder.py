@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from core.models import (
@@ -20,6 +21,7 @@ from core.transfer.arithmetic import (
     minimum_source_units,
     redemption_value_micro,
 )
+from evals.transfer_harness import GOLDEN_DIR, run_transfer_case
 
 PROV = Provenance(
     source_type="manual_curation",
@@ -303,3 +305,61 @@ def test_transfer_worked_example_recommends_lionmiles() -> None:
     assert "Do NOT transfer" in plan.checklist_steps[0]
     sky = next(row for row in advice.infeasible if row.award_id == "sky-award")
     assert sky.shortfall_points == 85000
+
+
+def test_transfer_demo_fixture_matches_canonical_values() -> None:
+    payload = yaml.safe_load((GOLDEN_DIR / "transfer_demo.yaml").read_text())
+    advice = run_transfer_case(payload)
+    expect = payload["expect"]
+    assert advice.recommendation.kind.value == expect["recommendation"]
+    assert advice.recommendation.plan_id == expect["plan_id"]
+    plan = advice.plans[0]
+    assert plan.points_consumed == expect["points_consumed"]
+    assert plan.total_fees_minor == expect["total_fees_minor"]
+    assert plan.value_per_point_micro == expect["value_per_point_micro"]
+    assert (
+        plan.effective_redemption_cost_minor
+        == expect["effective_redemption_cost_minor"]
+    )
+    assert plan.savings_vs_cash_minor == expect["savings_vs_cash_minor"]
+    sky = next(row for row in advice.infeasible if row.award_id == "sky-award")
+    assert sky.shortfall_points == expect["sky_shortfall_points"]
+
+
+def _assert_expectation(key: str, value: object, case: dict[str, object]) -> None:
+    advice = run_transfer_case(case)
+    if key == "recommendation":
+        assert advice.recommendation.kind.value == value
+        return
+    if key == "first_checklist_prefix":
+        assert advice.plans[0].checklist_steps[0].startswith(str(value))
+        return
+    if key == "bonus_applied":
+        assert advice.plans[0].steps[0].bonus_applied == value
+        return
+    if key == "dominated_two_hop_count":
+        assert sum(1 for plan in advice.plans if plan.dominated and len(plan.steps) == 2) == value
+        return
+
+    plan_fields = {
+        "points_consumed",
+        "leftover_miles",
+        "existing_miles_used",
+        "total_fees_minor",
+    }
+    if key in plan_fields:
+        assert getattr(advice.plans[0], key) == value
+        return
+    raise AssertionError(f"unknown expectation key: {key}")
+
+
+@pytest.mark.parametrize(
+    "case",
+    yaml.safe_load((GOLDEN_DIR / "transfer_edge_cases.yaml").read_text())["cases"],
+    ids=lambda case: case["name"],
+)
+def test_transfer_edge_case_fixture(case: dict[str, object]) -> None:
+    expect = case["expect"]
+    assert isinstance(expect, dict)
+    for key, value in expect.items():
+        _assert_expectation(key, value, case)
