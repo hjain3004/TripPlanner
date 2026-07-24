@@ -47,7 +47,7 @@ Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (front
 - **M1b is the immediate implementation milestone:** `backend/core/transfer/` is still empty. Execute `docs/superpowers/plans/2026-07-24-m1b-transfer-pathfinder.md` test-first, pass Gate M1b, and write `reports/milestone_1b.md`. Do not begin M2 in the same change.
 - **Later layers are scaffolds:** `backend/agents/`, `backend/api/`, `backend/ingestion/`, `frontend/`, and `contract/` contain no implementation yet. There is no provider gateway, runtime adapter, or project MCP configuration.
 - **Do not connect travel-provider MCPs during M1b.** Developer MCPs are added just-in-time during F1–F4; runtime providers begin only after G1 creates normalized contracts, the provider registry, and `SampleAdapter`. Gondola is the first planned read-only live spike; installation never activates an adapter.
-- At the last audit this directory was not a Git repository. Re-check before relying on commits or worktrees; do not claim commits that did not occur and do not initialize Git unless the human authorizes it.
+- **Git is initialized:** baseline commit `b3790e8` is on `main`; implementation work starts on `feat/m1b-transfer-pathfinder`. No remote is configured yet. Commit M1b changes in small test-green units on this branch; never claim a push or PR until a remote exists and the human requests it.
 
 ## Repo boundaries
 
