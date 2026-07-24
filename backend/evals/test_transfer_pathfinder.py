@@ -13,6 +13,11 @@ from core.models import (
     TransferEdge,
 )
 from core.db import KnowledgeBase
+from core.transfer.arithmetic import (
+    destination_units,
+    minimum_source_units,
+    redemption_value_micro,
+)
 
 PROV = Provenance(
     source_type="manual_curation",
@@ -109,3 +114,32 @@ def test_transfer_kb_queries_are_filtered_and_sorted() -> None:
     assert [
         row.id for row in kb.award_entries("del", "sin", "business", "round_trip")
     ] == ["award"]
+
+
+def test_transfer_math_floors_forward_and_rounds_source_up() -> None:
+    edge = TransferEdge(
+        id="e",
+        from_id="card",
+        to_id="air",
+        ratio_from=3,
+        ratio_to=1,
+        min_transfer=1000,
+        increment=500,
+        transfer_time_hours_typical=0,
+        transfer_time_hours_max=0,
+        provenance=PROV,
+    )
+    assert destination_units(225000, edge, 2000) == 90000
+    assert minimum_source_units(90000, edge, 2000) == 225000
+    assert minimum_source_units(41234, edge, 0) == 124000
+
+
+def test_redemption_value_uses_micro_major_units() -> None:
+    assert (
+        redemption_value_micro(
+            cash_price_minor=19000000,
+            fees_minor=1800000,
+            points=124000,
+        )
+        == 1387096
+    )
