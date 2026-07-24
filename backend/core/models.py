@@ -282,6 +282,121 @@ class UserWallet(BaseModel):
     points_balances: dict[str, int] = Field(default_factory=dict)
 
 
+# --------------------------------------------------------------------------- #
+# 8b. Transfer pathfinder facts and output (spec 07)                           #
+# --------------------------------------------------------------------------- #
+
+
+class LoyaltyProgram(BaseModel):
+    id: str
+    kind: Literal["airline", "hotel", "card_currency"]
+    name: str
+    alliance: str | None = None
+    booking_url: str | None = None
+    provenance: Provenance
+
+
+class TransferEdge(BaseModel):
+    id: str
+    from_id: str
+    to_id: str
+    ratio_from: int = Field(gt=0)
+    ratio_to: int = Field(gt=0)
+    min_transfer: int = Field(ge=0)
+    increment: int = Field(gt=0)
+    transfer_time_hours_typical: int = Field(ge=0)
+    transfer_time_hours_max: int = Field(ge=0)
+    provenance: Provenance
+
+
+class TransferBonus(BaseModel):
+    id: str
+    edge_id: str
+    bonus_bp: int = Field(ge=0)
+    valid_from: date
+    valid_to: date
+    provenance: Provenance
+
+
+class AwardChartEntry(BaseModel):
+    id: str
+    program_id: str
+    origin: str
+    destination: str
+    cabin: Literal["economy", "premium", "business", "first"]
+    trip_type: Literal["one_way", "round_trip"]
+    miles_cost: int = Field(gt=0)
+    fees_minor: int = Field(ge=0)
+    fees_currency: str
+    operating_airline_hint: str | None = None
+    availability_note: str | None = None
+    provenance: Provenance
+
+
+class AwardTarget(BaseModel):
+    origin: str
+    destination: str
+    cabin: Literal["economy", "premium", "business", "first"]
+    trip_type: Literal["one_way", "round_trip"]
+    travelers: int = Field(gt=0)
+    home_currency: str = "INR"
+
+
+class RecommendationKind(str, Enum):
+    REDEEM = "REDEEM"
+    PAY_CASH = "PAY_CASH"
+    NO_DATA = "NO_DATA"
+
+
+class TransferStep(BaseModel):
+    from_id: str
+    to_id: str
+    amount_source: int = Field(ge=0)
+    amount_dest: int = Field(ge=0)
+    bonus_applied: str | None = None
+    transfer_time_hours_typical: int = Field(ge=0)
+    transfer_time_hours_max: int = Field(ge=0)
+
+
+class TransferPlan(BaseModel):
+    id: str
+    award: AwardChartEntry
+    travelers: int = Field(gt=0)
+    steps: list[TransferStep]
+    points_consumed: int = Field(ge=0)
+    source_currency: str
+    existing_miles_used: int = Field(ge=0)
+    leftover_miles: int = Field(ge=0)
+    total_fees_minor: int = Field(ge=0)
+    value_per_point_micro: int = Field(ge=0)
+    effective_redemption_cost_minor: int = Field(ge=0)
+    savings_vs_cash_minor: int
+    dominated: bool = False
+    checklist_steps: list[str] = Field(default_factory=list)
+    provenance_flags: list[str] = Field(default_factory=list)
+    explanation: list[str] = Field(default_factory=list)
+
+
+class InfeasiblePlan(BaseModel):
+    award_id: str
+    best_path: list[str]
+    shortfall_points: int = Field(gt=0)
+    shortfall_currency: str
+    note: str
+
+
+class Recommendation(BaseModel):
+    kind: RecommendationKind
+    plan_id: str | None = None
+    reason: str
+
+
+class TransferAdvice(BaseModel):
+    plans: list[TransferPlan]
+    infeasible: list[InfeasiblePlan]
+    recommendation: Recommendation
+
+
 class OptimizationPrefs(BaseModel):
     objective: Literal["max_savings", "min_cash_outlay", "min_forex", "simplicity"] = "max_savings"
 
