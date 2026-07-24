@@ -1,0 +1,68 @@
+- id: E1
+  from_id: voyager-prime
+  to_id: lionmiles
+  ratio_from: 1
+  ratio_to: 1
+  min_transfer: 1000
+  increment: 500
+  transfer_time_hours_typical: 0
+  transfer_time_hours_max: 24
+  provenance:
+    source_url:
+    source_type: manual_curation
+    last_verified: 2026-07-24
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 1.0
+    notes: Fictional Kernel-MVP demonstration data; not a real transfer or award claim.
+- id: E2
+  from_id: voyager-prime
+  to_id: skyorchid
+  ratio_from: 3
+  ratio_to: 1
+  min_transfer: 1000
+  increment: 500
+  transfer_time_hours_typical: 0
+  transfer_time_hours_max: 0
+  provenance:
+    source_url:
+    source_type: manual_curation
+    last_verified: 2026-07-24
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 1.0
+    notes: Fictional Kernel-MVP demonstration data; not a real transfer or award claim.
+- id: E3
+  from_id: voyager-prime
+  to_id: grandstay
+  ratio_from: 1
+  ratio_to: 2
+  min_transfer: 1000
+  increment: 500
+  transfer_time_hours_typical: 0
+  transfer_time_hours_max: 0
+  provenance:
+    source_url:
+    source_type: manual_curation
+    last_verified: 2026-07-24
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 1.0
+    notes: Fictional Kernel-MVP demonstration data; not a real transfer or award claim.
+- id: E4
+  from_id: grandstay
+  to_id: lionmiles
+  ratio_from: 3
+  ratio_to: 1
+  min_transfer: 1000
+  increment: 500
+  transfer_time_hours_typical: 72
+  transfer_time_hours_max: 72
+  provenance:
+    source_url:
+    source_type: manual_curation
+    last_verified: 2026-07-24
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 1.0
+    notes: Fictional Kernel-MVP demonstration data; not a real transfer or award claim.

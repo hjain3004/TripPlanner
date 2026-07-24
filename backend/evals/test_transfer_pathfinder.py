@@ -1,4 +1,5 @@
 from datetime import date
+from pathlib import Path
 
 import pytest
 import yaml
@@ -14,7 +15,7 @@ from core.models import (
     TransferEdge,
     UserWallet,
 )
-from core.db import KnowledgeBase
+from core.db import KnowledgeBase, load_kb, seed_database
 from core.transfer import find_transfer_plans
 from core.transfer.arithmetic import (
     destination_units,
@@ -363,3 +364,16 @@ def test_transfer_edge_case_fixture(case: dict[str, object]) -> None:
     assert isinstance(expect, dict)
     for key, value in expect.items():
         _assert_expectation(key, value, case)
+
+
+def test_transfer_seed_round_trip(tmp_path: Path) -> None:
+    db_path = tmp_path / "tripwise.sqlite"
+    counts = seed_database(db_path=db_path)
+    kb = load_kb(db_path)
+    assert counts["loyalty_programs"] == 3
+    assert counts["transfer_edges"] == 4
+    assert counts["transfer_bonuses"] == 1
+    assert counts["award_chart_entries"] == 2
+    assert [row.id for row in kb.programs()] == ["grandstay", "lionmiles", "skyorchid"]
+    assert [row.id for row in kb.edges_from(["voyager-prime"])] == ["E1", "E2", "E3"]
+    assert kb.award_entries("DEL", "SIN", "business", "round_trip")

@@ -1,0 +1,38 @@
+- id: lion-award
+  program_id: lionmiles
+  origin: DEL
+  destination: SIN
+  cabin: business
+  trip_type: round_trip
+  miles_cost: 62000
+  fees_minor: 900000
+  fees_currency: INR
+  operating_airline_hint: own metal
+  availability_note: Verify before transfer.
+  provenance:
+    source_url:
+    source_type: manual_curation
+    last_verified: 2026-07-24
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 1.0
+    notes: Fictional Kernel-MVP demonstration data; not a real transfer or award claim.
+- id: sky-award
+  program_id: skyorchid
+  origin: DEL
+  destination: SIN
+  cabin: business
+  trip_type: round_trip
+  miles_cost: 45000
+  fees_minor: 1200000
+  fees_currency: INR
+  operating_airline_hint: partner
+  availability_note: Verify before transfer.
+  provenance:
+    source_url:
+    source_type: manual_curation
+    last_verified: 2026-07-24
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 1.0
+    notes: Fictional Kernel-MVP demonstration data; not a real transfer or award claim.

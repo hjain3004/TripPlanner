@@ -1,0 +1,13 @@
+- id: B1
+  edge_id: E2
+  bonus_bp: 2000
+  valid_from: 2026-07-01
+  valid_to: 2026-07-31
+  provenance:
+    source_url:
+    source_type: manual_curation
+    last_verified: 2026-07-24
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 1.0
+    notes: Fictional Kernel-MVP demonstration data; not a real transfer or award claim.

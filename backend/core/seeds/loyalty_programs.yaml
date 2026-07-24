@@ -1,0 +1,36 @@
+- id: lionmiles
+  kind: airline
+  name: LionMiles
+  booking_url: https://example.test/lionmiles
+  provenance:
+    source_url:
+    source_type: manual_curation
+    last_verified: 2026-07-24
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 1.0
+    notes: Fictional Kernel-MVP demonstration data; not a real transfer or award claim.
+- id: skyorchid
+  kind: airline
+  name: SkyOrchid
+  booking_url: https://example.test/skyorchid
+  provenance:
+    source_url:
+    source_type: manual_curation
+    last_verified: 2026-07-24
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 1.0
+    notes: Fictional Kernel-MVP demonstration data; not a real transfer or award claim.
+- id: grandstay
+  kind: hotel
+  name: GrandStay
+  booking_url: https://example.test/grandstay
+  provenance:
+    source_url:
+    source_type: manual_curation
+    last_verified: 2026-07-24
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 1.0
+    notes: Fictional Kernel-MVP demonstration data; not a real transfer or award claim.

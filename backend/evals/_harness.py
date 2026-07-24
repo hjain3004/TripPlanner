@@ -45,7 +45,12 @@ def _with_prov(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def golden_files() -> list[Path]:
-    return sorted(GOLDEN_DIR.glob("*.yaml"))
+    out: list[Path] = []
+    for path in sorted(GOLDEN_DIR.glob("*.yaml")):
+        spec = yaml.safe_load(path.read_text()) or {}
+        if "kb" in spec and "lines" in spec:
+            out.append(path)
+    return out
 
 
 def build_kb(kb_spec: dict[str, Any]) -> KnowledgeBase:
