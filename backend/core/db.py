@@ -27,8 +27,10 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from core.models import (
     Area,
+    AwardChartEntry,
     Card,
     FxRate,
+    LoyaltyProgram,
     Offer,
     POI,
     PointValuation,
@@ -37,6 +39,8 @@ from core.models import (
     SampleFlight,
     SampleHotel,
     SpendCategory,
+    TransferBonus,
+    TransferEdge,
 )
 from core.models import (
     Channel as ChannelEnum,
@@ -115,6 +119,40 @@ class FxRow(Base):
     payload: Mapped[str] = mapped_column(Text)
 
 
+class LoyaltyProgramRow(Base):
+    __tablename__ = "loyalty_programs"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    payload: Mapped[str] = mapped_column(Text)
+
+
+class TransferEdgeRow(Base):
+    __tablename__ = "transfer_edges"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    from_id: Mapped[str] = mapped_column(index=True)
+    to_id: Mapped[str] = mapped_column(index=True)
+    payload: Mapped[str] = mapped_column(Text)
+
+
+class TransferBonusRow(Base):
+    __tablename__ = "transfer_bonuses"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    edge_id: Mapped[str] = mapped_column(index=True)
+    valid_from: Mapped[str] = mapped_column(index=True)
+    valid_to: Mapped[str] = mapped_column(index=True)
+    payload: Mapped[str] = mapped_column(Text)
+
+
+class AwardChartEntryRow(Base):
+    __tablename__ = "award_chart_entries"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    program_id: Mapped[str] = mapped_column(index=True)
+    origin: Mapped[str] = mapped_column(index=True)
+    destination: Mapped[str] = mapped_column(index=True)
+    cabin: Mapped[str] = mapped_column(index=True)
+    trip_type: Mapped[str] = mapped_column(index=True)
+    payload: Mapped[str] = mapped_column(Text)
+
+
 # --------------------------------------------------------------------------- #
 # KnowledgeBase facade                                                         #
 # --------------------------------------------------------------------------- #
@@ -139,6 +177,10 @@ class KnowledgeBase:
         areas: list[Area] | None = None,
         sample_flights: list[SampleFlight] | None = None,
         sample_hotels: list[SampleHotel] | None = None,
+        loyalty_programs: list[LoyaltyProgram] | None = None,
+        transfer_edges: list[TransferEdge] | None = None,
+        transfer_bonuses: list[TransferBonus] | None = None,
+        award_chart_entries: list[AwardChartEntry] | None = None,
     ) -> None:
         self._cards: dict[str, Card] = {c.id: c for c in cards}
         self._rules_by_card: dict[str, list[RewardRule]] = {}
@@ -155,6 +197,18 @@ class KnowledgeBase:
         self._areas: list[Area] = sorted(areas or [], key=lambda a: a.id)
         self._flights: list[SampleFlight] = sorted(sample_flights or [], key=lambda f: f.id)
         self._hotels: list[SampleHotel] = sorted(sample_hotels or [], key=lambda h: h.id)
+        self._programs: dict[str, LoyaltyProgram] = {
+            p.id: p for p in sorted(loyalty_programs or [], key=lambda p: p.id)
+        }
+        self._transfer_edges: list[TransferEdge] = sorted(
+            transfer_edges or [], key=lambda e: e.id
+        )
+        self._transfer_bonuses: list[TransferBonus] = sorted(
+            transfer_bonuses or [], key=lambda b: b.id
+        )
+        self._award_chart_entries: list[AwardChartEntry] = sorted(
+            award_chart_entries or [], key=lambda a: a.id
+        )
 
     # -- construction ------------------------------------------------------- #
 
@@ -171,6 +225,10 @@ class KnowledgeBase:
         areas: list[Area] | None = None,
         sample_flights: list[SampleFlight] | None = None,
         sample_hotels: list[SampleHotel] | None = None,
+        loyalty_programs: list[LoyaltyProgram] | None = None,
+        transfer_edges: list[TransferEdge] | None = None,
+        transfer_bonuses: list[TransferBonus] | None = None,
+        award_chart_entries: list[AwardChartEntry] | None = None,
     ) -> KnowledgeBase:
         return cls(
             cards=cards,
@@ -182,6 +240,10 @@ class KnowledgeBase:
             areas=areas,
             sample_flights=sample_flights,
             sample_hotels=sample_hotels,
+            loyalty_programs=loyalty_programs,
+            transfer_edges=transfer_edges,
+            transfer_bonuses=transfer_bonuses,
+            award_chart_entries=award_chart_entries,
         )
 
     # -- cards & rules ------------------------------------------------------ #
@@ -271,6 +333,42 @@ class KnowledgeBase:
     def fx_rate(self, base: str, quote: str) -> FxRate | None:
         return self._fx.get((base, quote))
 
+    # -- transfer facts ----------------------------------------------------- #
+
+    def programs(self) -> list[LoyaltyProgram]:
+        return [self._programs[pid] for pid in sorted(self._programs)]
+
+    def program(self, program_id: str) -> LoyaltyProgram:
+        return self._programs[program_id]
+
+    def edges_from(self, currency_ids: list[str]) -> list[TransferEdge]:
+        wanted = set(currency_ids)
+        return [edge for edge in self._transfer_edges if edge.from_id in wanted]
+
+    def bonuses_active(self, edge_ids: list[str], on_date: date) -> list[TransferBonus]:
+        wanted = set(edge_ids)
+        return [
+            bonus
+            for bonus in self._transfer_bonuses
+            if bonus.edge_id in wanted and bonus.valid_from <= on_date <= bonus.valid_to
+        ]
+
+    def award_entries(
+        self, origin: str, destination: str, cabin: str, trip_type: str
+    ) -> list[AwardChartEntry]:
+        origin_key = origin.casefold()
+        destination_key = destination.casefold()
+        cabin_key = cabin.casefold()
+        trip_type_key = trip_type.casefold()
+        return [
+            award
+            for award in self._award_chart_entries
+            if award.origin.casefold() == origin_key
+            and award.destination.casefold() == destination_key
+            and award.cabin.casefold() == cabin_key
+            and award.trip_type.casefold() == trip_type_key
+        ]
+
 
 def _neg_path(path: RedemptionPath) -> str:
     # For deterministic max() tie-break: prefer lexicographically smallest path
@@ -350,6 +448,51 @@ def seed_database(seeds_dir: Path = SEEDS_DIR, db_path: Path = DB_PATH) -> dict[
             session.add(FxRow(id=f"{rate.base}:{rate.quote}", payload=rate.model_dump_json()))
         counts["fx_rates"] = len(fx)
 
+        programs = _load(seeds_dir / "loyalty_programs.yaml", LoyaltyProgram)
+        for program in programs:
+            session.add(LoyaltyProgramRow(id=program.id, payload=program.model_dump_json()))
+        counts["loyalty_programs"] = len(programs)
+
+        edges = _load(seeds_dir / "transfer_edges.yaml", TransferEdge)
+        for edge in edges:
+            session.add(
+                TransferEdgeRow(
+                    id=edge.id,
+                    from_id=edge.from_id,
+                    to_id=edge.to_id,
+                    payload=edge.model_dump_json(),
+                )
+            )
+        counts["transfer_edges"] = len(edges)
+
+        bonuses = _load(seeds_dir / "transfer_bonuses.yaml", TransferBonus)
+        for bonus in bonuses:
+            session.add(
+                TransferBonusRow(
+                    id=bonus.id,
+                    edge_id=bonus.edge_id,
+                    valid_from=bonus.valid_from.isoformat(),
+                    valid_to=bonus.valid_to.isoformat(),
+                    payload=bonus.model_dump_json(),
+                )
+            )
+        counts["transfer_bonuses"] = len(bonuses)
+
+        awards = _load(seeds_dir / "award_chart_entries.yaml", AwardChartEntry)
+        for award in awards:
+            session.add(
+                AwardChartEntryRow(
+                    id=award.id,
+                    program_id=award.program_id,
+                    origin=award.origin,
+                    destination=award.destination,
+                    cabin=award.cabin,
+                    trip_type=award.trip_type,
+                    payload=award.model_dump_json(),
+                )
+            )
+        counts["award_chart_entries"] = len(awards)
+
         session.commit()
     return counts
 
@@ -378,6 +521,22 @@ def load_kb(db_path: Path = DB_PATH) -> KnowledgeBase:
             SampleHotel.model_validate_json(r.payload)
             for r in session.scalars(select(SampleHotelRow))
         ]
+        programs = [
+            LoyaltyProgram.model_validate_json(r.payload)
+            for r in session.scalars(select(LoyaltyProgramRow))
+        ]
+        edges = [
+            TransferEdge.model_validate_json(r.payload)
+            for r in session.scalars(select(TransferEdgeRow))
+        ]
+        bonuses = [
+            TransferBonus.model_validate_json(r.payload)
+            for r in session.scalars(select(TransferBonusRow))
+        ]
+        awards = [
+            AwardChartEntry.model_validate_json(r.payload)
+            for r in session.scalars(select(AwardChartEntryRow))
+        ]
     return KnowledgeBase.from_models(
         cards=cards,
         reward_rules=rules,
@@ -388,6 +547,10 @@ def load_kb(db_path: Path = DB_PATH) -> KnowledgeBase:
         areas=areas,
         sample_flights=flights,
         sample_hotels=hotels,
+        loyalty_programs=programs,
+        transfer_edges=edges,
+        transfer_bonuses=bonuses,
+        award_chart_entries=awards,
     )
 
 
