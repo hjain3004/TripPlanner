@@ -11,8 +11,10 @@ from core.models import (
     RecommendationKind,
     TransferBonus,
     TransferEdge,
+    UserWallet,
 )
 from core.db import KnowledgeBase
+from core.transfer import find_transfer_plans
 from core.transfer.arithmetic import (
     destination_units,
     minimum_source_units,
@@ -143,3 +145,161 @@ def test_redemption_value_uses_micro_major_units() -> None:
         )
         == 1387096
     )
+
+
+def worked_example_kb() -> KnowledgeBase:
+    programs = [
+        LoyaltyProgram(
+            id="lionmiles",
+            kind="airline",
+            name="LionMiles",
+            booking_url="https://example.test/lionmiles",
+            provenance=PROV,
+        ),
+        LoyaltyProgram(
+            id="skyorchid",
+            kind="airline",
+            name="SkyOrchid",
+            booking_url="https://example.test/skyorchid",
+            provenance=PROV,
+        ),
+        LoyaltyProgram(
+            id="grandstay",
+            kind="hotel",
+            name="GrandStay",
+            booking_url="https://example.test/grandstay",
+            provenance=PROV,
+        ),
+    ]
+    edges = [
+        TransferEdge(
+            id="E1",
+            from_id="voyager-prime",
+            to_id="lionmiles",
+            ratio_from=1,
+            ratio_to=1,
+            min_transfer=1000,
+            increment=500,
+            transfer_time_hours_typical=0,
+            transfer_time_hours_max=24,
+            provenance=PROV,
+        ),
+        TransferEdge(
+            id="E2",
+            from_id="voyager-prime",
+            to_id="skyorchid",
+            ratio_from=3,
+            ratio_to=1,
+            min_transfer=1000,
+            increment=500,
+            transfer_time_hours_typical=0,
+            transfer_time_hours_max=0,
+            provenance=PROV,
+        ),
+        TransferEdge(
+            id="E3",
+            from_id="voyager-prime",
+            to_id="grandstay",
+            ratio_from=1,
+            ratio_to=2,
+            min_transfer=1000,
+            increment=500,
+            transfer_time_hours_typical=0,
+            transfer_time_hours_max=0,
+            provenance=PROV,
+        ),
+        TransferEdge(
+            id="E4",
+            from_id="grandstay",
+            to_id="lionmiles",
+            ratio_from=3,
+            ratio_to=1,
+            min_transfer=1000,
+            increment=500,
+            transfer_time_hours_typical=72,
+            transfer_time_hours_max=72,
+            provenance=PROV,
+        ),
+    ]
+    bonuses = [
+        TransferBonus(
+            id="B1",
+            edge_id="E2",
+            bonus_bp=2000,
+            valid_from=date(2026, 7, 1),
+            valid_to=date(2026, 7, 31),
+            provenance=PROV,
+        )
+    ]
+    awards = [
+        AwardChartEntry(
+            id="lion-award",
+            program_id="lionmiles",
+            origin="DEL",
+            destination="SIN",
+            cabin="business",
+            trip_type="round_trip",
+            miles_cost=62000,
+            fees_minor=900000,
+            fees_currency="INR",
+            operating_airline_hint="own metal",
+            availability_note="Verify before transfer.",
+            provenance=PROV,
+        ),
+        AwardChartEntry(
+            id="sky-award",
+            program_id="skyorchid",
+            origin="DEL",
+            destination="SIN",
+            cabin="business",
+            trip_type="round_trip",
+            miles_cost=45000,
+            fees_minor=1200000,
+            fees_currency="INR",
+            operating_airline_hint="partner",
+            availability_note="Verify before transfer.",
+            provenance=PROV,
+        ),
+    ]
+    return KnowledgeBase.from_models(
+        cards=[],
+        reward_rules=[],
+        offers=[],
+        point_valuations=[],
+        loyalty_programs=programs,
+        transfer_edges=edges,
+        transfer_bonuses=bonuses,
+        award_chart_entries=awards,
+    )
+
+
+def test_transfer_worked_example_recommends_lionmiles() -> None:
+    advice = find_transfer_plans(
+        target=AwardTarget(
+            origin="DEL",
+            destination="SIN",
+            cabin="business",
+            trip_type="round_trip",
+            travelers=2,
+        ),
+        wallet=UserWallet(
+            card_ids=["voyager-prime"],
+            points_balances={"voyager-prime": 140000},
+        ),
+        kb=worked_example_kb(),
+        baseline_valuations={"voyager-prime": 1000000},
+        cash_price_minor=19000000,
+        on_date=date(2026, 7, 24),
+    )
+    assert advice.recommendation.kind is RecommendationKind.REDEEM
+    assert advice.recommendation.plan_id == "lion-award:E1"
+    plan = advice.plans[0]
+    assert plan.points_consumed == 124000
+    assert plan.total_fees_minor == 1800000
+    assert plan.value_per_point_micro == 1387096
+    assert plan.effective_redemption_cost_minor == 14200000
+    assert plan.savings_vs_cash_minor == 4800000
+    assert plan.checklist_steps[0].startswith("VERIFY (blocking):")
+    assert "Do NOT transfer" in plan.checklist_steps[0]
+    sky = next(row for row in advice.infeasible if row.award_id == "sky-award")
+    assert sky.shortfall_points == 85000
