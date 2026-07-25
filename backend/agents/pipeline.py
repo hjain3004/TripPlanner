@@ -4,6 +4,7 @@ from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
+from agents.config import load_agent_config
 from agents.critic import run_critic
 from agents.estimator import estimate_costed_trip
 from agents.explainer import run_explainer
@@ -16,7 +17,7 @@ from agents.retrieval import retrieve_candidates
 from agents.trace import TraceRecorder
 from core.db import KnowledgeBase
 
-MAX_CRITIC_REPLAN_LOOPS = 2
+MAX_CRITIC_REPLAN_LOOPS = load_agent_config().llm["critic"].max_replan_loops or 2
 
 
 def run_pipeline(

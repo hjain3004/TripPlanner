@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
+from agents.config import load_agent_config
 from agents.models import DraftItinerary, EstimatorResult, TripSpec
 from agents.retrieval import CITY_BY_IATA
 from core.db import KnowledgeBase
@@ -10,7 +11,6 @@ from core.models import (
     Area,
     Channel,
     CostedTrip,
-    FxRate,
     POI,
     SampleFlight,
     SampleHotel,
@@ -21,11 +21,7 @@ from core.transfer.arithmetic import convert_minor
 
 HOME_CURRENCY_BY_COUNTRY = {"IN": "INR", "AE": "AED", "US": "USD"}
 DESTINATION_CURRENCY_BY_IATA = {"SIN": "SGD"}
-PER_DIEM_MINOR_BY_STYLE: dict[str, dict[str, int]] = {
-    "budget": {"dining": 4_000, "misc": 1_500},
-    "balanced": {"dining": 7_000, "misc": 2_500},
-    "luxury": {"dining": 12_000, "misc": 5_000},
-}
+PER_DIEM_MINOR_BY_STYLE = load_agent_config().estimator.per_diem_sgd_minor
 
 
 def _home_currency(spec: TripSpec) -> str:
@@ -124,7 +120,10 @@ def _poi_lines(spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase) -> 
                 continue
             seen.add(item.poi_id)
             poi = by_id[item.poi_id]
-            amount = _price_in_home(poi.price_minor, poi.currency, home_currency, kb) * spec.travelers
+            amount = (
+                _price_in_home(poi.price_minor, poi.currency, home_currency, kb)
+                * spec.travelers
+            )
             lines.append(
                 SpendLineItem(
                     id=f"poi:{poi.id}",

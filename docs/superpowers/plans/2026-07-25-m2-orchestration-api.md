@@ -1,6 +1,6 @@
 # M2 Orchestration API Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build the governed M2 pipeline and `POST /plan` FastAPI endpoint from spec 03 without changing frozen M1/M1b kernel behavior.
 
@@ -57,7 +57,7 @@
 - Produces: `TripSpec`, `DraftItinerary`, `CriticVerdict`, `FinalReport`, `PlanRequest`, `PlanResponse`, `TraceEvent`, and `ScriptedLLMClient.complete_json(...)`.
 - Consumes: `core.models.UserWallet`, `OptimizationPrefs`, `CostedTrip`, `OptimizerResult`, `TransferAdvice`.
 
-- [ ] **Step 1: Add dependencies and write failing contract tests**
+- [x] **Step 1: Add dependencies and write failing contract tests**
 
 Write tests asserting: valid `TripSpec`, invalid traveler count, invalid 2-night range, invalid 8-night range, mutable list defaults are isolated, fake LLM invocation counts, schema failure then repair retry.
 
@@ -70,11 +70,11 @@ cd backend
 
 Expected: import failures because `agents.models` and `agents.llm` do not exist.
 
-- [ ] **Step 2: Implement contracts and fake LLM**
+- [x] **Step 2: Implement contracts and fake LLM**
 
 Implement `agents.models` with strict Pydantic fields and validators. Implement `ScriptedLLMClient` with per-node scripted outcomes, exceptions, schema-invalid payloads, timeout marker, and invocation counts. Implement `complete_with_repair(client, node, system, user, schema, ...)` with one validation repair retry.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run:
 
@@ -105,7 +105,7 @@ git commit -m "feat: add m2 contracts and llm test double"
 - Consumes: `ScriptedLLMClient`, `TripSpec`, `KnowledgeBase`.
 - Produces: `run_intake(raw_request, kb, llm) -> IntakeResult` and `retrieve_candidates(spec, kb, limit=40) -> RetrievalContext`.
 
-- [ ] **Step 1: Write failing intake/retrieval tests**
+- [x] **Step 1: Write failing intake/retrieval tests**
 
 Tests cover complete request, missing dates as unresolved clarification, ambiguous/unknown cards as unresolved, invalid traveler count, unsupported origin/destination as unresolved, city filtering, overlap ranking, cap, and stable repeatability.
 
@@ -118,11 +118,11 @@ cd backend
 
 Expected: import failures because intake and retrieval modules do not exist.
 
-- [ ] **Step 2: Implement intake and retrieval**
+- [x] **Step 2: Implement intake and retrieval**
 
 Intake validates cards against `kb.cards()` and preserves unresolved inputs. Retrieval uses only city-matching curated POIs, ranks by interest-tag overlap with stable tie-breakers, caps at 40, and returns compact POI/area rows.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run focused tests plus M1/M1b regressions:
 
@@ -150,7 +150,7 @@ git commit -m "feat: add intake and deterministic retrieval"
 - Consumes: `TripSpec`, `RetrievalContext`, `ScriptedLLMClient`.
 - Produces: `run_planner(spec, retrieval, llm, revision_notes=None) -> PlannerResult`.
 
-- [ ] **Step 1: Write failing planner tests**
+- [x] **Step 1: Write failing planner tests**
 
 Tests cover schema-valid itinerary, unknown POI retry, unknown area retry, planner exception fallback, dates matching trip dates, no duplicate POIs in fallback, and fallback quality flag.
 
@@ -163,11 +163,11 @@ cd backend
 
 Expected: import failure for `agents.planner`.
 
-- [ ] **Step 2: Implement planner**
+- [x] **Step 2: Implement planner**
 
 Call the planner LLM once, retry once on schema/referential failure, then fallback to deterministic area-clustered day packing. Validate all POI IDs and hotel area IDs against retrieved context.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run:
 
@@ -194,7 +194,7 @@ git commit -m "feat: add governed itinerary planner"
 **Interfaces:**
 - Produces: `estimate_costed_trip(spec, itinerary, retrieval, kb) -> EstimatorResult`; `run_optimizer_and_transfers(costed, spec, kb) -> KernelResult`.
 
-- [ ] **Step 1: Write failing estimator/integration tests**
+- [x] **Step 1: Write failing estimator/integration tests**
 
 Tests assert exact traveler/night multiplication, cheapest route flight, hotel area fallback, attraction FX conversion, per-diem assumptions, optimizer result present, transfer advice `REDEEM` when award evidence exists, `NO_DATA` when it does not, and verify-before-transfer remains checklist step 1.
 
@@ -207,11 +207,11 @@ cd backend
 
 Expected: import failures for estimator/integration functions.
 
-- [ ] **Step 2: Implement estimator and integration**
+- [x] **Step 2: Implement estimator and integration**
 
 Use only `KnowledgeBase`, `core.optimizer.optimize`, and `core.transfer.find_transfer_plans`. Convert non-home attraction/per-diem minor units with `kb.fx_rate`; choose deterministic assumptions from config constants; never call an LLM.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run:
 
@@ -244,7 +244,7 @@ git commit -m "feat: add deterministic estimator and kernel integration"
 **Interfaces:**
 - Produces: `run_critic(...)`, `assemble_report(...)`, `run_explainer(...)`, `validate_groundedness(...)`, `TraceRecorder`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Tests cover critic pass/no revision, blocking issue revision, max two revisions, critic exception caveat, hallucinated amount rejection, miles/points allowlist support, explainer schema/exception/groundedness fallback, trace schema, deterministic artifact hashes, and no secret fields in trace.
 
@@ -257,11 +257,11 @@ cd backend
 
 Expected: import failures for these modules.
 
-- [ ] **Step 2: Implement deterministic report/explainer/trace**
+- [x] **Step 2: Implement deterministic report/explainer/trace**
 
 Assemble all money/checklist/provenance in code before explainer. Explainer may return prose only if schema-valid and grounded against structured artifacts. Trace writes JSONL into an ignored runtime directory and failures do not break the pipeline.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run:
 
@@ -287,7 +287,7 @@ git commit -m "feat: add critic report explainer and tracing"
 **Interfaces:**
 - Produces: `run_pipeline(request: PlanRequest, kb: KnowledgeBase, llm: LLMClient, trace_dir: Path | None = None) -> PlanResponse`.
 
-- [ ] **Step 1: Write failing pipeline tests**
+- [x] **Step 1: Write failing pipeline tests**
 
 Tests cover happy path, clarification state, each LLM node killed independently, planner fallback, critic caveat, explainer template fallback, deterministic repeated fake-client output, max two revisions, global timeout without waiting, and optimizer exception producing an error response with trace ID.
 
@@ -300,11 +300,11 @@ cd backend
 
 Expected: import failure for `agents.pipeline`.
 
-- [ ] **Step 2: Implement coordinator**
+- [x] **Step 2: Implement coordinator**
 
 Run the fixed graph in spec order. Do not add dynamic loops beyond two planner revisions. Return typed clarification responses for intake failures/unresolved input and typed error responses for deterministic-core exceptions.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run:
 
@@ -332,7 +332,7 @@ git commit -m "feat: add fixed orchestration pipeline"
 **Interfaces:**
 - Produces: `create_app(kb=None, llm=None, trace_dir=None) -> FastAPI` and module-level `app`.
 
-- [ ] **Step 1: Write failing API tests**
+- [x] **Step 1: Write failing API tests**
 
 Tests cover POST `/plan` happy path, clarification HTTP 200, fail-soft LLM behavior HTTP 200, unexpected core failure HTTP 500 with trace ID, and route has no business arithmetic.
 
@@ -345,11 +345,11 @@ cd backend
 
 Expected: missing FastAPI/module failure before dependencies and API exist.
 
-- [ ] **Step 2: Implement API and install updated dependencies**
+- [x] **Step 2: Implement API and install updated dependencies**
 
 Add FastAPI and httpx/starlette-compatible test dependency in `pyproject.toml`, run install if needed, implement the thin app factory, and ensure tests inject fake KB/LLM.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run:
 
@@ -379,11 +379,11 @@ git commit -m "feat: expose m2 plan api"
 - Consumes: all M2 tests and gates.
 - Produces: reproducible Gate M2 and persistent checkpoint for M3.
 
-- [ ] **Step 1: Add Make targets**
+- [x] **Step 1: Add Make targets**
 
 Add `test-m2`, `typecheck-m2`, and `gate-m2`. `gate-m2` runs the full M2 eval set and strict typing for `core/ agents/ api/`.
 
-- [ ] **Step 2: Run full final gates**
+- [x] **Step 2: Run full final gates**
 
 Run:
 
@@ -399,7 +399,7 @@ grep -rn "float" core/optimizer core/transfer core/models.py
 
 Expected: all gates pass; full suite passes; type checking clean; float audit has no financial arithmetic matches.
 
-- [ ] **Step 3: Write docs and verify**
+- [x] **Step 3: Write docs and verify**
 
 Create `reports/milestone_2.md` with exact command outputs, API elapsed time, fail-soft evidence, groundedness evidence, trace evidence, deviations, and limitations. Update `AGENTS.md` and `CLAUDE.md` current checkpoint to show M2 complete, M3 next, remote present, provider MCPs deferred.
 
@@ -411,7 +411,7 @@ cmp -s AGENTS.md CLAUDE.md
 git status --short
 ```
 
-- [ ] **Step 4: Commit final gate docs**
+- [x] **Step 4: Commit final gate docs**
 
 ```bash
 git add Makefile reports/milestone_2.md AGENTS.md CLAUDE.md DEVIATIONS.md

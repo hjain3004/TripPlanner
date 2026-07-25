@@ -41,14 +41,15 @@ Target prototype: specs **08,09,16** are authoritative design now; provider/gate
 
 Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (frontend). A milestone is not done because the code exists; it is done when its gate passes.
 
-## Current checkpoint (2026-07-24)
+## Current checkpoint (2026-07-25)
 
 - **M1 is formally complete:** `reports/milestone_1.md` records a fresh Gate M1 pass. The latest combined Gate M1 run has 12 optimizer golden cases passing, 5 determinism-selection tests passing, strict type checking clean for 16 source files, and the canonical demo byte-identical.
 - **M1b is formally complete:** `backend/core/transfer/` now implements the deterministic transfer pathfinder. `reports/milestone_1b.md` records Gate M1b with 20 transfer tests passing, strict type checking clean for 16 source files, and the full backend regression suite at 40 passing tests.
-- **M2 is the immediate implementation milestone:** implement spec 03 pipeline + FastAPI next. Do not begin frontend, provider gateway, crawling, APIs beyond M2 scope, or MCP/provider work in the same change.
-- **Later layers are scaffolds:** `backend/agents/`, `backend/api/`, `backend/ingestion/`, `frontend/`, and `contract/` contain no implementation yet. There is no provider gateway, runtime adapter, or project MCP configuration.
+- **M2 is formally complete:** `backend/agents/` now implements the fixed spec-03 Kernel MVP pipeline, deterministic retrieval/estimation/reporting/trace layers, bounded critic replanning, explainer groundedness fallback, and `ScriptedLLMClient` tests. `backend/api/main.py` exposes `GET /health` and `POST /plan`. `reports/milestone_2.md` records Gate M2 with 38 M2 tests passing, strict type checking clean for 31 source files, full backend regression at 78 passing tests, and an injected `POST /plan` demo returning HTTP 200 in 0.007s.
+- **M3 is the immediate implementation milestone:** implement spec 04 critic/eval expansion, provenance rendering tests, report footer/disclaimer coverage, and `evals/report.md`. Do not begin frontend, provider gateway, crawling, provider APIs, or MCP/provider work in the same change.
+- **Later layers are scaffolds:** `backend/ingestion/`, `frontend/`, and `contract/` contain no implementation yet. There is no provider gateway, runtime adapter, or project MCP configuration.
 - **Do not connect travel-provider MCPs yet.** Developer MCPs are added just-in-time during F1–F4; runtime providers begin only after G1 creates normalized contracts, the provider registry, and `SampleAdapter`. Gondola is the first planned read-only live spike; installation never activates an adapter.
-- **Git is initialized:** baseline commit `b3790e8` is on `main`; implementation work is on `feat/m1b-transfer-pathfinder`. No remote is configured yet. Never claim a push or PR until a remote exists and the human requests it.
+- **Git is initialized:** baseline commit `b3790e8` is on `main`; remote `origin` is `https://github.com/hjain3004/TripPlanner.git`; current implementation work is on `feat/m2-orchestration-api`. Never claim a push or PR until it actually succeeds.
 
 ## Repo boundaries
 
