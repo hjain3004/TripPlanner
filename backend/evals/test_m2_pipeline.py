@@ -124,6 +124,76 @@ def test_pipeline_returns_clarification_without_downstream_calls(tmp_path) -> No
     assert llm.invocations == {"intake": 1}
 
 
+def test_pipeline_fails_soft_when_intake_llm_errors(tmp_path) -> None:
+    llm = ScriptedLLMClient({"intake": [RuntimeError("intake down")]})
+
+    response = run_pipeline(
+        "Singapore sometime",
+        _kb(tmp_path),
+        llm,
+        booking_date=date(2026, 7, 25),
+        trace_dir=tmp_path,
+    )
+
+    assert response.status == PipelineStatus.NEEDS_CLARIFICATION
+    assert response.report is None
+    assert response.unresolved[0].startswith("intake failed:")
+
+
+def test_pipeline_uses_planner_fallback_when_planner_llm_errors(tmp_path) -> None:
+    llm = ScriptedLLMClient(
+        {
+            "intake": [_spec()],
+            "planner": [RuntimeError("planner down")],
+            "critic": [CriticVerdict(passed=True)],
+            "explainer": [
+                ExplainerOutput(
+                    summary="Grounded summary.",
+                    itinerary_overview="Grounded itinerary.",
+                    payment_overview="Grounded payments.",
+                )
+            ],
+        }
+    )
+
+    response = run_pipeline(
+        "Delhi to Singapore Aug 1-5",
+        _kb(tmp_path),
+        llm,
+        booking_date=date(2026, 7, 25),
+        trace_dir=tmp_path,
+    )
+
+    assert response.status == PipelineStatus.OK
+    assert response.report is not None
+    assert response.report.itinerary.itinerary_quality == "fallback"
+    assert any("planner fallback" in caveat.casefold() for caveat in response.report.caveats)
+
+
+def test_pipeline_skips_critic_failure_and_falls_back_for_explainer_failure(tmp_path) -> None:
+    llm = ScriptedLLMClient(
+        {
+            "intake": [_spec()],
+            "planner": [_itinerary()],
+            "critic": [RuntimeError("critic down")],
+            "explainer": [RuntimeError("explainer down")],
+        }
+    )
+
+    response = run_pipeline(
+        "Delhi to Singapore Aug 1-5",
+        _kb(tmp_path),
+        llm,
+        booking_date=date(2026, 7, 25),
+        trace_dir=tmp_path,
+    )
+
+    assert response.status == PipelineStatus.OK
+    assert response.report is not None
+    assert any("critic unavailable" in caveat.casefold() for caveat in response.report.caveats)
+    assert any("explainer unavailable" in caveat.casefold() for caveat in response.report.caveats)
+
+
 def test_pipeline_replans_once_for_blocking_critic_issue(tmp_path) -> None:
     llm = ScriptedLLMClient(
         {

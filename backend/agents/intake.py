@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from agents.llm import LLMCallError, LLMClient, complete_with_repair
+from agents.llm import LLMClient, complete_with_repair
 from agents.models import TripSpec
 from core.db import KnowledgeBase
 
@@ -44,7 +44,7 @@ def run_intake(raw_request: str, kb: KnowledgeBase, llm: LLMClient) -> IntakeRes
             schema=TripSpec,
             temperature=0.0,
         )
-    except LLMCallError as exc:
+    except Exception as exc:
         return IntakeResult(
             unresolved=[f"intake failed: {exc}"],
             needs_clarification=True,
