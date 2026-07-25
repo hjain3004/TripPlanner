@@ -165,6 +165,7 @@ class FinalReport(BaseModel):
     summary: str = ""
     itinerary_overview: str = ""
     payment_overview: str = ""
+    footer: str = ""
     trace_id: str
     status: PipelineStatus = PipelineStatus.OK
 

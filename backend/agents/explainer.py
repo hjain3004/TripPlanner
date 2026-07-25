@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 
 from agents.llm import LLMClient, complete_with_repair
 from agents.models import (
@@ -94,6 +95,28 @@ def _provenance_warnings(
         for plan in transfer.plans:
             warnings.update(plan.provenance_flags)
     return sorted(warnings)
+
+
+def _used_last_verified_dates(
+    estimate: EstimatorResult, transfer: TransferAdvice | None
+) -> list[date]:
+    dates: list[date] = []
+    if estimate.flight is not None:
+        dates.append(estimate.flight.provenance.last_verified)
+    if estimate.hotel is not None:
+        dates.append(estimate.hotel.provenance.last_verified)
+    if transfer is not None:
+        dates.extend(plan.award.provenance.last_verified for plan in transfer.plans)
+    return dates
+
+
+def _footer(estimate: EstimatorResult, transfer: TransferAdvice | None) -> str:
+    dates = _used_last_verified_dates(estimate, transfer)
+    last_verified = min(dates).isoformat() if dates else "UNKNOWN"
+    return (
+        f"Computed from data last verified on {last_verified}; informational, not financial "
+        "advice; verify prices and offer terms before paying."
+    )
 
 
 def _hotel_area(itinerary: DraftItinerary, estimate: EstimatorResult) -> SelectedHotelArea:
@@ -216,6 +239,7 @@ def build_final_report(
         summary=explainer.summary,
         itinerary_overview=explainer.itinerary_overview,
         payment_overview=explainer.payment_overview,
+        footer=_footer(estimate, kernel.transfer_advice),
         trace_id=trace_id,
     )
 
