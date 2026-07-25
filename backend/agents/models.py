@@ -134,6 +134,11 @@ class CriticVerdict(BaseModel):
         return [issue for issue in self.issues if issue.severity == "blocking"]
 
 
+class CriticResult(BaseModel):
+    verdict: CriticVerdict
+    caveats: list[str] = Field(default_factory=list)
+
+
 class ExplainerOutput(BaseModel):
     summary: str
     itinerary_overview: str
@@ -158,6 +163,8 @@ class FinalReport(BaseModel):
     confidence: float
     caveats: list[str] = Field(default_factory=list)
     summary: str = ""
+    itinerary_overview: str = ""
+    payment_overview: str = ""
     trace_id: str
     status: PipelineStatus = PipelineStatus.OK
 
