@@ -1,0 +1,30 @@
+llm:
+  intake:
+    temperature: 0.0
+    max_tokens: 2048
+    timeout_s: 20
+  planner:
+    temperature: 0.0
+    max_tokens: 2048
+    timeout_s: 20
+  critic:
+    temperature: 0.0
+    max_tokens: 1024
+    timeout_s: 20
+    max_replan_loops: 2
+  explainer:
+    temperature: 0.3
+    max_tokens: 2048
+    timeout_s: 20
+
+estimator:
+  per_diem_sgd_minor:
+    budget:
+      dining: 4000
+      misc: 1500
+    balanced:
+      dining: 7000
+      misc: 2500
+    luxury:
+      dining: 12000
+      misc: 5000

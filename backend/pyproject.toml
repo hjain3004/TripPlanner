@@ -11,6 +11,7 @@ dependencies = [
     "pydantic>=2.6",
     "sqlalchemy>=2.0",
     "pyyaml>=6.0",
+    "fastapi>=0.116",
 ]
 
 [project.optional-dependencies]
@@ -20,14 +21,16 @@ dev = [
     "ruff>=0.3",
     "hypothesis>=6.98",
     "types-PyYAML>=6.0",
+    "httpx>=0.28",
 ]
 
 [tool.setuptools]
 # Flat-layout packages that live directly under backend/ (gate commands run from backend/).
-packages = ["core", "core.optimizer", "core.transfer", "evals"]
+packages = ["core", "core.optimizer", "core.transfer", "agents", "api", "evals"]
 
 [tool.setuptools.package-data]
 "core" = ["seeds/*.yaml"]
+"agents" = ["config.yaml"]
 "evals" = ["golden/*.yaml", "golden/*.txt"]
 
 [tool.pytest.ini_options]

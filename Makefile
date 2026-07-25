@@ -5,7 +5,8 @@ PY ?= python
 BACKEND := backend
 
 .PHONY: help install seed demo demo-check test test-optimizer test-transfer \
-        determinism typecheck lint float-audit gate-m1 gate-m1b clean
+        determinism typecheck typecheck-m2 lint float-audit gate-m1 gate-m1b \
+        test-m2 gate-m2 clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -32,11 +33,17 @@ test-optimizer: ## Gate M1: optimizer golden tests
 test-transfer: ## Gate M1b: transfer pathfinder golden and edge tests
 	cd $(BACKEND) && $(PY) -m pytest evals/test_transfer_pathfinder.py evals/test_transfer_determinism.py -q
 
+test-m2: ## Gate M2: orchestration and FastAPI tests
+	cd $(BACKEND) && $(PY) -m pytest evals/test_m2_*.py -q
+
 determinism: ## Gate M1: two runs, identical bytes
 	cd $(BACKEND) && $(PY) -m pytest evals/ -k determinism -q
 
 typecheck: ## Gate M1: mypy --strict core/
 	cd $(BACKEND) && $(PY) -m mypy --strict core/
+
+typecheck-m2: ## Gate M2: mypy --strict core/ agents/ api/
+	cd $(BACKEND) && $(PY) -m mypy --strict core/ agents/ api/
 
 lint: ## ruff
 	cd $(BACKEND) && $(PY) -m ruff check core/ evals/
@@ -50,6 +57,9 @@ gate-m1: test-optimizer determinism typecheck demo-check float-audit ## Run the 
 
 gate-m1b: test-transfer typecheck ## Run the complete Gate M1b
 	@echo "Gate M1b checks executed."
+
+gate-m2: test-m2 typecheck-m2 ## Run the complete Gate M2
+	@echo "Gate M2 checks executed."
 
 clean: ## Remove caches and the local seeded DB
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
