@@ -1,0 +1,237 @@
+from __future__ import annotations
+
+from datetime import date
+from typing import Literal
+
+from agents.models import DraftItinerary, EstimatorResult, TripSpec
+from agents.retrieval import CITY_BY_IATA
+from core.db import KnowledgeBase
+from core.models import (
+    Area,
+    Channel,
+    CostedTrip,
+    FxRate,
+    POI,
+    SampleFlight,
+    SampleHotel,
+    SpendCategory,
+    SpendLineItem,
+)
+from core.transfer.arithmetic import convert_minor
+
+HOME_CURRENCY_BY_COUNTRY = {"IN": "INR", "AE": "AED", "US": "USD"}
+DESTINATION_CURRENCY_BY_IATA = {"SIN": "SGD"}
+PER_DIEM_MINOR_BY_STYLE: dict[str, dict[str, int]] = {
+    "budget": {"dining": 4_000, "misc": 1_500},
+    "balanced": {"dining": 7_000, "misc": 2_500},
+    "luxury": {"dining": 12_000, "misc": 5_000},
+}
+
+
+def _home_currency(spec: TripSpec) -> str:
+    return HOME_CURRENCY_BY_COUNTRY[spec.home_country]
+
+
+def _destination_city(spec: TripSpec) -> str:
+    return CITY_BY_IATA.get(spec.destination_city, spec.destination_city)
+
+
+def _preferred_cabin(style: str) -> Literal["economy", "premium", "business"]:
+    if style == "luxury":
+        return "business"
+    return "economy"
+
+
+def _price_in_home(amount_minor: int, currency: str, home_currency: str, kb: KnowledgeBase) -> int:
+    if currency == home_currency:
+        return amount_minor
+    fx = kb.fx_rate(currency, home_currency)
+    if fx is None:
+        raise ValueError(f"Missing FX rate for {currency}->{home_currency}")
+    return convert_minor(amount_minor, fx)
+
+
+def _pick_flight(spec: TripSpec, kb: KnowledgeBase) -> tuple[SampleFlight | None, list[str]]:
+    cabin = _preferred_cabin(spec.style)
+    matches = kb.sample_flights(spec.origin_city, spec.destination_city, cabin)
+    assumptions: list[str] = []
+    if not matches and cabin != "economy":
+        matches = kb.sample_flights(spec.origin_city, spec.destination_city, "economy")
+        assumptions.append(
+            f"No sample {cabin} cash flight exists for {spec.origin_city}-{spec.destination_city}; "
+            "using the cheapest economy fixture."
+        )
+    if not matches:
+        return None, [f"No sample flight exists for {spec.origin_city}-{spec.destination_city}."]
+    return min(matches, key=lambda row: (row.price_minor, row.stops, row.id)), assumptions
+
+
+def _area_by_id(kb: KnowledgeBase, city: str, area_id: str) -> Area | None:
+    for area in kb.areas(city):
+        if area.id == area_id:
+            return area
+    return None
+
+
+def _pick_hotel(
+    spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase
+) -> tuple[SampleHotel | None, list[str]]:
+    city = _destination_city(spec)
+    exact = kb.sample_hotels(city, spec.style, itinerary.hotel_area_id)
+    assumptions: list[str] = []
+    if exact:
+        return min(exact, key=lambda row: (row.price_per_night_minor, row.id)), assumptions
+
+    same_style = kb.sample_hotels(city, spec.style)
+    if not same_style:
+        return None, [f"No sample {spec.style} hotel exists for {city}."]
+
+    selected_area = _area_by_id(kb, city, itinerary.hotel_area_id)
+    centrality = selected_area.centrality_score if selected_area is not None else 1.0
+    area_scores = {area.id: area.centrality_score for area in kb.areas(city)}
+    assumptions.append(
+        f"No sample {spec.style} hotel exists in {itinerary.hotel_area_id}; "
+        "used closest available area by centrality fallback."
+    )
+    return min(
+        same_style,
+        key=lambda row: (
+            abs(area_scores.get(row.area, 1.0) - centrality),
+            row.price_per_night_minor,
+            row.id,
+        ),
+    ), assumptions
+
+
+def _poi_index(kb: KnowledgeBase, spec: TripSpec) -> dict[str, POI]:
+    return {poi.id: poi for poi in kb.pois(_destination_city(spec))}
+
+
+def _poi_category(poi: POI) -> SpendCategory:
+    if "food" in poi.tags:
+        return SpendCategory.DINING
+    return SpendCategory.ATTRACTIONS
+
+
+def _poi_lines(spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase) -> list[SpendLineItem]:
+    home_currency = _home_currency(spec)
+    by_id = _poi_index(kb, spec)
+    seen: set[str] = set()
+    lines: list[SpendLineItem] = []
+    for day in itinerary.days:
+        for item in day.items:
+            if item.poi_id in seen:
+                continue
+            seen.add(item.poi_id)
+            poi = by_id[item.poi_id]
+            amount = _price_in_home(poi.price_minor, poi.currency, home_currency, kb) * spec.travelers
+            lines.append(
+                SpendLineItem(
+                    id=f"poi:{poi.id}",
+                    label=poi.name,
+                    category=_poi_category(poi),
+                    amount_minor=amount,
+                    currency=home_currency,
+                    available_channels=[poi.booking_channel],
+                    merchant_hint=poi.merchant_hint,
+                )
+            )
+    return lines
+
+
+def _per_diem_lines(spec: TripSpec, kb: KnowledgeBase) -> list[SpendLineItem]:
+    home_currency = _home_currency(spec)
+    destination_currency = DESTINATION_CURRENCY_BY_IATA[spec.destination_city]
+    fx = kb.fx_rate(destination_currency, home_currency)
+    if fx is None:
+        raise ValueError(f"Missing FX rate for {destination_currency}->{home_currency}")
+    constants = PER_DIEM_MINOR_BY_STYLE[spec.style]
+    days = spec.nights
+    return [
+        SpendLineItem(
+            id="per_diem:dining",
+            label="Dining per-diem estimate",
+            category=SpendCategory.DINING,
+            amount_minor=convert_minor(constants["dining"] * spec.travelers * days, fx),
+            currency=home_currency,
+            available_channels=[Channel.POS_ABROAD],
+        ),
+        SpendLineItem(
+            id="per_diem:misc",
+            label="Local transport and misc per-diem estimate",
+            category=SpendCategory.OTHER,
+            amount_minor=convert_minor(constants["misc"] * spec.travelers * days, fx),
+            currency=home_currency,
+            available_channels=[Channel.POS_ABROAD],
+        ),
+    ]
+
+
+def estimate_costed_trip(
+    spec: TripSpec,
+    itinerary: DraftItinerary,
+    kb: KnowledgeBase,
+    *,
+    booking_date: date,
+) -> EstimatorResult:
+    home_currency = _home_currency(spec)
+    flight, flight_assumptions = _pick_flight(spec, kb)
+    hotel, hotel_assumptions = _pick_hotel(spec, itinerary, kb)
+    lines: list[SpendLineItem] = []
+
+    if flight is not None:
+        lines.append(
+            SpendLineItem(
+                id=f"flight:{flight.id}",
+                label=f"{flight.airline} round-trip flight",
+                category=SpendCategory.FLIGHTS,
+                amount_minor=_price_in_home(
+                    flight.price_minor, flight.currency, home_currency, kb
+                )
+                * spec.travelers,
+                currency=home_currency,
+                available_channels=flight.purchasable_channels,
+                merchant_hint=flight.airline,
+            )
+        )
+    if hotel is not None:
+        lines.append(
+            SpendLineItem(
+                id=f"hotel:{hotel.id}",
+                label=f"{hotel.name} ({spec.nights} nights)",
+                category=SpendCategory.HOTELS,
+                amount_minor=_price_in_home(
+                    hotel.price_per_night_minor, hotel.currency, home_currency, kb
+                )
+                * spec.nights,
+                currency=home_currency,
+                available_channels=hotel.purchasable_channels,
+                merchant_hint=hotel.name,
+            )
+        )
+
+    lines.extend(_poi_lines(spec, itinerary, kb))
+    lines.extend(_per_diem_lines(spec, kb))
+
+    return EstimatorResult(
+        costed_trip=CostedTrip(
+            id=f"{spec.origin_city}-{spec.destination_city}-{spec.start_date.isoformat()}",
+            origin=spec.origin_city,
+            destination=spec.destination_city,
+            home_currency=home_currency,
+            booking_date=booking_date,
+            trip_start_date=spec.start_date,
+            lines=lines,
+        ),
+        flight=flight,
+        hotel=hotel,
+        assumptions=[
+            *flight_assumptions,
+            *hotel_assumptions,
+            (
+                f"Sample per-diem estimate uses {spec.style} Singapore constants: "
+                f"{PER_DIEM_MINOR_BY_STYLE[spec.style]['dining']} SGD cents dining and "
+                f"{PER_DIEM_MINOR_BY_STYLE[spec.style]['misc']} SGD cents misc per person-day."
+            ),
+        ],
+    )

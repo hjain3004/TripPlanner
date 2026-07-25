@@ -330,6 +330,32 @@ class KnowledgeBase:
     def areas(self, city: str) -> list[Area]:
         return [a for a in self._areas if a.city == city]
 
+    def sample_flights(self, origin: str, destination: str, cabin: str | None = None) -> list[SampleFlight]:
+        origin_key = origin.casefold()
+        destination_key = destination.casefold()
+        cabin_key = cabin.casefold() if cabin is not None else None
+        return [
+            flight
+            for flight in self._flights
+            if flight.origin.casefold() == origin_key
+            and flight.destination.casefold() == destination_key
+            and (cabin_key is None or flight.cabin.casefold() == cabin_key)
+        ]
+
+    def sample_hotels(
+        self, city: str, style: str | None = None, area: str | None = None
+    ) -> list[SampleHotel]:
+        city_key = city.casefold()
+        style_key = style.casefold() if style is not None else None
+        area_key = area.casefold() if area is not None else None
+        return [
+            hotel
+            for hotel in self._hotels
+            if hotel.city.casefold() == city_key
+            and (style_key is None or hotel.style.casefold() == style_key)
+            and (area_key is None or hotel.area.casefold() == area_key)
+        ]
+
     def fx_rate(self, base: str, quote: str) -> FxRate | None:
         return self._fx.get((base, quote))
 
