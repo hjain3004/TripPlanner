@@ -1,6 +1,6 @@
 # M3 Evals and Provenance Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build Milestone 3 evaluation infrastructure, provenance/disclaimer validation, and the generated evaluation report required by specs 04 and 06.
 
@@ -60,7 +60,7 @@
   - `complete_judge_with_repair(...) -> JudgeVerdict`
   - `build_judge_prompt(...) -> tuple[str, str]`
 
-- [ ] **Step 1: Write failing schema and client tests**
+- [x] **Step 1: Write failing schema and client tests**
 
 Create `backend/evals/test_m3_judge.py` with tests:
 
@@ -84,7 +84,7 @@ cd backend
 
 Expected: FAIL during collection with `ModuleNotFoundError: No module named 'evals.judge'`.
 
-- [ ] **Step 2: Implement judge contracts and offline client**
+- [x] **Step 2: Implement judge contracts and offline client**
 
 Implement `backend/evals/judge.py` with:
 
@@ -115,7 +115,7 @@ The judge prompt must include these exact constraints:
 
 Implement repair behavior: one retry on `ValidationError` or malformed JSON, then raise `JudgeCallError`.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run:
 
@@ -155,7 +155,7 @@ git commit -m "feat: add m3 judge contracts"
   - `run_itinerary_evaluation(kb, judge, runs_per_case=3) -> EvaluationSummary`
   - `assert_gate_m3(summary) -> None`
 
-- [ ] **Step 1: Write failing fixture/evaluation tests**
+- [x] **Step 1: Write failing fixture/evaluation tests**
 
 Create `backend/evals/test_m3_itinerary_eval.py` with tests:
 
@@ -176,7 +176,7 @@ cd backend
 
 Expected: FAIL during collection with missing fixture/evaluation modules.
 
-- [ ] **Step 2: Implement anchors and golden cases**
+- [x] **Step 2: Implement anchors and golden cases**
 
 Create three anchor itineraries:
 
@@ -193,7 +193,7 @@ Create eight golden itinerary cases spanning:
 
 All fixture POI IDs and area IDs must come from existing seeds.
 
-- [ ] **Step 3: Implement aggregation and gates**
+- [x] **Step 3: Implement aggregation and gates**
 
 For each golden case, run `runs_per_case=3` judge calls. Aggregate:
 
@@ -211,7 +211,7 @@ Gate rules:
 - no golden case dimension mean < 3.0;
 - every groundedness score equals 5.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run:
 
@@ -245,7 +245,7 @@ git commit -m "feat: add m3 itinerary evaluation gate"
   - provenance warning rendering test
   - runtime import guard test
 
-- [ ] **Step 1: Write failing runtime tests**
+- [x] **Step 1: Write failing runtime tests**
 
 Create `backend/evals/test_m3_runtime_guards.py` with tests:
 
@@ -264,7 +264,7 @@ cd backend
 
 Expected: FAIL because `FinalReport.footer` does not exist and footer text is absent.
 
-- [ ] **Step 2: Implement footer and provenance rendering**
+- [x] **Step 2: Implement footer and provenance rendering**
 
 Add `footer: str = ""` to `FinalReport`. In `build_final_report`, compute the minimum `last_verified` among used flight, hotel, assignment provenance flags' source rows where available, and transfer plan award rows. If no dated facts are available, use `"UNKNOWN"`.
 
@@ -276,7 +276,7 @@ Computed from data last verified on {date}; informational, not financial advice;
 
 Do not change optimizer result fields or money math.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run:
 
@@ -311,7 +311,7 @@ git commit -m "feat: add report provenance footer"
   - `python -m evals.report`
   - `make test-m3`, `make typecheck-m3`, `make gate-m3`
 
-- [ ] **Step 1: Add failing report generation tests**
+- [x] **Step 1: Add failing report generation tests**
 
 Extend `backend/evals/test_m3_itinerary_eval.py` with:
 
@@ -329,7 +329,7 @@ cd backend
 
 Expected: FAIL because `evals.report` does not exist.
 
-- [ ] **Step 2: Implement report generator and Make targets**
+- [x] **Step 2: Implement report generator and Make targets**
 
 Report must be one page and include:
 
@@ -358,7 +358,7 @@ gate-m3:
 	cd $(BACKEND) && $(PY) -m evals.report
 ```
 
-- [ ] **Step 3: Generate report, verify, and commit**
+- [x] **Step 3: Generate report, verify, and commit**
 
 Run:
 
@@ -388,7 +388,7 @@ git commit -m "feat: generate m3 evaluation report"
 - Consumes: all M3 gates and regression gates.
 - Produces: durable M3 checkpoint and final git state.
 
-- [ ] **Step 1: Run fresh full verification**
+- [x] **Step 1: Run fresh full verification**
 
 Run from repo root:
 
@@ -409,7 +409,7 @@ cd backend
 
 Expected: all gates pass; one Starlette/httpx TestClient warning may appear.
 
-- [ ] **Step 2: Write milestone report**
+- [x] **Step 2: Write milestone report**
 
 Create `reports/milestone_3.md` with:
 
@@ -423,7 +423,7 @@ Create `reports/milestone_3.md` with:
 - known limitations;
 - deviations added.
 
-- [ ] **Step 3: Update persistent checkpoint**
+- [x] **Step 3: Update persistent checkpoint**
 
 Update `AGENTS.md` and `CLAUDE.md` identically:
 
@@ -432,7 +432,7 @@ Update `AGENTS.md` and `CLAUDE.md` identically:
 - next implementation layer remains frontend F1 unless the human explicitly changes order;
 - provider/gateway/MCP runtime work remains deferred.
 
-- [ ] **Step 4: Verify docs and commit**
+- [x] **Step 4: Verify docs and commit**
 
 Run:
 
