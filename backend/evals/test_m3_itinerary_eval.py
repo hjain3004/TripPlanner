@@ -116,3 +116,32 @@ def test_anchor_and_golden_fixture_counts() -> None:
         "anchor_overpacked",
     ]
     assert len(load_golden_itineraries()) == 8
+
+
+def test_eval_report_markdown_contains_gate_status_means_latency_tokens_and_limitations(
+    tmp_path,
+) -> None:
+    from evals.report import render_markdown_report
+
+    summary = run_itinerary_evaluation(_kb(tmp_path), _scripted_good_judge())
+
+    markdown = render_markdown_report(summary)
+
+    assert "# TripPlanner M3 Evaluation Report" in markdown
+    assert "Gate M3: PASS" in markdown
+    assert "Overall mean" in markdown
+    assert "groundedness" in markdown
+    assert "p50" in markdown and "p95" in markdown
+    assert "Prompt tokens" in markdown
+    assert "offline scripted judge" in markdown
+    assert "no runtime evaluator" in markdown
+
+
+def test_report_module_writes_backend_evals_report_md(tmp_path) -> None:
+    from evals.report import write_report
+
+    summary = run_itinerary_evaluation(_kb(tmp_path), _scripted_good_judge())
+    path = write_report(summary, tmp_path / "report.md")
+
+    assert path.name == "report.md"
+    assert path.read_text().startswith("# TripPlanner M3 Evaluation Report")
