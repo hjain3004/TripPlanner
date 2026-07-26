@@ -34,8 +34,16 @@ coverage/
 tmp/
 *.log
 
+# Generated MCP configuration (from `shadcn mcp init`)
+# We maintain our own opencode.jsonc in the project root instead
+opencode.json
+
 # Local env
 .env
 .env.local
 .env.*
 !.env.example
+
+# Design brainstorm tooling (durable references live in frontend/design/refs/)
+.superpowers/
+.playwright-mcp/

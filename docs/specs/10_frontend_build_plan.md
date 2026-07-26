@@ -15,7 +15,7 @@ This frontend is the product's face and must read as premium: light-themed, cine
 - MapLibre GL JS + OpenFreeMap tiles for the trip map. No Mapbox (free-tier trap), no Google Maps.
 - TanStack Query + `@hey-api/openapi-ts` generated client + Zod boundary schemas (Doc 12).
 - MSW v2 for all local dev and tests; the frontend must build fully against mocks before the backend is ever attached.
-- Fonts via `next/font`: Fraunces (variable, display) + Instrument Sans (UI/body). Images via `next/image`, AVIF/WebP, self-hosted curated set (no Unsplash API hotlinking — general-license downloads only; prefer Pexels/Pixabay; no recognizable faces).
+- Fonts via `next/font`: Bodoni Moda (variable, `opsz 6..96`, `next/font/google`, display — hero/h1/h2 contexts only, see Doc 11 §3 type-scale allowed-contexts table) + Schibsted Grotesk (UI/body/money, `next/font/google`) + Roboto Mono (metadata/provenance/airport codes, `next/font/google`). Images via `next/image`, AVIF/WebP, self-hosted curated set (no Unsplash API hotlinking — general-license downloads only; prefer Pexels/Pixabay; no recognizable faces).
 - View Transitions API as progressive enhancement only; Motion `AnimatePresence` is the baseline page transition.
 
 Tier C: exact shadcn components used, folder structure below `src/`, Storybook vs. a `/kitchen-sink` route (default: kitchen-sink route — cheaper), ESLint config. Tier V: everything else per Doc 06.
