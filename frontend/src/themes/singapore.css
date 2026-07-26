@@ -1,0 +1,34 @@
+/* Singapore theme pack */
+.theme-singapore {
+  --th-font-display: var(--font-bodoni-moda);
+  --th-font-ui: var(--font-schibsted-grotesk);
+  --th-font-mono: var(--font-roboto-mono);
+
+  --th-bg:             oklch(0.947 0.013 87);   /* limestone #F1EDE4 */
+  --th-surface:        oklch(0.979 0.008 91);   /* paper #FAF8F2 */
+  --th-surface-raised: oklch(0.990 0.005 91);
+  --th-overlay:        oklch(0.979 0.008 91 / 0.72);
+  --th-border:         oklch(0.28 0.01 145 / 0.10);
+
+  --th-text:           oklch(0.281 0.007 145);  /* ink #272A27 */
+  --th-text-muted:     oklch(0.525 0.014 157);  /* adjusted from 0.539 for AA 4.5:1 on bg */
+  --th-text-faint:     oklch(0.660 0.014 157);  /* decorative/hint only — never sole carrier of required content */
+
+  --th-on-primary:     oklch(0.979 0.008 91);
+
+  --th-primary:        oklch(0.320 0.042 181);  /* mangrove #173A34 */
+  --th-primary-hover:  oklch(0.270 0.042 181);
+
+  --th-accent-1:       oklch(0.848 0.027 167);  /* celadon-1 #BDD3C9 */
+  --th-accent-2:       oklch(0.917 0.016 161);  /* celadon-2 #DBE7E0 */
+  --th-accent-3:       oklch(0.660 0.097 82);   /* brass #B08C48 */
+  --th-accent-4:       oklch(0.536 0.135 30);   /* lacquer #AE493B — <2% surface budget */
+
+  --th-success:        oklch(0.580 0.120 155);
+  --th-success-text:   oklch(0.450 0.120 155);
+  --th-warning:        oklch(0.700 0.130 75);
+  --th-warning-text:   oklch(0.450 0.130 75);
+  --th-danger:         oklch(0.550 0.180 25);
+  --th-savings:        oklch(0.660 0.097 82);   /* brass, same as accent-3 */
+  --th-savings-text:   oklch(0.450 0.097 82);
+}

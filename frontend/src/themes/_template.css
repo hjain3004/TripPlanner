@@ -1,0 +1,43 @@
+/* ============================================================
+   Theme pack template — copy this file to create a new destination.
+   Instructions:
+   1. Copy this file and rename to <destination>.css
+   2. Change `.theme-TEMPLATE` to `.theme-<destination>`
+   3. Fill every --th-* slot with your destination's values
+   4. Register the theme in your theme switcher
+   5. Run contrast tests to ensure AA compliance
+   6. Verify in kitchen-sink at 390/768/1440px
+   ============================================================ */
+.theme-TEMPLATE {
+  --th-font-display: var(--font-display-fallback);
+  --th-font-ui: var(--font-ui-fallback);
+  --th-font-mono: var(--font-mono-fallback);
+
+  --th-bg:             oklch(0 0 0);
+  --th-surface:        oklch(0 0 0);
+  --th-surface-raised: oklch(0 0 0);
+  --th-overlay:        oklch(0 0 0 / 0.72);
+  --th-border:         oklch(0 0 0 / 0.10);
+
+  --th-text:           oklch(0 0 0);
+  --th-text-muted:     oklch(0 0 0);
+  --th-text-faint:     oklch(0 0 0);
+
+  --th-on-primary:     oklch(0 0 0);
+
+  --th-primary:        oklch(0 0 0);
+  --th-primary-hover:  oklch(0 0 0);
+
+  --th-accent-1:       oklch(0 0 0);
+  --th-accent-2:       oklch(0 0 0);
+  --th-accent-3:       oklch(0 0 0);
+  --th-accent-4:       oklch(0 0 0);
+
+  --th-success:        oklch(0 0 0);
+  --th-success-text:   oklch(0 0 0);
+  --th-warning:        oklch(0 0 0);
+  --th-warning-text:   oklch(0 0 0);
+  --th-danger:         oklch(0 0 0);
+  --th-savings:        oklch(0 0 0);
+  --th-savings-text:   oklch(0 0 0);
+}

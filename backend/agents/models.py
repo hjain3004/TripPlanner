@@ -170,8 +170,9 @@ class FinalReport(BaseModel):
     status: PipelineStatus = PipelineStatus.OK
 
 
-class PlanRequest(BaseModel):
+class TripIntakeRequest(BaseModel):
     raw_request: str
+    wallet: UserWallet | None = None
 
 
 class PlanResponse(BaseModel):
@@ -180,6 +181,43 @@ class PlanResponse(BaseModel):
     report: FinalReport | None = None
     unresolved: list[str] = Field(default_factory=list)
     error: str | None = None
+
+
+class JobError(BaseModel):
+    code: str
+    message: str
+    trace_id: str
+
+
+PIPELINE_STAGES: list[str] = [
+    "intake",
+    "itinerary",
+    "costing",
+    "optimizing",
+    "critic",
+    "explaining",
+]
+
+
+class PlanJobStatus(BaseModel):
+    job_id: str
+    status: Literal[
+        "queued", "running", "needs_clarification", "complete", "failed"
+    ]
+    stage: Literal[
+        "intake",
+        "itinerary",
+        "costing",
+        "optimizing",
+        "transfer",
+        "critic",
+        "explaining",
+    ] | None = None
+    stage_index: int | None = None
+    stages_total: int = len(PIPELINE_STAGES)
+    unresolved: list[str] | None = None
+    report: FinalReport | None = None
+    error: JobError | None = None
 
 
 class TraceEvent(BaseModel):

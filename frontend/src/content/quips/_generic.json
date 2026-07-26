@@ -1,0 +1,20 @@
+{
+  "destination": "_generic",
+  "version": 1,
+  "quips": [
+    { "id": "gen-001", "text": "Optimizing your wallet for the trip ahead.", "categories": ["optimizing", "generic"], "tone": "warm", "approved": true },
+    { "id": "gen-002", "text": "Counting the ways your cards can earn.", "categories": ["optimizing", "generic"], "tone": "warm", "approved": true },
+    { "id": "gen-003", "text": "Building your itinerary one destination at a time.", "categories": ["itinerary", "generic"], "tone": "warm", "approved": true },
+    { "id": "gen-004", "text": "Reviewing the numbers so you don't have to.", "categories": ["critic", "generic"], "tone": "warm", "approved": true },
+    { "id": "gen-005", "text": "Cross-referencing benefits against your spending.", "categories": ["optimizing"], "tone": "warm", "approved": true },
+    { "id": "gen-006", "text": "Making sure your points strategy is sound.", "categories": ["transfer", "generic"], "tone": "warm", "approved": true },
+    { "id": "gen-007", "text": "Working out the math so the math works out.", "categories": ["costing", "generic"], "tone": "playful", "approved": true },
+    { "id": "gen-008", "text": "Translating your preferences into a concrete plan.", "categories": ["intake", "generic"], "tone": "warm", "approved": true },
+    { "id": "gen-009", "text": "Some things are worth the wait — your savings plan is one.", "categories": ["generic"], "tone": "warm", "approved": true },
+    { "id": "gen-010", "text": "This wait means better numbers on the other side.", "categories": ["generic"], "tone": "playful", "approved": true },
+    { "id": "gen-011", "text": "Preparing your personalized optimization report.", "categories": ["explaining", "generic"], "tone": "warm", "approved": true },
+    { "id": "gen-012", "text": "Making sure every rupee of spend works for you.", "categories": ["costing", "generic"], "tone": "warm", "approved": true },
+    { "id": "gen-013", "text": "Checking for transfer partners that match your profile.", "categories": ["transfer"], "tone": "warm", "approved": true },
+    { "id": "gen-014", "text": "Your trip deserves better than generic advice — hold on.", "categories": ["generic"], "tone": "warm", "approved": true }
+  ]
+}

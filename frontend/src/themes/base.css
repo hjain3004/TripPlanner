@@ -1,0 +1,131 @@
+/* ============================================================
+   Layer 1 — static primitives (no var() references).
+   Plain @theme: safe to resolve at :root.
+   ============================================================ */
+@theme {
+  --text-hero: clamp(3.5rem, 2rem + 6vw, 6rem);
+  --text-h1: clamp(2.5rem, 1.8rem + 3vw, 3.5rem);
+  --text-h2: clamp(1.75rem, 1.4rem + 1.8vw, 2.25rem);
+  --text-h3: clamp(1.375rem, 1.25rem + 0.6vw, 1.5rem);
+  --text-body: 1rem;
+  --text-caption: 0.8125rem;
+
+  --radius-s: 6px;
+  --radius-m: 12px;
+  --radius-l: 20px;
+  --radius-full: 9999px;
+
+  --shadow-1: 0 1px 2px oklch(0.281 0.007 145 / 0.06), 0 8px 24px oklch(0.281 0.007 145 / 0.05);
+  --shadow-2: 0 2px 4px oklch(0.281 0.007 145 / 0.08), 0 12px 32px oklch(0.281 0.007 145 / 0.07);
+  --shadow-3: 0 4px 8px oklch(0.281 0.007 145 / 0.10), 0 24px 48px oklch(0.281 0.007 145 / 0.10);
+
+  --blur-overlay: 16px;
+
+  --dur-fast: 180ms;
+  --dur-base: 320ms;
+  --dur-slow: 650ms;
+
+  --ease-brand: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@utility dur-fast {
+  animation-duration: var(--dur-fast);
+  transition-duration: var(--dur-fast);
+}
+@utility dur-base {
+  animation-duration: var(--dur-base);
+  transition-duration: var(--dur-base);
+}
+@utility dur-slow {
+  animation-duration: var(--dur-slow);
+  transition-duration: var(--dur-slow);
+}
+
+/* ============================================================
+   Layer 2 bridge + Layer 3 — destination-dependent.
+   MUST be @theme inline: resolves var() at the consuming element
+   via normal cascade, not at :root.
+   See DEVIATIONS.md Tier-F spec-bug row for why plain @theme
+   silently breaks nested theming.
+   ============================================================ */
+@theme inline {
+  --font-display: var(--th-font-display);
+  --font-ui: var(--th-font-ui);
+  --font-mono: var(--th-font-mono);
+
+  --color-bg: var(--th-bg);
+  --color-surface: var(--th-surface);
+  --color-surface-raised: var(--th-surface-raised);
+  --color-surface-overlay: var(--th-overlay);
+  --color-border: var(--th-border);
+
+  --color-text: var(--th-text);
+  --color-text-muted: var(--th-text-muted);
+  --color-text-faint: var(--th-text-faint);
+  --color-text-on-primary: var(--th-on-primary);
+
+  --color-primary: var(--th-primary);
+  --color-primary-hover: var(--th-primary-hover);
+  --color-primary-foreground: var(--th-on-primary);
+
+  --color-accent-1: var(--th-accent-1);
+  --color-accent-2: var(--th-accent-2);
+  --color-accent-3: var(--th-accent-3);
+  --color-accent-4: var(--th-accent-4);
+
+  --color-success: var(--th-success);
+  --color-success-text: var(--th-success-text);
+  --color-warning: var(--th-warning);
+  --color-warning-text: var(--th-warning-text);
+  --color-danger: var(--th-danger);
+  --color-savings: var(--th-savings);
+  --color-savings-text: var(--th-savings-text);
+
+  /* ---------- vendor compatibility (shadcn) — product code must never use these ---------- */
+  --color-background: var(--th-bg);
+  --color-foreground: var(--th-text);
+  --color-card: var(--th-surface);
+  --color-card-foreground: var(--th-text);
+  --color-popover: var(--th-surface);
+  --color-popover-foreground: var(--th-text);
+  --color-secondary: var(--th-accent-2);
+  --color-secondary-foreground: var(--th-text);
+  --color-muted: var(--th-accent-2);
+  --color-muted-foreground: var(--th-text-muted);
+  --color-accent: var(--th-accent-1);
+  --color-accent-foreground: var(--th-text);
+  --color-destructive: var(--th-danger);
+  --color-destructive-foreground: var(--th-on-primary);
+  --color-border: var(--th-border);
+  --color-input: var(--th-border);
+  --color-ring: var(--th-primary);
+  --color-sidebar: var(--th-surface);
+  --color-sidebar-foreground: var(--th-text);
+  --color-sidebar-primary: var(--th-primary);
+  --color-sidebar-primary-foreground: var(--th-on-primary);
+  --color-sidebar-accent: var(--th-accent-1);
+  --color-sidebar-accent-foreground: var(--th-text);
+  --color-sidebar-border: var(--th-border);
+  --color-sidebar-ring: var(--th-primary);
+
+  --radius-sm: var(--radius-s);
+  --radius-md: var(--radius-m);
+  --radius-lg: var(--radius-l);
+  --radius-xl: var(--radius-l);
+  --radius-2xl: var(--radius-l);
+  --radius-3xl: var(--radius-full);
+  --radius-4xl: var(--radius-full);
+}
+
+/* Base layer styles */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-ui;
+  }
+  body {
+    @apply bg-bg text-text;
+  }
+}

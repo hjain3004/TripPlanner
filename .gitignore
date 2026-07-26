@@ -34,6 +34,14 @@ coverage/
 tmp/
 *.log
 
+# Runtime request traces (backend/agents/trace.py, one JSON per request)
+backend/.traces/
+
+# Playwright churn (evidence bundles live in frontend/design/refs/)
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+
 # Generated MCP configuration (from `shadcn mcp init`)
 # We maintain our own opencode.jsonc in the project root instead
 opencode.json
