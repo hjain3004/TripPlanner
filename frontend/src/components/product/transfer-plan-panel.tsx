@@ -105,6 +105,7 @@ export function TransferPlanPanel({ advice }: TransferPlanPanelProps) {
             )}
           </div>
           {plan.checklist_steps && plan.checklist_steps.length > 0 && (
+            /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
             <div className="px-4 py-2 border-t border-border bg-warning/5">
               <p className="text-xs font-medium text-warning-text mb-1">Before you transfer</p>
               <ul className="space-y-0.5">

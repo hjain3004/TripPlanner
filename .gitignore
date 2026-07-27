@@ -55,3 +55,6 @@ opencode.json
 # Design brainstorm tooling (durable references live in frontend/design/refs/)
 .superpowers/
 .playwright-mcp/
+
+# opencode
+.opencode/

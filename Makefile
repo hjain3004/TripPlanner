@@ -95,7 +95,13 @@ fe-build: ## Frontend: Next.js build
 fe-gate-shots: ## Frontend: Playwright screenshots + axe (all 4 projects)
 	cd $(FRONTEND) && npx playwright test f1-gate.spec.ts --config=e2e/playwright.config.ts --reporter=list
 
-gate-f1: fe-token-lint fe-contrast fe-typecheck fe-build fe-gate-shots ## F1 gate-rigor (lint + contrast + typecheck + build + shots)
+fe-no-dead-classes: ## Frontend: G1 no-dead-classes gate
+	cd $(FRONTEND) && node scripts/no-dead-classes.mjs
+
+fe-product-shots: ## Frontend: G2 product screenshots for / and /plan
+	cd $(FRONTEND) && npx playwright test f1-5-landing.spec.ts --config=e2e/playwright.config.ts --reporter=list
+
+gate-f1: fe-token-lint fe-contrast fe-typecheck fe-build fe-gate-shots fe-no-dead-classes fe-product-shots ## F1 gate-rigor (lint + contrast + typecheck + build + shots + G1 + G2)
 	@echo "Gate F1: All checks passed."
 
 fe-e2e-f2: ## Frontend: Playwright F2 wizard e2e tests

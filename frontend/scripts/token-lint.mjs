@@ -23,7 +23,7 @@ const SRC = path.join(ROOT, "src");
 
 const EXCLUDED_DIRS = ["src/lib/api"];
 
-const SUPPRESSION_RE = /\/\*\s*token-lint-disable-next-line\s+(\S+)\s*--\s*(.+?)\s*\*\//;
+const SUPPRESSION_RE = /\/\*\s*token-lint-disable-next-line\s+([\s\S]*?)\s*--\s*(.+?)\s*\*\//;
 
 // ---- helpers -----------------------------------------------------------
 
@@ -49,7 +49,8 @@ function isSuppressed(lines, i, rule) {
   const prev = lines[i - 1].trim();
   const m = prev.match(SUPPRESSION_RE);
   if (!m) return false;
-  if (m[1] !== rule) return false;
+  const ruleList = m[1].split(/\s+/);
+  if (!ruleList.includes(rule)) return false;
   if (m[2].trim().length < 1) {
     console.warn(`  ⚠ suppression at ${path.relative(ROOT, lines[i - 1])} has empty reason`);
     return false;

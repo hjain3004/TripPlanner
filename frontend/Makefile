@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 .PHONY: help lint typecheck test build gate fe-lint fe-typecheck fe-token-lint \
-        fe-contrast fe-build fe-gate-shots fe-gate clean dev
+        fe-contrast fe-build fe-gate-shots fe-gate fe-no-dead-classes fe-product-shots clean dev
 
 help:
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -42,10 +42,18 @@ fe-build: ## Next.js production build
 fe-gate-shots: ## Playwright screenshots + axe audit (all 4 projects)
 	npx playwright test f1-gate.spec.ts --config=e2e/playwright.config.ts --reporter=list
 
-gate: fe-token-lint fe-contrast fe-typecheck fe-build fe-gate-shots
+# G1: no-dead-classes (mechanical) — must run after build so CSS is generated
+fe-no-dead-classes: ## G1: detect dead Tailwind utility classes (no-dead-classes gate)
+	node scripts/no-dead-classes.mjs
+
+# G2: product screenshots (visual) — must run after build + server start
+fe-product-shots: ## G2: product screenshots for / and /plan at 1440/768/390 + axe
+	npx playwright test f1-5-landing.spec.ts --config=e2e/playwright.config.ts --reporter=list
+
+gate: fe-token-lint fe-contrast fe-typecheck fe-build fe-gate-shots fe-no-dead-classes fe-product-shots
 	@echo "F1 Gate: PASS"
 
-fe-gate: fe-token-lint fe-contrast fe-typecheck fe-build fe-gate-shots
+fe-gate: fe-token-lint fe-contrast fe-typecheck fe-build fe-gate-shots fe-no-dead-classes fe-product-shots
 	@echo "F1 frontend gate-rigor: All checks passed."
 
 # ------------------------------------------------------------------

@@ -195,7 +195,7 @@ export default function PlanPage() {
 
   if (phase === "form" || phase === "submitting") {
     return (
-      <div className="min-h-screen bg-canvas font-ui text-text">
+      <div className="min-h-screen bg-bg font-ui text-text">
         <div className="mx-auto max-w-lg px-6 py-12">
           {/* Step indicator */}
           <nav aria-label="Wizard steps" className="flex items-center gap-1 mb-8 text-xs font-medium">
@@ -204,9 +204,10 @@ export default function PlanPage() {
                 <span
                   className={`flex size-6 items-center justify-center rounded-full text-xs ${
                     s.num === currentStep
-                      ? "bg-primary text-on-primary"
+                      ? "bg-primary text-text-on-primary"
                       : s.num < currentStep
-                      ? "bg-primary/20 text-text"
+                      ? /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity compiles to direct CSS */
+                        "bg-primary/20 text-text"
                       : "bg-accent-2 text-text-muted"
                   }`}
                 >
@@ -270,12 +271,12 @@ export default function PlanPage() {
 
   if (phase === "needs_clarification") {
     return (
-      <div className="min-h-screen bg-canvas font-ui text-text">
+      <div className="min-h-screen bg-bg font-ui text-text">
         <div className="mx-auto max-w-lg px-6 py-16">
           <h1 ref={headingRef} tabIndex={-1} className="font-display text-2xl mb-4 outline-none" role="alert">A few details needed</h1>
           <ul className="space-y-2 text-sm mb-8">
             {unresolvedList.map((q, i) => (
-              <li key={i} className="flex items-start gap-2"><span className="text-brass shrink-0 mt-0.5">&rarr;</span><span>{q}</span></li>
+              <li key={i} className="flex items-start gap-2"><span className="text-savings-text shrink-0 mt-0.5">&rarr;</span><span>{q}</span></li>
             ))}
           </ul>
           <Button onClick={() => { setPhase("form"); setCurrentStep(4); }}>Return to review</Button>
@@ -291,7 +292,7 @@ export default function PlanPage() {
       ? { title: "Version mismatch", msg: "The API response does not match the expected format. This may happen after an update." }
       : { title: "Taking longer than expected", msg: "The plan is still being generated. You can wait or try again." };
     return (
-      <div className="min-h-screen bg-canvas font-ui text-text">
+      <div className="min-h-screen bg-bg font-ui text-text">
         <div className="mx-auto max-w-lg px-6 py-16">
           <Alert>
             <h2 ref={headingRef} tabIndex={-1} className="font-medium outline-none" role="alert">{m.title}</h2>
@@ -435,6 +436,7 @@ function StepReview({ wizard, update, composeRawRequest: compose, unresolvedList
         <Label htmlFor="raw-preview">Request that will be sent</Label>
         <textarea
           id="raw-preview"
+          /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values (ring-primary/30, bg-primary/30, etc.) compile to direct CSS values, not class names */
           className="h-24 w-full rounded-lg border border-border bg-transparent px-2.5 py-1.5 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-primary/30 placeholder:text-text-muted resize-none"
           value={wizard.editedRawRequest ?? composed}
           onChange={(e) => update({ editedRawRequest: e.target.value })}
@@ -462,6 +464,7 @@ function StepSubmit({ wizard, composeRawRequest: compose }: { wizard: WizardData
   return (
     <div className="space-y-4 text-sm">
       <p>You are about to submit this trip plan request:</p>
+      /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
       <div className="rounded-lg border border-border bg-accent-2/30 p-3">
         <p className="font-mono text-xs">{raw}</p>
         {wizard.cardIds.length > 0 && (
@@ -495,7 +498,7 @@ function PollingView({ jobStatus, headingRef, destination, jobId }: {
   const { quips } = useQuips(destination, stage, jobId);
 
   return (
-    <div className="min-h-screen bg-canvas font-ui text-text">
+    <div className="min-h-screen bg-bg font-ui text-text">
       <div className="mx-auto max-w-lg px-6 py-16">
         <h1 ref={headingRef} tabIndex={-1} className="font-display text-2xl mb-8 outline-none" role="alert" aria-live="polite">
           {indeterminate ? "Working on your plan" : (stage ? STAGE_LABELS[stage] ?? stage : "Working on your plan")}
@@ -504,15 +507,15 @@ function PollingView({ jobStatus, headingRef, destination, jobId }: {
           <StageTracker stageIndex={stageIndex} stagesTotal={stagesTotal} stage={stage} indeterminate={indeterminate} />
         </div>
         <QuipRotator quips={quips} intervalMs={6000} />
-        {indeterminate && (
-          <div className="mt-8 flex items-center justify-center gap-1.5">
-            <span className="inline-block size-1.5 rounded-full bg-primary animate-pulse" />
-            {/* token-lint-disable-next-line no-hardcoded-timing -- animation-delay for stagger; --dur-* tokens don't match pulse interval */}
-            <span className="inline-block size-1.5 rounded-full bg-primary/60 animate-pulse [animation-delay:0.2s]" />
-            {/* token-lint-disable-next-line no-hardcoded-timing -- animation-delay for stagger; --dur-* tokens don't match pulse interval */}
-            <span className="inline-block size-1.5 rounded-full bg-primary/30 animate-pulse [animation-delay:0.4s]" />
-          </div>
-        )}
+{indeterminate && (
+            <div className="mt-8 flex items-center justify-center gap-1.5">
+              <span className="inline-block size-1.5 rounded-full bg-primary animate-pulse" />
+              {/* token-lint-disable-next-line no-hardcoded-timing no-dead-classes -- animation-delay for stagger; --dur-* tokens don't match pulse interval; arbitrary opacity values compile to direct CSS */}
+              <span className="inline-block size-1.5 rounded-full bg-primary/60 animate-pulse [animation-delay:0.2s]" />
+              {/* token-lint-disable-next-line no-hardcoded-timing no-dead-classes -- animation-delay for stagger; --dur-* tokens don't match pulse interval; arbitrary opacity values compile to direct CSS */}
+              <span className="inline-block size-1.5 rounded-full bg-primary/30 animate-pulse [animation-delay:0.4s]" />
+            </div>
+          )}
       </div>
     </div>
   );
@@ -529,7 +532,7 @@ function ResultsView({ report, onRetry }: {
   const numDays = report.itinerary?.days?.length ?? 0;
 
   return (
-    <div className="min-h-screen bg-canvas font-ui text-text" data-testid="results-view">
+    <div className="min-h-screen bg-bg font-ui text-text" data-testid="results-view">
       <div className="mx-auto max-w-2xl px-6 py-12 space-y-8">
 
         <VerdictHeader
@@ -572,6 +575,7 @@ function ResultsView({ report, onRetry }: {
             </div>
           </div>
           {bt.savings_pct_bp != null && (
+            /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
             <div className="flex items-center justify-between px-4 py-3 mt-2 bg-accent-2/50 rounded-sm">
               <span className="text-sm font-medium text-text">Total savings</span>
               <span className="text-lg font-semibold text-savings-text tabular-nums">

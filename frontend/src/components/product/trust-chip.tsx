@@ -8,7 +8,9 @@ interface TrustChipProps {
 }
 
 const variantStyles: Record<TrustChipVariant, string> = {
+  /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
   verified: "bg-success/20 text-success-text border-success/30",
+  /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
   warning: "bg-warning/20 text-warning-text border-warning/30",
   "needs-verification": "bg-accent-2 text-text-muted border-border",
 };

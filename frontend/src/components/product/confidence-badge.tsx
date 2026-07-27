@@ -15,7 +15,9 @@ function confidenceLevel(score: number): "high" | "medium" | "low" {
 }
 
 const levelStyles: Record<string, string> = {
+  /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
   high: "bg-success/20 text-success-text border-success/30",
+  /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
   medium: "bg-warning/20 text-warning-text border-warning/30",
   low: "bg-accent-2 text-text-muted border-border",
 };

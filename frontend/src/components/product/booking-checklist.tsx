@@ -60,7 +60,7 @@ export function BookingChecklist({ steps }: BookingChecklistProps) {
                 onClick={() => toggle(i)}
                 className={`shrink-0 w-4 h-4 mt-0.5 rounded border text-xs flex items-center justify-center transition-colors ${
                   checked.has(i)
-                    ? "bg-primary border-primary text-on-primary"
+                    ? "bg-primary border-primary text-text-on-primary"
                     : "border-border text-text-muted hover:border-primary"
                 }`}
                 aria-label={`${checked.has(i) ? "Uncheck" : "Check"}: ${step}`}

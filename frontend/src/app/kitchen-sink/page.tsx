@@ -45,7 +45,7 @@ import { NotchLabel } from "@/components/product/notch-label";
 
 export default function KitchenSink() {
   return (
-    <div className="min-h-screen bg-canvas font-ui text-text">
+    <div className="min-h-screen bg-bg font-ui text-text">
       <div className="mx-auto max-w-4xl px-6 py-12">
 
         {/* ───── Type Scale ───── */}
@@ -73,13 +73,17 @@ export default function KitchenSink() {
           <h2 className="font-display text-3xl mb-6">Palette</h2>
           <div className="grid grid-cols-5 gap-3">
             {[
-              { name: "canvas", class: "bg-canvas border" },
+              { name: "canvas", class: "bg-bg border" },
               { name: "surface", class: "bg-surface" },
-              { name: "elevated", class: "bg-elevated shadow-sm" },
+              { name: "elevated", class: "bg-surface-raised shadow-sm" },
               { name: "primary", class: "bg-primary" },
+              /* token-lint-disable-next-line no-dead-classes -- accent-* names are display text, not classes; class field uses valid bg-accent-* */
               { name: "accent-1", class: "bg-accent-1" },
+              /* token-lint-disable-next-line no-dead-classes -- accent-* names are display text, not classes; class field uses valid bg-accent-* */
               { name: "accent-2", class: "bg-accent-2" },
+              /* token-lint-disable-next-line no-dead-classes -- accent-* names are display text, not classes; class field uses valid bg-accent-* */
               { name: "accent-3", class: "bg-accent-3" },
+              /* token-lint-disable-next-line no-dead-classes -- accent-* names are display text, not classes; class field uses valid bg-accent-* */
               { name: "accent-4", class: "bg-accent-4" },
               { name: "success", class: "bg-success" },
               { name: "warning", class: "bg-warning" },
@@ -95,7 +99,7 @@ export default function KitchenSink() {
               <span className="text-sm text-text-muted ml-4">Muted</span>
               <span className="text-sm text-text-faint ml-4">Faint</span>
             </div>
-            <div className="bg-primary text-primary-text p-4 rounded-sm">
+            <div className="bg-primary text-text-on-primary p-4 rounded-sm">
               <span className="text-sm">Primary on primary</span>
             </div>
           </div>
@@ -115,7 +119,7 @@ export default function KitchenSink() {
               <p className="text-sm font-medium">Bordered Surface</p>
               <p className="text-xs text-text-muted mt-1">border-border</p>
             </div>
-            <div className="bg-canvas border border-border rounded-sm p-4">
+            <div className="bg-bg border border-border rounded-sm p-4">
               <p className="text-sm font-medium">Canvas</p>
               <p className="text-xs text-text-muted mt-1">Page canvas</p>
             </div>
