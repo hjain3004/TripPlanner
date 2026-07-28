@@ -6,7 +6,10 @@ import pytest
 from pydantic import ValidationError
 
 from accounts.models import (
+    ACCOUNTS_SCHEMA_VERSION,
     FORBIDDEN_FIELD_NAMES,
+    SavedTrip,
+    TripRevision,
     User,
     UserProfile,
     WalletEntry,
@@ -33,7 +36,7 @@ def test_user_rejects_unknown_fields() -> None:
 
 
 def test_no_account_model_declares_a_forbidden_field() -> None:
-    for model in (User, UserProfile):
+    for model in (User, UserProfile, WalletEntry, SavedTrip, TripRevision):
         for field_name in model.model_fields:
             assert field_name.lower() not in FORBIDDEN_FIELD_NAMES, (
                 f"{model.__name__}.{field_name} is a payment-instrument secret "
@@ -132,3 +135,80 @@ def test_wallet_entry_rejects_a_smuggled_pan() -> None:
 def test_wallet_entry_declares_no_forbidden_field() -> None:
     for field_name in WalletEntry.model_fields:
         assert field_name.lower() not in FORBIDDEN_FIELD_NAMES
+
+
+def test_saved_trip_stores_the_canonical_input_snapshot() -> None:
+    trip = SavedTrip(
+        id="t1",
+        user_id="u1",
+        title="Singapore, August",
+        origin_city="del",
+        destination_city="sin",
+        start_date=date(2026, 8, 1),
+        end_date=date(2026, 8, 5),
+        raw_request="Delhi to Singapore Aug 1-5",
+        trip_spec_json='{"origin_city":"DEL"}',
+        created_at=NOW,
+    )
+
+    assert trip.origin_city == "DEL"
+    assert trip.destination_city == "SIN"
+    assert trip.schema_version == ACCOUNTS_SCHEMA_VERSION
+
+
+def test_saved_trip_rejects_an_end_date_before_the_start_date() -> None:
+    with pytest.raises(ValidationError):
+        SavedTrip(
+            id="t1",
+            user_id="u1",
+            title="Backwards",
+            origin_city="DEL",
+            destination_city="SIN",
+            start_date=date(2026, 8, 5),
+            end_date=date(2026, 8, 1),
+            raw_request="x",
+            trip_spec_json="{}",
+            created_at=NOW,
+        )
+
+
+def test_saved_trip_rejects_a_payload_that_is_not_a_json_object() -> None:
+    with pytest.raises(ValidationError):
+        SavedTrip(
+            id="t1",
+            user_id="u1",
+            title="Bad payload",
+            origin_city="DEL",
+            destination_city="SIN",
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 5),
+            raw_request="x",
+            trip_spec_json="not json",
+            created_at=NOW,
+        )
+
+
+def test_trip_revision_numbers_start_at_one() -> None:
+    revision = TripRevision(
+        id="r1",
+        trip_id="t1",
+        revision=1,
+        trace_id="abc123",
+        report_json='{"summary":"Grounded summary."}',
+        created_at=NOW,
+    )
+
+    assert revision.revision == 1
+    assert revision.schema_version == ACCOUNTS_SCHEMA_VERSION
+
+
+def test_trip_revision_rejects_a_zero_revision_number() -> None:
+    with pytest.raises(ValidationError):
+        TripRevision(
+            id="r1",
+            trip_id="t1",
+            revision=0,
+            trace_id="abc123",
+            report_json="{}",
+            created_at=NOW,
+        )

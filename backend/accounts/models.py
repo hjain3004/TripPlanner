@@ -15,10 +15,11 @@ Two invariants are load-bearing here:
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Bumped when a stored JSON payload's shape changes incompatibly. Written onto
 # every ``SavedTrip`` / ``TripRevision`` so a future reader knows how to parse a
@@ -158,3 +159,80 @@ class WalletEntry(AccountModel):
             if balance < 0:
                 raise ValueError(f"points balance for {currency_id} must be >= 0")
         return value
+
+
+# --------------------------------------------------------------------------- #
+# 3. Saved trips (immutable snapshots)                                          #
+# --------------------------------------------------------------------------- #
+
+
+def _require_json_object(value: str, field_name: str) -> str:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{field_name} must be valid JSON") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{field_name} must be a JSON object")
+    return value
+
+
+class SavedTrip(AccountModel):
+    """A trip the user asked for. The stored input half of a saved plan.
+
+    ``trip_spec_json`` is the canonical ``TripSpec.model_dump_json()`` exactly as
+    submitted. It is stored as bytes rather than a typed model so the snapshot
+    cannot drift when ``TripSpec`` changes — see the plan's Task 3 rationale.
+    """
+
+    id: str
+    user_id: str
+    title: str
+    origin_city: str
+    destination_city: str
+    start_date: date
+    end_date: date
+    raw_request: str
+    trip_spec_json: str
+    schema_version: str = ACCOUNTS_SCHEMA_VERSION
+    created_at: datetime
+
+    @field_validator("origin_city", "destination_city")
+    @classmethod
+    def normalize_iata(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if len(normalized) != 3 or not normalized.isalpha():
+            raise ValueError("city must be a 3-letter IATA code")
+        return normalized
+
+    @field_validator("trip_spec_json")
+    @classmethod
+    def check_trip_spec_json(cls, value: str) -> str:
+        return _require_json_object(value, "trip_spec_json")
+
+    @model_validator(mode="after")
+    def check_date_order(self) -> SavedTrip:
+        if self.end_date < self.start_date:
+            raise ValueError("end_date must not precede start_date")
+        return self
+
+
+class TripRevision(AccountModel):
+    """One computed result for a saved trip. Append-only; never mutated.
+
+    ``report_json`` is the canonical ``FinalReport.model_dump_json()`` produced by
+    the pipeline, kept verbatim so the provenance and ``last_verified`` values the
+    plan was computed with are preserved exactly.
+    """
+
+    id: str
+    trip_id: str
+    revision: int = Field(ge=1)
+    trace_id: str
+    report_json: str
+    schema_version: str = ACCOUNTS_SCHEMA_VERSION
+    created_at: datetime
+
+    @field_validator("report_json")
+    @classmethod
+    def check_report_json(cls, value: str) -> str:
+        return _require_json_object(value, "report_json")
