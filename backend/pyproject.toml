@@ -12,6 +12,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "pyyaml>=6.0",
     "fastapi>=0.116",
+    "argon2-cffi>=23.1",
 ]
 
 [project.optional-dependencies]
@@ -26,7 +27,7 @@ dev = [
 
 [tool.setuptools]
 # Flat-layout packages that live directly under backend/ (gate commands run from backend/).
-packages = ["core", "core.optimizer", "core.transfer", "agents", "api", "evals"]
+packages = ["core", "core.optimizer", "core.transfer", "accounts", "agents", "api", "evals"]
 
 [tool.setuptools.package-data]
 "core" = ["seeds/*.yaml"]
