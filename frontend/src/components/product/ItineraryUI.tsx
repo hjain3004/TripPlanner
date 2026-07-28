@@ -11,7 +11,7 @@ export const FlightRouteCard = ({ originCode, originName, destCode, destName, ai
         <div className="text-[11px] font-mono font-medium text-muted-foreground mt-3 uppercase tracking-[0.16em]">{originName}</div>
       </div>
       <div className="flex flex-col items-center justify-center px-4 w-full">
-        <div className="text-[10px] font-mono font-medium text-[var(--lacquer)] uppercase tracking-[0.16em] mb-4 bg-[var(--lacquer)]/5 border border-[var(--lacquer)]/20 px-3 py-1">{duration}</div>
+        <div className="text-[10px] font-mono font-medium text-[var(--color-lacquer)] uppercase tracking-[0.16em] mb-4 bg-[var(--color-lacquer)]/5 border border-[var(--color-lacquer)]/20 px-3 py-1">{duration}</div>
         <div className="w-full relative flex items-center justify-center h-[1px] bg-border/50">
           <div className="absolute bg-card px-4 text-primary">
             <PlaneTakeoff className="w-4 h-4" />
