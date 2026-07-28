@@ -26,7 +26,8 @@ dev = [
 
 [tool.setuptools]
 # Flat-layout packages that live directly under backend/ (gate commands run from backend/).
-packages = ["core", "core.optimizer", "core.transfer", "agents", "api", "evals"]
+packages = ["core", "core.optimizer", "core.transfer", "agents", "api", "evals",
+            "gateway", "gateway.evidence"]
 
 [tool.setuptools.package-data]
 "core" = ["seeds/*.yaml"]
