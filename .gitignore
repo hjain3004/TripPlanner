@@ -58,3 +58,10 @@ opencode.json
 
 # opencode
 .opencode/
+
+# Design probe binaries — 11.7MB of derived images/SVG from an exploratory
+# session. Sources are Wikimedia CC BY-SA and need attribution before any of
+# them are committed. The probe markup itself IS tracked.
+frontend/design/probes/*.jpg
+frontend/design/probes/*.png
+frontend/design/probes/*.svg

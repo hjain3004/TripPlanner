@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plate &amp; Proof — rung 0 still</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900&family=Schibsted+Grotesk:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Values lifted verbatim from frontend/src/themes/singapore.css — no invented colour. */
+  :root {
+    --paper-deep: oklch(0.947 0.013 87);   /* --th-bg        limestone */
+    --paper:      oklch(0.979 0.008 91);   /* --th-surface   paper     */
+    --ink:        oklch(0.281 0.007 145);  /* --th-text                */
+    --ink-muted:  oklch(0.525 0.014 157);  /* --th-text-muted          */
+    --ink-faint:  oklch(0.660 0.014 157);  /* --th-text-faint          */
+    --structure:  oklch(0.320 0.042 181);  /* --th-primary   mangrove  */
+    --celadon-1:  oklch(0.848 0.027 167);  /* --th-accent-1            */
+    --celadon-2:  oklch(0.917 0.016 161);  /* --th-accent-2            */
+    --value:      oklch(0.660 0.097 82);   /* --th-accent-3  brass     */
+    --signal:     oklch(0.536 0.135 30);   /* --th-accent-4  lacquer   */
+    --rule:       oklch(0.28 0.01 145 / 0.10);
+
+    --display: "Bodoni Moda", serif;
+    --ui: "Schibsted Grotesk", system-ui, sans-serif;
+    --mono: "Roboto Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    width: 1440px;
+    background: var(--paper-deep);
+    font-family: var(--ui);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--signal);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 30px;
+    height: 1px;
+    background: var(--signal);
+  }
+
+  /* --- THE FIX UNDER TEST -------------------------------------------------
+     Display renders in --ink at weight 600 (the proposed contract floor).
+     Exactly one line per page may take --signal. Optical sizing left auto so
+     Bodoni's opsz axis tracks the rendered size. --------------------------- */
+  h1 {
+    font-family: var(--display);
+    font-optical-sizing: auto;
+    font-weight: 600;
+    font-size: 92px;
+    line-height: 0.94;
+    letter-spacing: -0.015em;
+    margin: 26px 0 0;
+    color: var(--ink);
+  }
+  h1 .signal { color: var(--signal); }
+
+  .lede {
+    font-size: 19px;
+    line-height: 1.55;
+    color: var(--ink-muted);
+    max-width: 30ch;
+    margin: 30px 0 0;
+  }
+
+  /* --- page ---------------------------------------------------------------- */
+  .sheet {
+    display: grid;
+    grid-template-columns: 53fr 47fr;
+    min-height: 760px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .left  { padding: 92px 0 64px 88px; }
+  .right {
+    background: var(--paper);
+    border-left: 1px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+  }
+
+  .plate-caption {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-top: 26px;
+    text-align: center;
+  }
+
+  /* --- illustration system ------------------------------------------------
+     Two stroke weights only. Orthographic elevation, no perspective.
+     Stroke-only, no fills, no gradients. --------------------------------- */
+  .plate { display: block; }
+  .plate .structure { fill: none; stroke: var(--structure); stroke-width: 2.1; stroke-linejoin: round; stroke-linecap: round; }
+  .plate .detail    { fill: none; stroke: var(--structure); stroke-width: 1;   stroke-linecap: round; opacity: 0.42; }
+  .plate .ground    { fill: none; stroke: var(--structure); stroke-width: 1;   opacity: 0.22; }
+
+  /* --- proof register ------------------------------------------------------ */
+  .proof {
+    padding: 62px 88px 30px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 40px;
+  }
+  .proof h2 {
+    font-family: var(--display);
+    font-optical-sizing: auto;
+    font-weight: 600;
+    font-size: 40px;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--ink);
+  }
+  .route { display: block; }
+  .route .line { fill: none; stroke: var(--structure); stroke-width: 1.6; }
+  .route .node-o { fill: var(--paper-deep); stroke: var(--structure); stroke-width: 2.1; }
+  .route .node-live { fill: var(--paper-deep); stroke: var(--signal); stroke-width: 2.1; }
+  .route .dot { fill: var(--signal); }
+  .route text { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; fill: var(--ink-muted); }
+  .route text.code { fill: var(--ink); font-weight: 500; }
+
+  /* --- evidence strip ------------------------------------------------------ */
+  .strip {
+    border-top: 1px solid var(--rule);
+    padding: 34px 88px 46px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 70px;
+  }
+  .strip h3 {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 18px;
+  }
+  .roles { display: flex; gap: 0; }
+  .role { flex: 1; }
+  .role .chip { height: 54px; border: 1px solid var(--rule); border-right: none; }
+  .role:last-child .chip { border-right: 1px solid var(--rule); }
+  .role .name {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--ink-muted); margin-top: 8px;
+  }
+  .role .use { font-size: 11px; color: var(--ink-faint); margin-top: 3px; line-height: 1.35; }
+
+  .ab { display: flex; gap: 46px; align-items: flex-start; }
+  .ab .col { flex: 1; }
+  .ab .label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+  .ab .label.was { color: var(--ink-faint); }
+  .ab .label.now { color: var(--signal); }
+  .ab .spec {
+    font-family: var(--display); font-optical-sizing: auto;
+    font-size: 38px; line-height: 1; margin: 0;
+  }
+  .ab .spec.was { font-weight: 400; color: var(--celadon-1); }
+  .ab .spec.now { font-weight: 600; color: var(--ink); }
+  .ab .note { font-size: 11px; color: var(--ink-faint); margin-top: 12px; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<div class="sheet">
+  <div class="left">
+    <div class="eyebrow">Travel intelligence · made human</div>
+    <h1>One journey.<br><span class="signal">Every advantage.</span></h1>
+    <p class="lede">Flights, stays, points and card offers—resolved into one composed, understandable way to travel.</p>
+  </div>
+
+  <div class="right">
+    <!-- PLATE: Marina Bay Sands, orthographic front elevation. 23 paths.
+         Authored outside-in — deck, then towers, then facade, then water — so a
+         stroke-dashoffset draw reads as a hand making the drawing.
+         Tower slenderness ~1:8, matching the real 55-storey proportion. The
+         triangular notch rising from each base is the two splayed legs, reduced. -->
+    <svg class="plate" width="640" height="470" viewBox="0 0 700 470" role="img"
+         aria-label="Line illustration of Marina Bay Sands in orthographic elevation">
+
+      <!-- SkyPark deck: the silhouette's defining gesture, drawn first -->
+      <path class="structure" d="M64 100 L64 78 C220 66 480 58 648 64 L642 90 C470 94 220 102 64 100 Z"/>
+      <path class="detail"    d="M74 84 C226 74 480 66 636 71"/>
+
+      <!-- Rooftop planting -->
+      <path class="detail" d="M188 71 V61"/>
+      <path class="detail" d="M244 68 V58"/>
+      <path class="detail" d="M300 66 V56"/>
+      <path class="detail" d="M356 64 V54"/>
+
+      <!-- Towers: slab tapering wider toward the base, notched by the leg void -->
+      <path class="structure" d="M148 100 L192 100 L200 400 L180 400 L170 300 L160 400 L140 400 Z"/>
+      <path class="structure" d="M308 96 L352 96 L360 400 L340 400 L330 300 L320 400 L300 400 Z"/>
+      <path class="structure" d="M468 92 L512 92 L520 400 L500 400 L490 300 L480 400 L460 400 Z"/>
+
+      <!-- Facade striation: vertical, not rungs -->
+      <path class="detail" d="M159 116 L163 288"/>
+      <path class="detail" d="M170 116 L170 288"/>
+      <path class="detail" d="M181 116 L177 288"/>
+      <path class="detail" d="M319 112 L323 288"/>
+      <path class="detail" d="M330 112 L330 288"/>
+      <path class="detail" d="M341 112 L337 288"/>
+      <path class="detail" d="M479 108 L483 288"/>
+      <path class="detail" d="M490 108 L490 288"/>
+      <path class="detail" d="M501 108 L497 288"/>
+
+      <!-- Water and reflection -->
+      <path class="ground" d="M40 400 H660"/>
+      <path class="ground" d="M96 412 H604"/>
+      <path class="ground" d="M148 400 L152 440 M192 400 L188 440"/>
+      <path class="ground" d="M308 400 L312 440 M352 400 L348 440"/>
+      <path class="ground" d="M468 400 L472 440 M512 400 L508 440"/>
+    </svg>
+    <div class="plate-caption">Plate 01 · Marina Bay · orthographic elevation</div>
+  </div>
+</div>
+
+<div class="proof">
+  <h2>A clear route<br>through the trade-offs.</h2>
+
+  <!-- PROOF: same pen as the plate — same stroke weights, same palette.
+       This is what makes it one system rather than art plus charts. -->
+  <svg class="route" width="560" height="112" viewBox="0 0 560 112" role="img"
+       aria-label="Route diagram from Mumbai to Singapore">
+    <path class="line" d="M40 56 H520"/>
+    <circle class="node-o" cx="40" cy="56" r="7"/>
+    <circle class="node-o" cx="280" cy="56" r="5"/>
+    <circle class="node-live" cx="520" cy="56" r="7"/>
+    <circle class="dot" cx="520" cy="56" r="2.6"/>
+    <text class="code" x="40" y="34" text-anchor="middle">BOM</text>
+    <text x="40" y="80" text-anchor="middle">MUMBAI</text>
+    <text x="280" y="44" text-anchor="middle">5H 25M</text>
+    <text class="code" x="520" y="34" text-anchor="middle">SIN</text>
+    <text x="520" y="80" text-anchor="middle">SINGAPORE</text>
+  </svg>
+</div>
+
+<div class="strip">
+  <div>
+    <h3>Palette roles — existing token values, reassigned</h3>
+    <div class="roles">
+      <div class="role"><div class="chip" style="background:var(--paper-deep)"></div><div class="name">paper</div><div class="use">ground</div></div>
+      <div class="role"><div class="chip" style="background:var(--ink)"></div><div class="name">ink</div><div class="use">all display, body</div></div>
+      <div class="role"><div class="chip" style="background:var(--structure)"></div><div class="name">structure</div><div class="use">rules, nodes, every drawn line</div></div>
+      <div class="role"><div class="chip" style="background:var(--signal)"></div><div class="name">signal</div><div class="use">the one thing being explained</div></div>
+      <div class="role"><div class="chip" style="background:var(--value)"></div><div class="name">value</div><div class="use">money saved, only</div></div>
+    </div>
+  </div>
+
+  <div>
+    <h3>The display fix under test</h3>
+    <div class="ab">
+      <div class="col">
+        <div class="label was">Shipped — 400, celadon</div>
+        <p class="spec was">One journey.</p>
+        <div class="note">No ink role, so display inherited an accent. Reads as absence.</div>
+      </div>
+      <div class="col">
+        <div class="label now">Proposed — 600, ink</div>
+        <p class="spec now">One journey.</p>
+        <div class="note">Weight floor 600 written into the contract, so the left column becomes a lint violation.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
