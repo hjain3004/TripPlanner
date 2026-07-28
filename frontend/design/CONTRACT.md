@@ -122,8 +122,8 @@ token keeps its own amber hue so it stays visually distinct from `--color-danger
 | `--dur-slow` | `650ms` |
 | `--ease-brand` | `cubic-bezier(0.22, 1, 0.36, 1)` — confident settle; components read this token, never hardcode a curve |
 
-**Depth rule (Tier F):** elevation = surface tint + layered shadow + hairline border
-together, never shadow alone. Borders are 1px at ~8–10% text-color opacity (asserted
+**Depth rule (Tier F):** For **shell surfaces only**, elevation = surface tint + layered shadow + hairline border
+together, never shadow alone. (Issued documents in the `issue` register use an offset plate instead.) Borders are 1px at ~8–10% text-color opacity (asserted
 at Gate F1 as a *visibility* threshold — ΔL after alpha compositing — not a 3:1
 contrast ratio, since hairlines compositing at ~10% opacity land near 1.05:1 by
 design). **Focus rings** are the exception: they carry the real 3:1 WCAG obligation
@@ -131,7 +131,7 @@ and are tested against every surface they can appear on.
 
 **Border rule:** every border is `1px solid var(--color-border)` unless a component
 contract explicitly calls for a heavier rule (e.g. the featured-decision box in the
-ledger). No arbitrary border colors or widths in product code.
+ledger, or the `issue` register's 2px document border). No arbitrary border colors or widths in product code.
 
 ---
 

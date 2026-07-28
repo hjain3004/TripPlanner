@@ -1,7 +1,7 @@
 # Plate & Proof — frontend visual direction
 
 **Date:** 2026-07-28
-**Status:** PAUSED — direction decided, partially proven, **not approved for implementation**.
+**Status:** SUPERSEDED BY 2026-07-29-visual-system-reconciled.md. (Carries its palette, register, and posterize findings forward).
 **Owner decision:** frontend work stopped here; focus moved to backend.
 
 Read this before touching frontend visuals again. It is written to be self-sufficient

@@ -5,4 +5,4 @@ It is provided as a reference and visual guide.
 
 - This folder is **not** built or linted.
 - This folder is **not** part of the `frontend/` application build.
-- Do not modify files in this directory; they serve as the ground truth visual contract for the implemented frontend views.
+- Do not modify files in this directory; they serve as the ground truth visual contract for the implemented frontend views for **composition only** (palette and styling belong to the visual system specification).
