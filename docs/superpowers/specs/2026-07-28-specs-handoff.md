@@ -27,9 +27,17 @@ Verified after the spec-01 revision: `cd backend && .venv/bin/python -m pytest` 
 
 `docs/superpowers/plans/2026-07-28-accounts-persistence.md`, 10 tasks, via `superpowers:subagent-driven-development`. **Not started, and deliberately so** — the human's instruction was specs and plan docs only.
 
-### 5. Remaining: an auth plan
+### ~~5. An auth plan~~ — DONE
 
-Spec 17 §4 is specified but has no implementation plan. It is the natural next plan document after persistence: `UserCredential`, `Session`, login/logout/rotation, CSRF, and the HTTP endpoints the persistence plan excluded.
+`docs/superpowers/plans/2026-07-28-accounts-auth.md`, 8 tasks. Implements spec 17 §4. **Hard dependency: the persistence plan must be complete and Gate A1 passing first** — it extends `accounts/models.py`, `accounts/db.py` and `AccountStore`.
+
+Two things in it that a reviewer should check rather than skim: `authenticate()` returns `User | None` with no reason, and burns a dummy Argon2 verification when the user is absent or locked, so login is not a user-enumeration oracle by response body *or* by timing. And the CSRF cookie is deliberately **not** `httpOnly` — that is the double-submit pattern working as intended, not an oversight.
+
+It also fixes a gap in the persistence plan: `delete_user`'s cascade must grow to cover `user_credentials` and `sessions`, marked ⚠ in Task 5.
+
+## Nothing further is planned
+
+Both remaining plan docs exist. All work from here is execution, which the human has explicitly reserved.
 
 ---
 
