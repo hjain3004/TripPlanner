@@ -39,9 +39,11 @@ Backend: **M1** (specs 00,01,02 — data model + optimizer + golden tests) → *
 Frontend: **F1** (specs 10,11 — tokens + primitives) → **F2** (spec 12 — contract, codegen, wizard) → **F3** (specs 13,14,15 — loading + results + wit) → **F4** (performance + one live integration run).
 Target prototype: specs **08,09,16** are authoritative design now; provider/gateway implementation begins only after the test-data Kernel MVP and frontend pass F4, unless the human explicitly changes the order. Use the active `student_noncommercial` provider profile; paid services/credentials still require human approval. Flight evidence is typed by meaning: current cash quote ≠ cached price observation ≠ sandbox fixture ≠ award availability (see `reports/flight_data_strategy.md`).
 
+Accounts & acquisition: spec **17** (accounts + persistence) is authoritative design; `docs/superpowers/plans/2026-07-28-accounts-persistence.md` was written before it — a deliberate, human-approved process inversion logged as SCOPE+ in `DEVIATIONS.md`; where the two disagree, spec 17 wins. Spec **18** (card acquisition + welcome offers) depends on 17. Neither is implemented; both sit after the Kernel MVP gates. Spec 18's Case A (welcome window on an already-held card) is shippable independently of Case B (new-card suggestion) — do not build Case B first.
+
 Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (frontend). A milestone is not done because the code exists; it is done when its gate passes.
 
-## Current checkpoint (2026-07-25)
+## Current checkpoint (2026-07-28)
 
 - **M1 is formally complete:** `reports/milestone_1.md` records a fresh Gate M1 pass. The latest combined Gate M1 run has 12 optimizer golden cases passing, 5 determinism-selection tests passing, strict type checking clean for 16 source files, and the canonical demo byte-identical.
 - **M1b is formally complete:** `backend/core/transfer/` now implements the deterministic transfer pathfinder. `reports/milestone_1b.md` records Gate M1b with 20 transfer tests passing, strict type checking clean for 16 source files, and the full backend regression suite at 40 passing tests.
@@ -51,7 +53,9 @@ Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (front
 - **F1 is the immediate implementation milestone:** implement specs 10 and 11 (frontend tokens + primitives). Do not begin provider gateway, crawling, provider APIs, or MCP/provider work in the same change.
 - **Later layers are scaffolds:** `backend/ingestion/`, `frontend/`, and `contract/` contain no implementation yet. There is no provider gateway, runtime adapter, or project MCP configuration.
 - **Do not connect travel-provider MCPs yet.** Developer MCPs are added just-in-time during F1–F4; runtime providers begin only after G1 creates normalized contracts, the provider registry, and `SampleAdapter`. Gondola is the first planned read-only live spike; installation never activates an adapter.
-- **Git is initialized:** baseline commit `b3790e8` is on `main`; remote `origin` is `https://github.com/hjain3004/TripPlanner.git`; current implementation work is on `feat/m3-evals-provenance`. Never claim a push or PR until it actually succeeds.
+- **Backend regression baseline is 100 tests, not 97.** The 97 recorded above is what Gate M3 measured and remains the correct historical record for that gate; the count moved to 100 when F1–F4 landed (`168cd4d` added `api/job_manager.py` and 3 tests to `evals/test_m2_api.py`). Treat 100 as the current floor — a drop below it is a regression, not drift.
+- **Spec pass of 2026-07-28 is complete (specs only, nothing implemented):** spec 05 gained a Stage 0 discovery step (aggregators are leads, never sources; `DiscoveryCandidate` deliberately carries no `Provenance` block); spec 01 gained `Card.network_tier`, `NetworkBenefit` (§3.1) and `Offer.network_tiers`, all optional and all **report-only**, so the Tier-F stacking order is untouched and no golden value moved; spec 17 and spec 18 are new. All judgment calls are in `DEVIATIONS.md`.
+- **Git is initialized:** baseline commit `b3790e8` is on `main`; remote `origin` is `https://github.com/hjain3004/TripPlanner.git`; current work is on `feat/f1-frontend-foundation`, which now carries both the F1.5 frontend commits and the 2026-07-28 spec/plan docs. Never claim a push or PR until it actually succeeds. Untracked by choice: `frontend/design/probes/` (6.4 MB of design-probe binaries; Wikimedia sources are CC BY-SA and need attribution before committing) and `frontend/design/pipeline/`.
 
 ## Repo boundaries
 

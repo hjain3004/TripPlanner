@@ -1,0 +1,178 @@
+/* Tailwind v4 scans only the entry stylesheet's directory by default. Utilities
+   declared with @utility in src/themes/ (e.g. the accent-1..4 set) are otherwise
+   never generated in the production build. Registered here rather than in
+   globals.css, which token-lint R5 pins to a 4-line import manifest. */
+@source "../app";
+@source "../components";
+@source "../themes";
+
+/* ============================================================
+   Layer 1 — static primitives (no var() references).
+   Plain @theme: safe to resolve at :root.
+   ============================================================ */
+@theme {
+  --text-hero: clamp(3.5rem, 2rem + 6vw, 6rem);
+  --text-h1: clamp(2.5rem, 1.8rem + 3vw, 3.5rem);
+  --text-h2: clamp(1.75rem, 1.4rem + 1.8vw, 2.25rem);
+  --text-h3: clamp(1.375rem, 1.25rem + 0.6vw, 1.5rem);
+  --text-body: 1rem;
+  --text-caption: 0.8125rem;
+
+  --radius-s: 6px;
+  --radius-m: 12px;
+  --radius-l: 20px;
+  --radius-full: 9999px;
+
+  --shadow-1: 0 1px 2px oklch(0.281 0.007 145 / 0.06), 0 8px 24px oklch(0.281 0.007 145 / 0.05);
+  --shadow-2: 0 2px 4px oklch(0.281 0.007 145 / 0.08), 0 12px 32px oklch(0.281 0.007 145 / 0.07);
+  --shadow-3: 0 4px 8px oklch(0.281 0.007 145 / 0.10), 0 24px 48px oklch(0.281 0.007 145 / 0.10);
+
+  --blur-overlay: 16px;
+
+  --dur-fast: 180ms;
+  --dur-base: 320ms;
+  --dur-slow: 650ms;
+
+  --ease-brand: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Accent colors (also in @theme inline for theming; duplicated here to ensure
+     production Turbopack generates the utility classes). Values from singapore.css. */
+  --color-accent-1: oklch(0.848 0.027 167);
+  --color-accent-2: oklch(0.917 0.016 161);
+  --color-accent-3: oklch(0.660 0.097 82);
+  --color-accent-4: oklch(0.536 0.135 30);
+}
+
+/* Force generation of accent color utilities in production builds.
+   @utility doesn't work in Turbopack production; use explicit @layer utilities. */
+@layer utilities {
+  .bg-accent-1 { background-color: var(--color-accent-1); }
+  .bg-accent-2 { background-color: var(--color-accent-2); }
+  .bg-accent-3 { background-color: var(--color-accent-3); }
+  .bg-accent-4 { background-color: var(--color-accent-4); }
+  .text-accent-1 { color: var(--color-accent-1); }
+  .text-accent-2 { color: var(--color-accent-2); }
+  .text-accent-3 { color: var(--color-accent-3); }
+  .text-accent-4 { color: var(--color-accent-4); }
+  .border-accent-1 { border-color: var(--color-accent-1); }
+  .border-accent-2 { border-color: var(--color-accent-2); }
+  .border-accent-3 { border-color: var(--color-accent-3); }
+  .border-accent-4 { border-color: var(--color-accent-4); }
+  .ring-accent-1 { --tw-ring-color: var(--color-accent-1); }
+  .ring-accent-2 { --tw-ring-color: var(--color-accent-2); }
+  .ring-accent-3 { --tw-ring-color: var(--color-accent-3); }
+  .ring-accent-4 { --tw-ring-color: var(--color-accent-4); }
+}
+
+@utility dur-fast {
+  animation-duration: var(--dur-fast);
+  transition-duration: var(--dur-fast);
+}
+@utility dur-base {
+  animation-duration: var(--dur-base);
+  transition-duration: var(--dur-base);
+}
+@utility dur-slow {
+  animation-duration: var(--dur-slow);
+  transition-duration: var(--dur-slow);
+}
+
+/* Draughting-paper grid for the hero planner panel (approved Phase 0 composition,
+   .planner). Lives here rather than in product code because the gradient needs a
+   raw color reference, which token-lint forbids outside themes/. Uses the border
+   token so the grid re-themes with the pack instead of pinning a literal. */
+@utility grid-paper {
+  background-image:
+    linear-gradient(var(--color-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
+  background-size: 76px 76px;
+}
+
+/* ============================================================
+   Layer 2 bridge + Layer 3 — destination-dependent.
+   MUST be @theme inline: resolves var() at the consuming element
+   via normal cascade, not at :root.
+   See DEVIATIONS.md Tier-F spec-bug row for why plain @theme
+   silently breaks nested theming.
+   ============================================================ */
+@theme inline {
+  --font-display: var(--th-font-display);
+  --font-ui: var(--th-font-ui);
+  --font-mono: var(--th-font-mono);
+
+  --color-bg: var(--th-bg);
+  --color-surface: var(--th-surface);
+  --color-surface-raised: var(--th-surface-raised);
+  --color-surface-overlay: var(--th-overlay);
+  --color-border: var(--th-border);
+
+  --color-text: var(--th-text);
+  --color-text-muted: var(--th-text-muted);
+  --color-text-faint: var(--th-text-faint);
+  --color-text-on-primary: var(--th-on-primary);
+
+  --color-primary: var(--th-primary);
+  --color-primary-hover: var(--th-primary-hover);
+  --color-primary-foreground: var(--th-on-primary);
+
+  --color-accent-1: var(--th-accent-1);
+  --color-accent-2: var(--th-accent-2);
+  --color-accent-3: var(--th-accent-3);
+  --color-accent-4: var(--th-accent-4);
+
+  --color-success: var(--th-success);
+  --color-success-text: var(--th-success-text);
+  --color-warning: var(--th-warning);
+  --color-warning-text: var(--th-warning-text);
+  --color-danger: var(--th-danger);
+  --color-savings: var(--th-savings);
+  --color-savings-text: var(--th-savings-text);
+
+  /* ---------- vendor compatibility (shadcn) — product code must never use these ---------- */
+  --color-background: var(--th-bg);
+  --color-foreground: var(--th-text);
+  --color-card: var(--th-surface);
+  --color-card-foreground: var(--th-text);
+  --color-popover: var(--th-surface);
+  --color-popover-foreground: var(--th-text);
+  --color-secondary: var(--th-accent-2);
+  --color-secondary-foreground: var(--th-text);
+  --color-muted: var(--th-accent-2);
+  --color-muted-foreground: var(--th-text-muted);
+  --color-accent: var(--th-accent-1);
+  --color-accent-foreground: var(--th-text);
+  --color-destructive: var(--th-danger);
+  --color-destructive-foreground: var(--th-on-primary);
+  --color-border: var(--th-border);
+  --color-input: var(--th-border);
+  --color-ring: var(--th-primary);
+  --color-sidebar: var(--th-surface);
+  --color-sidebar-foreground: var(--th-text);
+  --color-sidebar-primary: var(--th-primary);
+  --color-sidebar-primary-foreground: var(--th-on-primary);
+  --color-sidebar-accent: var(--th-accent-1);
+  --color-sidebar-accent-foreground: var(--th-text);
+  --color-sidebar-border: var(--th-border);
+  --color-sidebar-ring: var(--th-primary);
+
+  --radius-sm: var(--radius-s);
+  --radius-md: var(--radius-m);
+  --radius-lg: var(--radius-l);
+  --radius-xl: var(--radius-l);
+  --radius-2xl: var(--radius-l);
+  --radius-3xl: var(--radius-full);
+  --radius-4xl: var(--radius-full);
+}
+
+/* Base layer styles */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-ui;
+  }
+  body {
+    @apply bg-bg text-text;
+  }
+}

@@ -81,7 +81,7 @@ utilities — never `var(--color-*)` or `var(--th-*)` directly in product code.
 | `--color-surface-overlay` | `oklch(0.979 0.008 91 / 0.72)` | frosted, pair with `--blur-overlay` |
 | `--color-border` | `oklch(0.28 0.01 145 / 0.10)` | hairline, ~10% opacity |
 | `--color-text` | `oklch(0.281 0.007 145)` | ink `#272A27` |
-| `--color-text-muted` | `oklch(0.539 0.014 157)` | `#68716B` |
+| `--color-text-muted` | `oklch(0.525 0.014 157)` | tuned from `0.539` during F3 for AA 4.5:1 on `--color-bg` (within spec 11 §3's ±0.03 L tolerance) |
 | `--color-text-faint` | `oklch(0.660 0.014 157)` | decorative/hint only — never the sole rendering of required content (2.91:1 on paper, below AA) |
 | `--color-text-on-primary` | `oklch(0.979 0.008 91)` | paper, for text on mangrove |
 | `--color-primary` | `oklch(0.320 0.042 181)` | mangrove `#173A34` |

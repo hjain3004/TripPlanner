@@ -1,20 +1,27 @@
 from __future__ import annotations
 
+import threading
 from datetime import date
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
 
 from agents.llm import HostedFreeTier, LLMClient
-from agents.models import PlanRequest, PlanResponse
+from agents.models import (
+    PIPELINE_STAGES,
+    PipelineStatus,
+    PlanJobStatus,
+    TripIntakeRequest,
+)
 from agents.pipeline import run_pipeline
+from api.job_manager import job_manager
 from core.db import DB_PATH, KnowledgeBase, load_kb, seed_database
 
 TRACE_DIR = Path(__file__).resolve().parents[1] / ".traces"
 
 app = FastAPI(
     title="TripPlanner Kernel API",
-    version="0.2.0",
+    version="0.3.0",
     description="Kernel MVP API over local curated sample data.",
 )
 
@@ -42,21 +49,76 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/plan", response_model=PlanResponse)
+@app.post("/plan", status_code=202)
 def plan(
-    request: PlanRequest,
+    request: TripIntakeRequest,
     kb: KnowledgeBase = Depends(get_kb),
     llm: LLMClient = Depends(get_llm),
     booking_date: date = Depends(get_booking_date),
     trace_dir: Path = Depends(get_trace_dir),
-) -> PlanResponse:
+) -> dict[str, str]:
+    job_id = job_manager.create_job()
+    thread = threading.Thread(
+        target=_run_job,
+        args=(job_id, request, kb, llm, booking_date, trace_dir),
+        daemon=True,
+    )
+    thread.start()
+    return {"job_id": job_id}
+
+
+@app.get("/plan/{job_id}", response_model=PlanJobStatus)
+def get_job_status(job_id: str) -> PlanJobStatus:
+    state = job_manager.get_job(job_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return state.to_status(job_id)
+
+
+def _run_job(
+    job_id: str,
+    request: TripIntakeRequest,
+    kb: KnowledgeBase,
+    llm: LLMClient,
+    booking_date: date,
+    trace_dir: Path,
+) -> None:
     try:
-        return run_pipeline(
+
+        def on_stage(stage_index: int, stage: str) -> None:
+            job_manager.set_stage(job_id, stage_index, stage)
+
+        result = run_pipeline(
             request.raw_request,
             kb,
             llm,
             booking_date=booking_date,
             trace_dir=trace_dir,
+            on_stage=on_stage,
         )
+        if result.status == PipelineStatus.NEEDS_CLARIFICATION:
+            job_manager.complete(
+                job_id, "needs_clarification", unresolved=result.unresolved
+            )
+        elif result.status == PipelineStatus.ERROR:
+            job_manager.complete(
+                job_id,
+                "failed",
+                error={
+                    "code": "PIPELINE_ERROR",
+                    "message": result.error or "Unknown pipeline error",
+                    "trace_id": result.trace_id,
+                },
+            )
+        else:
+            job_manager.complete(job_id, "complete", report=result.report)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        job_manager.complete(
+            job_id,
+            "failed",
+            error={
+                "code": "INTERNAL_ERROR",
+                "message": str(exc),
+                "trace_id": "",
+            },
+        )

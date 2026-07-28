@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 from uuid import uuid4
@@ -11,7 +12,7 @@ from agents.explainer import run_explainer
 from agents.intake import run_intake
 from agents.kernel import run_kernel
 from agents.llm import LLMClient
-from agents.models import PipelineStatus, PlanResponse
+from agents.models import PIPELINE_STAGES, PipelineStatus, PlanResponse
 from agents.planner import run_planner
 from agents.retrieval import retrieve_candidates
 from agents.trace import TraceRecorder
@@ -27,10 +28,13 @@ def run_pipeline(
     *,
     booking_date: date,
     trace_dir: Path | None = None,
+    on_stage: Callable[[int, str], None] | None = None,
 ) -> PlanResponse:
     trace_id = uuid4().hex
     trace = TraceRecorder(trace_id, trace_dir)
 
+    if on_stage is not None:
+        on_stage(1, "intake")
     intake = run_intake(raw_request, kb, llm)
     trace.record("intake", intake, model="llm:intake")
     if intake.needs_clarification or intake.trip_spec is None:
@@ -44,6 +48,8 @@ def run_pipeline(
     retrieval = retrieve_candidates(spec, kb)
     trace.record("retrieval", retrieval)
 
+    if on_stage is not None:
+        on_stage(2, "itinerary")
     planner = run_planner(spec, retrieval, llm)
     trace.record(
         "planner",
@@ -57,13 +63,19 @@ def run_pipeline(
     itinerary = planner.itinerary
     planner_caveats = list(planner.caveats)
 
+    if on_stage is not None:
+        on_stage(3, "costing")
     estimate = estimate_costed_trip(spec, itinerary, kb, booking_date=booking_date)
     trace.record("estimator", estimate)
+    if on_stage is not None:
+        on_stage(4, "optimizing")
     kernel = run_kernel(spec, estimate, kb, booking_date=booking_date)
     trace.record("optimizer", kernel)
 
     critic_caveats: list[str] = []
     for loop_index in range(MAX_CRITIC_REPLAN_LOOPS):
+        if on_stage is not None:
+            on_stage(5, "critic")
         critic = run_critic(spec, itinerary, estimate, kb, llm)
         trace.record(
             "critic",
@@ -102,6 +114,8 @@ def run_pipeline(
         kernel = run_kernel(spec, estimate, kb, booking_date=booking_date)
         trace.record("optimizer", kernel, attributes={"revision_count": loop_index + 1})
 
+    if on_stage is not None:
+        on_stage(6, "explaining")
     report = run_explainer(
         spec,
         itinerary,

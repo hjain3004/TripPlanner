@@ -60,6 +60,11 @@ class Card(BaseModel):
     id: str                      # slug, e.g. "hdfc-infinia"
     issuer: str                  # "HDFC Bank"
     network: Literal["visa", "mastercard", "amex", "rupay", "diners"]
+    network_tier: Literal["infinite", "signature", "world_elite",
+                          "world", "platinum", "centurion", "reserve"] | None = None
+                                 # scheme tier, e.g. Visa Infinite vs Signature.
+                                 # Optional: every existing seed row and golden
+                                 # expectation stays valid with this unset.
     country: Literal["IN", "AE", "US"]
     name: str
     annual_fee_minor: int
@@ -80,6 +85,41 @@ class EarnRate(BaseModel):
 ```
 
 Modeling earn as `points per amount` (not a float multiplier) matches how issuers state rules and avoids rounding ambiguity. Rounding rule: points floor per **transaction** (`floor(txn_amount / per_amount) * points`). This is the industry norm; make it a constant so it can be flipped per-card later if needed.
+
+### 3.1 `network_benefits` — scheme tier entitlements
+
+`network` alone cannot express what a cardholder is actually entitled to. Visa Infinite and Visa Signature are the same scheme with materially different benefits; so are Mastercard World Elite and World. Tier entitlements (lounge programs, golf, Infinite's Luxury Hotel Collection, minimum travel insurance floors) are published by the scheme, apply across every issuer's card at that tier in a country, and therefore belong in their own table rather than duplicated onto each `Card`.
+
+```python
+class NetworkBenefit(BaseModel):
+    id: str
+    network: Literal["visa", "mastercard", "amex", "rupay", "diners"]
+    network_tier: str                        # matches Card.network_tier
+    country: Literal["IN", "AE", "US"]       # entitlements are country-scoped
+    lounge_program: str | None               # "Priority Pass", "LoungeKey", ...
+    lounge_visits_per_year: int | None       # None = unlimited or unspecified
+    golf_access: str | None
+    hotel_collection: str | None             # "Visa Luxury Hotel Collection"
+    travel_insurance_summary: str | None     # prose floor, not a computed value
+    concierge: bool = False
+    notes: str | None
+    provenance: Provenance                   # scheme-published, verified like any fact
+```
+
+Lookup key is `(network, network_tier, country)`. A card with `network_tier=None` matches no `NetworkBenefit` row and simply renders nothing — this is why the field is optional.
+
+**Composition with offers — read this before implementing.** `NetworkBenefit` rows are **report-only**. They are never scored, never enter the optimizer's benefit function, and **never enter the offer stacking order** (02 §6). The precedent is already in this document: §3's `lounge_intl_visits_per_year` is "stored for report color; not optimized in MVP." Tier entitlements are the same kind of thing — durable perks of holding the card, not per-transaction discounts — so they get the same treatment.
+
+This is what makes the addition provably additive. The frozen stacking rule (per line item, at most one offer per `stacking_class`; `coupon` applied before `bank_offer`) is untouched, no new value enters `benefit`, and no golden expected value moves. **There is no Tier-F conflict to resolve here, and an implementer must not create one** by trying to score entitlements into the allocation.
+
+The distinction to hold onto:
+
+| Thing | Model | Optimized? |
+|---|---|---|
+| Network-targeted promo ("10% off with any Visa") | `Offer` with `networks` set | Yes — stacks normally |
+| Tier entitlement ("Infinite includes Priority Pass") | `NetworkBenefit` | No — report only |
+
+If a scheme runs a *promotion* restricted to a tier, that is an `Offer`, not a `NetworkBenefit` — see §6.
 
 ## 4. `reward_rules` — the heart of the schema
 
@@ -143,6 +183,10 @@ class Offer(BaseModel):
     issuer: str | None                      # bank offers
     card_ids: list[str] | None              # specific cards; None + issuer set = any card of issuer
     networks: list[str] | None              # network-level offers (Visa/Mastercard promos)
+    network_tiers: list[str] | None = None  # optional tier restriction within `networks`,
+                                            # e.g. Infinite-only promo. None = any tier.
+                                            # A card with network_tier=None matches only
+                                            # offers whose network_tiers is None.
     merchant: str                           # "Agoda", "Singapore Airlines", "Klook"
     channels: list[Channel]
     categories: list[SpendCategory]
@@ -228,11 +272,11 @@ Seeds live in `core/seeds/*.yaml`, one file per table, loaded by `python -m core
     confidence: 0.5
 ```
 
-MVP dataset sizes: 8–12 IN cards, 20–40 reward rules, 15–25 offers, ~60–100 Singapore POIs, 8 areas, 6–10 sample flights DEL/BOM→SIN, 10–15 hotels, FX for SGD/INR/USD.
+MVP dataset sizes: 8–12 IN cards, 20–40 reward rules, 15–25 offers, ~60–100 Singapore POIs, 8 areas, 6–10 sample flights DEL/BOM→SIN, 10–15 hotels, FX for SGD/INR/USD, and 0–6 `network_benefits` rows (optional — the tier table may ship empty; nothing depends on it).
 
 ## 10. SQL notes
 
 - One table per model; `provenance_*` columns inlined (no join table).
 - JSON-encode list fields (`categories`, `channels`, `tags`) in TEXT columns — SQLite JSON1 functions are sufficient; Postgres migration maps to JSONB.
-- Indices: `reward_rules(card_id)`, `offers(merchant)`, `offers(valid_to)`, `poi(city)`.
+- Indices: `reward_rules(card_id)`, `offers(merchant)`, `offers(valid_to)`, `poi(city)`, `network_benefits(network, network_tier, country)`.
 - All reads for one plan request happen through a single `KnowledgeBase` facade class (`core/db.py`) exposing typed query methods (`rules_for_cards(ids)`, `offers_matching(merchant, channel, category, date)`, `pois(city, tags)`), so the optimizer and agents never write SQL.

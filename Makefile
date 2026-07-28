@@ -3,13 +3,15 @@
 
 PY ?= python
 BACKEND := backend
+FRONTEND := frontend
 
 .PHONY: help install seed demo demo-check test test-optimizer test-transfer \
         determinism typecheck typecheck-m2 lint float-audit gate-m1 gate-m1b \
-        test-m2 test-m3 typecheck-m3 gate-m2 gate-m3 clean
+        test-m2 test-m3 typecheck-m3 gate-m2 gate-m3 clean gate-f1 fe-lint \
+        fe-typecheck fe-token-lint fe-contrast fe-build fe-gate-shots
 
 help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 install: ## Install backend package + dev deps
@@ -71,6 +73,64 @@ gate-m2: test-m2 typecheck-m2 ## Run the complete Gate M2
 gate-m3: test-m3 typecheck-m3 ## Run the complete Gate M3
 	cd $(BACKEND) && $(PY) -m evals.report
 	@echo "Gate M3 checks executed."
+
+# ------------------------------------------------------------------
+# Frontend gate (F1)
+# ------------------------------------------------------------------
+fe-lint: ## Frontend: ESLint
+	cd $(FRONTEND) && npx eslint .
+
+fe-typecheck: ## Frontend: TypeScript type check
+	cd $(FRONTEND) && npx tsc --noEmit
+
+fe-token-lint: ## Frontend: token-lint (design-token discipline rules)
+	cd $(FRONTEND) && node scripts/token-lint.mjs
+
+fe-contrast: ## Frontend: WCAG contrast regression tests
+	cd $(FRONTEND) && npx vitest run tests/contrast.test.ts
+
+fe-build: ## Frontend: Next.js build
+	cd $(FRONTEND) && npm run build
+
+fe-gate-shots: ## Frontend: Playwright screenshots + axe (all 4 projects)
+	cd $(FRONTEND) && npx playwright test f1-gate.spec.ts --config=e2e/playwright.config.ts --reporter=list
+
+fe-no-dead-classes: ## Frontend: G1 no-dead-classes gate
+	cd $(FRONTEND) && node scripts/no-dead-classes.mjs
+
+fe-product-shots: ## Frontend: G2 product screenshots for / and /plan
+	cd $(FRONTEND) && npx playwright test f1-5-landing.spec.ts --config=e2e/playwright.config.ts --reporter=list
+
+gate-f1: fe-token-lint fe-contrast fe-typecheck fe-build fe-gate-shots fe-no-dead-classes fe-product-shots ## F1 gate-rigor (lint + contrast + typecheck + build + shots + G1 + G2)
+	@echo "Gate F1: All checks passed."
+
+fe-e2e-f2: ## Frontend: Playwright F2 wizard e2e tests
+	cd $(FRONTEND) && npx playwright test f2-wizard.spec.ts --config=e2e/playwright.config.ts --reporter=list
+
+fe-contract: ## Frontend: Vitest contract tests
+	cd $(FRONTEND) && npx vitest run tests/contract.test.ts
+
+gate-f2: fe-lint fe-typecheck fe-build fe-e2e-f2 fe-contract ## F2 gate (lint + typecheck + build + e2e + contract)
+	@echo "Gate F2: All checks passed."
+
+fe-e2e-f3: ## Frontend: Playwright F3 results e2e tests (results + no-orphan-numbers)
+	cd $(FRONTEND) && npx playwright test f3-results.spec.ts f3-no-orphan-numbers.spec.ts --config=e2e/playwright.config.ts --reporter=list
+
+gate-f3: fe-lint fe-typecheck fe-build fe-e2e-f3 fe-contract ## F3 gate (lint + typecheck + build + e2e + contract)
+	@echo "Gate F3: All checks passed."
+
+fe-e2e-f4-bundle-perf: ## Frontend: Playwright F4 bundle-check + perf-trace (mock mode)
+	cd $(FRONTEND) && npx playwright test f4-bundle-check.spec.ts f4-perf-trace.spec.ts --config=e2e/playwright.config.ts --reporter=list --project=chromium
+
+fe-e2e-f4-live: ## Frontend: Playwright F4 live integration (requires backend on port 8000 + NEXT_PUBLIC_API_MODE=live)
+	cd $(FRONTEND) && npx playwright test f4-live-integration.spec.ts --config=e2e/playwright.config.ts --reporter=list --project=chromium
+
+fe-perf: ## Frontend: performance trace (LCP/CLS/INP)
+	cd $(FRONTEND) && npx playwright test f4-perf-trace.spec.ts --config=e2e/playwright.config.ts --reporter=list --project=chromium
+
+gate-f4: fe-lint fe-token-lint fe-contrast fe-typecheck fe-build fe-gate-shots \
+         fe-e2e-f4-bundle-perf fe-e2e-f2 fe-e2e-f3 fe-e2e-f4-live fe-contract ## F4 gate: full regression across F1-F4
+	@echo "Gate F4: All checks passed."
 
 clean: ## Remove caches and the local seeded DB
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true

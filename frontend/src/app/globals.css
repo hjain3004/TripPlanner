@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../themes/base.css";
+@import "../themes/singapore.css";
