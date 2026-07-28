@@ -6,39 +6,37 @@ Read `DEVIATIONS.md` and `docs/specs/06_implementation_protocol.md` first, per C
 ## Done this session
 
 - **`docs/superpowers/plans/2026-07-28-accounts-persistence.md`** — full 10-task TDD implementation plan for `backend/accounts/`. Not started.
-- **`docs/specs/05_ingestion_pipeline_phase2.md`** — revised. Added Stage 0 (Discovery), the `DiscoveryCandidate` model, per-corridor seed aggregators, the ToS gate, component 0, and three new non-goals.
+- **`docs/specs/05_ingestion_pipeline_phase2.md`** — revised. Stage 0 (Discovery), the `DiscoveryCandidate` model, per-corridor seed aggregators, the ToS gate, component 0, three new non-goals.
+- **`docs/specs/01_data_model.md`** — revised, additively. `Card.network_tier` (optional), new §3.1 `NetworkBenefit`, `Offer.network_tiers` (optional), index and seed-size notes.
+- **`docs/specs/18_card_acquisition_and_welcome_offers.md`** — new.
+- **`docs/specs/00_README_BUILD_PLAN.md`** — documents table rows for 17 (pending) and 18; spec-doc count corrected.
+
+Verified after the spec-01 revision: `cd backend && .venv/bin/python -m pytest` → **100 passed**, and `git diff --stat main -- backend/evals/golden/` empty. The additive claim holds.
+
+> **Correction to a stale number:** `CLAUDE.md`'s current-checkpoint section says the backend regression is 97 tests. It is **100**. The count moved before this session (nothing here touched `backend/`). Use 100 as the baseline; fix `CLAUDE.md` when you next edit it.
 
 ## Remaining
 
-### 1. Revise `docs/specs/01_data_model.md` — network tiers
+### 1. `DEVIATIONS.md` — log the three spec changes
 
-Additive only. Decisions already made — do not re-litigate:
+Rows needed (six-column format, new `## Specs — accounts, discovery, network tiers` section):
 
-- **`Card.network_tier: str | None`** — new optional field in §3. Suggested `Literal["infinite","signature","world_elite","world","platinum","centurion","reserve"] | None`, default `None`. Optional means no seed row and no golden expected value changes.
-- **New `NetworkBenefit` entity** keyed by `(network, network_tier, country)`, carrying the standard `Provenance` block like every other fact. Fields: lounge program + visits, golf, hotel-collection status, travel insurance summary, concierge — each `str | None` or `int | None`.
-- **The Tier-F risk is resolved, not deferred.** `NetworkBenefit` entitlements are **report-only** and **never enter the offer stacking order** (02 §6). Precedent: 01 §3 already treats `lounge_intl_visits_per_year` as "stored for report color; not optimized in MVP." This makes the addition provably additive — the frozen stacking order (`coupon` first, then `bank_offer`, one per `stacking_class`) is untouched and zero golden values move.
-- **Network-*targeted offers* stay as `Offer`.** `Offer.networks` already exists (01 §6) and already stacks. Optionally add `Offer.network_tiers: list[str] | None` (None = any tier) — additive, does not change stacking order.
-- Clean separation to state in the spec: **network-targeted promo = `Offer`** (stacked, optimized); **tier entitlement = `NetworkBenefit`** (report-only, never optimized).
+- **Spec 05 discovery.** Record *why* `aggregator_hint` was rejected as a `Provenance.source_type` member in favour of a separate `DiscoveryCandidate` type with no `Provenance` block: adding it to the `Literal` would let every KB row carry a hint provenance and reduce the invariant to a runtime check on a type that permits the bad state. This is a deliberate departure from the brainstorm plan's stated approach.
+- **Spec 01 network tiers.** Additive: `NetworkBenefit` is report-only and never enters the Tier-F stacking order, with precedent in 01 §3's treatment of `lounge_intl_visits_per_year`. Verified: 100 tests still pass, golden diff empty.
+- **Spec 18.** New spec ahead of its dependency (17), same process inversion as the persistence plan. Case A (held-card welcome window) is specified as shippable independently of Case B.
 
-Verification: `cd backend && .venv/bin/python -m pytest` must stay at 97 passing with no expected-value edits. `git diff --stat -- backend/evals/golden/` must be empty.
+### 2. `CLAUDE.md` + `AGENTS.md` — build order and checkpoint
 
-### 2. New `docs/specs/18_card_acquisition_and_welcome_offers.md`
+Slot specs 17/18 into the build order with a gate per spec 06 §5, and correct the 97 → 100 regression count. **Both files must stay byte-identical.**
 
-**Number 18, not 17** — 17 is reserved for `accounts_and_persistence` and is referenced by name throughout the persistence plan. Renumbering would break it.
+### 3. Still unwritten: `docs/specs/17_accounts_and_persistence.md`
 
-The feature: surface that a card the user does *not* hold has a welcome bonus that would materially improve this trip's economics.
+The persistence plan builds ahead of it (logged SCOPE+). Spec 17 owes: the auth/session approach, privacy and retention policy, and the parts of the entity model the plan did not cover. When written, it wins over the plan's code.
 
-Content to cover:
+### 4. Not started: executing the persistence plan
 
-- **The higher-value, lower-risk half first:** for a card the user *already holds*, detect an **active** welcome window from `WalletEntry.opened_on` (spec 17) and surface "43 days left to hit the ₹X minimum spend — putting the flights here clears it." This needs no application, no eligibility guessing, and no advice framing. Specify it before the new-card case.
-- **`CardAcquisitionOffer` model** with `Provenance`: bonus points/value, `min_spend_minor`, `spend_window_days`, `expected_approval_to_card_days`, eligibility exclusions (e.g. "not held in prior 24 months"), annual fee, fee-waiver conditions.
-- **Deterministic math only** (non-negotiable #1): `net_first_year_benefit_minor = welcome_bonus_value_minor + trip_earn_delta_minor − annual_fee_minor`, integer minor units throughout. The LLM copies these numbers, never generates them.
-- **The timing gate** — the suggestion is suppressed unless the trip's bookable spend falls *after* expected card arrival *and* inside the min-spend window. Most naive versions of this feature get this wrong and recommend a card that cannot arrive in time.
-- **Facts the system cannot know must be stated as unknown, never assumed:** credit score, income, existing issuer relationships, prior-product history.
-- **Non-goals (hard):** no application submission, no pre-qualification API, no credit checks, no affiliate/referral links (consistent with the new spec 05 non-goal), no "you will be approved" claims, and never ranked above the strategy built from cards already held.
+`docs/superpowers/plans/2026-07-28-accounts-persistence.md` is ready to run via `superpowers:subagent-driven-development`.
 
-### 3. Index and log updates
+## Uncommitted and deliberately left alone
 
-- `docs/specs/00_README_BUILD_PLAN.md` — add rows for 17 (mark pending/reserved) and 18 to the documents table; the line "17 spec docs" at §Repo layout and the `docs/specs/` comment both need the new count.
-- `DEVIATIONS.md` — add rows for: the spec-05 discovery revision (including *why* `aggregator_hint` was rejected in favour of a separate `DiscoveryCandidate` type), the spec-01 additive network-tier revision, and the new spec 18.
-- `CLAUDE.md` + its identical `AGENTS.md` copy — build order and checkpoint sections need these slotted in with a gate per spec 06 §5. **Both files must stay byte-identical.**
+`frontend/design/probes/` — 6.4 MB of design-probe binaries (2.5 MB traced SVG, source JPEGs, PNG screenshots). Wikimedia sources are CC BY-SA and need attribution before they go in the repo. `frontend/design/pipeline/posterize.py` likewise untracked.
