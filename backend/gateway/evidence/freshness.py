@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
-from gateway.evidence.nodes import Claim, FreshnessState
+from gateway.evidence.nodes import Claim, FreshnessState, LifecycleState
 
 
 def _parse(ts: str) -> datetime:
@@ -25,7 +25,7 @@ def is_expired(claim: Claim, now: str) -> bool:
 def mark_stale(graph: EvidenceGraph, claim_id: str, now: str) -> None:
     """Transition an expired live claim to stale. Idempotent; never deletes."""
     claim = graph.claims[claim_id]
-    if is_expired(claim, now) and claim.status is FreshnessState.LIVE:
+    if claim.lifecycle == LifecycleState.ACTIVE and is_expired(claim, now) and claim.status is FreshnessState.LIVE:
         graph.claims[claim_id] = claim.model_copy(
             update={"status": FreshnessState.STALE}
         )
@@ -35,7 +35,7 @@ def supersede(graph: EvidenceGraph, old_id: str, new_claim: Claim) -> None:
     """Replace `old_id` with `new_claim`, keeping the old claim addressable."""
     old = graph.claims[old_id]
     graph.claims[old_id] = old.model_copy(update={
-        "status": FreshnessState.SUPERSEDED,
+        "lifecycle": LifecycleState.SUPERSEDED,
         "superseded_by": new_claim.claim_id,
     })
     graph.add_claim(new_claim)

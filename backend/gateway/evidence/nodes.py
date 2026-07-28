@@ -20,11 +20,17 @@ class ClaimKind(StrEnum):
 
 
 class FreshnessState(StrEnum):
-    """Spec 16 §8."""
+    """Spec 16 §3. Evidence provenance only — never graph lifecycle."""
     LIVE = "live"
     CACHED = "cached"
     ESTIMATED = "estimated"
     STALE = "stale"
+    VERIFY_REQUIRED = "verify_required"
+
+
+class LifecycleState(StrEnum):
+    """Graph lifecycle. Orthogonal to evidence provenance."""
+    ACTIVE = "active"
     SUPERSEDED = "superseded"
 
 
@@ -46,6 +52,7 @@ class Claim(BaseModel):
     source_id: str | None
     is_inference: bool
     status: FreshnessState
+    lifecycle: LifecycleState = LifecycleState.ACTIVE
     superseded_by: str | None = None
     contradicts: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0.0, le=1.0)

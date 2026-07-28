@@ -1,7 +1,7 @@
 from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
 from gateway.evidence.invariants import check_invariants
 from gateway.evidence.nodes import (
-    Artifact, Claim, Evaluation, FreshnessState, Source,
+    Artifact, Claim, Evaluation, LifecycleState, Source,
 )
 
 
@@ -20,7 +20,7 @@ def test_dangling_superseded_pointer_is_a_violation(
     g = EvidenceGraph()
     g.add_source(source_a)
     g.add_claim(claim_a.model_copy(update={
-        "status": FreshnessState.SUPERSEDED, "superseded_by": "c-missing",
+        "lifecycle": LifecycleState.SUPERSEDED, "superseded_by": "c-missing",
     }))
     violations = check_invariants(g)
     assert any("c-missing" in v for v in violations)

@@ -1,6 +1,6 @@
 from gateway.evidence.edges import EdgeKind, EvidenceGraph
 from gateway.evidence.freshness import is_expired, mark_stale, supersede
-from gateway.evidence.nodes import Claim, FreshnessState, Source
+from gateway.evidence.nodes import Claim, FreshnessState, LifecycleState, Source
 
 
 def test_claim_expires_after_its_expiry_timestamp(claim_a: Claim) -> None:
@@ -36,9 +36,9 @@ def test_supersede_keeps_the_old_claim_addressable(
     })
     supersede(g, old_id="c-a", new_claim=replacement)
 
-    assert g.claims["c-a"].status is FreshnessState.SUPERSEDED
+    assert g.claims["c-a"].lifecycle is LifecycleState.SUPERSEDED
     assert g.claims["c-a"].superseded_by == "c-a2"
-    assert g.claims["c-a2"].status is FreshnessState.LIVE
+    assert g.claims["c-a2"].lifecycle is LifecycleState.ACTIVE
     assert any(
         e.kind is EdgeKind.SUPERSEDES and e.src == "c-a2" and e.dst == "c-a"
         for e in g.edges

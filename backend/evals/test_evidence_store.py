@@ -2,7 +2,7 @@ from pathlib import Path
 
 from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
 from gateway.evidence.invariants import check_invariants
-from gateway.evidence.nodes import Claim, FreshnessState, Source
+from gateway.evidence.nodes import Claim, LifecycleState, Source
 from gateway.evidence.store import SqliteEvidenceStore
 
 
@@ -31,7 +31,7 @@ def test_superseded_claims_survive_a_round_trip(
     g = EvidenceGraph()
     g.add_source(source_a)
     g.add_claim(claim_a.model_copy(update={
-        "status": FreshnessState.SUPERSEDED, "superseded_by": "c-a2",
+        "lifecycle": LifecycleState.SUPERSEDED, "superseded_by": "c-a2",
     }))
     g.add_claim(claim_a.model_copy(update={"claim_id": "c-a2"}))
 
@@ -39,6 +39,6 @@ def test_superseded_claims_survive_a_round_trip(
     store.save(g)
     loaded = store.load(run_id="r1")
 
-    assert loaded.claims["c-a"].status is FreshnessState.SUPERSEDED
+    assert loaded.claims["c-a"].lifecycle is LifecycleState.SUPERSEDED
     assert loaded.claims["c-a"].superseded_by == "c-a2"
     assert check_invariants(loaded) == []
