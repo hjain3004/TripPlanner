@@ -34,6 +34,7 @@ def test_superseded_claims_survive_a_round_trip(
         "lifecycle": LifecycleState.SUPERSEDED, "superseded_by": "c-a2",
     }))
     g.add_claim(claim_a.model_copy(update={"claim_id": "c-a2"}))
+    g.add_edge(Edge(kind=EdgeKind.SUPERSEDES, src="c-a2", dst="c-a"))
 
     store = SqliteEvidenceStore(tmp_path / "evidence.db")
     store.save(g)

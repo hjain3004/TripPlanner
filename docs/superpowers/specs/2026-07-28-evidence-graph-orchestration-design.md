@@ -38,7 +38,7 @@ an LLM orchestrator behind a Tier-F amendment; nothing here crosses it.
 | Decision | Choice | Rationale |
 |---|---|---|
 | Evidence graph **model** (nodes, edges, four invariants) | **ADOPT NOW** | Human overrode the recommendation to defer. Retrofitting lineage later is expensive; the multi-provider disagreement case is genuinely graph-shaped. |
-| Graph **store technology** | Deferred to G1 | Adopting the model does not require picking the backing store. The type contracts in §4 are storage-agnostic. See §11.1. |
+| Graph **store technology** | **SQLite edge tables** | SQLite edge tables were chosen and shipped; NetworkX is available later only as a non-authoritative analytical projection. See §11.1. |
 | Evidence validator | **Deterministic, no LLM** | Link resolution, expiry, completeness and comparability are all checkable in code. Adding a fifth LLM call site would erode non-negotiable #5 for no ambiguity that needs a model. |
 | LLM-arbitrated entity resolution | **REJECTED** | The source paper (§II.D) uses a model to arbitrate canonical clusters. Here that would put an LLM in a position to decide two prices are "the same" — money reasoning by the back door (non-negotiable #1). Deterministic matching rules only. |
 | LLM orchestrator | **REJECTED for now** | Spec 09 line 176 gates it; ADK doc §8 triggers stand at 0 of 5. |
@@ -122,10 +122,12 @@ platform grows.
 
 ### `DERIVED_FROM` is load-bearing
 
-It turns "every number in the report traces to evidence" from a convention into a mechanically
-checkable property. The groundedness gate stops being a regex over prose and becomes a graph
-query: *does every currency figure in the report reach a `Claim` via `DERIVED_FROM`?* This
-enforces non-negotiables #1 and #3 structurally.
+DERIVED_FROM lets the graph prove that structured artifacts are grounded —
+every computed value resolves to claims, upstream artifacts, or approved KB
+facts. It does not replace spec 03 §6's numeric groundedness check over
+explainer prose, which remains Tier F and unchanged: prose figures must still be
+extracted and matched against structured artifacts, or carry exact field
+citations. The graph complements that gate; it does not supersede it.
 
 ### Types
 
@@ -137,8 +139,9 @@ class EvidenceRecord(BaseModel):          # what every workflow emits
     kind: Literal["cash_quote", "price_observation", "sandbox_fixture",
                   "award_availability", "reference_fact"]
     claim: NormalizedPayload              # spec 16 contract
-    source: SourceRef                     # provider, retrieved_at, source_url, terms_ref
-    status: Literal["live", "cached", "estimated", "stale", "superseded"]
+    source_id: str | None                 # provider, retrieved_at, source_url, terms_ref
+    status: Literal["live", "cached", "estimated", "stale", "verify_required"]
+    lifecycle: Literal["active", "superseded"]
     superseded_by: str | None
     contradicts: list[str]                # written by the validator, never the producer
     is_inference: bool
