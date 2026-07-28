@@ -110,3 +110,13 @@ Judgment-call log (spec 06 §3). One row per decision. Columns: `date · doc§ �
 | 2026-07-28 | Tier-C · 03 | Should `TripRevision` hold a typed `FinalReport` or its JSON bytes? | Store the canonical `model_dump_json()` string plus an `ACCOUNTS_SCHEMA_VERSION`. | A saved trip is an immutable snapshot that must keep the provenance and `last_verified` values it was computed with. Re-parsing an old row through a later `FinalReport` would silently coerce or drop fields. Storing bytes also keeps `accounts/` free of any dependency on `agents/`. | `backend/accounts/models.py`, `backend/accounts/store.py` |
 | 2026-07-28 | Tier-C · 06 §5 | Milestone tag and test location for this work. | Tag `A1`; tests live in `backend/evals/test_a1_*.py`. | `pyproject.toml` sets `testpaths = ["evals"]`, so every backend test already lives there regardless of whether it is an eval. Following the convention beats renaming the directory. | `backend/evals/test_a1_*.py`, `reports/milestone_a1.md` |
 | 2026-07-28 | **SCOPE+** | Should the system suggest opening a *new* card for a trip, since joining bonuses are usually the largest offers and must be earned within ~90 days of approval? | **Not built here.** This plan persists `WalletEntry.opened_on` only, which is the field such a feature would need. The recommendation logic itself needs its own spec: eligibility rules, issuer application cooling-off periods, minimum-spend thresholds, and a hard line against anything resembling financial advice. | Real product value, but it is a new recommendation surface with regulatory sensitivity, not a persistence concern. Default answer to unspecced features is no until specced. | `backend/accounts/models.py` |
+
+## A2
+
+- **2026-07-28, A2, `SameSite` attribute case, Used `"lax"` instead of `"Lax"` in tests to match FastAPI's lowercasing.**
+  - **Rationale:** FastAPI/Starlette formats the `SameSite` attribute as lowercase `lax` (and its type stubs enforce it). The test `assert "SameSite=Lax" in raw` was changed to `assert "SameSite=lax" in raw` rather than forcing type ignores on the API layer.
+  - **Files:** `backend/evals/test_a2_api.py`
+
+- **2026-07-28, A2, `TestClient` base URL, Used `https://testserver` for `secure=True` cookies.**
+  - **Rationale:** Because `set_session_cookies` sets `secure=True`, the test client must simulate an HTTPS connection to accept and return the cookie in subsequent requests. Updated `test_a2_api.py` to initialize `TestClient(app, base_url="https://testserver")`.
+  - **Files:** `backend/evals/test_a2_api.py`
