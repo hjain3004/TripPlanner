@@ -70,6 +70,18 @@ FinalReport + trace
 - Has no authority to write approved financial facts.
 - Cannot execute bookings, transfers, or arbitrary URLs.
 
+
+### Evidence graph
+
+- Lives under `backend/gateway/evidence/`.
+- Holds `Claim`, `Source`, `Artifact`, `Run`, `Evaluation` nodes and
+  `SUPPORTS`, `CONTRADICTS`, `SUPERSEDES`, `RESOLVED_TO`, `DERIVED_FROM`,
+  `EVALUATED_BY` edges.
+- Four binding invariants: every claim has a source or is marked inference;
+  every artifact names an authoring run and version; every evaluation names a
+  rubric; every superseded or resolved-away object remains addressable.
+- Performs no money arithmetic and no network access.
+- Workflows never call each other; they read and write this graph only.
 ### Orchestration
 
 - Calls a fixed registry of domain workflows.
@@ -93,7 +105,13 @@ class DomainWorkflow(Protocol):
     async def run(self, context: PlanContext) -> DomainResult: ...
 ```
 
-`DomainResult` contains normalized evidence, warnings, trace references, and a declared quality state. A workflow may be deterministic or may contain a separately specified LLM call; no LLM call is implied by the word "agent."
+`DomainResult` contains normalized evidence, warnings, trace references, and a
+declared quality state. **The declared state is an input to validation, never the
+verdict.** A deterministic validator — separate from the producing workflow —
+resolves the verify link, checks quote expiry against wall-clock, confirms price
+completeness, and confirms currency/occupancy/room-rate/fare-condition alignment
+before permitting any cross-source comparison. It emits
+`Evaluation{rubric_id, verdict, reasons}`. A workflow may be deterministic or may contain a separately specified LLM call; no LLM call is implied by the word "agent."
 
 ### Flight workflow
 
@@ -175,6 +193,20 @@ It does not use a shared Markdown file as application state, browser-sponsored p
 
 A future LLM orchestration call requires its own typed contract, deterministic fallback, eval suite, cost budget, and Tier-F protocol amendment. It may choose among predeclared actions only.
 
+
+**Boundary rule.** The orchestrator routes on evidence *status and quality*; it
+never reads claim *values* to make a money decision. "Is this good enough to use"
+is orchestration; "which is cheaper" is the kernel.
+
+**Area sequencing.** Hotel search runs in the phase-1 fan-out against KB reference
+areas ranked by interest overlap — deterministic, and never against a curated
+itinerary. There is no cycle between the hotel and itinerary workflows.
+
+Every run declares a `PlanBudget`: max provider calls, max concurrent fan-out,
+wall-clock, tokens, retries, cost, and a **minimum evidence bar for finalization**.
+On exhaustion the run returns `PartialResult{best_artifact, completed, unresolved,
+stop_reason}` and the stop reason renders to the user. Partial failure is never
+hidden behind fluent prose.
 ## 7. Storage
 
 ### Approved knowledge base
@@ -308,3 +340,12 @@ Add one free/personal-use award adapter when available. Until then, keep recorde
 - User-authorized OAuth: only after privacy/security requirements and provider contracts are approved.
 - Commercialization: re-run every provider under `commercial_production`, replace experimental adapters as needed, and revisit privacy, scale, SLAs, and licensed inventory.
 - Automated rate-negotiation calls: only after a separate regional disclosure/consent/recording and abuse-prevention design.
+
+- Trajectory assertions: workflow sequence matches the state machine; skips are the
+  specified skips; no workflow runs twice; budget respected.
+- Invariant assertions: the four evidence-graph invariants hold on every finalized run.
+- Structural aggregator test: `"provenance" not in DiscoveryCandidate.model_fields`,
+  and no code path builds a KB row from any `DiscoveryCandidate` field other than
+  `issuer_url_to_verify`.
+- Groundedness as graph query: every currency figure in the report reaches a `Claim`
+  via `DERIVED_FROM`.
