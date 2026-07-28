@@ -50,10 +50,17 @@ def check_invariants(graph: EvidenceGraph) -> list[str]:
 
     for artifact_id, artifact in graph.artifacts.items():
         for claim_id in artifact.derived_from:
-            if claim_id not in graph.claims:
+            # Derived from can be a claim or another artifact
+            if claim_id not in graph.claims and claim_id not in graph.artifacts:
                 violations.append(
                     f"invariant 4: artifact {artifact_id} derived from missing "
-                    f"claim {claim_id}"
+                    f"claim or artifact {claim_id}"
+                )
+        for kb_id in artifact.derived_from_kb_facts:
+            # KB facts are opaque string identifiers not tracked in the graph
+            if not kb_id or not isinstance(kb_id, str):
+                violations.append(
+                    f"artifact {artifact_id} has invalid derived_from_kb_facts {kb_id}"
                 )
 
     for evaluation_id, evaluation in graph.evaluations.items():

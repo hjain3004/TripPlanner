@@ -71,6 +71,10 @@ class Artifact(BaseModel):
     run_id: str = Field(min_length=1)          # invariant 2
     version: int = Field(ge=1)                 # invariant 2
     derived_from: list[str] = Field(default_factory=list)
+    # ^ claim ids OR artifact ids; both must resolve in the graph
+    derived_from_kb_facts: list[str] = Field(default_factory=list)
+    # ^ opaque approved-KB row ids. NOT graph nodes. KB rows keep their own
+    #   Tier-F Provenance columns and are never copied into the graph.
 
 
 class Run(BaseModel):
