@@ -66,3 +66,18 @@ def create_accounts_engine(db_path: Path = ACCOUNTS_DB_PATH) -> Engine:
     engine = create_engine(f"sqlite:///{db_path}")
     AccountsBase.metadata.create_all(engine)
     return engine
+
+
+class UserCredentialRow(AccountsBase):
+    __tablename__ = "user_credentials"
+    user_id: Mapped[str] = mapped_column(primary_key=True)
+    payload: Mapped[str] = mapped_column(Text)
+
+
+class SessionRow(AccountsBase):
+    __tablename__ = "sessions"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(index=True)
+    token_hash: Mapped[str] = mapped_column(unique=True, index=True)
+    expires_at: Mapped[str] = mapped_column(index=True)  # ISO datetime, for sweeping
+    payload: Mapped[str] = mapped_column(Text)

@@ -15,6 +15,8 @@ ACCOUNTS_TABLES = {
     "wallet_entries",
     "saved_trips",
     "trip_revisions",
+    "user_credentials",
+    "sessions",
 }
 
 
