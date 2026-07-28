@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from accounts.models import UserProfile
+from accounts.models import UserExport, UserProfile
 from accounts.store import (
     AccountStore,
     DuplicateEmailError,
@@ -334,3 +334,82 @@ def test_add_revision_rejects_an_unknown_trip(tmp_path: Path) -> None:
 
     with pytest.raises(UnknownTripError):
         store.add_revision(trip_id="nope", trace_id="t", report_json="{}", now=NOW)
+
+
+def _populated(tmp_path: Path) -> AccountStore:
+    store = _user_store(tmp_path)
+    store.put_profile(
+        UserProfile(
+            user_id="u1",
+            display_name="Himanshu",
+            home_country="IN",
+            home_currency="INR",
+            updated_at=NOW,
+        )
+    )
+    store.add_wallet_entry(
+        user_id="u1",
+        card_id="hdfc-infinia",
+        nickname="Main",
+        now=NOW,
+        points_balances={"hdfc-reward-points": 140000},
+        entry_id="w1",
+    )
+    trip_id = _saved_trip(store)
+    store.add_revision(
+        trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
+    )
+    return store
+
+
+def test_export_user_returns_everything_held(tmp_path: Path) -> None:
+    store = _populated(tmp_path)
+
+    export = store.export_user("u1", now=NOW)
+
+    assert isinstance(export, UserExport)
+    assert export.user.id == "u1"
+    assert export.profile is not None
+    assert [e.id for e in export.wallet_entries] == ["w1"]
+    assert [t.id for t in export.trips] == ["t1"]
+    assert [r.revision for r in export.revisions] == [1]
+    assert export.exported_at == NOW
+
+
+def test_export_rejects_an_unknown_user(tmp_path: Path) -> None:
+    with pytest.raises(UnknownUserError):
+        _store(tmp_path).export_user("ghost", now=NOW)
+
+
+def test_delete_user_removes_every_owned_row(tmp_path: Path) -> None:
+    store = _populated(tmp_path)
+
+    store.delete_user("u1")
+
+    assert store.get_user("u1") is None
+    assert store.get_profile("u1") is None
+    assert store.wallet_entries("u1") == []
+    assert store.trips("u1") == []
+    assert store.revisions("t1") == []
+
+
+def test_delete_user_leaves_other_users_intact(tmp_path: Path) -> None:
+    store = _populated(tmp_path)
+    store.create_user(email="b@example.com", now=NOW, user_id="u2")
+    store.add_wallet_entry(
+        user_id="u2", card_id="amex-platinum", nickname="B", now=NOW, entry_id="w2"
+    )
+
+    store.delete_user("u1")
+
+    assert store.get_user("u2") is not None
+    assert [e.id for e in store.wallet_entries("u2")] == ["w2"]
+
+
+def test_delete_user_is_idempotent(tmp_path: Path) -> None:
+    store = _populated(tmp_path)
+
+    store.delete_user("u1")
+    store.delete_user("u1")  # must not raise
+
+    assert store.get_user("u1") is None

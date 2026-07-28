@@ -236,3 +236,19 @@ class TripRevision(AccountModel):
     @classmethod
     def check_report_json(cls, value: str) -> str:
         return _require_json_object(value, "report_json")
+
+
+# --------------------------------------------------------------------------- #
+# 4. Privacy — the full picture of what is held about one user                  #
+# --------------------------------------------------------------------------- #
+
+
+class UserExport(AccountModel):
+    """Everything the system stores about one user, for subject-access export."""
+
+    user: User
+    profile: UserProfile | None = None
+    wallet_entries: list[WalletEntry] = Field(default_factory=list)
+    trips: list[SavedTrip] = Field(default_factory=list)
+    revisions: list[TripRevision] = Field(default_factory=list)
+    exported_at: datetime

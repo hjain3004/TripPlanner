@@ -15,7 +15,7 @@ from datetime import date, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
 from accounts.db import (
@@ -27,7 +27,14 @@ from accounts.db import (
     WalletEntryRow,
     create_accounts_engine,
 )
-from accounts.models import SavedTrip, TripRevision, User, UserProfile, WalletEntry
+from accounts.models import (
+    SavedTrip,
+    TripRevision,
+    User,
+    UserExport,
+    UserProfile,
+    WalletEntry,
+)
 
 
 class DuplicateEmailError(ValueError):
@@ -290,3 +297,43 @@ class AccountStore:
     def latest_revision(self, trip_id: str) -> TripRevision | None:
         stored = self.revisions(trip_id)
         return stored[-1] if stored else None
+
+    # -- privacy ------------------------------------------------------------ #
+
+    def export_user(self, user_id: str, *, now: datetime) -> UserExport:
+        """Every row held about a user, in the layer's deterministic order."""
+        user = self.get_user(user_id)
+        if user is None:
+            raise UnknownUserError(f"no such user: {user_id}")
+        trips = self.trips(user_id)
+        revisions: list[TripRevision] = []
+        for trip in trips:
+            revisions.extend(self.revisions(trip.id))
+        return UserExport(
+            user=user,
+            profile=self.get_profile(user_id),
+            wallet_entries=self.wallet_entries(user_id),
+            trips=trips,
+            revisions=revisions,
+            exported_at=now,
+        )
+
+    def delete_user(self, user_id: str) -> None:
+        """Erase a user and everything they own. Idempotent."""
+        trip_ids = [trip.id for trip in self.trips(user_id)]
+        with Session(self._engine) as session:
+            if trip_ids:
+                session.execute(
+                    delete(TripRevisionRow).where(
+                        TripRevisionRow.trip_id.in_(trip_ids)
+                    )
+                )
+            session.execute(delete(SavedTripRow).where(SavedTripRow.user_id == user_id))
+            session.execute(
+                delete(WalletEntryRow).where(WalletEntryRow.user_id == user_id)
+            )
+            session.execute(
+                delete(UserProfileRow).where(UserProfileRow.user_id == user_id)
+            )
+            session.execute(delete(UserRow).where(UserRow.id == user_id))
+            session.commit()
