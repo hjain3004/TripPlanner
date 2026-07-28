@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 from sqlalchemy import inspect
@@ -40,3 +41,43 @@ def test_reseeding_the_knowledge_base_does_not_touch_accounts_tables(
     names = set(inspect(engine).get_table_names())
     assert "users" in names
     assert "cards" not in names
+
+
+def _first_party_imports(path: Path) -> set[str]:
+    """Top-level package names this module imports."""
+    names: set[str] = set()
+    tree = ast.parse(path.read_text())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                names.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.level == 0 and node.module:
+                names.add(node.module.split(".")[0])
+    return names
+
+
+def test_core_never_imports_accounts() -> None:
+    """The dependency runs one way: accounts may read core, never the reverse."""
+    backend_dir = Path(__file__).resolve().parents[1]
+    core_dir = backend_dir / "core"
+    offenders = [
+        str(path.relative_to(backend_dir))
+        for path in sorted(core_dir.rglob("*.py"))
+        if "accounts" in _first_party_imports(path)
+    ]
+
+    assert offenders == [], f"core/ must not import accounts/: {offenders}"
+
+
+def test_accounts_never_imports_agents_or_api() -> None:
+    """Accounts stores JSON snapshots, so it needs no pipeline types."""
+    backend_dir = Path(__file__).resolve().parents[1]
+    accounts_dir = backend_dir / "accounts"
+    offenders = [
+        str(path.relative_to(backend_dir))
+        for path in sorted(accounts_dir.rglob("*.py"))
+        if {"agents", "api"} & _first_party_imports(path)
+    ]
+
+    assert offenders == [], f"accounts/ must not import agents/ or api/: {offenders}"
