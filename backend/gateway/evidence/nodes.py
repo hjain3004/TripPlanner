@@ -54,7 +54,6 @@ class Claim(BaseModel):
     status: FreshnessState
     lifecycle: LifecycleState = LifecycleState.ACTIVE
     superseded_by: str | None = None
-    contradicts: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0.0, le=1.0)
     needs_verification: bool
 

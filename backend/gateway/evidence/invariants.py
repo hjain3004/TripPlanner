@@ -31,11 +31,6 @@ def check_invariants(graph: EvidenceGraph) -> list[str]:
                 f"invariant 4: claim {claim_id} superseded by missing "
                 f"node {claim.superseded_by}"
             )
-        for other in claim.contradicts:
-            if other not in graph.claims:
-                violations.append(
-                    f"invariant 4: claim {claim_id} contradicts missing claim {other}"
-                )
 
     for artifact_id, artifact in graph.artifacts.items():
         for claim_id in artifact.derived_from:
