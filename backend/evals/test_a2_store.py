@@ -152,3 +152,83 @@ def test_set_password_rejects_an_unknown_user(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         store.set_password("ghost", "some passphrase", now=NOW)
+
+
+def test_create_session_returns_a_token_that_is_not_stored(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+
+    record, token = store.create_session("u1", now=NOW, session_id="s1")
+
+    assert len(token) >= 32
+    assert token != record.token_hash
+    assert token not in record.model_dump_json()
+
+
+def test_session_for_token_round_trips(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    _, token = store.create_session("u1", now=NOW, session_id="s1")
+
+    found = store.session_for_token(token, now=NOW)
+
+    assert found is not None
+    assert found.user_id == "u1"
+
+
+def test_session_for_token_rejects_a_wrong_token(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    store.create_session("u1", now=NOW, session_id="s1")
+
+    assert store.session_for_token("not-the-token", now=NOW) is None
+
+
+def test_expired_session_is_not_returned(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    _, token = store.create_session(
+        "u1", now=NOW, ttl=timedelta(hours=1), session_id="s1"
+    )
+
+    assert store.session_for_token(token, now=NOW + timedelta(hours=2)) is None
+
+
+def test_revoked_session_is_not_returned(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    _, token = store.create_session("u1", now=NOW, session_id="s1")
+
+    store.revoke_session("s1", now=NOW)
+
+    assert store.session_for_token(token, now=NOW) is None
+
+
+def test_revoke_all_sessions_can_spare_the_current_one(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    _, keep = store.create_session("u1", now=NOW, session_id="s1")
+    _, drop = store.create_session("u1", now=NOW, session_id="s2")
+
+    revoked = store.revoke_all_sessions("u1", now=NOW, except_session_id="s1")
+
+    assert revoked == 1
+    assert store.session_for_token(keep, now=NOW) is not None
+    assert store.session_for_token(drop, now=NOW) is None
+
+
+def test_sweep_removes_only_expired_sessions(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    store.create_session("u1", now=NOW, ttl=timedelta(hours=1), session_id="old")
+    _, live = store.create_session(
+        "u1", now=NOW, ttl=timedelta(days=30), session_id="new"
+    )
+
+    removed = store.sweep_expired_sessions(now=NOW + timedelta(days=1))
+
+    assert removed == 1
+    assert store.session_for_token(live, now=NOW + timedelta(days=1)) is not None
+
+
+def test_delete_user_also_removes_credentials_and_sessions(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    _, token = store.create_session("u1", now=NOW, session_id="s1")
+
+    store.delete_user("u1")
+
+    assert store.get_credential("u1") is None
+    assert store.session_for_token(token, now=NOW) is None

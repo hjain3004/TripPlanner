@@ -11,6 +11,8 @@ caller — the same injection style the pipeline uses for ``booking_date``.
 
 from __future__ import annotations
 
+import hashlib
+import secrets
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -21,6 +23,7 @@ from sqlalchemy.orm import Session
 from accounts.db import (
     ACCOUNTS_DB_PATH,
     SavedTripRow,
+    SessionRow,
     TripRevisionRow,
     UserCredentialRow,
     UserProfileRow,
@@ -30,6 +33,7 @@ from accounts.db import (
 )
 from accounts.models import (
     SavedTrip,
+    Session as SessionRecord,
     TripRevision,
     User,
     UserCredential,
@@ -54,6 +58,12 @@ class UnknownTripError(ValueError):
 
 MAX_FAILED_ATTEMPTS = 10
 LOCKOUT_DURATION = timedelta(minutes=15)
+SESSION_TTL = timedelta(days=14)
+
+
+def hash_token(token: str) -> str:
+    """SHA-256 hex of a session token. The raw token is never persisted."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 class AccountStore:
@@ -342,6 +352,10 @@ class AccountStore:
             session.execute(
                 delete(UserProfileRow).where(UserProfileRow.user_id == user_id)
             )
+            session.execute(delete(SessionRow).where(SessionRow.user_id == user_id))
+            session.execute(
+                delete(UserCredentialRow).where(UserCredentialRow.user_id == user_id)
+            )
             session.execute(delete(UserRow).where(UserRow.id == user_id))
             session.commit()
 
@@ -420,3 +434,100 @@ class AccountStore:
             session.commit()
 
         return user if ok else None
+
+    # -- sessions ----------------------------------------------------------- #
+
+    def create_session(
+        self,
+        user_id: str,
+        *,
+        now: datetime,
+        ttl: timedelta = SESSION_TTL,
+        session_id: str | None = None,
+        token: str | None = None,
+    ) -> tuple[SessionRecord, str]:
+        """Mint a session. Returns the record and the raw token.
+
+        This is the only moment the raw token exists in the process; the caller
+        puts it in an httpOnly cookie and drops it. Only its hash is stored.
+        """
+        raw = token or secrets.token_urlsafe(32)
+        record = SessionRecord(
+            id=session_id or uuid4().hex,
+            user_id=user_id,
+            token_hash=hash_token(raw),
+            created_at=now,
+            last_seen_at=now,
+            expires_at=now + ttl,
+        )
+        with Session(self._engine) as session:
+            self._require_user(session, user_id)
+            session.add(
+                SessionRow(
+                    id=record.id,
+                    user_id=record.user_id,
+                    token_hash=record.token_hash,
+                    expires_at=record.expires_at.isoformat(),
+                    payload=record.model_dump_json(),
+                )
+            )
+            session.commit()
+        return record, raw
+
+    def session_for_token(self, token: str, *, now: datetime) -> SessionRecord | None:
+        """The live session for a token, or None if absent, expired, or revoked."""
+        with Session(self._engine) as session:
+            row = session.scalar(
+                select(SessionRow).where(SessionRow.token_hash == hash_token(token))
+            )
+            if row is None:
+                return None
+            record = SessionRecord.model_validate_json(row.payload)
+            if not record.is_valid_at(now):
+                return None
+            record = record.model_copy(update={"last_seen_at": now})
+            row.payload = record.model_dump_json()
+            session.commit()
+        return record
+
+    def revoke_session(self, session_id: str, *, now: datetime) -> None:
+        with Session(self._engine) as session:
+            row = session.get(SessionRow, session_id)
+            if row is None:
+                return
+            record = SessionRecord.model_validate_json(row.payload)
+            if record.revoked_at is None:
+                row.payload = record.model_copy(
+                    update={"revoked_at": now}
+                ).model_dump_json()
+                session.commit()
+
+    def revoke_all_sessions(
+        self, user_id: str, *, now: datetime, except_session_id: str | None = None
+    ) -> int:
+        """Revoke every live session for a user. Returns how many were revoked."""
+        revoked = 0
+        with Session(self._engine) as session:
+            rows = session.scalars(
+                select(SessionRow).where(SessionRow.user_id == user_id)
+            ).all()
+            for row in rows:
+                if row.id == except_session_id:
+                    continue
+                record = SessionRecord.model_validate_json(row.payload)
+                if record.revoked_at is None:
+                    row.payload = record.model_copy(
+                        update={"revoked_at": now}
+                    ).model_dump_json()
+                    revoked += 1
+            session.commit()
+        return revoked
+
+    def sweep_expired_sessions(self, *, now: datetime) -> int:
+        """Hard-delete sessions past expiry. Returns how many were removed."""
+        with Session(self._engine) as session:
+            result = session.execute(
+                delete(SessionRow).where(SessionRow.expires_at <= now.isoformat())
+            )
+            session.commit()
+        return int(result.rowcount or 0)  # type: ignore[attr-defined]
