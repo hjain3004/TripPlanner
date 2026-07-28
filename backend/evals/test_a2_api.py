@@ -45,7 +45,7 @@ def test_login_sets_an_httponly_session_cookie(tmp_path: Path) -> None:
     raw = resp.headers["set-cookie"]
     assert SESSION_COOKIE in raw
     assert "HttpOnly" in raw
-    assert "SameSite=Lax" in raw
+    assert "SameSite=lax" in raw
     app.dependency_overrides.clear()
 
 
@@ -129,4 +129,31 @@ def test_wrong_password_and_unknown_email_are_indistinguishable(
 
     assert wrong.status_code == absent.status_code == 401
     assert wrong.json() == absent.json()
+    app.dependency_overrides.clear()
+
+
+def test_password_change_revokes_other_sessions(tmp_path: Path) -> None:
+    store = AccountStore.open(tmp_path / "accounts.sqlite")
+    user = store.create_user(email="a@example.com", now=NOW, user_id="u1")
+    store.set_password(user.id, PASSWORD, now=NOW)
+    _, old_token = store.create_session("u1", now=NOW, session_id="s1")
+
+    store.set_password("u1", "a brand new passphrase", now=NOW)
+    store.revoke_all_sessions("u1", now=NOW)
+
+    assert store.session_for_token(old_token, now=NOW) is None
+
+
+def test_no_endpoint_ever_returns_a_hash_or_token(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    _register(client)
+    login = client.post(
+        "/auth/login", json={"email": "a@example.com", "password": PASSWORD}
+    )
+    me_resp = client.get("/auth/me")
+
+    for resp in (login, me_resp):
+        assert "$argon2id$" not in resp.text
+        assert "password_hash" not in resp.text
+        assert "token_hash" not in resp.text
     app.dependency_overrides.clear()
