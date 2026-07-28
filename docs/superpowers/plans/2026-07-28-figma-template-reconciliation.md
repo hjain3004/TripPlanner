@@ -72,8 +72,7 @@ authority on tokens, typing, provenance, or money handling — the in-repo rules
 ## 3. Ground rules for whoever executes this
 
 - **Do not revert `0a41492`.** The design is the deliverable. Fix forward.
-- **Do not re-derive visual direction.** It is decided. No new probes, no font comparisons,
-  no palette exploration.
+- **[STALE] Do not re-derive visual direction.** (Direction has been re-derived in `docs/superpowers/specs/2026-07-29-visual-system-reconciled.md` — refer to that document instead).
 - Behaviour changes and refactors are separate commits (`AGENTS.md`, Anti-drift).
 - The five non-negotiables in `AGENTS.md` bind this work. Task 4 exists because of #1.
 - Work on a branch off `main`: `feat/figma-template-reconciliation`.
@@ -273,6 +272,8 @@ the adopted template and the frozen design system. Two options:
    Tier-F `DEVIATIONS.md` entry, because the constraint is frozen.
 
 Do not choose this unilaterally. Ship Tasks 1–8 with lacquer left as-is and flag it.
+
+**[CLOSED]** Resolved by `docs/superpowers/specs/2026-07-29-visual-system-reconciled.md`: budget holds. Lacquer is mandatory on `verify_required` and optional nowhere.
 
 ---
 

@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Issue Register — Document Probe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900&family=Schibsted+Grotesk:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Values lifted verbatim from frontend/src/themes/singapore.css — no invented colour. */
+  :root {
+    --paper-deep: oklch(0.947 0.013 87);   /* limestone */
+    --paper:      oklch(0.979 0.008 91);   /* paper     */
+    --ink:        oklch(0.281 0.007 145);
+    --ink-muted:  oklch(0.525 0.014 157);
+    --ink-faint:  oklch(0.660 0.014 157);
+    --structure:  oklch(0.320 0.042 181);  /* mangrove  */
+    --celadon-1:  oklch(0.848 0.027 167);
+    --celadon-2:  oklch(0.917 0.016 161);
+    --value:      oklch(0.660 0.097 82);   /* brass     */
+    --signal:     oklch(0.536 0.135 30);   /* lacquer   */
+    --rule:       oklch(0.28 0.01 145 / 0.10);
+
+    --display: "Bodoni Moda", serif;
+    --ui: "Schibsted Grotesk", system-ui, sans-serif;
+    --mono: "Roboto Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    width: 1440px;
+    background: var(--paper-deep);
+    font-family: var(--ui);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    padding: 80px;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-optical-sizing: auto;
+    font-weight: 600;
+    font-size: 64px;
+    line-height: 0.94;
+    letter-spacing: -0.015em;
+    margin: 0 0 40px;
+    color: var(--ink);
+  }
+
+  /* --- issue register core ------------------------------------------------ */
+  .document {
+    background: var(--paper);
+    border: 2px solid var(--structure);
+    border-radius: 0;
+    position: relative;
+    margin-bottom: 60px;
+    width: 100%;
+    max-width: 600px;
+  }
+  
+  /* The offset plate */
+  .document::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    right: -6px;
+    bottom: -6px;
+    background: var(--celadon-1);
+    z-index: -1;
+  }
+
+  .doc-inner {
+    padding: 24px 32px;
+  }
+
+  .field-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 4px;
+  }
+
+  .field-value {
+    font-family: var(--ui);
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--ink);
+  }
+
+  .field-code {
+    font-family: var(--ui);
+    font-weight: 600;
+    font-size: 32px;
+    color: var(--ink);
+  }
+  
+  .flex-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+
+  /* --- states ------------------------------------------------------------- */
+  /* live: default (uses celadon-1) */
+
+  /* cached: uses celadon-2 */
+  .document.cached::before {
+    background: var(--celadon-2);
+  }
+
+  /* estimated: no offset plate, dashed 2px rule */
+  .document.estimated {
+    border: 2px dashed var(--structure);
+  }
+  .document.estimated::before {
+    display: none;
+  }
+
+  /* stale: plate greyed (using ink-faint as a gray proxy within palette?), diagonal SUPERSEDED overprint */
+  /* Re-reading rules: use --rule or --ink-faint or similar existing color for greyed. Let's use --rule for the plate background if it's greyed, or just --paper-deep, or something muted. Actually, --ink-faint is greyish. Or maybe --ink-faint for the background is too dark? --rule is light grey (oklch(0.28 0.01 145 / 0.10)). */
+  .document.stale::before {
+    background: var(--rule);
+  }
+  .document.stale {
+    overflow: hidden; /* for the overprint */
+  }
+  .stale-overprint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-20deg);
+    font-family: var(--mono);
+    font-size: 48px;
+    letter-spacing: 0.2em;
+    color: var(--rule); /* greyed */
+    border: 4px solid var(--rule);
+    padding: 8px 16px;
+    text-transform: uppercase;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* verify_required: lacquer stamp */
+  .stamp-verify {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    color: var(--signal);
+    border: 2px solid var(--signal);
+    padding: 6px 10px;
+    text-transform: uppercase;
+    transform: rotate(4deg);
+  }
+
+  /* --- specific elements -------------------------------------------------- */
+  
+  /* transfer plan stub */
+  .stub {
+    border-top: 2px dotted var(--structure);
+    padding: 16px 32px;
+    background: var(--paper);
+    margin: 0;
+  }
+
+  /* verify-before-transfer checklist */
+  .checklist-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+  }
+  .checkbox {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--signal); /* unticked box, lacquer */
+    border-radius: 0;
+  }
+  .checklist-label {
+    font-family: var(--ui);
+    font-size: 14px;
+    color: var(--signal);
+    font-weight: 500;
+  }
+
+  /* provenance strip */
+  .provenance-strip {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 8px 32px;
+    border-top: 1px solid var(--rule);
+    background: var(--paper);
+  }
+
+  /* contradiction (double-vision offset) */
+  .contradiction-container {
+    position: relative;
+    margin-bottom: 80px;
+  }
+  .contradiction-plate-1 {
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 100%;
+    border: 2px solid var(--signal);
+    background: var(--paper);
+    z-index: 1;
+    opacity: 0.9;
+  }
+  .contradiction-plate-1::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    right: -6px;
+    bottom: -6px;
+    background: var(--signal);
+    opacity: 0.2;
+    z-index: -1;
+  }
+  .document.contradiction-plate-2 {
+    margin: 0;
+    z-index: 2;
+  }
+
+  /* Lay out in a grid */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+  }
+
+</style>
+</head>
+<body>
+
+<h1>The Issue Register</h1>
+
+<div class="grid">
+  <!-- 1. LIVE -->
+  <div>
+    <div class="field-label" style="margin-bottom:12px;">State: Live</div>
+    <div class="document">
+      <div class="doc-inner">
+        <div class="flex-row">
+          <div>
+            <div class="field-label">Origin</div>
+            <div class="field-code">BOM</div>
+          </div>
+          <div>
+            <div class="field-label">Destination</div>
+            <div class="field-code">SIN</div>
+          </div>
+        </div>
+        <div class="flex-row" style="margin-bottom:0;">
+          <div>
+            <div class="field-label">Carrier</div>
+            <div class="field-value">Singapore Airlines</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="field-label">Cabin</div>
+            <div class="field-value">Business</div>
+          </div>
+        </div>
+      </div>
+      <div class="provenance-strip">DERIVED_FROM: claim_248 · provider_sg</div>
+    </div>
+  </div>
+
+  <!-- 2. CACHED -->
+  <div>
+    <div class="field-label" style="margin-bottom:12px;">State: Cached</div>
+    <div class="document cached">
+      <div class="doc-inner">
+        <div class="flex-row">
+          <div>
+            <div class="field-label">Origin</div>
+            <div class="field-code">BOM</div>
+          </div>
+          <div>
+            <div class="field-label">Destination</div>
+            <div class="field-code">SIN</div>
+          </div>
+        </div>
+      </div>
+      <div class="provenance-strip">DERIVED_FROM: claim_102 (observed 4h ago)</div>
+    </div>
+  </div>
+
+  <!-- 3. ESTIMATED -->
+  <div>
+    <div class="field-label" style="margin-bottom:12px;">State: Estimated</div>
+    <div class="document estimated">
+      <div class="doc-inner">
+        <div class="flex-row">
+          <div>
+            <div class="field-label">Origin</div>
+            <div class="field-code">BOM</div>
+          </div>
+          <div>
+            <div class="field-label">Destination</div>
+            <div class="field-code">SIN</div>
+          </div>
+        </div>
+      </div>
+      <div class="provenance-strip">DERIVED_FROM: reference_fact_33</div>
+    </div>
+  </div>
+
+  <!-- 4. STALE -->
+  <div>
+    <div class="field-label" style="margin-bottom:12px;">State: Stale</div>
+    <div class="document stale">
+      <div class="stale-overprint">Superseded</div>
+      <div class="doc-inner">
+        <div class="flex-row">
+          <div>
+            <div class="field-label">Origin</div>
+            <div class="field-code">BOM</div>
+          </div>
+          <div>
+            <div class="field-label">Destination</div>
+            <div class="field-code">SIN</div>
+          </div>
+        </div>
+      </div>
+      <div class="provenance-strip">DERIVED_FROM: claim_001 (expired)</div>
+    </div>
+  </div>
+
+  <!-- 5. VERIFY REQUIRED -->
+  <div>
+    <div class="field-label" style="margin-bottom:12px;">State: Verify Required</div>
+    <div class="document">
+      <div class="stamp-verify">Verify Required</div>
+      <div class="doc-inner">
+        <div class="flex-row">
+          <div>
+            <div class="field-label">Origin</div>
+            <div class="field-code">BOM</div>
+          </div>
+          <div>
+            <div class="field-label">Destination</div>
+            <div class="field-code">SIN</div>
+          </div>
+        </div>
+      </div>
+      <!-- Transfer plan stub with verify checklist -->
+      <div class="stub">
+        <div class="field-label">Required Action</div>
+        <div class="checklist-row">
+          <div class="checkbox"></div>
+          <div class="checklist-label">Call provider to confirm availability before transfer</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. CONTRADICTION -->
+  <div>
+    <div class="field-label" style="margin-bottom:12px;">Graph Concept: Contradicts Edge</div>
+    <div class="contradiction-container">
+      <div class="document contradiction-plate-1">
+        <div class="doc-inner" style="opacity: 0.3;">
+          <div class="flex-row">
+            <div>
+              <div class="field-label">Origin</div>
+              <div class="field-code">BOM</div>
+            </div>
+            <div>
+              <div class="field-label">Price</div>
+              <div class="field-code">₹26,100</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="document contradiction-plate-2">
+        <div class="doc-inner">
+          <div class="flex-row">
+            <div>
+              <div class="field-label">Origin</div>
+              <div class="field-code">BOM</div>
+            </div>
+            <div>
+              <div class="field-label">Price</div>
+              <div class="field-code">₹24,500</div>
+            </div>
+          </div>
+        </div>
+        <div class="provenance-strip">CONTRADICTS: claim_alt (price difference > 6.5%)</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
