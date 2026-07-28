@@ -78,6 +78,12 @@ Run at the end of each milestone; all boxes checked = proceed without external r
 
 **Gate M3:** LM-judge anchors ranked correctly; golden itineraries mean ≥ 4.0, groundedness = 5; provenance warnings render for a seeded `needs_verification` fact (test with one); report footer disclaimers present (03 §9); `evals/report.md` generates.
 
+**Gate A1 (accounts persistence, spec 17 §1–3, §5–6):** `mypy --strict accounts/` clean; **a test walks `core/`'s AST and asserts zero `accounts` imports** — the boundary is proven, not assumed; a test asserts that running `core.db.seed_database` twice leaves the accounts tables intact (this is the `drop_all` hazard, and it must be exercised rather than reasoned about); no account model declares a name in `FORBIDDEN_FIELD_NAMES` **and** constructing one with `pan=…` raises; `add_revision` twice yields revisions 1 and 2 with revision 1's stored bytes unchanged; the `UserWallet` projection is order-independent and does not double-count a pooled points currency; `delete_user` cascades and is idempotent; the pre-existing backend suite passes unchanged with an empty `git diff -- evals/golden/`.
+
+**Gate A2 (accounts auth, spec 17 §4):** `mypy --strict accounts/ api/` clean; `grep -rn "localStorage\|sessionStorage" api/ accounts/` returns **nothing**; no stored row and no response body contains a plaintext password, an Argon2 hash, or a raw session token (assert by test, not by inspection); the session cookie carries `HttpOnly`, `Secure`, and `SameSite`; the CSRF cookie is deliberately *not* `HttpOnly`, and a state-changing request missing the matching header returns 403; wrong-password and unknown-email logins return byte-identical responses; logout revokes server-side such that a subsequent authenticated call returns 401; `delete_user` removes credentials and sessions.
+
+Gates A1 and A2 are also restated task-by-task inside their implementation plans (`docs/superpowers/plans/2026-07-28-accounts-*.md`). Where a plan and this section disagree, this section wins.
+
 ## 6. Anti-drift rules for multi-session implementation
 
 1. Start every session by reading `DEVIATIONS.md` and the latest `reports/milestone_N.md` — not by re-reading all specs and re-deciding.

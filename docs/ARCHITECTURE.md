@@ -135,3 +135,5 @@ LLM money math. Autonomous writes of financial facts. Unreviewed or dynamically 
 **Target platform:** 08 product vision · 09 target architecture · 16 data gateway and adapters.
 
 **Frontend:** 10 build plan/tooling · 11 design system · 12 integration contract · 13 pages/motion · 14 components · 15 wit pack.
+
+**Accounts:** 17 accounts and persistence · 18 card acquisition and welcome offers. Both are design-now, build-after-the-Kernel-MVP-gates. Spec 17 introduces the first user-owned mutable state in the system, in a `backend/accounts/` module that `backend/core/` must never import — the same one-way rule that governs `backend/gateway/`, and for the same reason: the kernel's inputs are values handed to it, never state it reaches out for.
