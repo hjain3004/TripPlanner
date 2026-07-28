@@ -16,7 +16,7 @@ PASSWORD = "correct horse battery"
 def _client(tmp_path: Path) -> TestClient:
     store = AccountStore.open(tmp_path / "accounts.sqlite")
     app.dependency_overrides[get_store] = lambda: store
-    return TestClient(app)
+    return TestClient(app, base_url="https://testserver")
 
 
 def _register(client: TestClient) -> None:
