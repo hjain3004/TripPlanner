@@ -3,28 +3,25 @@ import { CreditCard, PlaneTakeoff } from 'lucide-react';
 import { MoneyText } from './SharedUI';
 
 export const FlightRouteCard = ({ originCode, originName, destCode, destName, airline, flightNumber, duration }: any) => (
-  <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm mt-4">
+  <div className="relative overflow-hidden rounded-none border border-border bg-surface shadow-1 mt-4">
     <div className="absolute -top-16 -right-16 w-48 h-48 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
-    <div className="p-6 relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+    <div className="p-8 relative z-10 grid grid-cols-1 md:grid-cols-[1fr_2fr_1fr] items-center gap-6">
       <div className="text-center md:text-left">
-        <div className="text-5xl font-display font-bold text-foreground tracking-tighter">{originCode}</div>
-        <div className="text-sm font-medium text-muted-foreground mt-1 uppercase tracking-widest">{originName}</div>
+        <div className="text-[40px] font-mono font-medium text-text tracking-tight leading-none">{originCode}</div>
+        <div className="text-[11px] font-mono font-medium text-text-muted mt-3 uppercase tracking-[0.16em]">{originName}</div>
       </div>
-      <div className="flex-1 w-full flex flex-col items-center px-4 relative">
-        <div className="text-xs font-bold text-lacquer uppercase tracking-widest mb-3 bg-lacquer/10 px-3 py-1 rounded-full">{duration}</div>
-        <div className="w-full relative flex items-center justify-center h-8">
-          <svg className="absolute w-full h-full text-border" preserveAspectRatio="none" viewBox="0 0 100 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            <path d="M 0 10 Q 12.5 0, 25 10 T 50 10 T 75 10 T 100 10" strokeDasharray="4 4" className="text-primary/40" />
-          </svg>
-          <div className="absolute bg-background p-2 rounded-full border-2 border-primary text-primary shadow-sm z-10">
+      <div className="flex flex-col items-center justify-center px-4 w-full">
+        <div className="text-[10px] font-mono font-medium text-accent-4 uppercase tracking-[0.16em] mb-4 bg-accent-4/5 border border-accent-4/20 px-3 py-1">{duration}</div>
+        <div className="w-full relative flex items-center justify-center h-[1px] bg-border/50">
+          <div className="absolute bg-surface px-4 text-primary">
             <PlaneTakeoff className="w-4 h-4" />
           </div>
         </div>
-        <div className="text-sm font-medium text-foreground mt-3 bg-secondary/50 px-3 py-1 rounded-md">{airline} <span className="text-muted-foreground ml-1">• {flightNumber}</span></div>
+        <div className="text-[13px] font-ui font-medium text-text mt-4">{airline} <span className="text-text-muted ml-1">• {flightNumber}</span></div>
       </div>
       <div className="text-center md:text-right">
-        <div className="text-5xl font-display font-bold text-foreground tracking-tighter">{destCode}</div>
-        <div className="text-sm font-medium text-muted-foreground mt-1 uppercase tracking-widest">{destName}</div>
+        <div className="text-[40px] font-mono font-medium text-text tracking-tight leading-none">{destCode}</div>
+        <div className="text-[11px] font-mono font-medium text-text-muted mt-3 uppercase tracking-[0.16em]">{destName}</div>
       </div>
     </div>
   </div>
@@ -44,34 +41,40 @@ export const LedgerRow = ({
   notch?: string
 }) => (
   <div className={`
-    grid grid-cols-12 gap-4 py-3 px-4 items-center border-b border-border/40 last:border-0
-    ${isChosen ? 'bg-accent rounded-md' : 'hover:bg-secondary/50 transition-colors'}
+    relative grid grid-cols-12 md:grid-cols-[2fr_1fr_1fr] gap-4 py-4 px-6 items-center border-b border-border/40 last:border-0
+    ${isChosen ? 'bg-accent-2/50 border-l-[3px] border-l-primary' : 'hover:bg-accent-2/30 transition-colors border-l-[3px] border-l-transparent'}
   `}>
-    <div className="col-span-5 flex flex-col">
-      <span className="font-medium text-foreground flex items-center gap-2">
-        <CreditCard className="w-4 h-4 text-muted-foreground" />
+    {notch && (
+      <span className="absolute -top-[10px] left-[20px] inline-block px-[8px] py-[4px] text-text-on-primary bg-[var(--color-lacquer)] font-mono font-medium text-[9px] uppercase tracking-[.06em] leading-none z-10">
+        {notch}
+      </span>
+    )}
+    
+    <div className="col-span-12 md:col-span-1 flex flex-col">
+      <span className="font-ui font-semibold text-[18px] text-primary flex items-center gap-3">
+        <CreditCard className="w-4 h-4 text-text-muted" />
         {card}
       </span>
-      {notch && (
-        <div className="mt-1 pl-2 border-l-2 border-lacquer text-xs text-muted-foreground">{notch}</div>
-      )}
     </div>
-    <div className="col-span-4 text-right">
-      <span className="text-sm text-muted-foreground">Value: </span>
-      <MoneyText amount={value} />
+    <div className="col-span-6 md:col-span-1 text-right flex flex-col items-end">
+      <span className="font-ui font-semibold text-[18px] text-text">
+        <MoneyText amount={value} />
+      </span>
     </div>
-    <div className="col-span-3 text-right font-medium">
-      <MoneyText amount={cost} />
+    <div className="col-span-6 md:col-span-1 text-right flex flex-col items-end">
+      <span className="font-ui font-semibold text-[18px] text-primary">
+        <MoneyText amount={cost} />
+      </span>
     </div>
   </div>
 );
 
 export const DecisionLedger = ({ rows }: { rows: any[] }) => (
-  <div className="border border-border rounded-xl bg-card overflow-hidden shadow-sm mt-4">
-    <div className="grid grid-cols-12 gap-4 py-2 px-4 bg-secondary/30 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-      <div className="col-span-5">Payment Method</div>
-      <div className="col-span-4 text-right">Points Value</div>
-      <div className="col-span-3 text-right">Net Cost</div>
+  <div className="border border-border rounded-none bg-surface overflow-hidden shadow-1 mt-6">
+    <div className="hidden md:grid grid-cols-[2fr_1fr_1fr] gap-4 py-3 px-6 bg-accent-2/30 border-b border-border text-[10px] font-mono font-medium text-text-muted uppercase tracking-wider">
+      <div className="pl-1">Payment Method</div>
+      <div className="text-right pr-1">Points Value</div>
+      <div className="text-right pr-1">Net Cost</div>
     </div>
     <div className="flex flex-col">
       {rows.map((row, i) => <LedgerRow key={i} {...row} />)}
@@ -93,30 +96,33 @@ export const RouteNode = ({
   children?: React.ReactNode 
 }) => {
   const colors = {
-    done: 'bg-primary border-primary text-primary-foreground shadow-sm',
-    current: 'bg-card border-primary text-primary shadow-sm',
-    pending: 'bg-card border-border text-muted-foreground',
-    warning: 'bg-card border-lacquer text-lacquer'
+    done: 'bg-primary border-primary text-text-on-primary shadow-1',
+    current: 'bg-surface border-primary text-primary shadow-1',
+    pending: 'bg-surface border-border text-text-muted',
+    warning: 'bg-surface border-accent-4 text-accent-4'
   };
 
   return (
-    <div className="relative pl-12 pb-12 last:pb-0">
-      {/* Decorative vertical timeline connector */}
-      <div className="absolute left-[15px] top-10 bottom-[-10px] w-0.5 bg-gradient-to-b from-border to-transparent last:hidden" />
+    <div className="relative pl-[44px] pb-14 last:pb-0">
+      {/* Structural Timeline Connector 
+          w-8 is 32px. Center is 16px. 
+          left-[15px] w-[2px] is perfectly centered. 
+      */}
+      <div className="absolute left-[15px] top-10 bottom-0 w-[2px] bg-border last:hidden" />
       
-      <div className={`absolute left-0 top-1 w-8 h-8 rounded-full border-2 flex items-center justify-center z-10 ${colors[state]}`}>
+      <div className={`absolute left-0 top-1 w-[32px] h-[32px] rounded-none border-[2px] flex items-center justify-center z-10 ${colors[state]}`}>
         <Icon className="w-4 h-4" />
       </div>
 
       <div className="flex flex-col gap-1">
-        <h3 className={`font-display text-xl font-bold ${state === 'pending' ? 'text-muted-foreground' : 'text-foreground'}`}>
+        <h3 className={`font-ui text-[24px] font-semibold leading-[1.15] tracking-[-0.005em] ${state === 'pending' ? 'text-text-muted' : 'text-primary'}`}>
           {title}
         </h3>
-        <p className="text-sm text-muted-foreground">{subtitle}</p>
+        <p className="text-[14px] text-text-muted font-ui">{subtitle}</p>
       </div>
 
       {children && (
-        <div className="mt-4">
+        <div className="mt-5">
           {children}
         </div>
       )}
