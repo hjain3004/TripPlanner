@@ -4,7 +4,8 @@ import { LedgerRow } from "./ledger-row";
 interface LedgerItem {
   id: string;
   label: string;
-  value: string;
+  value: string | ReactNode;
+  cost?: string | ReactNode;
   dominant?: boolean;
   notch?: string;
   content?: ReactNode;
@@ -18,15 +19,13 @@ interface DecisionLedgerProps {
 
 export function DecisionLedger({ title, items, children }: DecisionLedgerProps) {
   return (
-    <div className="border border-border rounded-sm">
-      {title && (
-        <div className="px-4 py-2 border-b border-border">
-          <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-            {title}
-          </span>
-        </div>
-      )}
-      <div className="px-4">
+    <div className="border border-border rounded-none bg-bg overflow-hidden shadow-1 mt-6">
+      <div className="hidden md:grid grid-cols-[2fr_1fr_1fr] gap-4 py-3 px-6 bg-accent-2/30 border-b border-border text-[10px] font-mono font-medium text-text-muted uppercase tracking-wider">
+        <div className="pl-1">Payment Method</div>
+        <div className="text-right pr-1">Points Value</div>
+        <div className="text-right pr-1">Net Cost</div>
+      </div>
+      <div className="flex flex-col bg-bg">
         {items.map((item) => (
           <LedgerRow key={item.id} {...item} />
         ))}

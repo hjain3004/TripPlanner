@@ -7,6 +7,7 @@ export function ProgressRing({ progress, size = 32, strokeWidth = 2 }: { progres
   const center = size / 2;
 
   return (
+    /* token-lint-disable-next-line no-inline-svg -- Hand-authored SVG */
     <svg className={`w-${size/4} h-${size/4} -rotate-90`} viewBox={`0 0 ${size} ${size}`}>
       <circle cx={center} cy={center} r={radius} fill="none" className="stroke-border" strokeWidth={strokeWidth} />
       <circle

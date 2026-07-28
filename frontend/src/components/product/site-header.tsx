@@ -6,7 +6,7 @@ import Link from "next/link";
  *
  * The wordmark is the UI face, not the display face: a logotype/lockup is not a
  * "heading context" under CONTRACT.md §2's allowed-contexts rule. The slash is the
- * one deliberate accent-4 (lacquer) use in this composition, well inside the <2%
+ * one deliberate accent-4 (accent-4) use in this composition, well inside the <2%
  * surface budget.
  *
  * "Your wallet" / "How it works" render as plain text, not links: those routes do

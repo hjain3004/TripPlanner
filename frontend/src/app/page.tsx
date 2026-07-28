@@ -76,7 +76,7 @@ export default function Home() {
               <div className="relative grid grid-cols-[1fr_82px] gap-[24px] min-h-[116px] py-[15px_0_23px] border-b border-border">
                 <span
                   /* token-lint-disable-next-line no-direct-var -- route node marker needs 2px ring in accent color; no Tailwind utility for 2px box-shadow ring */
-                  className="absolute left-[-41px] top-[25px] w-[11px] h-[11px] rounded-full border-[3px] border-accent-2 bg-accent-4 shadow-[0_0_0_2px_var(--color-accent-4)]"
+                  className="absolute left-[-41px] top-[25px] w-[11px] h-[11px] rounded-full border-[3px] border-accent-2 bg-accent-4 shadow-[0_0_0_2px_theme(colors.accent.4)]"
                   aria-hidden="true"
                 />
                 <div>
@@ -99,7 +99,7 @@ export default function Home() {
               <div className="relative grid grid-cols-[1fr_82px] gap-[24px] min-h-[116px] py-[15px_0_23px] border-b border-border">
                 <span
                   /* token-lint-disable-next-line no-direct-var -- route node marker needs 2px ring in primary color; no Tailwind utility for 2px box-shadow ring */
-                  className="absolute left-[-41px] top-[25px] w-[11px] h-[11px] rounded-full border-[3px] border-accent-2 bg-primary shadow-[0_0_0_2px_var(--color-primary)]"
+                  className="absolute left-[-41px] top-[25px] w-[11px] h-[11px] rounded-full border-[3px] border-accent-2 bg-primary shadow-[0_0_0_2px_theme(colors.primary.DEFAULT)]"
                   aria-hidden="true"
                 />
                 <div>
@@ -175,7 +175,7 @@ export default function Home() {
           <div className="mt-[28px] border-t border-border">
             {/* Row 1: Featured / Recommended */}
             {/* token-lint-disable-next-line no-direct-var -- featured decision row needs 34% opacity primary border; no Tailwind utility for arbitrary opacity on border-color */}
-            <article className="relative grid grid-cols-[66px_1.6fr_1fr_180px_130px] gap-[22px] items-center min-h-[126px] border-b border-border bg-accent-2 border border-[var(--color-primary)/0.34] m-[0_-20px] p-[0_20px] max-[960px]:grid-cols-[50px_1.4fr_1fr_130px] max-[650px]:grid-cols-[36px_1fr] max-[650px]:gap-[14px] max-[650px]:m-0 max-[650px]:p-[28px_12px_22px]">
+            <article className="relative grid grid-cols-[66px_1.6fr_1fr_180px_130px] gap-[22px] items-center min-h-[126px] border-b border-border bg-accent-2 border border-[theme(colors.primary.DEFAULT)/0.34] m-[0_-20px] p-[0_20px] max-[960px]:grid-cols-[50px_1.4fr_1fr_130px] max-[650px]:grid-cols-[36px_1fr] max-[650px]:gap-[14px] max-[650px]:m-0 max-[650px]:p-[28px_12px_22px]">
               {/* Recommended notch */}
               <span className="absolute -top-[11px] left-[88px] inline-block px-[8px] py-[4px] text-text-on-primary bg-accent-4 font-mono font-medium text-[9px] uppercase tracking-[.06em] leading-none max-[650px]:top-[-11px] max-[650px]:left-[12px]">
                 Recommended
