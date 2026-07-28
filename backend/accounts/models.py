@@ -252,3 +252,41 @@ class UserExport(AccountModel):
     trips: list[SavedTrip] = Field(default_factory=list)
     revisions: list[TripRevision] = Field(default_factory=list)
     exported_at: datetime
+
+
+# --------------------------------------------------------------------------- #
+# 5. Credentials and sessions (spec 17 §4)                                      #
+# --------------------------------------------------------------------------- #
+
+
+class UserCredential(AccountModel):
+    """Secrets live here, never on ``User``, so a read path never loads one."""
+
+    user_id: str
+    password_hash: str                      # Argon2id; encodes salt and params
+    algorithm: Literal["argon2id"] = "argon2id"
+    updated_at: datetime
+    failed_attempts: int = Field(default=0, ge=0)
+    locked_until: datetime | None = None
+
+
+class Session(AccountModel):
+    """A server-side session. ``token_hash`` only — the raw token is NEVER stored."""
+
+    id: str
+    user_id: str
+    token_hash: str                         # SHA-256 hex of the cookie token
+    created_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+    revoked_at: datetime | None = None
+
+    @field_validator("token_hash")
+    @classmethod
+    def check_token_hash(cls, value: str) -> str:
+        if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+            raise ValueError("token_hash must be 64 lowercase hex characters (SHA-256)")
+        return value
+
+    def is_valid_at(self, now: datetime) -> bool:
+        return self.revoked_at is None and now < self.expires_at
