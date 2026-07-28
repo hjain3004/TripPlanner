@@ -11,7 +11,7 @@ caller — the same injection style the pipeline uses for ``booking_date``.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -22,6 +22,7 @@ from accounts.db import (
     ACCOUNTS_DB_PATH,
     SavedTripRow,
     TripRevisionRow,
+    UserCredentialRow,
     UserProfileRow,
     UserRow,
     WalletEntryRow,
@@ -31,10 +32,12 @@ from accounts.models import (
     SavedTrip,
     TripRevision,
     User,
+    UserCredential,
     UserExport,
     UserProfile,
     WalletEntry,
 )
+from accounts import passwords
 
 
 class DuplicateEmailError(ValueError):
@@ -47,6 +50,10 @@ class UnknownUserError(ValueError):
 
 class UnknownTripError(ValueError):
     """Raised when an operation names a saved trip id that does not exist."""
+
+
+MAX_FAILED_ATTEMPTS = 10
+LOCKOUT_DURATION = timedelta(minutes=15)
 
 
 class AccountStore:
@@ -337,3 +344,79 @@ class AccountStore:
             )
             session.execute(delete(UserRow).where(UserRow.id == user_id))
             session.commit()
+
+    # -- credentials -------------------------------------------------------- #
+
+    def set_password(self, user_id: str, plaintext: str, *, now: datetime) -> None:
+        """Set or replace a user's password. Resets lockout state."""
+        credential = UserCredential(
+            user_id=user_id,
+            password_hash=passwords.hash_password(plaintext),
+            updated_at=now,
+            failed_attempts=0,
+            locked_until=None,
+        )
+        with Session(self._engine) as session:
+            self._require_user(session, user_id)
+            row = session.get(UserCredentialRow, user_id)
+            if row is None:
+                session.add(
+                    UserCredentialRow(
+                        user_id=user_id, payload=credential.model_dump_json()
+                    )
+                )
+            else:
+                row.payload = credential.model_dump_json()
+            session.commit()
+
+    def get_credential(self, user_id: str) -> UserCredential | None:
+        with Session(self._engine) as session:
+            row = session.get(UserCredentialRow, user_id)
+            return (
+                None
+                if row is None
+                else UserCredential.model_validate_json(row.payload)
+            )
+
+    def authenticate(
+        self, email: str, plaintext: str, *, now: datetime
+    ) -> User | None:
+        """Return the user on success, ``None`` otherwise — never a reason.
+
+        Timing is uniform: when the user or credential is missing, or the account
+        is locked, we still burn one Argon2 verification against a fixed dummy
+        hash, so the caller cannot distinguish the cases by response time.
+        """
+        user = self.get_user_by_email(email)
+        if user is None:
+            passwords.dummy_verify(plaintext)
+            return None
+
+        with Session(self._engine) as session:
+            row = session.get(UserCredentialRow, user.id)
+            if row is None:
+                passwords.dummy_verify(plaintext)
+                return None
+
+            credential = UserCredential.model_validate_json(row.payload)
+            if credential.locked_until is not None and now < credential.locked_until:
+                passwords.dummy_verify(plaintext)
+                return None
+
+            ok = passwords.verify_password(plaintext, credential.password_hash)
+            if ok:
+                updated = credential.model_copy(
+                    update={"failed_attempts": 0, "locked_until": None}
+                )
+            else:
+                attempts = credential.failed_attempts + 1
+                locked = (
+                    now + LOCKOUT_DURATION if attempts >= MAX_FAILED_ATTEMPTS else None
+                )
+                updated = credential.model_copy(
+                    update={"failed_attempts": attempts, "locked_until": locked}
+                )
+            row.payload = updated.model_dump_json()
+            session.commit()
+
+        return user if ok else None
