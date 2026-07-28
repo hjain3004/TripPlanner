@@ -24,7 +24,9 @@ Every task's requirements implicitly include this section.
 
 ## Context an implementer needs
 
-**This plan builds ahead of its spec.** `docs/specs/17_accounts_and_persistence.md` does not exist yet. Every backend milestone so far (M1, M1b, M2, M3) was specced first. That inversion is a deliberate, human-approved trade for momentum and **must be logged in `DEVIATIONS.md`** (Task 10). If spec 17 later contradicts something here, spec 17 wins and this code is revised.
+**This plan was written before its spec.** `docs/specs/17_accounts_and_persistence.md` now exists (written after this plan) and **wins wherever the two disagree**. The inversion was deliberate and human-approved, and is logged in `DEVIATIONS.md` (Task 10). Read spec 17 before starting.
+
+> **⚠ One refinement spec 17 makes to this plan.** §4 puts credentials in a **separate `UserCredential` table**, not a `password_hash` column on `User`, so loading a user never loads a secret. Nothing in Tasks 1–10 changes — `User` still has no credential field — but the later auth plan must add a table, not a column. Spec 17 §4 also fixes the session design this plan left open: Argon2id, server-side sessions, `httpOnly`/`Secure`/`SameSite` cookie storing only a token *hash*, and CSRF protection.
 
 **Existing shapes you will interact with** (read these files before starting):
 
@@ -55,7 +57,7 @@ Every task's requirements implicitly include this section.
 
 ## Out of scope (explicitly deferred to the next plan)
 
-Authentication, password/credential storage, sessions, cookies, JWT, and every HTTP endpoint. `User` deliberately has **no** `password_hash` field; the auth plan adds it as an additive column. Do not add auth in this plan even if it feels natural. Also deferred: the new-card / welcome-offer recommendation feature (see Task 10's SCOPE+ row) — this plan persists `opened_on` so that feature is buildable later, and does nothing else about it.
+Authentication, password/credential storage, sessions, cookies, and every HTTP endpoint. `User` deliberately has **no** credential field; per spec 17 §4 the auth plan adds a separate `UserCredential` table (not a column on `User`), so a read path never loads a secret. Do not add auth in this plan even if it feels natural. Also deferred: the new-card / welcome-offer recommendation feature (see Task 10's SCOPE+ row) — this plan persists `opened_on` so that feature is buildable later, and does nothing else about it.
 
 ---
 

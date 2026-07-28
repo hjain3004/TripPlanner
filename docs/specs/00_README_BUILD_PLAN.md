@@ -25,7 +25,7 @@
 | `08_product_vision.md` | Canonical target product, user journey, evidence states, product phases, success measures, and permanent non-goals. | Design now; implementation spans later phases |
 | `09_target_platform_architecture.md` | Bounded orchestrator, domain workflows, kernel/gateway boundaries, reliability, security, and post-F4 milestones. | Design now; G1+ after F4 |
 | `16_data_gateway_and_adapters.md` | Normalized live quote contracts, provider registry/activation, freshness, caching, errors, budgets, and adapter tests. | G1+ after F4 |
-| `17_accounts_and_persistence.md` | **NOT YET WRITTEN.** User accounts, profiles, stored wallet entries, saved trips and revisions, auth/session approach, privacy and retention. `docs/superpowers/plans/2026-07-28-accounts-persistence.md` builds the persistence half ahead of it — a deliberate, logged process inversion (DEVIATIONS §A1). | After Kernel MVP gates |
+| `17_accounts_and_persistence.md` | User accounts, profiles, stored wallet entries, immutable saved trips and revisions; the `backend/accounts/` write boundary; the never-store schema invariant; Argon2id + server-side cookie sessions; privacy, export and deletion. | After Kernel MVP gates |
 | `18_card_acquisition_and_welcome_offers.md` | Welcome-bonus windows on held cards (Case A) and new-card offer information (Case B): acquisition offer schema, deterministic first-year math, the timing gate, and the hard non-goals around eligibility and referral economics. Depends on 17. | After 17 |
 
 **Frontend pack:** docs `10`–`15` specify the frontend (build plan & MCP tooling, design system & theming, integration contract, pages & motion, component contracts, wit pack). Start at `10_frontend_build_plan.md`. Doc `12` amends Doc 03 §8 with the async job + polling API.
@@ -70,8 +70,8 @@ tripwise/
   DEVIATIONS.md           # judgment-call log (Doc 06) — created empty on day one
   docs/
     ARCHITECTURE.md       # one-page orientation
-    specs/                # 18 spec docs: kernel 00–07, platform 08/09/16, frontend 10–15,
-                          #   accounts 17 (PENDING — not yet written), acquisition 18
+    specs/                # 19 spec docs: kernel 00–07, platform 08/09/16, frontend 10–15,
+                          #   accounts 17, card acquisition 18
   reports/                # milestone self-review reports (Doc 06 §5, Doc 10 §5)
   contract/
     openapi.json          # committed schema snapshot — single source of truth (Doc 12)

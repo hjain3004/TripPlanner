@@ -17,6 +17,24 @@ Verified after the spec-01 revision: `cd backend && .venv/bin/python -m pytest` 
 
 ## Remaining
 
+### ~~1. `DEVIATIONS.md` — log the three spec changes~~ — DONE (`265d7fb`)
+
+### ~~2. `CLAUDE.md` + `AGENTS.md`~~ — DONE. Build order carries specs 17/18; checkpoint dated 2026-07-28; regression baseline recorded as 100 with the M3 historical 97 left intact; both files re-verified byte-identical.
+
+### ~~3. `docs/specs/17_accounts_and_persistence.md`~~ — DONE. Written after the plan and authoritative over it. Adds what the plan deferred: Argon2id credentials in a **separate `UserCredential` table** (not a column on `User`), server-side sessions with an `httpOnly`/`Secure`/`SameSite` cookie storing only a token hash, CSRF requirements, and the privacy/retention section. The plan has been annotated with the refinement.
+
+### 4. Remaining: execute the persistence plan
+
+`docs/superpowers/plans/2026-07-28-accounts-persistence.md`, 10 tasks, via `superpowers:subagent-driven-development`. **Not started, and deliberately so** — the human's instruction was specs and plan docs only.
+
+### 5. Remaining: an auth plan
+
+Spec 17 §4 is specified but has no implementation plan. It is the natural next plan document after persistence: `UserCredential`, `Session`, login/logout/rotation, CSRF, and the HTTP endpoints the persistence plan excluded.
+
+---
+
+## Superseded (kept for the audit trail)
+
 ### 1. `DEVIATIONS.md` — log the three spec changes
 
 Rows needed (six-column format, new `## Specs — accounts, discovery, network tiers` section):
