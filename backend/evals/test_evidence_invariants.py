@@ -45,3 +45,29 @@ def test_evaluation_of_unknown_subject_is_a_violation() -> None:
                                 reasons=["expired"]))
     violations = check_invariants(g)
     assert any("c-ghost" in v for v in violations)
+
+def test_superseded_by_missing_edge_is_a_violation(
+    claim_a: Claim, source_a: Source
+) -> None:
+    g = EvidenceGraph()
+    g.add_source(source_a)
+    claim_a2 = claim_a.model_copy(update={"claim_id": "c-a2"})
+    g.add_claim(claim_a.model_copy(update={
+        "lifecycle": LifecycleState.SUPERSEDED, "superseded_by": "c-a2"
+    }))
+    g.add_claim(claim_a2)
+    # Edge is missing intentionally
+    violations = check_invariants(g)
+    assert any("SUPERSEDES edge missing" in v for v in violations)
+
+def test_supersedes_edge_missing_field_is_a_violation(
+    claim_a: Claim, source_a: Source
+) -> None:
+    g = EvidenceGraph()
+    g.add_source(source_a)
+    claim_a2 = claim_a.model_copy(update={"claim_id": "c-a2"})
+    g.add_claim(claim_a) # Field is intentionally missing
+    g.add_claim(claim_a2)
+    g.add_edge(Edge(kind=EdgeKind.SUPERSEDES, src="c-a2", dst="c-a"))
+    violations = check_invariants(g)
+    assert any("superseded_by field missing" in v for v in violations)

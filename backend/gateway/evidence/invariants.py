@@ -10,7 +10,8 @@ was built by a path that bypassed model validation, or a pointer dangles.
 """
 from __future__ import annotations
 
-from gateway.evidence.edges import EvidenceGraph
+from gateway.evidence.edges import EvidenceGraph, EdgeKind
+from gateway.evidence.nodes import LifecycleState
 
 
 def check_invariants(graph: EvidenceGraph) -> list[str]:
@@ -26,11 +27,26 @@ def check_invariants(graph: EvidenceGraph) -> list[str]:
             violations.append(
                 f"invariant 1: claim {claim_id} cites missing source {claim.source_id}"
             )
-        if claim.superseded_by is not None and not graph.has_node(claim.superseded_by):
+        if claim.lifecycle == LifecycleState.SUPERSEDED and claim.superseded_by is None:
             violations.append(
-                f"invariant 4: claim {claim_id} superseded by missing "
-                f"node {claim.superseded_by}"
+                f"claim {claim_id} is SUPERSEDED but lacks a superseded_by pointer"
             )
+        if claim.superseded_by is not None:
+            if not graph.has_node(claim.superseded_by):
+                violations.append(
+                    f"invariant 4: claim {claim_id} superseded by missing "
+                    f"node {claim.superseded_by}"
+                )
+            else:
+                has_edge = any(
+                    e.kind is EdgeKind.SUPERSEDES and e.src == claim.superseded_by and e.dst == claim_id
+                    for e in graph.edges
+                )
+                if not has_edge:
+                    violations.append(
+                        f"claim {claim_id} has superseded_by {claim.superseded_by} "
+                        f"but SUPERSEDES edge missing"
+                    )
 
     for artifact_id, artifact in graph.artifacts.items():
         for claim_id in artifact.derived_from:
@@ -52,5 +68,12 @@ def check_invariants(graph: EvidenceGraph) -> list[str]:
             violations.append(f"edge {edge.kind} has missing src {edge.src}")
         if not graph.has_node(edge.dst):
             violations.append(f"edge {edge.kind} has missing dst {edge.dst}")
+        if edge.kind is EdgeKind.SUPERSEDES:
+            target_claim = graph.claims.get(edge.dst)
+            if target_claim is not None and target_claim.superseded_by != edge.src:
+                violations.append(
+                    f"SUPERSEDES edge {edge.src} -> {edge.dst} exists but "
+                    f"superseded_by field missing or mismatched on {edge.dst}"
+                )
 
     return violations
