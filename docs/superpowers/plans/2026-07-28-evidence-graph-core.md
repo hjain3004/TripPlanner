@@ -38,14 +38,14 @@ backend/gateway/evidence/contradiction.py # disagreement detection
 backend/gateway/evidence/budget.py        # PlanBudget, PartialResult
 backend/gateway/evidence/store.py         # SQLite-backed graph store
 
-tests/gateway/evidence/conftest.py
-tests/gateway/evidence/test_nodes.py
-tests/gateway/evidence/test_invariants.py
-tests/gateway/evidence/test_freshness.py
-tests/gateway/evidence/test_resolution.py
-tests/gateway/evidence/test_contradiction.py
-tests/gateway/evidence/test_budget.py
-tests/gateway/evidence/test_store.py
+backend/evals/conftest.py
+backend/evals/test_evidence_nodes.py
+backend/evals/test_evidence_invariants.py
+backend/evals/test_evidence_freshness.py
+backend/evals/test_evidence_resolution.py
+backend/evals/test_evidence_contradiction.py
+backend/evals/test_evidence_budget.py
+backend/evals/test_evidence_store.py
 ```
 
 One responsibility per file. `nodes.py` and `edges.py` are data only; every other module is pure functions over them.
@@ -154,8 +154,25 @@ git commit -m "docs: amend spec 09 with the evidence graph and orchestration bou
 - Create: `backend/gateway/__init__.py` (empty)
 - Create: `backend/gateway/evidence/__init__.py` (empty)
 - Create: `backend/gateway/evidence/nodes.py`
-- Create: `tests/gateway/evidence/conftest.py`
-- Test: `tests/gateway/evidence/test_nodes.py`
+- Create: `backend/evals/conftest.py`
+- Modify: `backend/pyproject.toml:29` — register the new packages
+- Test: `backend/evals/test_evidence_nodes.py`
+
+**Layout note — read before writing any import.** This repo uses a **flat**
+package layout: packages live directly under `backend/` and are imported without a
+`backend.` prefix (`from core.models import ...`, `from agents.llm import ...`).
+All gate commands run from `backend/`. Tests live in `backend/evals/`, not in a
+`tests/` directory — `pyproject.toml` sets `testpaths = ["evals"]`. A new package
+is invisible to the installed distribution until it is added to `packages`.
+
+Before Step 1, change `backend/pyproject.toml:29` to:
+
+```toml
+packages = ["core", "core.optimizer", "core.transfer", "agents", "api", "evals",
+            "gateway", "gateway.evidence"]
+```
+
+then reinstall so the new package resolves: `cd backend && pip install -e .`
 
 **Interfaces:**
 - Consumes: nothing from earlier code tasks.
@@ -164,11 +181,11 @@ git commit -m "docs: amend spec 09 with the evidence graph and orchestration bou
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/gateway/evidence/test_nodes.py
+# backend/evals/test_evidence_nodes.py
 import pytest
 from pydantic import ValidationError
 
-from backend.gateway.evidence.nodes import (
+from gateway.evidence.nodes import (
     Artifact, Claim, ClaimKind, Evaluation, FreshnessState,
 )
 
@@ -213,8 +230,8 @@ def test_evaluation_requires_rubric() -> None:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/gateway/evidence/test_nodes.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'backend.gateway'`
+Run: `cd backend && pytest evals/test_evidence_nodes.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'gateway'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -304,10 +321,10 @@ class Evaluation(BaseModel):
 ```
 
 ```python
-# tests/gateway/evidence/conftest.py
+# backend/evals/conftest.py
 import pytest
 
-from backend.gateway.evidence.nodes import (
+from gateway.evidence.nodes import (
     Claim, ClaimKind, FreshnessState, Source,
 )
 
@@ -340,18 +357,18 @@ def claim_a(source_a: Source) -> Claim:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/gateway/evidence/test_nodes.py -v`
+Run: `cd backend && pytest evals/test_evidence_nodes.py -v`
 Expected: PASS, 4 tests
 
 - [ ] **Step 5: Verify strict typing**
 
-Run: `mypy --strict backend/gateway/`
+Run: `cd backend && mypy --strict gateway/`
 Expected: no errors
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add backend/gateway/ tests/gateway/
+git add backend/gateway/ backend/evals/
 git commit -m "feat(gateway): evidence graph node types"
 ```
 
@@ -362,7 +379,7 @@ git commit -m "feat(gateway): evidence graph node types"
 **Files:**
 - Create: `backend/gateway/evidence/edges.py`
 - Create: `backend/gateway/evidence/invariants.py`
-- Test: `tests/gateway/evidence/test_invariants.py`
+- Test: `backend/evals/test_evidence_invariants.py`
 
 **Interfaces:**
 - Consumes: `Claim`, `Source`, `Artifact`, `Run`, `Evaluation` from Task 2.
@@ -371,10 +388,10 @@ git commit -m "feat(gateway): evidence graph node types"
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/gateway/evidence/test_invariants.py
-from backend.gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
-from backend.gateway.evidence.invariants import check_invariants
-from backend.gateway.evidence.nodes import (
+# backend/evals/test_evidence_invariants.py
+from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
+from gateway.evidence.invariants import check_invariants
+from gateway.evidence.nodes import (
     Artifact, Claim, Evaluation, FreshnessState, Source,
 )
 
@@ -423,8 +440,8 @@ def test_evaluation_of_unknown_subject_is_a_violation() -> None:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/gateway/evidence/test_invariants.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'backend.gateway.evidence.edges'`
+Run: `cd backend && pytest evals/test_evidence_invariants.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'gateway.evidence.edges'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -436,7 +453,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from backend.gateway.evidence.nodes import (
+from gateway.evidence.nodes import (
     Artifact, Claim, Evaluation, Run, Source,
 )
 
@@ -507,7 +524,7 @@ was built by a path that bypassed model validation, or a pointer dangles.
 """
 from __future__ import annotations
 
-from backend.gateway.evidence.edges import EvidenceGraph
+from gateway.evidence.edges import EvidenceGraph
 
 
 def check_invariants(graph: EvidenceGraph) -> list[str]:
@@ -560,13 +577,13 @@ def check_invariants(graph: EvidenceGraph) -> list[str]:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/gateway/evidence/test_invariants.py -v`
+Run: `cd backend && pytest evals/test_evidence_invariants.py -v`
 Expected: PASS, 4 tests
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/gateway/evidence/edges.py backend/gateway/evidence/invariants.py tests/gateway/evidence/test_invariants.py
+git add backend/gateway/evidence/edges.py backend/gateway/evidence/invariants.py backend/evals/test_evidence_invariants.py
 git commit -m "feat(gateway): evidence graph edges and invariant checks"
 ```
 
@@ -576,7 +593,7 @@ git commit -m "feat(gateway): evidence graph edges and invariant checks"
 
 **Files:**
 - Create: `backend/gateway/evidence/freshness.py`
-- Test: `tests/gateway/evidence/test_freshness.py`
+- Test: `backend/evals/test_evidence_freshness.py`
 
 **Interfaces:**
 - Consumes: `Claim`, `FreshnessState` (Task 2); `EvidenceGraph`, `Edge`, `EdgeKind` (Task 3).
@@ -588,10 +605,10 @@ pointer, and a `SUPERSEDES` edge records the replacement.
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/gateway/evidence/test_freshness.py
-from backend.gateway.evidence.edges import EdgeKind, EvidenceGraph
-from backend.gateway.evidence.freshness import is_expired, mark_stale, supersede
-from backend.gateway.evidence.nodes import Claim, FreshnessState, Source
+# backend/evals/test_evidence_freshness.py
+from gateway.evidence.edges import EdgeKind, EvidenceGraph
+from gateway.evidence.freshness import is_expired, mark_stale, supersede
+from gateway.evidence.nodes import Claim, FreshnessState, Source
 
 
 def test_claim_expires_after_its_expiry_timestamp(claim_a: Claim) -> None:
@@ -638,8 +655,8 @@ def test_supersede_keeps_the_old_claim_addressable(
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/gateway/evidence/test_freshness.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'backend.gateway.evidence.freshness'`
+Run: `cd backend && pytest evals/test_evidence_freshness.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'gateway.evidence.freshness'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -653,8 +670,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from backend.gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
-from backend.gateway.evidence.nodes import Claim, FreshnessState
+from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
+from gateway.evidence.nodes import Claim, FreshnessState
 
 
 def _parse(ts: str) -> datetime:
@@ -693,13 +710,13 @@ def supersede(graph: EvidenceGraph, old_id: str, new_claim: Claim) -> None:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/gateway/evidence/test_freshness.py -v`
+Run: `cd backend && pytest evals/test_evidence_freshness.py -v`
 Expected: PASS, 4 tests
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/gateway/evidence/freshness.py tests/gateway/evidence/test_freshness.py
+git add backend/gateway/evidence/freshness.py backend/evals/test_evidence_freshness.py
 git commit -m "feat(gateway): freshness transitions and supersession"
 ```
 
@@ -709,7 +726,7 @@ git commit -m "feat(gateway): freshness transitions and supersession"
 
 **Files:**
 - Create: `backend/gateway/evidence/resolution.py`
-- Test: `tests/gateway/evidence/test_resolution.py`
+- Test: `backend/evals/test_evidence_resolution.py`
 
 **Interfaces:**
 - Consumes: `Claim` (Task 2); `EvidenceGraph`, `Edge`, `EdgeKind` (Task 3).
@@ -721,12 +738,12 @@ matching rules. No LLM participates in resolution (design §2).
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/gateway/evidence/test_resolution.py
+# backend/evals/test_evidence_resolution.py
 import pytest
 
-from backend.gateway.evidence.edges import EdgeKind, EvidenceGraph
-from backend.gateway.evidence.nodes import Claim, Source
-from backend.gateway.evidence.resolution import (
+from gateway.evidence.edges import EdgeKind, EvidenceGraph
+from gateway.evidence.nodes import Claim, Source
+from gateway.evidence.resolution import (
     flight_identity, resolve, unresolve,
 )
 
@@ -789,8 +806,8 @@ def test_resolve_rejects_fewer_than_two_members(
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/gateway/evidence/test_resolution.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'backend.gateway.evidence.resolution'`
+Run: `cd backend && pytest evals/test_evidence_resolution.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'gateway.evidence.resolution'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -806,8 +823,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator
 
-from backend.gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
-from backend.gateway.evidence.nodes import Claim
+from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
+from gateway.evidence.nodes import Claim
 
 _RESOLUTION_PREFIX = "res:"
 _MEMBER_SEPARATOR = "|"
@@ -881,13 +898,13 @@ def unresolve(graph: EvidenceGraph, resolution_id: str) -> None:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/gateway/evidence/test_resolution.py -v`
+Run: `cd backend && pytest evals/test_evidence_resolution.py -v`
 Expected: PASS, 5 tests
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/gateway/evidence/resolution.py tests/gateway/evidence/test_resolution.py
+git add backend/gateway/evidence/resolution.py backend/evals/test_evidence_resolution.py
 git commit -m "feat(gateway): deterministic reversible entity resolution"
 ```
 
@@ -897,7 +914,7 @@ git commit -m "feat(gateway): deterministic reversible entity resolution"
 
 **Files:**
 - Create: `backend/gateway/evidence/contradiction.py`
-- Test: `tests/gateway/evidence/test_contradiction.py`
+- Test: `backend/evals/test_evidence_contradiction.py`
 
 **Interfaces:**
 - Consumes: `ClaimKind` (Task 2); `EvidenceGraph`, `Edge`, `EdgeKind` (Task 3); `flight_identity` (Task 5).
@@ -910,12 +927,12 @@ no monetary value — this is a comparison, not money math.
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/gateway/evidence/test_contradiction.py
-from backend.gateway.evidence.contradiction import (
+# backend/evals/test_evidence_contradiction.py
+from gateway.evidence.contradiction import (
     CONTRADICTION_THRESHOLD_BPS, detect_contradictions,
 )
-from backend.gateway.evidence.edges import EdgeKind, EvidenceGraph
-from backend.gateway.evidence.nodes import Claim, ClaimKind, Source
+from gateway.evidence.edges import EdgeKind, EvidenceGraph
+from gateway.evidence.nodes import Claim, ClaimKind, Source
 
 
 def test_same_flight_similar_price_is_not_a_contradiction(
@@ -967,8 +984,8 @@ def test_threshold_is_defined_per_kind() -> None:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/gateway/evidence/test_contradiction.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'backend.gateway.evidence.contradiction'`
+Run: `cd backend && pytest evals/test_evidence_contradiction.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'gateway.evidence.contradiction'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -982,9 +999,9 @@ none; this is not money math.
 """
 from __future__ import annotations
 
-from backend.gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
-from backend.gateway.evidence.nodes import ClaimKind
-from backend.gateway.evidence.resolution import flight_identity
+from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
+from gateway.evidence.nodes import ClaimKind
+from gateway.evidence.resolution import flight_identity
 
 CONTRADICTION_THRESHOLD_BPS: dict[ClaimKind, int] = {
     ClaimKind.CASH_QUOTE: 200,          # 2.00%
@@ -1026,13 +1043,13 @@ def detect_contradictions(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/gateway/evidence/test_contradiction.py -v`
+Run: `cd backend && pytest evals/test_evidence_contradiction.py -v`
 Expected: PASS, 4 tests
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/gateway/evidence/contradiction.py tests/gateway/evidence/test_contradiction.py
+git add backend/gateway/evidence/contradiction.py backend/evals/test_evidence_contradiction.py
 git commit -m "feat(gateway): contradiction detection with per-kind thresholds"
 ```
 
@@ -1042,7 +1059,7 @@ git commit -m "feat(gateway): contradiction detection with per-kind thresholds"
 
 **Files:**
 - Create: `backend/gateway/evidence/budget.py`
-- Test: `tests/gateway/evidence/test_budget.py`
+- Test: `backend/evals/test_evidence_budget.py`
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks.
@@ -1051,10 +1068,10 @@ git commit -m "feat(gateway): contradiction detection with per-kind thresholds"
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/gateway/evidence/test_budget.py
+# backend/evals/test_evidence_budget.py
 import pytest
 
-from backend.gateway.evidence.budget import (
+from gateway.evidence.budget import (
     BudgetExhausted, BudgetLedger, PartialResult, PlanBudget,
 )
 
@@ -1095,8 +1112,8 @@ def test_partial_result_requires_a_stop_reason() -> None:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/gateway/evidence/test_budget.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'backend.gateway.evidence.budget'`
+Run: `cd backend && pytest evals/test_evidence_budget.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'gateway.evidence.budget'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1157,13 +1174,13 @@ class BudgetLedger:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/gateway/evidence/test_budget.py -v`
+Run: `cd backend && pytest evals/test_evidence_budget.py -v`
 Expected: PASS, 4 tests
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/gateway/evidence/budget.py tests/gateway/evidence/test_budget.py
+git add backend/gateway/evidence/budget.py backend/evals/test_evidence_budget.py
 git commit -m "feat(gateway): plan budget ledger and partial results"
 ```
 
@@ -1173,7 +1190,7 @@ git commit -m "feat(gateway): plan budget ledger and partial results"
 
 **Files:**
 - Create: `backend/gateway/evidence/store.py`
-- Test: `tests/gateway/evidence/test_store.py`
+- Test: `backend/evals/test_evidence_store.py`
 
 **Interfaces:**
 - Consumes: `Claim`, `Source` (Task 2); `Edge`, `EdgeKind`, `EvidenceGraph` (Task 3); `check_invariants` (Task 3).
@@ -1186,13 +1203,13 @@ because this lives alongside the existing relational storage.
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/gateway/evidence/test_store.py
+# backend/evals/test_evidence_store.py
 from pathlib import Path
 
-from backend.gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
-from backend.gateway.evidence.invariants import check_invariants
-from backend.gateway.evidence.nodes import Claim, FreshnessState, Source
-from backend.gateway.evidence.store import SqliteEvidenceStore
+from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
+from gateway.evidence.invariants import check_invariants
+from gateway.evidence.nodes import Claim, FreshnessState, Source
+from gateway.evidence.store import SqliteEvidenceStore
 
 
 def test_round_trip_preserves_claims_and_edges(
@@ -1235,8 +1252,8 @@ def test_superseded_claims_survive_a_round_trip(
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/gateway/evidence/test_store.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'backend.gateway.evidence.store'`
+Run: `cd backend && pytest evals/test_evidence_store.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'gateway.evidence.store'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1252,8 +1269,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from backend.gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
-from backend.gateway.evidence.nodes import Claim, Source
+from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
+from gateway.evidence.nodes import Claim, Source
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS sources (
@@ -1333,7 +1350,7 @@ class SqliteEvidenceStore:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/gateway/evidence/test_store.py -v`
+Run: `cd backend && pytest evals/test_evidence_store.py -v`
 Expected: PASS, 2 tests
 
 - [ ] **Step 5: Run the full backend suite**
@@ -1343,13 +1360,13 @@ Expected: ≥ 100 passing (the existing floor) plus the 27 added here. No existi
 
 - [ ] **Step 6: Verify strict typing across the package**
 
-Run: `mypy --strict backend/gateway/`
+Run: `cd backend && mypy --strict gateway/`
 Expected: no errors
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add backend/gateway/evidence/store.py tests/gateway/evidence/test_store.py
+git add backend/gateway/evidence/store.py backend/evals/test_evidence_store.py
 git commit -m "feat(gateway): sqlite-backed evidence graph store"
 ```
 
