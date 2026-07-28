@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 
 from accounts.models import UserProfile
-from accounts.store import AccountStore, DuplicateEmailError, UnknownUserError
+from accounts.store import (
+    AccountStore,
+    DuplicateEmailError,
+    UnknownTripError,
+    UnknownUserError,
+)
 
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc)
 
@@ -210,3 +215,122 @@ def test_add_wallet_entry_rejects_a_full_card_number(tmp_path: Path) -> None:
             now=NOW,
             last4="4111111111111111",
         )
+
+
+def _saved_trip(store: AccountStore, trip_id: str = "t1") -> str:
+    trip = store.save_trip(
+        user_id="u1",
+        title="Singapore, August",
+        origin_city="DEL",
+        destination_city="SIN",
+        start_date=date(2026, 8, 1),
+        end_date=date(2026, 8, 5),
+        raw_request="Delhi to Singapore Aug 1-5",
+        trip_spec_json='{"origin_city":"DEL","destination_city":"SIN"}',
+        now=NOW,
+        trip_id=trip_id,
+    )
+    return trip.id
+
+
+def test_save_trip_round_trips(tmp_path: Path) -> None:
+    store = _user_store(tmp_path)
+    trip_id = _saved_trip(store)
+
+    trips = store.trips("u1")
+
+    assert [t.id for t in trips] == [trip_id]
+    assert trips[0].trip_spec_json == '{"origin_city":"DEL","destination_city":"SIN"}'
+
+
+def test_save_trip_rejects_an_unknown_user(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+
+    with pytest.raises(UnknownUserError):
+        store.save_trip(
+            user_id="ghost",
+            title="x",
+            origin_city="DEL",
+            destination_city="SIN",
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 5),
+            raw_request="x",
+            trip_spec_json="{}",
+            now=NOW,
+        )
+
+
+def test_revisions_are_numbered_from_one_and_append(tmp_path: Path) -> None:
+    store = _user_store(tmp_path)
+    trip_id = _saved_trip(store)
+
+    first = store.add_revision(
+        trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
+    )
+    second = store.add_revision(
+        trip_id=trip_id, trace_id="trace2", report_json='{"summary":"v2"}', now=NOW
+    )
+
+    assert first.revision == 1
+    assert second.revision == 2
+    assert [r.revision for r in store.revisions(trip_id)] == [1, 2]
+
+
+def test_a_new_revision_never_mutates_an_earlier_one(tmp_path: Path) -> None:
+    store = _user_store(tmp_path)
+    trip_id = _saved_trip(store)
+    store.add_revision(
+        trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
+    )
+
+    store.add_revision(
+        trip_id=trip_id, trace_id="trace2", report_json='{"summary":"v2"}', now=NOW
+    )
+
+    stored = store.revisions(trip_id)
+    assert stored[0].report_json == '{"summary":"v1"}'
+    assert stored[0].trace_id == "trace1"
+
+
+def test_the_store_exposes_no_way_to_edit_a_revision() -> None:
+    """Immutability is structural: no update/delete method exists for revisions."""
+    forbidden = {
+        "update_revision",
+        "edit_revision",
+        "delete_revision",
+        "set_revision",
+        "replace_revision",
+    }
+
+    assert forbidden.isdisjoint(dir(AccountStore))
+
+
+def test_latest_revision_returns_the_highest_numbered(tmp_path: Path) -> None:
+    store = _user_store(tmp_path)
+    trip_id = _saved_trip(store)
+    store.add_revision(
+        trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
+    )
+    store.add_revision(
+        trip_id=trip_id, trace_id="trace2", report_json='{"summary":"v2"}', now=NOW
+    )
+
+    latest = store.latest_revision(trip_id)
+
+    assert latest is not None
+    assert latest.revision == 2
+    assert latest.trace_id == "trace2"
+
+
+def test_latest_revision_is_none_for_a_trip_with_no_runs(tmp_path: Path) -> None:
+    store = _user_store(tmp_path)
+    trip_id = _saved_trip(store)
+
+    assert store.latest_revision(trip_id) is None
+
+
+def test_add_revision_rejects_an_unknown_trip(tmp_path: Path) -> None:
+    store = _user_store(tmp_path)
+
+    with pytest.raises(UnknownTripError):
+        store.add_revision(trip_id="nope", trace_id="t", report_json="{}", now=NOW)

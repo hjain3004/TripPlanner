@@ -15,17 +15,19 @@ from datetime import date, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
 from accounts.db import (
     ACCOUNTS_DB_PATH,
+    SavedTripRow,
+    TripRevisionRow,
     UserProfileRow,
     UserRow,
     WalletEntryRow,
     create_accounts_engine,
 )
-from accounts.models import User, UserProfile, WalletEntry
+from accounts.models import SavedTrip, TripRevision, User, UserProfile, WalletEntry
 
 
 class DuplicateEmailError(ValueError):
@@ -34,6 +36,10 @@ class DuplicateEmailError(ValueError):
 
 class UnknownUserError(ValueError):
     """Raised when an operation names a user id that does not exist."""
+
+
+class UnknownTripError(ValueError):
+    """Raised when an operation names a saved trip id that does not exist."""
 
 
 class AccountStore:
@@ -180,3 +186,107 @@ class AccountStore:
             ).all()
             entries = [WalletEntry.model_validate_json(r.payload) for r in rows]
         return sorted(entries, key=lambda e: (e.card_id, e.id))
+
+    # -- saved trips (append-only) ------------------------------------------ #
+
+    def save_trip(
+        self,
+        *,
+        user_id: str,
+        title: str,
+        origin_city: str,
+        destination_city: str,
+        start_date: date,
+        end_date: date,
+        raw_request: str,
+        trip_spec_json: str,
+        now: datetime,
+        trip_id: str | None = None,
+    ) -> SavedTrip:
+        trip = SavedTrip(
+            id=trip_id or uuid4().hex,
+            user_id=user_id,
+            title=title,
+            origin_city=origin_city,
+            destination_city=destination_city,
+            start_date=start_date,
+            end_date=end_date,
+            raw_request=raw_request,
+            trip_spec_json=trip_spec_json,
+            created_at=now,
+        )
+        with Session(self._engine) as session:
+            self._require_user(session, user_id)
+            session.add(
+                SavedTripRow(
+                    id=trip.id,
+                    user_id=trip.user_id,
+                    created_at=trip.created_at.isoformat(),
+                    payload=trip.model_dump_json(),
+                )
+            )
+            session.commit()
+        return trip
+
+    def add_revision(
+        self,
+        *,
+        trip_id: str,
+        trace_id: str,
+        report_json: str,
+        now: datetime,
+        revision_id: str | None = None,
+    ) -> TripRevision:
+        """Append a computed result. Never mutates an existing revision.
+
+        Saved trips are immutable: re-running a trip produces revision N+1 so the
+        provenance and ``last_verified`` values of every earlier run survive intact.
+        """
+        with Session(self._engine) as session:
+            if session.get(SavedTripRow, trip_id) is None:
+                raise UnknownTripError(f"no such saved trip: {trip_id}")
+            highest = session.scalar(
+                select(func.max(TripRevisionRow.revision)).where(
+                    TripRevisionRow.trip_id == trip_id
+                )
+            )
+            revision = TripRevision(
+                id=revision_id or uuid4().hex,
+                trip_id=trip_id,
+                revision=(highest or 0) + 1,
+                trace_id=trace_id,
+                report_json=report_json,
+                created_at=now,
+            )
+            session.add(
+                TripRevisionRow(
+                    id=revision.id,
+                    trip_id=revision.trip_id,
+                    revision=revision.revision,
+                    payload=revision.model_dump_json(),
+                )
+            )
+            session.commit()
+        return revision
+
+    def trips(self, user_id: str) -> list[SavedTrip]:
+        """Every saved trip for a user, ordered by ``(created_at, id)``."""
+        with Session(self._engine) as session:
+            rows = session.scalars(
+                select(SavedTripRow).where(SavedTripRow.user_id == user_id)
+            ).all()
+            trips = [SavedTrip.model_validate_json(r.payload) for r in rows]
+        return sorted(trips, key=lambda t: (t.created_at, t.id))
+
+    def revisions(self, trip_id: str) -> list[TripRevision]:
+        """Every revision for a trip, oldest first."""
+        with Session(self._engine) as session:
+            rows = session.scalars(
+                select(TripRevisionRow).where(TripRevisionRow.trip_id == trip_id)
+            ).all()
+            revisions = [TripRevision.model_validate_json(r.payload) for r in rows]
+        return sorted(revisions, key=lambda r: r.revision)
+
+    def latest_revision(self, trip_id: str) -> TripRevision | None:
+        stored = self.revisions(trip_id)
+        return stored[-1] if stored else None
