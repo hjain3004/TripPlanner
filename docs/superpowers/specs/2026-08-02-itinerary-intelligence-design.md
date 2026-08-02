@@ -61,14 +61,23 @@ An MCP can improve coverage later, but cannot own the itinerary contract or bypa
 - Booking, purchasing, calling venues or executing points transfers.
 - Live events, nightlife inventories, ticket availability or reservation completion in the first
   itinerary release.
-- Direct runtime scraping of Google Maps, TripAdvisor, Booking.com, Skyscanner, Google Flights
-  or other consumer booking/search pages.
+- Unapproved automated request-time scraping of Google Maps, Tripadvisor, Booking.com,
+  Skyscanner, Google Flights or other consumer booking/search **web pages** as if they were
+  stable application APIs.
 - Treating an LLM's remembered venue details as evidence.
 - Worldwide ingestion, public routing infrastructure, high-volume SLAs or commercial licensing.
 - Dynamic provider/MCP discovery, arbitrary URL fetching or provider-specific tools exposed
   directly to the model.
 - Using an LLM to compute money, points, route durations, opening-hours validity or the final
   schedule feasibility verdict.
+
+This does **not** prohibit using those companies. Official APIs, official MCP servers, approved
+partner feeds, sandbox access, compliant deep links and explicit user-facing verification are in
+scope when their adapter passes spec 16. The distinction is between authorized structured access
+and an unreviewed scraper that breaks whenever a consumer page or anti-bot control changes.
+
+Spec 05's offline, source-reviewed acquisition of financial rules also remains in scope. It is a
+batch proposal pipeline with human approval, not request-time scraping of live booking inventory.
 
 ---
 
@@ -369,11 +378,50 @@ as a substitute for source rights, normalized contracts, validation or determini
 |---|---|
 | Custom TripPlanner place-search MCP | Later convenience boundary only, after the internal gateway contract is stable |
 | TomTom official MCP | Optional credentialed experiment; requires human approval before obtaining/using a key |
+| Tripadvisor Terra API/MCP | Strong optional itinerary enrichment candidate; official, authenticated and tiered/usage-based. Evaluate factual location/search access first, with reviews/photos excluded until their display, caching and attribution rules are implemented |
+| Skyscanner Travel APIs/MCP | Strong flight/hotel candidate, but API keys and the MCP are partner access; the official MCP is currently granted case-by-case. Apply as a student project, but retain Gondola/sample fallbacks |
+| Booking.com Demand API | Eligible only with official partner/affiliate credentials. Useful if accepted; never scrape the booking website as a substitute |
+| Google Places/Routes APIs | Optional exact-place verification or routing adapter. Do not persist disallowed Places content or put Google Places results on MapLibre; Google requires Places results shown on a map to use a Google map. Store permitted IDs and provenance only |
+| Google Flights | User verification/deep-link surface only. Its published Flights Search integration is for airlines/OTAs supplying data to Google, not a public consumer-fare search API |
+| Google Travel Impact Model API/MCP | Optional free emissions evidence for known flights; it does not provide fares or availability |
 | Community OSM MCPs that hard-code public Nominatim/Overpass/OSRM | Reject for runtime; useful only as code-reading prototypes |
 | `gosom/google-maps-scraper` | Reject from product architecture and data pipeline |
 | Gondola MCP | Separate flight-provider spike under spec 16; unrelated to itinerary-place readiness |
 
 No itinerary phase is gated on finding a public open-source MCP server.
+
+### GitHub Student Developer Pack
+
+The pack materially improves the cost envelope for development and deployment, but it does not
+grant rights to Google Maps, Tripadvisor, Skyscanner, Booking.com or other travel data.
+
+Useful current benefits, verified on 2026-08-02:
+
+- **GitHub Pro and Codespaces:** primary repository/development benefits.
+- **Heroku:** USD 13/month credit for 24 months; the simplest candidate for a small public
+  FastAPI/Next.js prototype if its current resource limits fit.
+- **Microsoft Azure:** access to 25+ services plus USD 100 credit for students aged 18+; a better
+  candidate for time-bounded container, database or private routing experiments than a permanent
+  zero-cost dependency.
+- **Appwrite Education:** two Pro-equivalent projects while student eligibility remains active.
+  Do not introduce it merely because it is free; the project's account/persistence contracts
+  remain authoritative.
+- **MongoDB Atlas:** USD 50 credit. The project is relational/evidence-graph oriented, so this is
+  not a reason to replace SQLite/PostgreSQL with MongoDB.
+- **Datadog:** Pro for up to 10 servers for two years; potentially useful for a later deployed
+  observability phase, not local MVP development.
+- **1Password:** one year including developer tools; useful for local/deployment secret hygiene.
+- **Name.com/Namecheap:** a student domain and/or certificate offer for a portfolio URL.
+- **GitHub Pages:** suitable for static documentation or a landing page, not the stateful
+  Next.js + FastAPI application.
+
+The listed DigitalOcean USD 200 offer ended on 2026-07-31, so this design does not count it as
+available unless the human confirms it was already redeemed and remains active. Pack offers are
+time-limited and rechecked immediately before deployment.
+
+Public deployment, paid overages and travel-provider credentials still require explicit human
+approval. Every cloud account gets budget alerts/quotas, restricted secrets and a documented
+shutdown path before the first deployment.
 
 ---
 
@@ -609,6 +657,9 @@ worldwide is still labeled future work.
 
 - evaluate a reviewed regional route source or restricted Valhalla adapter
 - optionally evaluate the official TomTom MCP only after explicit credential approval
+- apply for and, if accepted, evaluate the official Tripadvisor Terra and Skyscanner adapters
+- evaluate Google Places only as a policy-compliant verification path, not as a persistent
+  MapLibre catalog source
 - optionally expose the stable first-party place interface as a TripPlanner MCP for developer use
 - keep every experiment behind disabled-by-default activation configuration and recorded fixtures
 
