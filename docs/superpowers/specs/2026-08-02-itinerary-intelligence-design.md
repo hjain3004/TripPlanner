@@ -1,10 +1,16 @@
 # Itinerary Intelligence & Venue Discovery — design
 
 **Date:** 2026-08-02  
-**Status:** DESIGN — approved direction from brainstorming; awaiting review of this written form  
+**Status:** APPROVED — written design approved by the human on 2026-08-02
 **Scope:** Target-prototype itinerary intelligence after the Kernel MVP/frontend foundations  
 **Depends on:** specs 06, 08, 09 and 16; the evidence-graph design; the existing itinerary-accuracy plan  
 **Does not change:** Kernel money math, the four named LLM call sites, booking/transfer prohibitions, or provider activation rules
+
+**Cost ceiling:** USD 0 out of pocket. The no-credential fixture/open-data path must be mandatory
+and complete. Travel data, mapping/routing, hosting and runtime LLM inference all default to
+local/scripted/open paths. A credit/free-tier service may be evaluated only when overage is
+mechanically prevented; an expiring credit, billing account or partner approval is never a phase
+gate.
 
 This document resolves the itinerary-planner data problem without pretending that a single
 third-party MCP server is the product. It describes a phased, testable system that can discover
@@ -422,6 +428,16 @@ time-limited and rechecked immediately before deployment.
 Public deployment, paid overages and travel-provider credentials still require explicit human
 approval. Every cloud account gets budget alerts/quotas, restricted secrets and a documented
 shutdown path before the first deployment.
+
+For the active profile, `PlanBudget.max_cost_minor` defaults to `0` and positive external spend
+fails closed. “Free tier” is not treated as free when the provider can automatically bill an
+overage. Student credits count as zero out of pocket only when a hard quota or account-level
+spending limit prevents charges after the credit is exhausted.
+
+The four LLM call sites do not imply a paid hosted model. Tests and the deterministic portfolio
+demo use `ScriptedLLMClient`; an interactive zero-cost run may use an approved local model adapter.
+A hosted free inference service remains optional and disabled unless it has a hard zero-spend
+limit and passes the same credential/privacy review as any other provider.
 
 ---
 
