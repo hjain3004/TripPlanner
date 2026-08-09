@@ -47,8 +47,8 @@ export function VerdictHeader({ totals, destination, days, confidence }: Verdict
   }, [totals.savings_pct_bp, reduced]);
 
   return (
-    <div className="text-center py-12 border-b border-border" data-motion="verdict">
-      <h1 className="font-display text-h1 mb-4">
+    <div className="register-issue text-center py-12 border-b-2 border-border" data-motion="verdict">
+      <h1 className="font-display display-stroked text-h1 mb-4">
         Your {days}-day {destination} plan
       </h1>
       <div className="flex flex-wrap justify-center gap-8 text-sm">

@@ -1,0 +1,20 @@
+/* Issue register — computed artifacts read as issued documents.
+   Applied to a subtree; inherits everything it does not override. */
+.register-issue {
+
+  --th-radius-s: 0px;
+  --th-radius-m: 0px;
+  --th-radius-l: 0px;
+
+  /* Depth comes from the offset plate, never from blur. */
+  --th-shadow-1: none;
+  --th-shadow-2: none;
+
+  --th-border:  oklch(0.320 0.042 181);        /* mangrove, FULL opacity — not a hairline */
+  --th-text:    oklch(0.220 0.008 145);        /* ink, darkened for print weight */
+  --th-accent-4: oklch(0.560 0.150 33);        /* lacquer warmed toward jet orange #C8452F */
+
+  --th-plate:   oklch(0.660 0.097 82);         /* brass — the offset plate */
+  --th-board:   oklch(0.205 0.005 145);        /* split-flap cell ground */
+  --th-board-text: oklch(0.955 0.006 91);
+}

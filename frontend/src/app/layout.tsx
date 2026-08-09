@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Bodoni_Moda, Schibsted_Grotesk, Roboto_Mono } from "next/font/google";
+import { Schibsted_Grotesk, Roboto_Mono, Poiret_One } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Providers } from "./providers";
 import { MSWProvider } from "@/mocks/MSWProvider";
 import { PageTransition } from "@/components/product/page-transition";
 import "./globals.css";
 
-const bodoniModa = Bodoni_Moda({
+const poiretOne = Poiret_One({
   subsets: ["latin"],
-  variable: "--font-bodoni-moda",
-  axes: ["opsz"],
+  variable: "--font-poiret-one",
+  weight: ["400"],
 });
 
 const schibstedGrotesk = Schibsted_Grotesk({
@@ -37,7 +37,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`theme-singapore ${bodoniModa.variable} ${schibstedGrotesk.variable} ${robotoMono.variable}`}
+      className={`theme-singapore ${schibstedGrotesk.variable} ${robotoMono.variable} ${poiretOne.variable}`}
     >
       <body>
         <TooltipProvider>

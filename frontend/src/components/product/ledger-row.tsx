@@ -14,7 +14,7 @@ interface LedgerRowProps {
 export function LedgerRow({ label, value, cost, dominant, notch, children }: LedgerRowProps) {
   return (
     <div className={cn(
-      "relative grid grid-cols-12 md:grid-cols-[2fr_1fr_1fr] gap-4 py-4 px-6 items-center border-b border-border/40 last:border-0 bg-bg",
+      "register-issue relative grid grid-cols-12 md:grid-cols-[2fr_1fr_1fr] gap-4 py-4 px-6 items-center border-b border-border/40 last:border-0 bg-bg",
       dominant ? "bg-accent-2/50 border-l-[3px] border-l-primary" : "hover:bg-accent-2/30 transition-colors border-l-[3px] border-l-transparent"
     )}>
       {notch && (

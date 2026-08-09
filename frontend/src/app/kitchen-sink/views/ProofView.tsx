@@ -3,6 +3,8 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Tags, Award } from 'lucide-react';
 import { NotchLabel } from "@/components/product/notch-label";
+import { OffsetPlate } from "@/components/product/offset-plate";
+import { SplitFlap } from "@/components/product/split-flap";
 import { useReducedMotionSafe } from "@/lib/motion/use-reduced-motion-safe";
 
 export const ProofView = () => {
@@ -91,6 +93,21 @@ export const ProofView = () => {
           </motion.div>
         </div>
 
+      </div>
+    </div>
+    <div className="mt-16 mb-8">
+      <h2 className="font-display text-2xl font-semibold mb-6">Primitives (Issue Register)</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="register-issue p-6 bg-bg flex items-center justify-center">
+          <OffsetPlate className="p-8 border-2 border-border bg-bg">
+            <h3 className="font-display display-stroked text-3xl mb-4">Offset Plate</h3>
+            <p className="font-mono text-sm text-text-muted">A document container</p>
+          </OffsetPlate>
+        </div>
+        <div className="register-issue p-6 bg-bg flex flex-col items-center justify-center gap-4 border-2 border-border">
+          <h3 className="font-display display-stroked text-3xl">Split Flap</h3>
+          <SplitFlap value="$22,400" className="text-2xl" />
+        </div>
       </div>
     </div>
   </motion.div>

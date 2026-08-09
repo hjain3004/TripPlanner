@@ -9,9 +9,10 @@ import { ProofView } from './views/ProofView';
 import { ItineraryView } from './views/ItineraryView';
 import { WalletView } from './views/WalletView';
 import { ProfileView } from './views/ProfileView';
+import { RegisterSpecimenView } from './views/RegisterSpecimenView';
 
 export default function KitchenSinkPage() {
-  const [activeTab, setActiveTab] = useState<'explore' | 'deals' | 'proof' | 'itinerary' | 'wallet' | 'profile'>('proof');
+  const [activeTab, setActiveTab] = useState<'explore' | 'deals' | 'proof' | 'itinerary' | 'wallet' | 'profile' | 'register'>('proof');
 
   return (
     <div className="min-h-screen bg-bg text-text font-ui selection:bg-primary/20 relative z-0 theme-singapore">
@@ -43,6 +44,10 @@ export default function KitchenSinkPage() {
               className={`flex items-center gap-1.5 transition-colors pb-1 border-b-2 ${activeTab === 'itinerary' ? 'text-accent-4 border-accent-4' : 'text-text-muted border-transparent hover:text-text hover:border-border'}`}
             ><MapPin className="w-4 h-4 hidden lg:block" /> Itinerary</button>
             <button 
+              onClick={() => setActiveTab('register')}
+              className={`flex items-center gap-1.5 transition-colors pb-1 border-b-2 ${activeTab === 'register' ? 'text-accent-4 border-accent-4' : 'text-text-muted border-transparent hover:text-text hover:border-border'}`}
+            >Register</button>
+            <button 
               onClick={() => setActiveTab('wallet')}
               className={`flex items-center gap-1.5 transition-colors pb-1 border-b-2 ${activeTab === 'wallet' ? 'text-primary border-primary' : 'text-text-muted border-transparent hover:text-text hover:border-border'}`}
             ><Wallet className="w-4 h-4 hidden lg:block" /> Wallet</button>
@@ -66,6 +71,7 @@ export default function KitchenSinkPage() {
           {activeTab === 'deals' && <DealsView key="deals" />}
           {activeTab === 'proof' && <ProofView key="proof" />}
           {activeTab === 'itinerary' && <ItineraryView key="itinerary" />}
+          {activeTab === 'register' && <RegisterSpecimenView key="register" />}
           {activeTab === 'wallet' && <WalletView key="wallet" />}
           {activeTab === 'profile' && <ProfileView key="profile" />}
         </AnimatePresence>

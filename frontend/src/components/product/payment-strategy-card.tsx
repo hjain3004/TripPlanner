@@ -14,7 +14,7 @@ export function PaymentStrategyCard({ assignment }: PaymentStrategyCardProps) {
   const runnerUp = assignment.runner_up;
 
   return (
-    <div className="border border-border rounded-sm">
+    <div className="register-issue border border-border rounded-sm">
       <div className="px-4 py-3 border-b border-border">
         <div className="flex items-center justify-between">
           <div>

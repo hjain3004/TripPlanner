@@ -9,7 +9,7 @@ interface ItineraryTimelineProps {
 
 export function ItineraryTimeline({ itinerary }: ItineraryTimelineProps) {
   return (
-    <div className="relative">
+    <div className="register-issue relative">
       {itinerary.itinerary_quality === "fallback" && (
         <div className="mb-4">
           <TrustChip variant="warning" label="Best-effort itinerary — review before booking" />

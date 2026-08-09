@@ -26,7 +26,7 @@ export const HighlightBox = ({ title, subtitle, value, actionLabel, accent = 'ac
         </svg>
       </div>
       <div className="p-5 flex flex-col h-full">
-        <h4 className="font-display font-bold text-lg text-text">{title}</h4>
+        <h4 className="font-ui font-semibold text-lg text-text">{title}</h4>
         <p className="text-sm text-text-muted mt-1 flex-1">{subtitle}</p>
         <div className="mt-6 flex items-center justify-between">
           <div className={`font-medium text-lg ${textClass}`}>{value}</div>

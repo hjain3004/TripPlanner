@@ -221,7 +221,7 @@ export default function PlanPage() {
             ))}
           </nav>
 
-          <h1 ref={headingRef} tabIndex={-1} className="font-display text-2xl mb-6 outline-none">
+          <h1 ref={headingRef} tabIndex={-1} className="font-display display-stroked text-h1 mb-6 outline-none">
             {stepHeading(currentStep, unresolvedList)}
           </h1>
 
@@ -273,7 +273,7 @@ export default function PlanPage() {
     return (
       <div className="min-h-screen bg-bg font-ui text-text">
         <div className="mx-auto max-w-lg px-6 py-16">
-          <h1 ref={headingRef} tabIndex={-1} className="font-display text-2xl mb-4 outline-none" role="alert">A few details needed</h1>
+          <h1 ref={headingRef} tabIndex={-1} className="font-display display-stroked text-h1 mb-4 outline-none" role="alert">A few details needed</h1>
           <ul className="space-y-2 text-sm mb-8">
             {unresolvedList.map((q, i) => (
               <li key={i} className="flex items-start gap-2"><span className="text-savings-text shrink-0 mt-0.5">&rarr;</span><span>{q}</span></li>
@@ -500,7 +500,7 @@ function PollingView({ jobStatus, headingRef, destination, jobId }: {
   return (
     <div className="min-h-screen bg-bg font-ui text-text">
       <div className="mx-auto max-w-lg px-6 py-16">
-        <h1 ref={headingRef} tabIndex={-1} className="font-display text-2xl mb-8 outline-none" role="alert" aria-live="polite">
+        <h1 ref={headingRef} tabIndex={-1} className="font-display display-stroked text-h1 mb-8 outline-none" role="alert" aria-live="polite">
           {indeterminate ? "Working on your plan" : (stage ? STAGE_LABELS[stage] ?? stage : "Working on your plan")}
         </h1>
         <div className="mb-8">
@@ -550,7 +550,7 @@ function ResultsView({ report, onRetry }: {
 
         {/* Itinerary */}
         <section className="gsap-section">
-          <h2 className="font-display text-h2 mb-4">Itinerary</h2>
+          <h2 className="font-display display-stroked text-h2 mb-4">Itinerary</h2>
           {report.itinerary_overview && <p className="text-sm text-text-muted mb-4">{report.itinerary_overview}</p>}
           <ItineraryTimeline itinerary={report.itinerary} />
         </section>
@@ -559,7 +559,7 @@ function ResultsView({ report, onRetry }: {
 
         {/* Budget breakdown */}
         <section className="gsap-section">
-          <h2 className="font-display text-h2 mb-4">Budget</h2>
+          <h2 className="font-display display-stroked text-h2 mb-4">Budget</h2>
           <div className="border border-border rounded-sm">
             <div className="px-4 py-2 border-b border-border">
               <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Cost breakdown</span>
@@ -591,7 +591,7 @@ function ResultsView({ report, onRetry }: {
         {/* Payment strategy */}
         {report.optimizer_result?.assignments && report.optimizer_result.assignments.length > 0 && (
           <section className="gsap-section">
-            <h2 className="font-display text-h2 mb-4">Payment strategy</h2>
+            <h2 className="font-display display-stroked text-h2 mb-4">Payment strategy</h2>
             <div className="space-y-3">
               {report.optimizer_result.assignments.map((assignment) => (
                 <PaymentStrategyCard key={assignment.line.id} assignment={assignment} />
@@ -601,7 +601,7 @@ function ResultsView({ report, onRetry }: {
         )}
         {report.payment_strategy && report.payment_strategy.length > 0 && !report.optimizer_result?.assignments?.length && (
           <section className="gsap-section">
-            <h2 className="font-display text-h2 mb-4">Payment strategy</h2>
+            <h2 className="font-display display-stroked text-h2 mb-4">Payment strategy</h2>
             <div className="space-y-2 text-sm">
               {report.payment_strategy.map((row, i) => (
                 <div key={i} className="flex items-start gap-2">
@@ -618,7 +618,7 @@ function ResultsView({ report, onRetry }: {
           <>
             <hr className="border-border" />
             <section className="gsap-section">
-              <h2 className="font-display text-h2 mb-4">Points & transfers</h2>
+              <h2 className="font-display display-stroked text-h2 mb-4">Points & transfers</h2>
               <TransferPlanPanel advice={report.transfer_advice} />
             </section>
           </>
@@ -639,7 +639,7 @@ function ResultsView({ report, onRetry }: {
           <>
             <hr className="border-border" />
             <section className="gsap-section">
-              <h2 className="font-display text-h2 mb-4">Data quality</h2>
+              <h2 className="font-display display-stroked text-h2 mb-4">Data quality</h2>
               <div className="space-y-2">
                 {report.provenance_warnings.map((w, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">

@@ -19,7 +19,7 @@ export default function Home() {
             </span>
 
             {/* H1 — Display face (Bodoni Moda) */}
-            <h1 className="font-display text-hero leading-[1.0] tracking-[-0.02em] mt-[31px] max-w-[720px]">
+            <h1 className="font-display display-stroked text-hero leading-[1.0] tracking-[-0.02em] mt-[31px] max-w-[720px]">
               One journey.
               <br />
               <em className="text-primary not-italic font-normal">Every advantage.</em>
@@ -161,7 +161,7 @@ export default function Home() {
         <section className="bg-surface px-[62px] py-[70px_0_76px] max-[650px]:px-[22px] max-[650px]:py-[52px_0]">
           {/* Section Heading */}
           <div className="grid grid-cols-[1fr_1fr] items-end gap-[38px] pb-[25px] border-b border-border max-[960px]:grid-cols-1 max-[960px]:gap-[0]">
-            <h2 className="font-display text-h2 leading-[1.05] tracking-[-0.015em] text-primary">
+            <h2 className="font-display display-stroked text-h2 leading-[1.05] tracking-[-0.015em] text-primary">
               A clear route<br />
               through the trade-offs.
             </h2>

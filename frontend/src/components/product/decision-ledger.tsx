@@ -19,8 +19,8 @@ interface DecisionLedgerProps {
 
 export function DecisionLedger({ title, items, children }: DecisionLedgerProps) {
   return (
-    <div className="border border-border rounded-none bg-bg overflow-hidden shadow-1 mt-6">
-      <div className="hidden md:grid grid-cols-[2fr_1fr_1fr] gap-4 py-3 px-6 bg-accent-2/30 border-b border-border text-[10px] font-mono font-medium text-text-muted uppercase tracking-wider">
+    <div className="register-issue border-2 border-border rounded-md bg-bg overflow-hidden shadow-1 mt-6">
+      <div className="hidden md:grid grid-cols-[2fr_1fr_1fr] gap-4 py-3 px-6 bg-accent-2/30 border-b-2 border-border text-[10px] font-mono font-medium text-text-muted uppercase tracking-wider">
         <div className="pl-1">Payment Method</div>
         <div className="text-right pr-1">Points Value</div>
         <div className="text-right pr-1">Net Cost</div>
