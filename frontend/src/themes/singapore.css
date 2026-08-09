@@ -6,8 +6,8 @@
      request yields faux-bold that smears the hairline deco joins. Weight comes from an
      outward stroke instead: one ratio, floored so small headings do not go weedy.
      Approved on a rendered ladder 2026-08-08 (Framer project "Courteous Jargon"). */
-  --th-display-stroke-ratio: 0.065;   /* Increased from 0.047 */
-  --th-display-stroke-min:  2.5px;    /* Increased from 1.75px */
+  --th-display-stroke-hero: 3px;
+  --th-display-stroke-mark: 1.5px;
   --th-display-stroke-max:  5.5px;    /* Increased from 4.5px */
   --th-font-ui: var(--font-schibsted-grotesk);
   --th-font-mono: var(--font-roboto-mono);

@@ -158,7 +158,8 @@ rule(
       '@import "tailwindcss"',
       '@import "tw-animate-css"',
       '@import "../themes/base.css"',
-      '@import "../themes/singapore.css"',
+      '@import "../themes/natural.css"',
+      '@import "../themes/japan.css"',
     ];
     const actual = lines.map((l) => l.trim().replace(/;$/, "")).filter(Boolean);
     for (let i = 0; i < Math.max(expected.length, actual.length); i++) {

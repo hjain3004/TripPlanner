@@ -21,7 +21,7 @@ export function RegisterSpecimenView() {
       <div className="space-y-4">
         <h2 className="text-2xl font-display font-bold">Issue Register Specimen</h2>
         <p className="text-text-muted">
-          All §2 components rendered in their register-issue form, proving they correctly receive the inverted tokens.
+          All §2 components rendered in their semantic form, proving they correctly receive the inverted tokens.
         </p>
       </div>
 
@@ -62,7 +62,6 @@ export function RegisterSpecimenView() {
         <h3 className="text-lg font-medium text-text-muted mb-4">PaymentStrategyCard</h3>
         <PaymentStrategyCard 
           assignment={{
-            line_id: "flight_001",
             line: {
               id: "flight_001",
               label: "DEL→SIN flights (2 pax)",
@@ -73,12 +72,12 @@ export function RegisterSpecimenView() {
             },
             card_id: "hdfc-infinia",
             channel: "direct_airline",
-            offers_applied: [{ offer_id: "5% cashback", discount_minor: 600000 }],
+            offers_applied: [{ offer_id: "5% cashback", discount_minor: 600000, stacking_class: "bank_offer" }],
             points_earned: 5000,
             points_value_minor: 500000,
             forex_fee_minor: 0,
             benefit_minor: 1100000,
-            action_sentence: "Book with HDFC Infinia",
+            assumed_redemption: 'cashback',
             explanation: ["Infinia offers 5% base cashback on SmartBuy flights"]
           }}
         />

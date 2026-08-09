@@ -1,6 +1,8 @@
 import React from 'react';
 import { CreditCard, PlaneTakeoff } from 'lucide-react';
 
+import { OffsetPlate } from "./offset-plate";
+
 interface FlightRouteCardProps {
   originCode: string;
   originName: string;
@@ -12,7 +14,8 @@ interface FlightRouteCardProps {
 }
 
 export const FlightRouteCard = ({ originCode, originName, destCode, destName, airline, flightNumber, duration }: FlightRouteCardProps) => (
-  <div className="relative overflow-hidden rounded-none border border-border bg-bg shadow-1 mt-4">
+  <OffsetPlate className="mt-4">
+    <div className="relative overflow-hidden rounded-none border-2 border-text bg-bg">
     <div className="absolute -top-16 -right-16 w-48 h-48 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
     <div className="p-8 relative z-10 grid grid-cols-1 md:grid-cols-[1fr_2fr_1fr] items-center gap-6">
       <div className="text-center md:text-left">
@@ -32,6 +35,7 @@ export const FlightRouteCard = ({ originCode, originName, destCode, destName, ai
         <div className="text-[40px] font-mono font-medium text-text tracking-tight leading-none">{destCode}</div>
         <div className="text-[11px] font-mono font-medium text-text-muted mt-3 uppercase tracking-[0.16em]">{destName}</div>
       </div>
+      </div>
     </div>
-  </div>
+  </OffsetPlate>
 );

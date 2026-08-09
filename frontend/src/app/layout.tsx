@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Providers } from "./providers";
 import { MSWProvider } from "@/mocks/MSWProvider";
 import { PageTransition } from "@/components/product/page-transition";
+import { resolveTheme } from "@/lib/theme/resolver";
 import "./globals.css";
 
 const poiretOne = Poiret_One({
@@ -34,10 +35,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Default to JP for testing the golden Japan pack globally
+  const resolved = resolveTheme("JP");
+  const themeClass = `theme-${resolved.globalTheme}`;
+
   return (
     <html
       lang="en"
-      className={`theme-singapore ${schibstedGrotesk.variable} ${robotoMono.variable} ${poiretOne.variable}`}
+      className={`${themeClass} ${schibstedGrotesk.variable} ${robotoMono.variable} ${poiretOne.variable}`}
     >
       <body>
         <TooltipProvider>

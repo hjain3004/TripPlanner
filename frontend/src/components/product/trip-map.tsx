@@ -55,14 +55,14 @@ export function TripMap({ mapData }: TripMapProps) {
 
   if (loadError) {
     return (
-      <div className="aspect-video bg-accent-2 rounded-sm flex items-center justify-center text-sm text-text-muted">
+      <div className="aspect-video bg-accent-2 rounded-none flex items-center justify-center text-sm text-text-muted shadow-1">
         Map unavailable — check your connection
       </div>
     );
   }
 
   return (
-    <div className="aspect-video relative overflow-hidden rounded-sm border border-border">
+    <div className="aspect-video relative overflow-hidden rounded-none border-2 border-border shadow-1">
       <div ref={containerRef} className="absolute inset-0 w-full h-full" />
       {!mounted && (
         <div className="absolute inset-0 flex items-center justify-center bg-accent-2">

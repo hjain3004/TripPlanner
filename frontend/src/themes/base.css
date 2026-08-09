@@ -6,6 +6,7 @@
 @source "../components";
 @source "../themes";
 
+
 /* ============================================================
    Layer 1 — static primitives (no var() references).
    Plain @theme: safe to resolve at :root.
@@ -18,14 +19,14 @@
   --text-body: 1rem;
   --text-caption: 0.8125rem;
 
-  --radius-s-shell: 6px;
-  --radius-m-shell: 12px;
-  --radius-l-shell: 20px;
+  --radius-s-shell: 0px;
+  --radius-m-shell: 0px;
+  --radius-l-shell: 0px;
   --radius-full: 9999px;
 
-  --shadow-1-shell: 0 1px 2px oklch(0.281 0.007 145 / 0.06), 0 8px 24px oklch(0.281 0.007 145 / 0.05);
-  --shadow-2-shell: 0 2px 4px oklch(0.281 0.007 145 / 0.08), 0 12px 32px oklch(0.281 0.007 145 / 0.07);
-  --shadow-3-shell: 0 4px 8px oklch(0.281 0.007 145 / 0.10), 0 24px 48px oklch(0.281 0.007 145 / 0.10);
+  --shadow-1-shell: 6px 6px 0 oklch(0.281 0.007 145 / 0.15);
+  --shadow-2-shell: 8px 8px 0 oklch(0.281 0.007 145 / 0.15);
+  --shadow-3-shell: 10px 10px 0 oklch(0.281 0.007 145 / 0.20);
 
   --blur-overlay: 16px;
 
@@ -63,15 +64,20 @@
   .ring-accent-3 { --tw-ring-color: var(--color-accent-3); }
   .ring-accent-4 { --tw-ring-color: var(--color-accent-4); }
 
-  .display-stroked {
+  .display-hero {
     font-family: var(--font-poiret-one);
     font-weight: 400;
     paint-order: stroke fill;
     -webkit-text-stroke-color: currentColor;
-    -webkit-text-stroke-width: max(
-      var(--th-display-stroke-min),
-      calc(1em * var(--th-display-stroke-ratio))
-    );
+    -webkit-text-stroke-width: var(--display-stroke-hero);
+  }
+
+  .display-mark {
+    font-family: var(--font-poiret-one);
+    font-weight: 400;
+    paint-order: stroke fill;
+    -webkit-text-stroke-color: currentColor;
+    -webkit-text-stroke-width: var(--display-stroke-mark);
   }
 }
 
@@ -110,6 +116,9 @@
   --font-display: var(--th-font-display);
   --font-ui: var(--th-font-ui);
   --font-mono: var(--th-font-mono);
+  
+  --display-stroke-hero: var(--th-display-stroke-hero);
+  --display-stroke-mark: var(--th-display-stroke-mark);
 
   --radius-s: var(--th-radius-s);
   --radius-m: var(--th-radius-m);

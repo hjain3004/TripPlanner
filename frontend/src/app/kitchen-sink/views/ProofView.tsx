@@ -98,14 +98,14 @@ export const ProofView = () => {
     <div className="mt-16 mb-8">
       <h2 className="font-display text-2xl font-semibold mb-6">Primitives (Issue Register)</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="register-issue p-6 bg-bg flex items-center justify-center">
+        <div className="p-6 bg-bg flex items-center justify-center">
           <OffsetPlate className="p-8 border-2 border-border bg-bg">
-            <h3 className="font-display display-stroked text-3xl mb-4">Offset Plate</h3>
+            <h3 className="font-ui font-semibold text-3xl mb-4">Offset Plate</h3>
             <p className="font-mono text-sm text-text-muted">A document container</p>
           </OffsetPlate>
         </div>
-        <div className="register-issue p-6 bg-bg flex flex-col items-center justify-center gap-4 border-2 border-border">
-          <h3 className="font-display display-stroked text-3xl">Split Flap</h3>
+        <div className="p-6 bg-bg flex flex-col items-center justify-center gap-4 border-2 border-border">
+          <h3 className="font-ui font-semibold text-3xl">Split Flap</h3>
           <SplitFlap value="$22,400" className="text-2xl" />
         </div>
       </div>

@@ -14,7 +14,7 @@ export function TransferPlanPanel({ advice }: TransferPlanPanelProps) {
 
   if (kind === "NO_DATA") {
     return (
-      <div className="register-issue space-y-3">
+      <div className="space-y-3">
         <p className="text-sm text-text-muted">{advice.recommendation.reason}</p>
         {advice.infeasible.length > 0 && (
           <div className="space-y-1.5 text-xs">
@@ -33,14 +33,14 @@ export function TransferPlanPanel({ advice }: TransferPlanPanelProps) {
   }
 
   return (
-    <div className="register-issue space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-text">{advice.recommendation.kind}</span>
         <span className="text-xs text-text-muted">{advice.recommendation.reason}</span>
       </div>
 
       {advice.plans.map((plan) => (
-        <div key={plan.id} className="border border-border rounded-sm">
+        <div key={plan.id} className="border-2 border-border rounded-none shadow-1 bg-bg">
           <div className="px-4 py-3 border-b border-border">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-text">{plan.source_currency}</span>
