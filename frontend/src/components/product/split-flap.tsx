@@ -12,12 +12,12 @@ export function SplitFlap({ value, className }: SplitFlapProps) {
       {value.split("").map((char, i) => (
         <span
           key={i}
-          className="relative inline-flex items-center justify-center bg-[var(--th-board)] text-[var(--th-board-text)] px-[0.1em] py-[0.1em] min-w-[0.9em] h-[1.3em] overflow-hidden"
+          className="relative inline-flex items-center justify-center bg-border text-on-primary px-[0.1em] py-[0.1em] min-w-[0.9em] h-[1.3em] overflow-hidden"
           data-motion="split-flap"
         >
           <span className="relative z-10 tabular-nums leading-none">{char}</span>
           {/* Hairline across vertical center */}
-          <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-[var(--th-bg)]/20 -translate-y-1/2 z-20" />
+          <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-bg/20 -translate-y-1/2 z-20" />
         </span>
       ))}
     </div>
