@@ -17,7 +17,7 @@ from core.itinerary.compose import (
     estimate_travel_min,
     fallback_itinerary,
     haversine_km,
-    is_poi_open,
+    check_poi_hours,
     validate_day_travel_budget,
 )
 
@@ -111,48 +111,48 @@ def _retrieval(pois: list[POI], areas: list[Area] | None = None) -> RetrievalCon
 # ------------------------------------------------------------------ #
 
 
-def test_is_poi_open_rejects_closed_weekday() -> None:
+def test_check_poi_hours_rejects_closed_weekday() -> None:
     """POI with regular_hours[0]=[] is closed on Monday."""
     poi = _poi("closed-mon", regular_hours={0: [], 1: ["09:00-18:00"]})
     monday = date(2026, 8, 3)  # verified Monday
-    assert is_poi_open(poi, monday) is False
+    assert check_poi_hours(poi, monday) == 'closed'
 
 
-def test_is_poi_open_allows_open_weekday() -> None:
+def test_check_poi_hours_allows_open_weekday() -> None:
     """Same POI is open on Tuesday (weekday 1)."""
     poi = _poi("open-tue", regular_hours={0: [], 1: ["09:00-18:00"]})
     tuesday = date(2026, 8, 4)  # verified Tuesday
-    assert is_poi_open(poi, tuesday) is True
+    assert check_poi_hours(poi, tuesday) == 'open'
 
 
-def test_is_poi_open_rejects_closed_date() -> None:
+def test_check_poi_hours_rejects_closed_date() -> None:
     """POI with a specific date in closed_dates is closed that day."""
     poi = _poi("holiday-closed", closed_dates=["2026-08-05"])
     wednesday = date(2026, 8, 5)
-    assert is_poi_open(poi, wednesday) is False
+    assert check_poi_hours(poi, wednesday) == 'closed'
 
 
-def test_is_poi_open_allows_when_not_in_closed_dates() -> None:
+def test_check_poi_hours_allows_when_not_in_closed_dates() -> None:
     """Same POI is open on a day not in closed_dates."""
     poi = _poi("holiday-closed", closed_dates=["2026-08-05"])
     thursday = date(2026, 8, 6)
-    assert is_poi_open(poi, thursday) is True
+    assert check_poi_hours(poi, thursday) == 'open'
 
 
-def test_is_poi_open_missing_weekday_key_defaults_open() -> None:
+def test_check_poi_hours_missing_weekday_key_returns_unknown() -> None:
     """If a weekday key is absent from regular_hours, treat as open (conservative)."""
     # Only define Monday (0) — all others are absent.
     poi = _poi("partial-hours", regular_hours={0: ["09:00-18:00"]})
     tuesday = date(2026, 8, 4)  # weekday 1 — not in dict
-    assert is_poi_open(poi, tuesday) is True
+    assert check_poi_hours(poi, tuesday) == 'unknown'
 
 
-def test_is_poi_open_all_day_coverage() -> None:
+def test_check_poi_hours_all_day_coverage() -> None:
     """POI with all-day coverage is always open."""
     poi = _poi("always-open", regular_hours={i: ["00:00-23:59"] for i in range(7)})
-    assert is_poi_open(poi, date(2026, 8, 3)) is True
-    assert is_poi_open(poi, date(2026, 8, 4)) is True
-    assert is_poi_open(poi, date(2026, 8, 5)) is True
+    assert check_poi_hours(poi, date(2026, 8, 3)) == 'open'
+    assert check_poi_hours(poi, date(2026, 8, 4)) == 'open'
+    assert check_poi_hours(poi, date(2026, 8, 5)) == 'open'
 
 
 # ------------------------------------------------------------------ #

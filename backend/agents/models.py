@@ -71,6 +71,8 @@ class ItineraryItem(BaseModel):
     poi_id: str
     start_hint: str | None = None
     meal_slots: list[str] = Field(default_factory=list)
+    start_time: str | None = Field(default=None, exclude=True)
+    end_time: str | None = Field(default=None, exclude=True)
 
 
 class ItineraryDay(BaseModel):

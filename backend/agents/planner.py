@@ -12,7 +12,7 @@ from agents.models import (
     TripSpec,
 )
 
-from core.itinerary.compose import fallback_itinerary
+from core.itinerary.compose import fallback_itinerary, build_final_schedule
 
 class PlannerValidationError(ValueError):
     pass
@@ -76,12 +76,21 @@ def run_planner(
         itinerary = _call_planner(llm, system=system, user=user)
         try:
             validate_itinerary(itinerary, spec, retrieval)
-            return PlannerResult(itinerary=itinerary)
+            result = build_final_schedule(itinerary, spec, retrieval)
+            return PlannerResult(
+                itinerary=result.itinerary, 
+                caveats=[w.message for w in result.warnings]
+            )
         except PlannerValidationError as exc:
             repair_user = f"{user}\nValidation error: {exc}. Return corrected JSON only."
             repaired = _call_planner(llm, system=system, user=repair_user)
             validate_itinerary(repaired, spec, retrieval)
-            return PlannerResult(itinerary=repaired, repair_attempted=True)
+            result = build_final_schedule(repaired, spec, retrieval)
+            return PlannerResult(
+                itinerary=result.itinerary, 
+                repair_attempted=True,
+                caveats=[w.message for w in result.warnings]
+            )
     except Exception as exc:
         fallback = fallback_itinerary(spec, retrieval)
         return PlannerResult(

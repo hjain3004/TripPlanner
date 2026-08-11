@@ -55,32 +55,27 @@ class ComposerResult(BaseModel):
 # --------------------------------------------------------------------------- #
 
 
-def is_poi_open(poi: POI, visit_date: date) -> bool:
+from typing import Literal
+
+def check_poi_hours(poi: POI, visit_date: date) -> Literal["open", "closed", "unknown"]:
     """Check whether a POI is open on a given date.
-
-    Uses ``TimezoneAwareHours.regular_hours`` (keyed by ISO weekday 0=Mon..6=Sun)
-    and ``closed_dates`` (ISO date strings).
-
-    Returns ``True`` if the POI has at least one open interval on that weekday
-    and the date is not in ``closed_dates``.  Returns ``True`` when hours data
-    is empty or missing (conservative: unknown ≠ closed).
+    
+    Returns 'open', 'closed', or 'unknown' (if weekday hours are missing).
     """
     hours = poi.open_hours
-    # Check explicit closure dates first.
     visit_iso = visit_date.isoformat()
     if visit_iso in hours.closed_dates:
-        return False
+        return "closed"
 
-    # Check regular weekly schedule.
-    weekday = visit_date.weekday()  # 0=Monday .. 6=Sunday
-    intervals = hours.regular_hours.get(weekday)
-    # If the weekday key is absent, treat as "no data" → open (conservative).
-    if intervals is None:
-        return True
-    # If the intervals list is empty → explicitly closed on this weekday.
-    if len(intervals) == 0:
-        return False
-    return True
+    weekday = visit_date.weekday()
+    if weekday not in hours.regular_hours:
+        return "unknown"
+        
+    intervals = hours.regular_hours[weekday]
+    if not intervals:
+        return "closed"
+    return "open"
+
 
 
 # --------------------------------------------------------------------------- #
@@ -201,7 +196,8 @@ def compose_itinerary(spec: TripSpec, retrieval: RetrievalContext) -> ComposerRe
 
         while len(items) < per_day and cursor + skipped < len(pois):
             candidate = pois[cursor + skipped]
-            if not is_poi_open(candidate, visit_date):
+            status = check_poi_hours(candidate, visit_date)
+            if status == "closed":
                 # T4: skip closed POI, emit warning
                 warnings.append(
                     ScheduleWarning(
@@ -217,6 +213,15 @@ def compose_itinerary(spec: TripSpec, retrieval: RetrievalContext) -> ComposerRe
                 excluded.append(candidate.id)
                 skipped += 1
                 continue
+            elif status == "unknown":
+                warnings.append(
+                    ScheduleWarning(
+                        kind="unknown_hours",
+                        poi_id=candidate.id,
+                        day_date=visit_date,
+                        message=f"Hours for {candidate.name} on {visit_date.isoformat()} are unknown. Verify before visiting."
+                    )
+                )
 
             items.append(ItineraryItem(poi_id=candidate.id))
             day_pois.append(candidate)
@@ -252,3 +257,61 @@ def compose_itinerary(spec: TripSpec, retrieval: RetrievalContext) -> ComposerRe
         warnings=warnings,
         excluded_items=excluded,
     )
+
+def build_final_schedule(draft: DraftItinerary, spec: TripSpec, retrieval: RetrievalContext) -> ComposerResult:
+    """Assigns times and validates an LLM-proposed itinerary."""
+    warnings: list[ScheduleWarning] = []
+    poi_by_id = {poi.id: poi for poi in retrieval.pois}
+    travel_budget = DAILY_TRAVEL_BUDGET_MIN.get(spec.pace, 120)
+
+    for day in draft.days:
+        current_time_min = 9 * 60  # Start at 09:00 AM
+        day_pois: list[POI] = []
+        
+        for i, item in enumerate(day.items):
+            poi = poi_by_id.get(item.poi_id)
+            if not poi:
+                continue
+
+            day_pois.append(poi)
+
+            status = check_poi_hours(poi, day.date)
+            if status == "closed":
+                warnings.append(ScheduleWarning(
+                    kind="closed_day",
+                    poi_id=poi.id,
+                    day_date=day.date,
+                    message=f"{poi.name} is scheduled on {day.date.isoformat()} but is explicitly closed."
+                ))
+            elif status == "unknown":
+                warnings.append(ScheduleWarning(
+                    kind="unknown_hours",
+                    poi_id=poi.id,
+                    day_date=day.date,
+                    message=f"Hours for {poi.name} on {day.date.isoformat()} are unknown. Verify before visiting."
+                ))
+
+            start_h = current_time_min // 60
+            start_m = current_time_min % 60
+            item.start_time = f"{start_h:02d}:{start_m:02d}"
+
+            end_time_min = current_time_min + poi.typical_duration_min
+            end_h = end_time_min // 60
+            end_m = end_time_min % 60
+            item.end_time = f"{end_h:02d}:{end_m:02d}"
+
+            current_time_min = end_time_min
+            
+            # Add travel time to next POI if there is one
+            if i < len(day.items) - 1:
+                next_poi = poi_by_id.get(day.items[i+1].poi_id)
+                if next_poi:
+                    current_time_min += estimate_travel_min(poi.lat, poi.lon, next_poi.lat, next_poi.lon)
+
+        if len(day_pois) > 1:
+            travel_warnings = validate_day_travel_budget(day_pois, travel_budget)
+            for tw in travel_warnings:
+                tw.day_date = day.date
+                warnings.append(tw)
+
+    return ComposerResult(itinerary=draft, warnings=warnings)
