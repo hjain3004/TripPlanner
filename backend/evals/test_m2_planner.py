@@ -134,3 +134,55 @@ def test_planner_rejects_overlapping_and_falls_back_after_retry() -> None:
     )
     assert result.used_fallback is True
     assert result.itinerary.itinerary_quality == "fallback"
+
+
+def test_planner_rejects_closed_day_and_falls_back_after_retry() -> None:
+    """sg-hawker-maxwell is closed on Mondays (core/seeds/pois.yaml:
+    regular_hours 0: []). 2026-08-03 is a Monday and is inside this trip's
+    window (start 2026-08-01, nights=4 -> valid dates 08-01..08-04)."""
+    spec = _spec()
+    closed_day = {
+        **_valid_itinerary(),
+        "days": [
+            {
+                "date": "2026-08-03",
+                "items": [{"poi_id": "sg-hawker-maxwell", "start_hint": "12:00"}],
+            }
+        ],
+    }
+    result = run_planner(
+        spec,
+        retrieve_candidates(spec, load_kb()),
+        ScriptedLLMClient({"planner": [closed_day, closed_day]}),
+    )
+    assert result.used_fallback is True
+    assert result.itinerary.itinerary_quality == "fallback"
+
+
+def test_planner_rejects_travel_budget_exceeded_and_falls_back_after_retry() -> None:
+    """Zigzagging between all 4 seed POIs in one day totals ~99 estimated
+    travel minutes (verified via core.itinerary.compose.day_travel_minutes),
+    which exceeds the 90-minute "relaxed" pace budget. All 4 POIs are open
+    all week, so only the travel budget is exercised here."""
+    spec = _spec().model_copy(update={"pace": "relaxed"})
+    over_budget = {
+        **_valid_itinerary(),
+        "days": [
+            {
+                "date": "2026-08-01",
+                "items": [
+                    {"poi_id": "sg-gardens-by-the-bay"},
+                    {"poi_id": "sg-sentosa-skyline-luge"},
+                    {"poi_id": "sg-marina-bay-sands-skypark"},
+                    {"poi_id": "sg-hawker-maxwell"},
+                ],
+            }
+        ],
+    }
+    result = run_planner(
+        spec,
+        retrieve_candidates(spec, load_kb()),
+        ScriptedLLMClient({"planner": [over_budget, over_budget]}),
+    )
+    assert result.used_fallback is True
+    assert result.itinerary.itinerary_quality == "fallback"

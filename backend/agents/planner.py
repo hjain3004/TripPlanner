@@ -12,7 +12,12 @@ from agents.models import (
     TripSpec,
 )
 
-from core.itinerary.compose import fallback_itinerary, build_final_schedule
+from core.itinerary.compose import (
+    ComposerResult,
+    ScheduleWarning,
+    build_final_schedule,
+    fallback_itinerary,
+)
 
 class PlannerValidationError(ValueError):
     pass
@@ -56,6 +61,20 @@ def _call_planner(
     )
 
 
+# Gate I1 (itinerary design §14): "no overlap, known-closed visits or
+# impossible transitions." unknown_hours is deliberately excluded — design
+# §5.4 requires it to surface as a visible verification task, not a rejection.
+_UNSAFE_WARNING_KINDS = frozenset({"overlap", "closed_day", "travel_budget_exceeded"})
+
+
+def _unsafe_warnings(result: ComposerResult) -> list[ScheduleWarning]:
+    return [w for w in result.warnings if w.kind in _UNSAFE_WARNING_KINDS]
+
+
+def _unsafe_warning_message(unsafe: list[ScheduleWarning]) -> str:
+    return "; ".join(w.message for w in unsafe)
+
+
 def run_planner(
     spec: TripSpec,
     retrieval: RetrievalContext,
@@ -77,10 +96,11 @@ def run_planner(
         try:
             validate_itinerary(itinerary, spec, retrieval)
             result = build_final_schedule(itinerary, spec, retrieval)
-            if any(w.kind == "overlap" for w in result.warnings):
-                raise PlannerValidationError("Overlapping schedule items detected.")
+            unsafe = _unsafe_warnings(result)
+            if unsafe:
+                raise PlannerValidationError(_unsafe_warning_message(unsafe))
             return PlannerResult(
-                itinerary=result.itinerary, 
+                itinerary=result.itinerary,
                 caveats=[w.message for w in result.warnings]
             )
         except PlannerValidationError as exc:
@@ -88,10 +108,13 @@ def run_planner(
             repaired = _call_planner(llm, system=system, user=repair_user)
             validate_itinerary(repaired, spec, retrieval)
             result = build_final_schedule(repaired, spec, retrieval)
-            if any(w.kind == "overlap" for w in result.warnings):
-                raise PlannerValidationError("Repaired schedule still overlaps.")
+            unsafe = _unsafe_warnings(result)
+            if unsafe:
+                raise PlannerValidationError(
+                    f"Repaired schedule still unsafe: {_unsafe_warning_message(unsafe)}"
+                )
             return PlannerResult(
-                itinerary=result.itinerary, 
+                itinerary=result.itinerary,
                 repair_attempted=True,
                 caveats=[w.message for w in result.warnings]
             )

@@ -304,7 +304,10 @@ def build_final_schedule(draft: DraftItinerary, spec: TripSpec, retrieval: Retri
                                 day_date=day.date,
                                 message=f"Item {poi.id} start time {item.start_hint} overlaps with previous items."
                             ))
-                        current_time_min = hint_min
+                            # Do not adopt a hint that overlaps the previous item —
+                            # keep the cursor moving forward from where it already is.
+                        else:
+                            current_time_min = hint_min
                 except ValueError:
                     pass
 

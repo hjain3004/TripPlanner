@@ -364,7 +364,7 @@ def test_build_final_schedule_unknown_hours_emits_verification_task():
     poi1 = _poi("unknown-hours-poi", regular_hours={})
     spec = _spec()
     ctx = _retrieval([poi1])
-    
+
     draft = DraftItinerary(
         hotel_area_id="marina_bay",
         days=[
@@ -376,3 +376,65 @@ def test_build_final_schedule_unknown_hours_emits_verification_task():
     )
     result = build_final_schedule(draft, spec, ctx)
     assert any(w.kind == "unknown_hours" for w in result.warnings)
+
+
+def test_build_final_schedule_closed_day_warning():
+    """An LLM-proposed visit to a POI on its closed day emits closed_day,
+    on the same happy-path build_final_schedule the planner actually calls
+    (not just the deterministic compose_itinerary fallback)."""
+    closed_mon = _poi(
+        "closed-mon-poi",
+        regular_hours={0: [], **{i: ["08:00-20:00"] for i in range(1, 7)}},
+    )
+    spec = _spec(start=date(2026, 8, 3))  # Monday
+    ctx = _retrieval([closed_mon])
+
+    draft = DraftItinerary(
+        hotel_area_id="marina_bay",
+        days=[
+            ItineraryDay(
+                date=spec.start_date,
+                items=[ItineraryItem(poi_id="closed-mon-poi")]
+            )
+        ]
+    )
+    result = build_final_schedule(draft, spec, ctx)
+    assert any(w.kind == "closed_day" and w.poi_id == "closed-mon-poi" for w in result.warnings)
+
+
+def test_build_final_schedule_overlap_does_not_adopt_bad_hint():
+    """Regression: when an item's start_hint overlaps the previous item, the
+    cursor must not jump backwards to that hint. The next item's start_time
+    should still be computed forward from where the schedule actually is."""
+    poi1 = _poi("poi1")
+    poi1.typical_duration_min = 120  # runs 09:00-11:00
+    poi2 = _poi("poi2")  # overlapping hint: 09:30, inside poi1's window
+    poi3 = _poi("poi3")  # no hint — should be timed after poi1, not after 09:30
+
+    spec = _spec()
+    ctx = _retrieval([poi1, poi2, poi3])
+
+    draft = DraftItinerary(
+        hotel_area_id="marina_bay",
+        days=[
+            ItineraryDay(
+                date=spec.start_date,
+                items=[
+                    ItineraryItem(poi_id="poi1", start_hint="09:00"),
+                    ItineraryItem(poi_id="poi2", start_hint="09:30"),
+                    ItineraryItem(poi_id="poi3"),
+                ],
+            )
+        ],
+    )
+    result = build_final_schedule(draft, spec, ctx)
+    items = result.itinerary.days[0].items
+    assert any(w.kind == "overlap" and w.poi_id == "poi2" for w in result.warnings)
+    # poi1 runs 09:00-11:00; poi2's start_time must be timed forward from
+    # poi1's actual end (plus travel), not dragged back to the bad 09:30 hint.
+    assert items[1].start_time is not None
+    assert items[1].start_time >= "11:00"
+    assert items[1].start_time != "09:30"
+    # poi3 must in turn be timed forward from poi2's corrected placement.
+    assert items[2].start_time is not None
+    assert items[2].start_time > items[1].start_time
