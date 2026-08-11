@@ -6,8 +6,8 @@ no new dependency, and cross-run lineage survives.
 
 from __future__ import annotations
 
-import sqlite3
 import json
+import sqlite3
 from pathlib import Path
 
 from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
@@ -136,6 +136,7 @@ class SqliteEvidenceStore:
             cur.executescript(_SCHEMA_V2)
 
             # Backfill logic
+            # Backfill logic
             # for sources: a source is uniquely connected to claims if all claims that have this source_id have the same run_id.
             # If a source has no claims, or multiple claims with DIFFERENT run_ids, we can't derive it.
 
@@ -199,7 +200,7 @@ class SqliteEvidenceStore:
             conn.rollback()
             if isinstance(e, EvidenceStoreError):
                 raise
-            raise EvidenceStoreError(f"Migration failed: {e}")
+            raise EvidenceStoreError(f"Migration failed: {e}") from e
 
     def save(self, graph: EvidenceGraph) -> None:
         violations = check_invariants(graph)
@@ -287,7 +288,7 @@ class SqliteEvidenceStore:
                 conn.commit()
             except Exception as e:
                 conn.rollback()
-                raise EvidenceStoreError(f"Save failed: {e}")
+                raise EvidenceStoreError(f"Save failed: {e}") from e
 
     def load(self, run_id: str) -> EvidenceGraph:
         graph = EvidenceGraph()
@@ -355,7 +356,6 @@ class SqliteEvidenceStore:
             while True:
                 prev_counts = sum(len(b) for b in bodies.values()) + len(loaded_edges)
 
-
                 # Fetch bodies for any known node id
                 for table, id_set in nodes.items():
                     load_bodies(table, id_set)
@@ -409,20 +409,8 @@ class SqliteEvidenceStore:
                     if data.get("run_id"):
                         nodes["runs"].add(data["run_id"])
 
-                for r_body in bodies["runs"].values():
-                    pass  # runs have no pointers outwards
-
-                # We must also include edges that point to/from nodes we have
-                # wait, "plus every edge needed to make that subgraph's lineage pointers addressable"
-                # If a claim has superseded_by, we need the SUPERSEDES edge.
-                # It's safer to just fetch all edges incident to the nodes we have, OR just the edges required by invariant pointers?
-                # Actually, fetching ALL edges incident to the known nodes might pull in too much of the graph,
-                # but "make lineage pointers addressable" implies we just need edges that justify the pointers.
-                # However, if we just load edges that are explicitly part of lineage (like SUPERSEDES, SUPPORTS, DERIVED_FROM, EVALUATES, RESOLVED_TO)
-                # it's simpler to just fetch them based on src/dst.
-
-                # Fetch edges where src or dst is in our known node ids, BUT only for specific kinds if we want to be minimal.
-                # Or just load all edges incident to known claims. The prompt says "every source, claim, artifact, evaluation, resolution and edge needed to make that subgraph's lineage pointers addressable".
+                for _r_body in bodies["runs"].values():
+                    pass
 
                 required_edge_srcs = set()
                 required_edge_dsts = set()
@@ -461,34 +449,49 @@ class SqliteEvidenceStore:
                 # OR we query by src and dst
                 if required_edge_srcs:
                     q = ",".join("?" for _ in required_edge_srcs)
-                    cur.execute(f"SELECT kind, src, dst, created_by_run FROM edges WHERE src IN ({q})", tuple(required_edge_srcs))
+                    cur.execute(
+                        f"SELECT kind, src, dst, created_by_run FROM edges WHERE src IN ({q})",
+                        tuple(required_edge_srcs),
+                    )
                     for row in cur.fetchall():
                         if row not in loaded_edges and row[2] in required_edge_dsts:
                             loaded_edges.append(row)
                 if required_edge_dsts:
                     q = ",".join("?" for _ in required_edge_dsts)
-                    cur.execute(f"SELECT kind, src, dst, created_by_run FROM edges WHERE dst IN ({q})", tuple(required_edge_dsts))
+                    cur.execute(
+                        f"SELECT kind, src, dst, created_by_run FROM edges WHERE dst IN ({q})",
+                        tuple(required_edge_dsts),
+                    )
                     for row in cur.fetchall():
                         if row not in loaded_edges and row[1] in required_edge_srcs:
                             loaded_edges.append(row)
-                            
+
                 for e in loaded_edges:
                     nodes["runs"].add(e[3])
-                    if e[1].startswith("s-"): nodes["sources"].add(e[1])
-                    elif e[1].startswith("c-"): nodes["claims"].add(e[1])
-                    elif e[1].startswith("a"): nodes["artifacts"].add(e[1])
-                    elif e[1].startswith("e"): nodes["evaluations"].add(e[1])
-                    elif e[1].startswith("res:"): nodes["resolutions"].add(e[1])
-                    
-                    if e[2].startswith("c-"): nodes["claims"].add(e[2])
-                    elif e[2].startswith("a"): nodes["artifacts"].add(e[2])
-                    elif e[2].startswith("e"): nodes["evaluations"].add(e[2])
-                    elif e[2].startswith("res:"): nodes["resolutions"].add(e[2])
-                    
+                    if e[1].startswith("s-"):
+                        nodes["sources"].add(e[1])
+                    elif e[1].startswith("c-"):
+                        nodes["claims"].add(e[1])
+                    elif e[1].startswith("a"):
+                        nodes["artifacts"].add(e[1])
+                    elif e[1].startswith("e"):
+                        nodes["evaluations"].add(e[1])
+                    elif e[1].startswith("res:"):
+                        nodes["resolutions"].add(e[1])
+
+                    if e[2].startswith("c-"):
+                        nodes["claims"].add(e[2])
+                    elif e[2].startswith("a"):
+                        nodes["artifacts"].add(e[2])
+                    elif e[2].startswith("e"):
+                        nodes["evaluations"].add(e[2])
+                    elif e[2].startswith("res:"):
+                        nodes["resolutions"].add(e[2])
+
                 new_counts = sum(len(b) for b in bodies.values()) + len(loaded_edges)
                 if new_counts == prev_counts:
                     break
-                    
+
         # Now reconstruct graph nodes-first, validated-edges-second
         for b in bodies["sources"].values():
             graph.add_source(Source.model_validate_json(b))
@@ -501,8 +504,10 @@ class SqliteEvidenceStore:
         for b in bodies["evaluations"].values():
             graph.add_evaluation(Evaluation.model_validate_json(b))
         for b in bodies["resolutions"].values():
-            graph.resolutions[ResolutionRecord.model_validate_json(b).resolution_id] = ResolutionRecord.model_validate_json(b)
-            
+            graph.resolutions[ResolutionRecord.model_validate_json(b).resolution_id] = (
+                ResolutionRecord.model_validate_json(b)
+            )
+
         for kind, src, dst, c_run in loaded_edges:
             graph.add_edge(Edge(kind=EdgeKind(kind), src=src, dst=dst, created_by_run=c_run))
 

@@ -177,3 +177,6 @@ def test_claim_expires_at_must_be_timezone_aware() -> None:
             needs_verification=True,
             expires_at="2026-10-12T10:20:00",  # naive — no offset
         )
+
+def test_contradicts_field_removed() -> None:
+    assert "contradicts" not in Claim.model_fields
