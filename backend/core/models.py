@@ -178,6 +178,12 @@ class Offer(BaseModel):
 # --------------------------------------------------------------------------- #
 
 
+class TimezoneAwareHours(BaseModel):
+    timezone: str
+    regular_hours: dict[int, list[str]]
+    closed_dates: list[str]
+
+
 class POI(BaseModel):
     id: str
     city: str
@@ -189,7 +195,7 @@ class POI(BaseModel):
     lat: float  # geo (NOT money)
     lon: float  # geo (NOT money)
     area: str
-    open_hours: str
+    open_hours: TimezoneAwareHours
     booking_channel: Channel
     merchant_hint: str | None = None
     description: str
