@@ -260,3 +260,28 @@ def test_sandbox_and_reference_facts_unsupported(claim_a: Claim, source_a: Sourc
     res = detect_contradictions(g, ["c-1", "c-2"], created_by_run="r1")
     assert res.edges == []
     assert any("unsupported kind" in s for s in res.skipped)
+
+def test_contradiction_symmetry_with_straddling_pair(claim_a: Claim) -> None:
+    from gateway.evidence.contradiction import detect_contradictions
+    
+    # 102_010 and 100_000. Div by max gives 197 bp (no edge), div by min gives 201 bp (edge).
+    # Since ids are sorted, left is c-1, right is c-2.
+    # Base will be left (c-1 = 102_010). If we divide by base, it fails.
+    left = claim_a.model_copy(update={
+        "claim_id": "c-1", 
+        "payload": {"total_minor": 102_010}
+    })
+    right = claim_a.model_copy(update={
+        "claim_id": "c-2", 
+        "payload": {"total_minor": 100_000}
+    })
+    
+    from gateway.evidence.edges import EvidenceGraph
+    g = EvidenceGraph()
+    g.add_claim(left)
+    g.add_claim(right)
+    
+    result = detect_contradictions(g, ["c-1", "c-2"], created_by_run="r1")
+    assert result.edges, "Expected CONTRADICTS edge"
+    assert result.edges[0].kind == EdgeKind.CONTRADICTS
+
