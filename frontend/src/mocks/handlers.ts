@@ -1,5 +1,6 @@
 import { http, HttpResponse } from "msw";
 import type { PlanJobStatus, FinalReport } from "@/lib/api/types.gen";
+import { createJapanVisualReport } from "./japan-visual-fixture";
 
 const SPEED_MULTIPLIER = 1;
 
@@ -330,4 +331,5 @@ export const fixtureHandlers = {
   redeemReport: () => createRedeemReport(),
   payCashReport: () => createPayCashReport(),
   noDataReport: () => createNoDataReport(),
+  japanVisualReport: () => createJapanVisualReport(),
 };
