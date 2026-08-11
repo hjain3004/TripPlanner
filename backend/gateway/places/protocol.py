@@ -8,5 +8,4 @@ from gateway.places.contracts import PartialPlaceResult, PlaceCandidate, PlaceSe
 class PlaceProviderAdapter(Protocol):
     def search_places(
         self, request: PlaceSearchRequest
-    ) -> tuple[list[PlaceCandidate], PartialPlaceResult | None]:
-        ...
+    ) -> tuple[list[PlaceCandidate], PartialPlaceResult | None]: ...

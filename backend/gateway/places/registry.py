@@ -82,6 +82,26 @@ class ProviderRegistry(BaseModel):
                 return entry
         raise PlaceGatewayError("provider_unavailable", f"Unknown provider_id: {provider_id}")
 
+    def get_provider_manifest(self, active_profile: str) -> list[SourceLicenceManifest]:
+        manifests = []
+        for entry in self.entries:
+            if not entry.enabled or active_profile not in entry.allowed_profiles:
+                continue
+            manifests.append(
+                SourceLicenceManifest(
+                    provider_id=entry.provider_id,
+                    capabilities=entry.capabilities,
+                    licences=["synthetic" if entry.provider_id == "sample_adapter" else "unknown"],
+                )
+            )
+        return manifests
+
+
+class SourceLicenceManifest(BaseModel):
+    provider_id: str
+    capabilities: AdapterCapabilities
+    licences: list[str]
+
 
 def get_default_place_registry() -> ProviderRegistry:
     sample = ProviderRegistryEntry(
