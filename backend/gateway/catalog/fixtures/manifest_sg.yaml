@@ -1,0 +1,30 @@
+catalog_id: sg-core
+catalog_release: "2026-08-11.0"
+sources:
+  - source_id: overture_sg
+    source_url: https://example.invalid/fixtures/overture_sg_sample.jsonl
+    licence_id: CDLA-Permissive-2.0
+    source_release: "2026-07-24.0"
+    checksum: "0000000000000000000000000000000000000000000000000000000000000000"
+    max_bytes: 1000000
+    geographic_scope: SG
+    allowed_purpose: non-commercial student prototype
+    attribution_text: "(c) Overture Maps Foundation"
+  - source_id: osm_sg
+    source_url: https://example.invalid/fixtures/osm_sg_sample.json
+    licence_id: ODbL-1.0
+    source_release: "2026-07-20"
+    checksum: "0000000000000000000000000000000000000000000000000000000000000000"
+    max_bytes: 1000000
+    geographic_scope: SG
+    allowed_purpose: non-commercial student prototype
+    attribution_text: "(c) OpenStreetMap contributors, ODbL"
+  - source_id: wikivoyage_sg
+    source_url: https://example.invalid/fixtures/wikivoyage_sg_sample.json
+    licence_id: CC-BY-SA-4.0
+    source_release: "rev-889012"
+    checksum: "0000000000000000000000000000000000000000000000000000000000000000"
+    max_bytes: 1000000
+    geographic_scope: SG
+    allowed_purpose: non-commercial student prototype
+    attribution_text: "Wikivoyage contributors, CC BY-SA 4.0"
