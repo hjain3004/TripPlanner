@@ -4,8 +4,6 @@ import pytest
 
 from agents.llm import LLMCallError, ScriptedLLMClient, complete_with_repair
 from agents.models import TripSpec
-from core.models import OptimizationPrefs, UserWallet
-
 
 VALID_TRIP = {
     "home_country": "IN",

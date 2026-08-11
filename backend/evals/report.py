@@ -47,9 +47,7 @@ def render_markdown_report(summary: EvaluationSummary) -> str:
         f"| {dimension} | {mean:.2f} |" for dimension, mean in summary.dimension_means.items()
     )
     failures = "\n".join(f"- {failure}" for failure in summary.gate.failures) or "- None"
-    anchor_order = " > ".join(
-        anchor.case_id for anchor in summary.anchor_result.ranked_anchors
-    )
+    anchor_order = " > ".join(anchor.case_id for anchor in summary.anchor_result.ranked_anchors)
     return f"""# TripPlanner M3 Evaluation Report
 
 Generated: {RUN_DATE}

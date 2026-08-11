@@ -21,8 +21,6 @@ def source_a() -> Source:
     )
 
 
-
-
 @pytest.fixture
 def claim_a(source_a: Source) -> Claim:
     return Claim(

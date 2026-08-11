@@ -1,7 +1,7 @@
 from datetime import date
 
 from agents.llm import ScriptedLLMClient
-from agents.models import DraftItinerary, ItineraryDay, ItineraryItem, TripSpec
+from agents.models import TripSpec
 from agents.planner import run_planner
 from agents.retrieval import retrieve_candidates
 from core.db import load_kb
@@ -105,10 +105,6 @@ def test_planner_rejects_wrong_date_and_falls_back_after_retry() -> None:
 def test_fallback_uses_curated_pois_without_duplicates() -> None:
     spec = _spec()
     result = run_planner(spec, retrieve_candidates(spec, load_kb()), ScriptedLLMClient({}))
-    seen = [
-        item.poi_id
-        for day in result.itinerary.days
-        for item in day.items
-    ]
+    seen = [item.poi_id for day in result.itinerary.days for item in day.items]
     assert len(seen) == len(set(seen))
     assert result.itinerary.itinerary_quality == "fallback"

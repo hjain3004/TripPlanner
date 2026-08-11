@@ -100,7 +100,9 @@ def test_critic_returns_scripted_verdict(tmp_path) -> None:
 
 def test_critic_failure_skips_with_caveat(tmp_path) -> None:
     kb, spec, itinerary, estimate, _kernel = _artifacts(tmp_path)
-    result = run_critic(spec, itinerary, estimate, kb, ScriptedLLMClient({"critic": [RuntimeError()]}))
+    result = run_critic(
+        spec, itinerary, estimate, kb, ScriptedLLMClient({"critic": [RuntimeError()]})
+    )
 
     assert result.verdict.passed is True
     assert result.caveats == ["Critic unavailable; itinerary was not LLM-reviewed."]
