@@ -5,7 +5,7 @@ sources:
     source_url: https://example.invalid/fixtures/overture_sg_sample.jsonl
     licence_id: CDLA-Permissive-2.0
     source_release: "2026-07-24.0"
-    checksum: "0000000000000000000000000000000000000000000000000000000000000000"
+    checksum: "d9670c56fc3be19c83f327dab56250611691d10da1ad31bb2905d49373e2cfb6"
     max_bytes: 1000000
     geographic_scope: SG
     allowed_purpose: non-commercial student prototype
@@ -14,7 +14,7 @@ sources:
     source_url: https://example.invalid/fixtures/osm_sg_sample.json
     licence_id: ODbL-1.0
     source_release: "2026-07-20"
-    checksum: "0000000000000000000000000000000000000000000000000000000000000000"
+    checksum: "ba917650702fd9f7e62e088777ba4c52321079a5b86d0b59711f5b29a97a4cab"
     max_bytes: 1000000
     geographic_scope: SG
     allowed_purpose: non-commercial student prototype
@@ -23,7 +23,7 @@ sources:
     source_url: https://example.invalid/fixtures/wikivoyage_sg_sample.json
     licence_id: CC-BY-SA-4.0
     source_release: "rev-889012"
-    checksum: "0000000000000000000000000000000000000000000000000000000000000000"
+    checksum: "347a0fbf037697b2004c5b4d27fb75fbe84858e714ef02bb22d6f4de25f3e7d1"
     max_bytes: 1000000
     geographic_scope: SG
     allowed_purpose: non-commercial student prototype
