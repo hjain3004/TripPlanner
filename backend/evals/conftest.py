@@ -126,3 +126,74 @@ def claims_ambiguous() -> list[PlaceClaim]:
         _c("osm:b", "category", "park", "osm"),
         _c("osm:b", "coordinates", {"lat": 1.285, "lon": 103.840}, "osm"),  # ~550m away (threshold 400, ambiguous < 800)
     ]
+from gateway.places.contracts import Place, PlaceClaim
+from typing import Any
+
+def _cq(place_id: str, field: str, value: Any, lic: str = "L") -> PlaceClaim:
+    return PlaceClaim(
+        place_id=place_id,
+        field=field, # type: ignore
+        value=value,
+        source_id="src",
+        source_url="http://x",
+        retrieved_at=datetime(2026, 1, 1, tzinfo=UTC),
+        source_release="1",
+        last_verified=datetime(2026, 1, 1, tzinfo=UTC),
+        verified_by="test",
+        confidence=0.9,
+        needs_verification=False,
+        licence_id=lic,
+        attribution_requirements="A",
+    )
+
+
+@pytest.fixture
+def places() -> list[Place]:
+    return [
+        Place(place_id=f"pl_{i}", external_ids=[])
+        for i in range(1, 11)
+    ]
+
+
+@pytest.fixture
+def claims() -> list[PlaceClaim]:
+    claims = []
+    # 2 parks (1, 2)
+    claims.extend([_cq("pl_1", "category", "park"), _cq("pl_1", "coordinates", "1,1"), _cq("pl_1", "opening_hours", "x")])
+    claims.extend([_cq("pl_2", "category", "park"), _cq("pl_2", "coordinates", "1,1"), _cq("pl_2", "opening_hours", "x")])
+    # 2 food_court (3, 4)
+    claims.extend([_cq("pl_3", "category", "food_court"), _cq("pl_3", "coordinates", "1,1"), _cq("pl_3", "opening_hours", "x")])
+    claims.extend([_cq("pl_4", "category", "food_court"), _cq("pl_4", "coordinates", "1,1"), _cq("pl_4", "opening_hours", "x")])
+    # 2 restaurant (5, 6)
+    claims.extend([_cq("pl_5", "category", "restaurant"), _cq("pl_5", "coordinates", "1,1"), _cq("pl_5", "opening_hours", "x")])
+    claims.extend([_cq("pl_6", "category", "restaurant"), _cq("pl_6", "coordinates", "1,1"), _cq("pl_6", "opening_hours", "x")])
+    # 1 cafe (7)
+    claims.extend([_cq("pl_7", "category", "cafe"), _cq("pl_7", "coordinates", "1,1"), _cq("pl_7", "opening_hours", "x")])
+    # 2 attraction (8, 9)
+    claims.extend([_cq("pl_8", "category", "attraction"), _cq("pl_8", "coordinates", "1,1"), _cq("pl_8", "opening_hours", "x")])
+    claims.extend([_cq("pl_9", "category", "attraction"), _cq("pl_9", "coordinates", "1,1"), _cq("pl_9", "opening_hours", "x")])
+    # 1 museum (10)
+    claims.extend([_cq("pl_10", "category", "museum"), _cq("pl_10", "coordinates", "1,1"), _cq("pl_10", "opening_hours", "x")])
+    return claims
+
+
+@pytest.fixture
+def places_missing_food(places: list[Place]) -> list[Place]:
+    return [p for p in places if p.place_id not in ("pl_3", "pl_4")]
+
+
+@pytest.fixture
+def claims_without_coords(claims: list[PlaceClaim]) -> list[PlaceClaim]:
+    return [c for c in claims if c.field != "coordinates"]
+
+
+@pytest.fixture
+def claims_without_hours(claims: list[PlaceClaim]) -> list[PlaceClaim]:
+    return [c for c in claims if c.field != "opening_hours"]
+
+
+@pytest.fixture
+def claims_one_missing_licence(claims: list[PlaceClaim]) -> list[PlaceClaim]:
+    c2 = claims.copy()
+    c2[0] = _cq("pl_1", "category", "park", lic="")
+    return c2
