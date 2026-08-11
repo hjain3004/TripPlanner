@@ -3,12 +3,31 @@
 Names follow spec 16 where spec 16 already defines them. Money is integer minor
 units. Nothing in this module performs arithmetic on money.
 """
+
 from __future__ import annotations
 
 from enum import StrEnum
 from typing import Any
 
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
+
+from .identity import EvidenceIdentity
+
+
+class ResolutionState(StrEnum):
+    ACTIVE = "active"
+    REVERSED = "reversed"
+
+
+class ResolutionRecord(BaseModel):
+    resolution_id: str
+    members: list[str]
+    canonical_id: str
+    rule: str
+    confidence: float
+    created_by_run: str
+    state: ResolutionState = ResolutionState.ACTIVE
+    reversed_by_run: str | None = None
 
 
 class ClaimKind(StrEnum):
@@ -21,6 +40,7 @@ class ClaimKind(StrEnum):
 
 class FreshnessState(StrEnum):
     """Spec 16 §3. Evidence provenance only — never graph lifecycle."""
+
     LIVE = "live"
     CACHED = "cached"
     ESTIMATED = "estimated"
@@ -30,6 +50,7 @@ class FreshnessState(StrEnum):
 
 class LifecycleState(StrEnum):
     """Graph lifecycle. Orthogonal to evidence provenance."""
+
     ACTIVE = "active"
     SUPERSEDED = "superseded"
 
@@ -49,6 +70,7 @@ class Claim(BaseModel):
     run_id: str = Field(min_length=1)
     adapter_id: str = Field(min_length=1)
     kind: ClaimKind
+    identity: EvidenceIdentity
     payload: dict[str, Any]
     source_id: str | None
     is_inference: bool
@@ -70,8 +92,8 @@ class Claim(BaseModel):
 class Artifact(BaseModel):
     artifact_id: str = Field(min_length=1)
     kind: str = Field(min_length=1)
-    run_id: str = Field(min_length=1)          # invariant 2
-    version: int = Field(ge=1)                 # invariant 2
+    run_id: str = Field(min_length=1)  # invariant 2
+    version: int = Field(ge=1)  # invariant 2
     derived_from: list[str] = Field(default_factory=list)
     # ^ claim ids OR artifact ids; both must resolve in the graph
     derived_from_kb_facts: list[str] = Field(default_factory=list)
@@ -94,7 +116,7 @@ class Run(BaseModel):
 class Evaluation(BaseModel):
     evaluation_id: str = Field(min_length=1)
     subject_id: str = Field(min_length=1)
-    rubric_id: str = Field(min_length=1)       # invariant 3
+    rubric_id: str = Field(min_length=1)  # invariant 3
     verdict: str = Field(min_length=1)
     reasons: list[str] = Field(default_factory=list)
     run_id: str = Field(min_length=1)

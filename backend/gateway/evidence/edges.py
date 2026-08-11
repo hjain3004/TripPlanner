@@ -4,18 +4,16 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from gateway.evidence.nodes import (
-    Artifact, Claim, Evaluation, Run, Source,
-)
+from gateway.evidence.nodes import Artifact, Claim, Evaluation, ResolutionRecord, Run, Source
 
 
 class EdgeKind(StrEnum):
-    SUPPORTS = "SUPPORTS"           # source -> claim
-    CONTRADICTS = "CONTRADICTS"     # claim <-> claim
-    SUPERSEDES = "SUPERSEDES"       # claim -> claim
-    RESOLVED_TO = "RESOLVED_TO"     # claim -> canonical claim
-    DERIVED_FROM = "DERIVED_FROM"   # artifact -> claims consumed
-    EVALUATED_BY = "EVALUATED_BY"   # claim|artifact -> evaluation
+    SUPPORTS = "SUPPORTS"  # source -> claim
+    CONTRADICTS = "CONTRADICTS"  # claim <-> claim
+    SUPERSEDES = "SUPERSEDES"  # claim -> claim
+    RESOLVED_TO = "RESOLVED_TO"  # claim -> canonical claim
+    DERIVED_FROM = "DERIVED_FROM"  # artifact -> claims consumed
+    EVALUATED_BY = "EVALUATED_BY"  # claim|artifact -> evaluation
 
 
 class Edge(BaseModel):
@@ -31,11 +29,13 @@ class InvalidEdge(ValueError):
 
 class EvidenceGraph(BaseModel):
     """In-memory graph. Task 8 adds a SQLite-backed equivalent."""
+
     claims: dict[str, Claim] = Field(default_factory=dict)
     sources: dict[str, Source] = Field(default_factory=dict)
     artifacts: dict[str, Artifact] = Field(default_factory=dict)
     runs: dict[str, Run] = Field(default_factory=dict)
     evaluations: dict[str, Evaluation] = Field(default_factory=dict)
+    resolutions: dict[str, ResolutionRecord] = Field(default_factory=dict)
     edges: list[Edge] = Field(default_factory=list)
 
     def add_claim(self, claim: Claim) -> None:

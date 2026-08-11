@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
 from gateway.evidence.nodes import ClaimKind
-from gateway.evidence.resolution import flight_identity
+
 
 CONTRADICTION_THRESHOLD_BPS: dict[ClaimKind, int] = {
     ClaimKind.CASH_QUOTE: 200,          # 2.00%
@@ -32,7 +32,9 @@ def detect_contradictions(
             threshold = CONTRADICTION_THRESHOLD_BPS.get(left.kind)
             if threshold is None:
                 continue
-            if flight_identity(left) != flight_identity(right):
+            left_ident = left.identity.model_dump() if hasattr(left.identity, "model_dump") else left.identity
+            right_ident = right.identity.model_dump() if hasattr(right.identity, "model_dump") else right.identity
+            if left_ident != right_ident:
                 continue
 
             base = left.payload.get("total_minor")

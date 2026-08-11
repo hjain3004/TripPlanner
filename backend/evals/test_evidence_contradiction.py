@@ -39,8 +39,11 @@ def test_different_flights_are_never_contradictions(
     g = EvidenceGraph()
     g.add_source(source_a)
     g.add_claim(claim_a)
+    ident = dict(claim_a.identity)
+    ident["segments"] = [{"origin": "DEL", "destination": "SIN", "departure_at": "2026-10-12T10:00:00Z", "arrival_at": "2026-10-12T16:00:00Z", "operating_carrier": "AI", "flight_number": "AI9999"}]
     g.add_claim(claim_a.model_copy(update={
         "claim_id": "c-b",
+        "identity": ident,
         "payload": {**claim_a.payload, "flight_number": "AI9999",
                     "total_minor": 9999000},
     }))
