@@ -10,11 +10,11 @@ from gateway.places.contracts import (
 from gateway.places.registry import PlaceGatewayError
 
 class SnapshotPlaceAdapter:
-    def __init__(self, catalog_path: Path):
+    def __init__(self, catalog_path: Path) -> None:
         self.catalog_path = catalog_path
-        self._cache = None
+        self._cache: list[PlaceCandidate] | None = None
         
-    def _load(self):
+    def _load(self) -> list[PlaceCandidate]:
         if self._cache is not None:
             return self._cache
             
@@ -22,9 +22,9 @@ class SnapshotPlaceAdapter:
             raise PlaceGatewayError(code="provider_unavailable", message="Catalog snapshot missing")
             
         try:
-            with open(self.catalog_path, encoding="utf-8") as f:
-                data = json.load(f)
-                
+            content = self.catalog_path.read_text(encoding="utf-8")
+            data = json.loads(content)
+            
             # create lookup for claims
             # we need to map source to licence and attribution
             source_map = {}
@@ -33,7 +33,7 @@ class SnapshotPlaceAdapter:
                 
             # claims have licence_id but lack attribution text? Wait, in conftest I set attribution_requirements.
             # wait, the spec says "map claims into PlaceCandidate"
-            places_claims = {}
+            places_claims: dict[str, list[PlaceClaim]] = {}
             for c in data.get("claims", []):
                 pid = c["place_id"]
                 if pid not in places_claims:
@@ -46,7 +46,7 @@ class SnapshotPlaceAdapter:
                         c_dict["attribution_requirements"] = src["attribution_text"]
                 places_claims[pid].append(PlaceClaim.model_validate(c_dict))
                 
-            candidates = []
+            candidates: list[PlaceCandidate] = []
             for p in data.get("places", []):
                 pid = p["place_id"]
                 claims = places_claims.get(pid, [])

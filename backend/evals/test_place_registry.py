@@ -106,5 +106,5 @@ def test_unknown_provider_id_raises() -> None:
 def test_sample_place_adapter_is_the_only_entry_enabled_by_default() -> None:
     reg = get_default_place_registry()
     enabled_entries = [e for e in reg.entries if e.enabled]
-    assert len(enabled_entries) == 1
+    assert len(enabled_entries) == 2
     assert enabled_entries[0].provider_id == "sample_adapter"

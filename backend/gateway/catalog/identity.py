@@ -73,7 +73,7 @@ def resolve_places(claims: list[PlaceClaim]) -> tuple[list[Place], list[MergeDec
         for part in pid.split("|"):
             if ":" in part:
                 ns, val = part.split(":", 1)
-                res.append(ExternalId(namespace=ns, value=val)) # type: ignore
+                res.append(ExternalId(namespace=ns, value=val))
         return res
 
     for i in range(len(pid_groups)):
@@ -195,8 +195,8 @@ def resolve_places(claims: list[PlaceClaim]) -> tuple[list[Place], list[MergeDec
     for d in decisions:
         if d.merged:
             # find which group this became part of
-            for g, final_pid in group_to_final_pid.items():
-                if set(d.source_place_ids).issubset(g):
+            for fz_g, final_pid in group_to_final_pid.items():
+                if set(d.source_place_ids).issubset(fz_g):
                     d.resulting_place_id = final_pid
                     break
 

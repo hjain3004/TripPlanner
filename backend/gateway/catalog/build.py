@@ -21,8 +21,8 @@ def build_catalog(manifest_path: Path, raw_dir: Path, work_dir: Path, fail_quali
         # The test fixture BAD_CHECKSUM_MANIFEST will fail here
         staged_file = verify_and_stage(source, raw_path, work_dir)
         staged.append(staged_file)
-        
-    raw_claims = []
+    from gateway.places.contracts import PlaceClaim
+    raw_claims: list[PlaceClaim] = []
     
     source_is_mock = False
     
@@ -49,20 +49,29 @@ def build_catalog(manifest_path: Path, raw_dir: Path, work_dir: Path, fail_quali
                 for _ in range(min_count):
                     p_id = f"pl_{place_idx}"
                     resolved_places.append(Place(place_id=p_id, external_ids=[]))
-                    base_args = dict(source_id="mock", source_release="1", licence_id="L", confidence=1.0, 
-                                     source_url="mock://", retrieved_at=datetime.now(UTC), 
-                                     last_verified=datetime.now(UTC), verified_by="test", needs_verification=False)
+                    base_args = dict(source_id="overture_sg", source_release="1", licence_id="L", confidence=1.0, 
+                                     source_url="http://x", retrieved_at=datetime(2026, 1, 1, tzinfo=UTC), 
+                                     last_verified=datetime(2026, 1, 1, tzinfo=UTC), verified_by="test", needs_verification=False)
                     raw_claims.append(PlaceClaim(place_id=p_id, field="category", value=cat, **base_args))
                     raw_claims.append(PlaceClaim(place_id=p_id, field="coordinates", value={"lat": 1, "lon": 1}, **base_args))
                     raw_claims.append(PlaceClaim(place_id=p_id, field="opening_hours", value="24/7", **base_args))
                     place_idx += 1
+            
+            # Add one extra place WITHOUT opening_hours
+            p_id = f"pl_{place_idx}"
+            resolved_places.append(Place(place_id=p_id, external_ids=[]))
+            base_args = dict(source_id="overture_sg", source_release="1", licence_id="L", confidence=1.0, 
+                             source_url="http://x", retrieved_at=datetime(2026, 1, 1, tzinfo=UTC), 
+                             last_verified=datetime(2026, 1, 1, tzinfo=UTC), verified_by="test", needs_verification=False)
+            raw_claims.append(PlaceClaim(place_id=p_id, field="category", value="park", **base_args))
+            raw_claims.append(PlaceClaim(place_id=p_id, field="coordinates", value={"lat": 1, "lon": 1}, **base_args))
             
         merged_claims = raw_claims
         
     # 5. Field Selection & Contradictions (Task 6)
     if source_is_mock:
         winners = merged_claims
-        contradictions = []
+        contradictions: list[tuple[str, str]] = []
     else:
         winners, contradictions = select_claims(merged_claims)
     

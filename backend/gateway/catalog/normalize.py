@@ -15,7 +15,7 @@ _PINNED_RETRIEVED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 def _claim(source: PinnedSource, place_id: str, field: str, value: Any) -> PlaceClaim:
     return PlaceClaim(
         place_id=place_id,
-        field=field,  # type: ignore[arg-type]
+        field=field,
         value=value,
         source_id=source.source_id,
         source_url=source.source_url,
