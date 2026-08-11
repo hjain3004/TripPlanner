@@ -112,3 +112,25 @@ def test_fallback_uses_curated_pois_without_duplicates() -> None:
     ]
     assert len(seen) == len(set(seen))
     assert result.itinerary.itinerary_quality == "fallback"
+
+def test_planner_rejects_overlapping_and_falls_back_after_retry() -> None:
+    spec = _spec()
+    overlapping = {
+        **_valid_itinerary(),
+        "days": [
+            {
+                "date": "2026-08-01",
+                "items": [
+                    {"poi_id": "sg-gardens-by-the-bay", "start_hint": "10:00"},
+                    {"poi_id": "sg-hawker-maxwell", "start_hint": "10:30"}
+                ]
+            }
+        ]
+    }
+    result = run_planner(
+        spec,
+        retrieve_candidates(spec, load_kb()),
+        ScriptedLLMClient({"planner": [overlapping, overlapping]}),
+    )
+    assert result.used_fallback is True
+    assert result.itinerary.itinerary_quality == "fallback"
