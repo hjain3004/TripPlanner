@@ -24,7 +24,11 @@ def is_expired(claim: Claim, now: datetime) -> bool:
 def mark_stale(graph: EvidenceGraph, claim_id: str, now: datetime) -> None:
     """Transition an expired live claim to stale. Idempotent; never deletes."""
     claim = graph.claims[claim_id]
-    if claim.lifecycle == LifecycleState.ACTIVE and is_expired(claim, now) and claim.status is FreshnessState.LIVE:
+    if (
+        claim.lifecycle == LifecycleState.ACTIVE
+        and is_expired(claim, now)
+        and claim.status is FreshnessState.LIVE
+    ):
         graph.claims[claim_id] = claim.model_copy(
             update={"status": FreshnessState.STALE}
         )

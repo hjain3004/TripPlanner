@@ -82,8 +82,15 @@ invent states:
 | `live` | full offset plate, crisp registration |
 | `cached` | offset plate in celadon-2 (lighter) |
 | `estimated` | dashed 2px rule, **no** offset plate — nothing was issued |
-| `stale` | plate greyed, diagonal `SUPERSEDED` overprint |
+| `stale` | plate greyed, diagonal `STALE` overprint |
 | `verify_required` | lacquer stamp — the one place lacquer is mandatory |
+
+**Lifecycle Mapping (LifecycleState):**
+
+| Status | Treatment |
+|---|---|
+| `active` | default plate |
+| `superseded` | graph-lifecycle treatment with diagonal `SUPERSEDED` overprint |
 
 | Graph concept | Treatment |
 |---|---|

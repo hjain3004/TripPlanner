@@ -81,10 +81,8 @@ class SqliteEvidenceStore:
             version = row[0] if row else 0
 
             if version == 0:
-                # new db or empty
                 conn.executescript(_SCHEMA_V2)
             elif version == 1:
-                # migrate from v1 to v2
                 self._migrate_v1_to_v2(conn)
             elif version > 2:
                 raise EvidenceStoreError(f"unsupported schema version {version}")
@@ -92,53 +90,13 @@ class SqliteEvidenceStore:
     def _migrate_v1_to_v2(self, conn: sqlite3.Connection) -> None:
         conn.execute("BEGIN IMMEDIATE")
         try:
-            # We must backfill run ownership on edges and sources, else raise a clear error.
-            # v1 edges table: kind, src, dst, run_id
-            # wait, v1 edges table had run_id. Let's check old schema:
-            # it had (kind, src, dst, run_id) but without a composite primary key.
-            # v1 sources table had (source_id, run_id, body)
-            # Actually, v1 edges already had run_id which is created_by_run.
-            # wait, v1 _run_id_for returned a run_id for sources and edges.
-            # However, the task says: "backfill edge/source run ownership only where it derives uniquely from connected claims, and raise a clear migration error rather than inventing 'r1' when it cannot."
-
-            # Since the task asks to test v1 migration by creating the old schema, let's rename the tables and migrate.
-            # This requires complex logic to figure out edge run_id from dst claims, and source run_id from claims.
-
-            # v1 old tables: sources(source_id, run_id, body), claims(claim_id, run_id, body), edges(kind, src, dst, run_id)
-            # wait, v1 had run_id in them, but it might have been "r1" due to the hardcoded fallback?
-            # No, if v1 had missing run_id... wait, the prompt says:
-            # "v1 -> v2 migration in one transaction: preserve old rows, backfill edge/source run ownership only where it derives uniquely from connected claims, and raise a clear migration error rather than inventing 'r1' when it cannot."
-            # The v1 schema in `_SCHEMA` above is:
-            # sources(source_id, run_id, body), claims(claim_id, run_id, body), edges(kind, src, dst, run_id).
-
-            # So in v2, we rename the column `source_id` to `id`, `claim_id` to `id`, `run_id` to `created_by_run` in edges.
-
             cur = conn.cursor()
 
-            # check if v1 schema actually has the missing data, but wait, the instruction says "backfill edge/source run ownership".
-            # The tests probably insert v1 rows with `run_id` = NULL? Or maybe they don't have run_id in the old schema if they used an older version of the schema?
-            # Wait, the v1 schema above has `run_id TEXT NOT NULL` for all three tables. But maybe the test inserts them without it? No, if it's NOT NULL they can't.
-            # The old `_run_id_for()` returned a fallback "r1" which was saved into `run_id`.
-            # Perhaps the prompt implies that the v1 schema actually *did not* have run_id on edges or sources? Let me check the provided old schema in store.py.
-            # In store.py, the old schema is:
-            # CREATE TABLE IF NOT EXISTS sources (source_id TEXT PRIMARY KEY, run_id TEXT NOT NULL, body TEXT NOT NULL);
-            # CREATE TABLE IF NOT EXISTS edges (kind TEXT NOT NULL, src TEXT NOT NULL, dst TEXT NOT NULL, run_id TEXT NOT NULL);
-            # Ok, so they DID have run_id. But wait, if they had run_id, why do we need to backfill it?
-            # Because the old code might have saved "r1" fallback. We can't know if it's fallback.
-            # Actually, maybe the v1 schema from before commit `abed6ff` didn't have run_id?
-            # Let's just create the v2 tables, insert data from v1, and validate.
-
-            # Rename tables to v1_old
             cur.execute("ALTER TABLE sources RENAME TO v1_sources")
             cur.execute("ALTER TABLE claims RENAME TO v1_claims")
             cur.execute("ALTER TABLE edges RENAME TO v1_edges")
 
             cur.executescript(_SCHEMA_V2)
-
-            # Backfill logic
-            # Backfill logic
-            # for sources: a source is uniquely connected to claims if all claims that have this source_id have the same run_id.
-            # If a source has no claims, or multiple claims with DIFFERENT run_ids, we can't derive it.
 
             cur.execute("SELECT source_id, body FROM v1_sources")
             sources = cur.fetchall()
@@ -146,9 +104,7 @@ class SqliteEvidenceStore:
             cur.execute("SELECT claim_id, run_id, body FROM v1_claims")
             claims = cur.fetchall()
 
-            # Build claims map
             claim_runs: dict[str, str] = {row[0]: row[1] for row in claims}
-            # source to runs map
             source_runs: dict[str, set[str]] = {}
             for row in claims:
                 body = json.loads(row[2])
@@ -177,7 +133,6 @@ class SqliteEvidenceStore:
             cur.execute("SELECT kind, src, dst FROM v1_edges")
             edges = cur.fetchall()
             for kind, src, dst in edges:
-                # Edge run ownership derives uniquely from connected claims (specifically dst)
                 e_run_id = claim_runs.get(dst)
                 if not e_run_id:
                     e_run_id = claim_runs.get(src)
@@ -230,7 +185,6 @@ class SqliteEvidenceStore:
             conn.execute("PRAGMA foreign_keys = ON")
             conn.execute("BEGIN IMMEDIATE")
             try:
-                # Upsert addressable nodes/records
                 for source in graph.sources.values():
                     conn.execute(
                         "INSERT OR REPLACE INTO sources (id, run_id, body) VALUES (?,?,?)",
@@ -258,11 +212,11 @@ class SqliteEvidenceStore:
                     )
                 for res in graph.resolutions.values():
                     conn.execute(
-                        "INSERT OR REPLACE INTO resolutions (id, created_by_run, body) VALUES (?,?,?)",
+                        "INSERT OR REPLACE INTO resolutions "
+                        "(id, created_by_run, body) VALUES (?,?,?)",
                         (res.resolution_id, res.created_by_run, res.model_dump_json()),
                     )
 
-                # Synchronize edges and resolutions authored by touched runs
                 if touched_runs:
                     run_list = ",".join("?" for _ in touched_runs)
                     params = tuple(touched_runs)
@@ -271,11 +225,11 @@ class SqliteEvidenceStore:
                     for edge in graph.edges:
                         if edge.created_by_run in touched_runs:
                             conn.execute(
-                                "INSERT INTO edges (kind, src, dst, created_by_run) VALUES (?,?,?,?)",
+                                "INSERT INTO edges (kind, src, dst, created_by_run) "
+                                "VALUES (?,?,?,?)",
                                 (edge.kind.value, edge.src, edge.dst, edge.created_by_run),
                             )
 
-                    # Resolutions authored by touched runs
                     conn.execute(
                         f"DELETE FROM resolutions WHERE created_by_run IN ({run_list})", params
                     )
@@ -295,10 +249,8 @@ class SqliteEvidenceStore:
         with sqlite3.connect(self.path) as conn:
             conn.execute("PRAGMA foreign_keys = ON")
 
-            # Start with nodes from this run
             cur = conn.cursor()
 
-            # Load edges authored by run_id
             loaded_edges: list[tuple[str, str, str, str]] = []
             cur.execute(
                 "SELECT kind, src, dst, created_by_run FROM edges WHERE created_by_run = ?",
@@ -315,7 +267,6 @@ class SqliteEvidenceStore:
                 "resolutions": set(),
             }
 
-            # Load all nodes for this run
             cur.execute("SELECT id FROM sources WHERE run_id = ?", (run_id,))
             nodes["sources"].update(row[0] for row in cur.fetchall())
 
@@ -333,9 +284,6 @@ class SqliteEvidenceStore:
             cur.execute("SELECT id FROM resolutions WHERE created_by_run = ?", (run_id,))
             nodes["resolutions"].update(row[0] for row in cur.fetchall())
 
-            # Now we loop to find missing node bodies and new lineage pointers
-
-            # Maps from id to body string
             bodies: dict[str, dict[str, str]] = {
                 "sources": {},
                 "claims": {},
@@ -356,11 +304,9 @@ class SqliteEvidenceStore:
             while True:
                 prev_counts = sum(len(b) for b in bodies.values()) + len(loaded_edges)
 
-                # Fetch bodies for any known node id
                 for table, id_set in nodes.items():
                     load_bodies(table, id_set)
 
-                # Extract lineage pointers from loaded bodies
                 import json
 
                 for claim_body in bodies["claims"].values():
@@ -444,9 +390,6 @@ class SqliteEvidenceStore:
                         required_edge_srcs.add(member)
                         required_edge_dsts.add(res_id)
 
-                # query these edges
-                # we do it naively by querying all edges and filtering, since sqlite is fast enough
-                # OR we query by src and dst
                 if required_edge_srcs:
                     q = ",".join("?" for _ in required_edge_srcs)
                     cur.execute(
@@ -492,7 +435,6 @@ class SqliteEvidenceStore:
                 if new_counts == prev_counts:
                     break
 
-        # Now reconstruct graph nodes-first, validated-edges-second
         for b in bodies["sources"].values():
             graph.add_source(Source.model_validate_json(b))
         for b in bodies["claims"].values():

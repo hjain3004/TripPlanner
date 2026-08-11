@@ -143,7 +143,6 @@ class EvidenceRecord(BaseModel):          # what every workflow emits
     status: Literal["live", "cached", "estimated", "stale", "verify_required"]
     lifecycle: Literal["active", "superseded"]
     superseded_by: str | None
-    contradicts: list[str]                # written by the validator, never the producer
     is_inference: bool
     confidence: float
     needs_verification: bool
@@ -162,6 +161,7 @@ class ResolutionRecord(BaseModel):        # two records judged the same real-wor
 typed by meaning (current quote ≠ cached observation ≠ sandbox fixture ≠ award availability).
 This makes it structural.
 
+**Note:** `CONTRADICTS` edges are canonical. The inline `contradicts` list field is deprecated in favor of explicit symmetric edges.
 **Tier-F precision:** these are **gateway-layer types under spec 16**. They are *not* the KB's
 `Provenance` columns, which are Tier F and unchanged. Do not merge the two models.
 

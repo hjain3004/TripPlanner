@@ -193,11 +193,13 @@ def test_load_run_includes_cross_run_lineage_closure(
     store.save(g)
 
     loaded_r2 = store.load("r2")
-    # r2 authored artifact a2, which derives from a1, which derives from c-a, which is supported by s-a
+    # r2 authored artifact a2, which derives from a1, which derives from c-a,
+    # which is supported by s-a
     assert "a2" in loaded_r2.artifacts
     assert "a1" in loaded_r2.artifacts
     assert "c-a" in loaded_r2.claims
-    # assert "s-a" in loaded_r2.sources # Wait, does a1 -> c-a pull in s-a? No, c-a's lineage points TO s-a, wait, c-a has source_id="s-a". So yes, s-a is pulled in!
+    # assert "s-a" in loaded_r2.sources # Wait, does a1 -> c-a pull in s-a?
+    # Wait, c-a has source_id="s-a". So yes, s-a is pulled in!
     assert "s-a" in loaded_r2.sources
 
     assert loaded_r2.runs["r1"].run_id == "r1"

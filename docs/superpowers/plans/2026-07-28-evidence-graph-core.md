@@ -1,5 +1,7 @@
 # Evidence Graph Core Implementation Plan
 
+> **STATUS NOTE:** Implementation has landed. The 2026-08-02 I0 plan supersedes the code snippets in this document. Do not rewrite its historical tasks.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the storage-agnostic evidence graph core — typed nodes, edges, four binding invariants, deterministic reversible resolution, freshness/supersession, contradiction detection, and per-run budgets — as pure Python with no provider I/O.
