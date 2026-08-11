@@ -1,13 +1,12 @@
 import { resolveTheme } from "@/lib/theme/resolver";
 
-export default function ThemeProofPage({
+export default async function ThemeProofPage({
   searchParams,
 }: {
-  searchParams: { theme?: string };
+  searchParams: Promise<{ theme?: string }>;
 }) {
-  const isNatural = searchParams.theme === "natural";
-  // The resolver uses "JP" for Japan, and anything else for natural fallback
-  const resolved = resolveTheme(isNatural ? "US" : "JP");
+  const params = await searchParams;
+  const resolved = resolveTheme(params.theme === "japan" ? "JP" : null);
   const themeClass = `theme-${resolved.globalTheme}`;
 
   return (
