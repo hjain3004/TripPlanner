@@ -104,7 +104,11 @@ class SqliteEvidenceStore:
             cur.execute("ALTER TABLE claims RENAME TO v1_claims")
             cur.execute("ALTER TABLE edges RENAME TO v1_edges")
 
-            cur.executescript(_SCHEMA_V2)
+            for stmt in _SCHEMA_V2.split(";"):
+                stmt = stmt.strip()
+                if not stmt or stmt.startswith("PRAGMA"):
+                    continue
+                cur.execute(stmt)
 
             cur.execute("SELECT source_id, body FROM v1_sources")
             sources = cur.fetchall()

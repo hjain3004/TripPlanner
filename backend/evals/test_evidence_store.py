@@ -400,3 +400,55 @@ def test_save_loaded_graph_preserves_foreign_edges(tmp_path: Path, claim_a: Clai
     assert "c-z" in loaded_r1.claims
     assert any(e.src == "s-z" and e.dst == "c-z" for e in loaded_r1.edges), "s-z->c-z edge was destroyed"
 
+
+def test_v1_migration_is_atomic(tmp_path: Path, source_a: Source) -> None:
+    db_path = tmp_path / "evidence.db"
+
+    _SCHEMA_V1 = """
+    CREATE TABLE IF NOT EXISTS sources (
+        source_id TEXT PRIMARY KEY,
+        run_id    TEXT NOT NULL,
+        body      TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS claims (
+        claim_id TEXT PRIMARY KEY,
+        run_id   TEXT NOT NULL,
+        body     TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS edges (
+        kind   TEXT NOT NULL,
+        src    TEXT NOT NULL,
+        dst    TEXT NOT NULL,
+        run_id TEXT NOT NULL
+    );
+    """
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript(_SCHEMA_V1)
+        # Insert orphan source to cause migration failure
+        conn.execute(
+            "INSERT INTO sources VALUES (?,?,?)",
+            (source_a.source_id, source_a.run_id, source_a.model_dump_json()),
+        )
+
+    # First attempt should fail
+    with pytest.raises(EvidenceStoreError, match="Cannot uniquely derive run ownership"):
+        SqliteEvidenceStore(db_path)
+
+    # Database should still report version 0 and tables should be intact
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute("PRAGMA user_version")
+        assert cur.fetchone()[0] == 0
+        
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = {row[0] for row in cur.fetchall()}
+        assert "sources" in tables
+        assert "v1_sources" not in tables
+        
+        cur.execute("SELECT COUNT(*) FROM sources")
+        assert cur.fetchone()[0] == 1
+
+    # Second attempt should re-enter migration and fail again (not skip)
+    with pytest.raises(EvidenceStoreError, match="Cannot uniquely derive run ownership"):
+        SqliteEvidenceStore(db_path)
+
