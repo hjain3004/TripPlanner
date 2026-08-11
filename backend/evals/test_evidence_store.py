@@ -20,6 +20,7 @@ from gateway.evidence.store import EvidenceStoreError, SqliteEvidenceStore
 
 def build_complex_graph(claim_a: Claim, source_a: Source) -> EvidenceGraph:
     g = EvidenceGraph()
+    g.add_source(source_a)
     g.add_run(Run(run_id="r1", started_at="2026-10-12T10:00:00Z"))
     g.add_run(Run(run_id="r2", started_at="2026-10-12T11:00:00Z"))
 
@@ -138,6 +139,7 @@ def test_save_updated_run_removes_stale_edges_for_that_run(
     claim_a: Claim, source_a: Source, tmp_path: Path
 ) -> None:
     g = EvidenceGraph()
+    g.add_source(source_a)
     g.add_run(Run(run_id="r1", started_at="2026-10-12T10:00:00Z"))
     g.add_source(source_a)
     g.add_claim(claim_a)
@@ -162,6 +164,7 @@ def test_save_updated_run_does_not_delete_other_run(
     claim_a: Claim, source_a: Source, tmp_path: Path
 ) -> None:
     g = EvidenceGraph()
+    g.add_source(source_a)
     g.add_run(Run(run_id="r1", started_at="2026-10-12T10:00:00Z"))
     g.add_source(source_a)
     g.add_claim(claim_a)
@@ -210,6 +213,7 @@ def test_reversed_resolution_survives_round_trip(
     claim_a: Claim, source_a: Source, tmp_path: Path
 ) -> None:
     g = EvidenceGraph()
+    g.add_source(source_a)
     g.add_run(Run(run_id="r1", started_at="2026-10-12T10:00:00Z"))
     g.add_source(source_a)
     g.add_claim(claim_a)
@@ -238,6 +242,7 @@ def test_save_rejects_invalid_graph_before_writing(
     claim_a: Claim, source_a: Source, tmp_path: Path
 ) -> None:
     g = EvidenceGraph()
+    g.add_source(source_a)
     g.add_run(Run(run_id="r1", started_at="2026-10-12T10:00:00Z"))
     g.add_source(source_a)
     g.add_claim(claim_a)
@@ -366,11 +371,13 @@ def test_v1_store_migrates_without_losing_sources_claims_or_edges(
     assert loaded.edges[0].kind == EdgeKind.SUPPORTS
     assert loaded.edges[0].created_by_run == "r1"
 
-def test_save_loaded_graph_preserves_foreign_edges(tmp_path: Path, claim_a: Claim, source_a: Source) -> None:
-    from datetime import datetime, timezone
+
+def test_save_loaded_graph_preserves_foreign_edges(
+    tmp_path: Path, claim_a: Claim, source_a: Source
+) -> None:
     db_path = tmp_path / "evidence.db"
     store = SqliteEvidenceStore(db_path)
-    
+
     # Run 1 owns two separate edges
     g1 = EvidenceGraph()
     claim_z = claim_a.model_copy(update={"claim_id": "c-z", "source_id": "s-z"})
@@ -383,22 +390,31 @@ def test_save_loaded_graph_preserves_foreign_edges(tmp_path: Path, claim_a: Clai
     g1.add_edge(Edge(kind=EdgeKind.SUPPORTS, src="s-z", dst="c-z", created_by_run="r1"))
     g1.add_run(Run(run_id="r1", started_at="2026-10-12T10:00:00Z"))
     store.save(g1)
-    
+
     # Run 2 owns an artifact derived from c-a
     g2 = EvidenceGraph(authoritative_runs={"r2"})
     g2.add_source(source_a)
     g2.add_claim(claim_a)
-    artifact = Artifact(artifact_id="a2", run_id="r2", kind="DraftItinerary", derived_from=["c-a"], data={}, version="1")
+    artifact = Artifact(
+        artifact_id="a2",
+        run_id="r2",
+        kind="DraftItinerary",
+        derived_from=["c-a"],
+        data={},
+        version="1",
+    )
     g2.add_artifact(artifact)
     g2.add_run(Run(run_id="r2", started_at="2026-10-12T11:00:00Z"))
     store.save(g2)
-    
+
     loaded_r2 = store.load("r2")
     store.save(loaded_r2)
-    
+
     loaded_r1 = store.load("r1")
     assert "c-z" in loaded_r1.claims
-    assert any(e.src == "s-z" and e.dst == "c-z" for e in loaded_r1.edges), "s-z->c-z edge was destroyed"
+    assert any(e.src == "s-z" and e.dst == "c-z" for e in loaded_r1.edges), (
+        "s-z->c-z edge was destroyed"
+    )
 
 
 def test_v1_migration_is_atomic(tmp_path: Path, source_a: Source) -> None:
@@ -439,12 +455,12 @@ def test_v1_migration_is_atomic(tmp_path: Path, source_a: Source) -> None:
         cur = conn.cursor()
         cur.execute("PRAGMA user_version")
         assert cur.fetchone()[0] == 0
-        
+
         cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = {row[0] for row in cur.fetchall()}
         assert "sources" in tables
         assert "v1_sources" not in tables
-        
+
         cur.execute("SELECT COUNT(*) FROM sources")
         assert cur.fetchone()[0] == 1
 
@@ -453,20 +469,33 @@ def test_v1_migration_is_atomic(tmp_path: Path, source_a: Source) -> None:
         SqliteEvidenceStore(db_path)
 
 
-def test_load_resolves_node_types_without_prefixes(tmp_path: Path, claim_a: Claim, source_a: Source) -> None:
+def test_load_resolves_node_types_without_prefixes(
+    tmp_path: Path, claim_a: Claim, source_a: Source
+) -> None:
     db_path = tmp_path / "evidence.db"
     store = SqliteEvidenceStore(db_path)
-    
+
     g = EvidenceGraph()
-    claim_x = claim_a.model_copy(update={"claim_id": "place/xyz", "run_id": "r0", "source_id": "s-x"})
+    g.add_source(source_a)
+    claim_x = claim_a.model_copy(
+        update={"claim_id": "place/xyz", "run_id": "r0", "source_id": "s-x"}
+    )
     source_x = source_a.model_copy(update={"source_id": "s-x", "run_id": "r0"})
     g.add_source(source_x)
     g.add_claim(claim_x)
     from gateway.evidence.edges import Edge, EdgeKind
-    g.add_edge(Edge(src=source_x.source_id, dst=claim_x.claim_id, kind=EdgeKind.SUPPORTS, created_by_run="r0"))
+
+    g.add_edge(
+        Edge(
+            src=source_x.source_id,
+            dst=claim_x.claim_id,
+            kind=EdgeKind.SUPPORTS,
+            created_by_run="r0",
+        )
+    )
     g.add_run(Run(run_id="r0", started_at="2026-10-12T09:00:00Z"))
     store.save(g)
-    
+
     g2 = EvidenceGraph(authoritative_runs={"r1"})
     artifact = Artifact(
         artifact_id="artifact-without-prefix",
@@ -480,13 +509,101 @@ def test_load_resolves_node_types_without_prefixes(tmp_path: Path, claim_a: Clai
     g2.add_run(Run(run_id="r1", started_at="2026-10-12T10:00:00Z"))
     g2.add_source(source_x)
     g2.add_claim(claim_x)
-    g2.add_edge(Edge(src=source_x.source_id, dst=claim_x.claim_id, kind=EdgeKind.SUPPORTS, created_by_run="r0"))
-    g2.add_edge(Edge(src=artifact.artifact_id, dst=claim_x.claim_id, kind=EdgeKind.DERIVED_FROM, created_by_run="r1"))
-    
+    g2.add_edge(
+        Edge(
+            src=source_x.source_id,
+            dst=claim_x.claim_id,
+            kind=EdgeKind.SUPPORTS,
+            created_by_run="r0",
+        )
+    )
+    g2.add_edge(
+        Edge(
+            src=artifact.artifact_id,
+            dst=claim_x.claim_id,
+            kind=EdgeKind.DERIVED_FROM,
+            created_by_run="r1",
+        )
+    )
+
     store.save(g2)
-    
+
     loaded = store.load("r1")
     assert "place/xyz" in loaded.claims
     assert "artifact-without-prefix" in loaded.artifacts
     assert loaded.artifacts["artifact-without-prefix"].derived_from == ["place/xyz"]
 
+
+def test_c2_a_reversed_resolution_survives(
+    tmp_path: Path, claim_a: Claim, source_a: Source
+) -> None:
+    db_path = tmp_path / "evidence.db"
+    store = SqliteEvidenceStore(db_path)
+
+    g = EvidenceGraph()
+    g.add_source(source_a)
+    claim_1 = claim_a.model_copy(update={"claim_id": "c-1"})
+    claim_2 = claim_a.model_copy(update={"claim_id": "c-2"})
+    g.add_claim(claim_1)
+    g.add_claim(claim_2)
+
+    res = ResolutionRecord(
+        resolution_id="res:r1",
+        members=["c-1", "c-2"],
+        canonical_id="c-1",
+        state=ResolutionState.REVERSED,
+        created_by_run="r1",
+        reversed_by_run="r2",
+        rule="exact_identity",
+        confidence=1.0,
+    )
+    g.resolutions[res.resolution_id] = res
+    g.add_run(Run(run_id="r1", started_at="2026-10-12T10:00:00Z"))
+
+    artifact = Artifact(
+        artifact_id="a2",
+        run_id="r2",
+        kind="DraftItinerary",
+        derived_from=["c-1"],
+        data={},
+        version="1",
+    )
+    g.add_artifact(artifact)
+    g.add_run(Run(run_id="r2", started_at="2026-10-12T11:00:00Z"))
+
+    store.save(g)
+
+    g_r2 = store.load("r2")
+
+    store.save(g_r2)
+
+    g_r1 = store.load("r1")
+    assert "res:r1" in g_r1.resolutions, "Reversed resolution owned by r1 was destroyed"
+
+
+def test_c2_b_positive_edge_removal(tmp_path: Path, claim_a: Claim, source_a: Source) -> None:
+    db_path = tmp_path / "evidence.db"
+    store = SqliteEvidenceStore(db_path)
+
+    g = EvidenceGraph()
+    g.add_source(source_a)
+    g.add_source(source_a)
+    g.add_claim(claim_a)
+
+    edge = Edge(
+        src=source_a.source_id, dst=claim_a.claim_id, kind=EdgeKind.SUPPORTS, created_by_run="r1"
+    )
+    g.add_edge(edge)
+    g.add_run(Run(run_id="r1", started_at="2026-10-12T10:00:00Z"))
+
+    store.save(g)
+
+    loaded = store.load("r1")
+    assert len(loaded.edges) == 1
+
+    loaded.edges = []
+
+    store.save(loaded)
+
+    reloaded = store.load("r1")
+    assert len(reloaded.edges) == 0, "Edge was not removed during authoritative sync"

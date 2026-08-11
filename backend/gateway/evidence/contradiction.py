@@ -47,12 +47,8 @@ def detect_contradictions(
             skipped.append(f"{left_id} and {right_id}: unsupported kind {left.kind}")
             continue
 
-        left_ident = (
-            left.identity.model_dump() if hasattr(left.identity, "model_dump") else left.identity
-        )
-        right_ident = (
-            right.identity.model_dump() if hasattr(right.identity, "model_dump") else right.identity
-        )
+        left_ident = left.identity.model_dump()
+        right_ident = right.identity.model_dump()
         if left_ident != right_ident:
             skipped.append(f"{left_id} and {right_id}: different identities")
             continue

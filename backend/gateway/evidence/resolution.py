@@ -57,11 +57,9 @@ def resolve(
         claims.append(c)
 
     base_identity = claims[0].identity
-    base_dump = (
-        base_identity.model_dump() if hasattr(base_identity, "model_dump") else base_identity
-    )
+    base_dump = base_identity.model_dump()
     for c in claims[1:]:
-        c_dump = c.identity.model_dump() if hasattr(c.identity, "model_dump") else c.identity
+        c_dump = c.identity.model_dump()
         if c_dump != base_dump:
             raise ValueError("claims do not have exact same identity")
 

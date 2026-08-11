@@ -126,9 +126,6 @@ def test_artifact_can_derive_from_kb_facts(claim_a: Claim, source_a: Source) -> 
     assert violations == []
 
 
-
-
-
 def test_resolution_missing_created_by_run_is_violation(claim_a: Claim, source_a: Source) -> None:
     g = EvidenceGraph()
     g.add_source(source_a)

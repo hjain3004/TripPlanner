@@ -88,6 +88,22 @@ class Claim(BaseModel):
             raise ValueError("claim must have a source_id or is_inference=True")
         return self
 
+    @model_validator(mode="after")
+    def _cross_validate_kind(self) -> Claim:
+        if self.kind == ClaimKind.CASH_QUOTE:
+            if self.identity.kind not in ("flight_quote", "hotel_quote"):
+                raise ValueError("CASH_QUOTE must carry a quote identity")
+        elif self.kind == ClaimKind.PRICE_OBSERVATION:
+            if self.identity.kind != "flight_price_observation":
+                raise ValueError("PRICE_OBSERVATION must carry an observation identity")
+        elif self.kind == ClaimKind.AWARD_AVAILABILITY:
+            if self.identity.kind != "award_quote":
+                raise ValueError("AWARD_AVAILABILITY must carry an award identity")
+        elif self.kind == ClaimKind.REFERENCE_FACT:
+            if self.identity.kind != "reference_fact":
+                raise ValueError("REFERENCE_FACT must carry a reference identity")
+        return self
+
 
 class Artifact(BaseModel):
     artifact_id: str = Field(min_length=1)

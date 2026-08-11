@@ -7,7 +7,7 @@ def test_core_does_not_import_gateway_or_agents() -> None:
     for py_file in core_dir.rglob("*.py"):
         with open(py_file, encoding="utf-8") as f:
             tree = ast.parse(f.read(), filename=str(py_file))
-        
+
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -18,14 +18,15 @@ def test_core_does_not_import_gateway_or_agents() -> None:
                     assert not node.module.startswith("gateway"), f"{py_file.name} imports gateway"
                     assert not node.module.startswith("agents"), f"{py_file.name} imports agents"
 
+
 def test_gateway_evidence_has_no_network_or_secrets() -> None:
     evidence_dir = Path(__file__).parent.parent / "gateway" / "evidence"
     banned = {"requests", "httpx", "urllib.request", "socket", "mcp"}
-    
+
     for py_file in evidence_dir.rglob("*.py"):
         with open(py_file, encoding="utf-8") as f:
             tree = ast.parse(f.read(), filename=str(py_file))
-            
+
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -46,3 +47,7 @@ def test_gateway_evidence_has_no_network_or_secrets() -> None:
                     assert not node.module.startswith("urllib.request"), (
                         f"{py_file.name} imports urllib.request"
                     )
+                    if node.module == "urllib":
+                        assert not any(alias.name == "request" for alias in node.names), (
+                            f"{py_file.name} imports urllib.request"
+                        )

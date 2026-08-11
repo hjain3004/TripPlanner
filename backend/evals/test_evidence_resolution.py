@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date
 
 import pytest
 from pydantic import ValidationError
@@ -140,7 +140,7 @@ def test_resolve_different_cabin_rejects(claim_a: Claim, source_a: Source) -> No
     g.add_claim(claim_a)
     ident = dict(claim_a.identity)
     ident["cabin"] = "business"
-    other = claim_a.model_copy(update={"claim_id": "c-b", "identity": ident})
+    other = Claim(**{**claim_a.model_dump(), "claim_id": "c-b", "identity": ident})
     g.add_claim(other)
     with pytest.raises(ValueError, match="claims do not have exact same identity"):
         resolve(g, ["c-a", "c-b"], created_by_run="r1")
@@ -152,7 +152,7 @@ def test_resolve_different_fare_conditions_rejects(claim_a: Claim, source_a: Sou
     g.add_claim(claim_a)
     ident = dict(claim_a.identity)
     ident["fare_conditions"] = "FLEX"
-    other = claim_a.model_copy(update={"claim_id": "c-b", "identity": ident})
+    other = Claim(**{**claim_a.model_dump(), "claim_id": "c-b", "identity": ident})
     g.add_claim(other)
     with pytest.raises(ValueError, match="claims do not have exact same identity"):
         resolve(g, ["c-a", "c-b"], created_by_run="r1")
@@ -173,7 +173,7 @@ def test_resolve_different_flight_segment_rejects(claim_a: Claim, source_a: Sour
             "flight_number": "AI2384",
         }
     ]
-    other = claim_a.model_copy(update={"claim_id": "c-b", "identity": ident})
+    other = Claim(**{**claim_a.model_dump(), "claim_id": "c-b", "identity": ident})
     g.add_claim(other)
     with pytest.raises(ValueError, match="claims do not have exact same identity"):
         resolve(g, ["c-a", "c-b"], created_by_run="r1")
@@ -192,8 +192,12 @@ def test_resolve_different_hotel_rate_plan_rejects(claim_a: Claim, source_a: Sou
         "rate_plan": "refundable",
     }
     h_ident2 = {**h_ident1, "rate_plan": "non-refundable"}
-    c1 = claim_a.model_copy(update={"claim_id": "c-1", "identity": h_ident1})
-    c2 = claim_a.model_copy(update={"claim_id": "c-2", "identity": h_ident2})
+    c1 = Claim(
+        **{**claim_a.model_dump(), "claim_id": "c-1", "identity": h_ident1, "kind": "cash_quote"}
+    )
+    c2 = Claim(
+        **{**claim_a.model_dump(), "claim_id": "c-2", "identity": h_ident2, "kind": "cash_quote"}
+    )
     g.add_claim(c1)
     g.add_claim(c2)
     with pytest.raises(ValueError, match="claims do not have exact same identity"):
@@ -214,8 +218,22 @@ def test_resolve_different_award_program_rejects(claim_a: Claim, source_a: Sourc
         "operating_carrier": "SQ",
     }
     a_ident2 = {**a_ident1, "program_id": "aeroplan"}
-    c1 = claim_a.model_copy(update={"claim_id": "c-1", "identity": a_ident1})
-    c2 = claim_a.model_copy(update={"claim_id": "c-2", "identity": a_ident2})
+    c1 = Claim(
+        **{
+            **claim_a.model_dump(),
+            "claim_id": "c-1",
+            "identity": a_ident1,
+            "kind": "award_availability",
+        }
+    )
+    c2 = Claim(
+        **{
+            **claim_a.model_dump(),
+            "claim_id": "c-2",
+            "identity": a_ident2,
+            "kind": "award_availability",
+        }
+    )
     g.add_claim(c1)
     g.add_claim(c2)
     with pytest.raises(ValueError, match="claims do not have exact same identity"):
@@ -226,8 +244,9 @@ def test_resolve_mixed_identity_kinds_reject(claim_a: Claim, source_a: Source) -
     g = EvidenceGraph()
     g.add_source(source_a)
     g.add_claim(claim_a)
-    other = claim_a.model_copy(
-        update={
+    other = Claim(
+        **{
+            **claim_a.model_dump(),
             "claim_id": "c-b",
             "identity": {
                 "kind": "reference_fact",
@@ -235,6 +254,7 @@ def test_resolve_mixed_identity_kinds_reject(claim_a: Claim, source_a: Source) -
                 "entity_id": "y",
                 "field": "z",
             },
+            "kind": "reference_fact",
         }
     )
     g.add_claim(other)
@@ -349,23 +369,25 @@ def test_lexicographically_smaller_stale_or_unverified_claim_fails(
     record = resolve(g, ["c-a", "c-b"], created_by_run="r1")
     assert record.canonical_id == "c-b"
 
+
 def test_unresolve_preserves_shared_edges(claim_a: Claim) -> None:
-    from gateway.evidence.resolution import resolve, unresolve
     from gateway.evidence.edges import EvidenceGraph
-    
+    from gateway.evidence.resolution import resolve, unresolve
+
     g = EvidenceGraph()
     claim_1 = claim_a.model_copy(update={"claim_id": "c-1"})
     claim_2 = claim_a.model_copy(update={"claim_id": "c-2"})
     claim_canon = claim_a.model_copy(update={"claim_id": "c-canon"})
-    
+
     g.add_claim(claim_1)
     g.add_claim(claim_2)
     g.add_claim(claim_canon)
-    
+
     res1 = resolve(g, ["c-1", "c-2", "c-canon"], created_by_run="r1")
     # For testing unresolve overlapping, we need to bypass the resolve guard we are adding.
     # We will manually add a second resolution overlapping.
-    from gateway.evidence.nodes import ResolutionRecord, LifecycleState
+    from gateway.evidence.nodes import LifecycleState, ResolutionRecord
+
     res2 = ResolutionRecord(
         resolution_id="res:overlap",
         members=["c-2", "c-canon"],
@@ -376,30 +398,84 @@ def test_unresolve_preserves_shared_edges(claim_a: Claim) -> None:
         confidence=1.0,
     )
     g.resolutions[res2.resolution_id] = res2
-    
+
     unresolve(g, res1.resolution_id, reversed_by_run="r2")
-    
+
     # c-2 -> canonical edge should survive for res2
-    from gateway.evidence.edges import EdgeKind, Edge
-    assert Edge(kind=EdgeKind.RESOLVED_TO, src="c-2", dst=res1.canonical_id, created_by_run="r1") in g.edges
+    from gateway.evidence.edges import Edge, EdgeKind
+
+    assert (
+        Edge(kind=EdgeKind.RESOLVED_TO, src="c-2", dst=res1.canonical_id, created_by_run="r1")
+        in g.edges
+    )
+
 
 def test_resolve_rejects_claim_in_active_resolution(claim_a: Claim) -> None:
-    from gateway.evidence.resolution import resolve, ClaimAlreadyResolved
     from gateway.evidence.edges import EvidenceGraph
-    
+    from gateway.evidence.resolution import ClaimAlreadyResolved, resolve
+
     g = EvidenceGraph()
     claim_1 = claim_a.model_copy(update={"claim_id": "c-1"})
     claim_canon1 = claim_a.model_copy(update={"claim_id": "c-canon1"})
     claim_canon2 = claim_a.model_copy(update={"claim_id": "c-canon2"})
-    
+
     g.add_claim(claim_1)
     g.add_claim(claim_canon1)
     g.add_claim(claim_canon2)
-    
+
     resolve(g, ["c-1", "c-canon1"], created_by_run="r1")
-    
+
     import pytest
+
     with pytest.raises(ClaimAlreadyResolved) as exc:
         resolve(g, ["c-1", "c-canon2"], created_by_run="r2")
     assert "c-1" in str(exc.value)
 
+
+def test_resolve_canonical_choice_prefers_freshness(claim_a: Claim, source_a: Source) -> None:
+    from gateway.evidence.nodes import FreshnessState
+
+    g = EvidenceGraph()
+    g.add_source(source_a)
+
+    # Needs_verification is False for both to isolate freshness
+    c_live = claim_a.model_copy(
+        update={"claim_id": "c-live", "status": FreshnessState.LIVE, "needs_verification": False}
+    )
+    c_stale = claim_a.model_copy(
+        update={"claim_id": "c-stale", "status": FreshnessState.STALE, "needs_verification": False}
+    )
+
+    g.add_claim(c_live)
+    g.add_claim(c_stale)
+
+    r = resolve(g, ["c-stale", "c-live"], created_by_run="r1")
+    assert r.canonical_id == "c-live"
+
+
+def test_resolve_canonical_choice_prefers_retrieved_at(claim_a: Claim, source_a: Source) -> None:
+    from datetime import datetime, timedelta
+
+    g = EvidenceGraph()
+
+    s_new = source_a.model_copy(update={"source_id": "s-new", "retrieved_at": datetime.now(UTC)})
+    s_old = source_a.model_copy(
+        update={"source_id": "s-old", "retrieved_at": datetime.now(UTC) - timedelta(days=1)}
+    )
+
+    g.add_source(s_new)
+    g.add_source(s_old)
+
+    # Everything else is equal
+    c_new = claim_a.model_copy(
+        update={"claim_id": "c-new", "source_id": "s-new", "needs_verification": False}
+    )
+    c_old = claim_a.model_copy(
+        update={"claim_id": "c-old", "source_id": "s-old", "needs_verification": False}
+    )
+
+    g.add_claim(c_new)
+    g.add_claim(c_old)
+
+    r = resolve(g, ["c-old", "c-new"], created_by_run="r1")
+    assert r.canonical_id == "c-new"

@@ -9,8 +9,13 @@ from gateway.evidence.budget import (
 
 
 def _budget(**overrides: int) -> PlanBudget:
-    base = dict(max_provider_calls=2, max_fan_out=2, max_wall_clock_s=30,
-                max_retries=1, min_evidence_for_finalization=1)
+    base = dict(
+        max_provider_calls=2,
+        max_fan_out=2,
+        max_wall_clock_s=30,
+        max_retries=1,
+        min_evidence_for_finalization=1,
+    )
     base.update(overrides)
     return PlanBudget(**base)
 
@@ -38,8 +43,7 @@ def test_cannot_finalize_below_minimum_evidence_bar() -> None:
 
 def test_partial_result_requires_a_stop_reason() -> None:
     with pytest.raises(ValueError):
-        PartialResult(best_artifact_id=None, completed=[],
-                      unresolved=["flights"], stop_reason="")
+        PartialResult(best_artifact_id=None, completed=[], unresolved=["flights"], stop_reason="")
 
 
 # --- I0 Task 1: zero-spend enforcement ------------------------------------ #

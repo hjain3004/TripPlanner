@@ -1,5 +1,4 @@
 from gateway.evidence.contradiction import (
-    CONTRADICTION_THRESHOLD_BPS,
     detect_contradictions,
 )
 from gateway.evidence.edges import EdgeKind, EvidenceGraph
@@ -11,8 +10,9 @@ def test_same_flight_similar_price_is_not_a_contradiction(claim_a: Claim, source
     g.add_source(source_a)
     g.add_claim(claim_a)  # 2_450_000
     g.add_claim(
-        claim_a.model_copy(
-            update={
+        Claim(
+            **{
+                **claim_a.model_dump(),
                 "claim_id": "c-b",
                 "payload": {**claim_a.payload, "total_minor": 2455000},  # +0.2%
             }
@@ -27,8 +27,9 @@ def test_same_flight_divergent_price_is_a_contradiction(claim_a: Claim, source_a
     g.add_source(source_a)
     g.add_claim(claim_a)  # 2_450_000
     g.add_claim(
-        claim_a.model_copy(
-            update={
+        Claim(
+            **{
+                **claim_a.model_dump(),
                 "claim_id": "c-b",
                 "payload": {**claim_a.payload, "total_minor": 2610000},  # +6.5%
             }
@@ -55,8 +56,9 @@ def test_different_flights_are_never_contradictions(claim_a: Claim, source_a: So
         }
     ]
     g.add_claim(
-        claim_a.model_copy(
-            update={
+        Claim(
+            **{
+                **claim_a.model_dump(),
                 "claim_id": "c-b",
                 "identity": ident,
                 "payload": {**claim_a.payload, "flight_number": "AI9999", "total_minor": 9999000},
@@ -68,11 +70,6 @@ def test_different_flights_are_never_contradictions(claim_a: Claim, source_a: So
     assert any("different identities" in s for s in res.skipped)
 
 
-def test_threshold_is_defined_per_kind() -> None:
-    assert ClaimKind.CASH_QUOTE in CONTRADICTION_THRESHOLD_BPS
-    assert CONTRADICTION_THRESHOLD_BPS[ClaimKind.CASH_QUOTE] > 0
-
-
 # --- New tests for Task 4 ---
 
 
@@ -81,11 +78,19 @@ def test_reversing_claim_ids_and_input_order_produces_same_result(
 ) -> None:
     g = EvidenceGraph()
     g.add_source(source_a)
-    c1 = claim_a.model_copy(
-        update={"claim_id": "c-1", "payload": {**claim_a.payload, "total_minor": 100}}
+    c1 = Claim(
+        **{
+            **claim_a.model_dump(),
+            "claim_id": "c-1",
+            "payload": {**claim_a.payload, "total_minor": 100},
+        }
     )
-    c2 = claim_a.model_copy(
-        update={"claim_id": "c-2", "payload": {**claim_a.payload, "total_minor": 150}}
+    c2 = Claim(
+        **{
+            **claim_a.model_dump(),
+            "claim_id": "c-2",
+            "payload": {**claim_a.payload, "total_minor": 150},
+        }
     )  # 50% diff
     g.add_claim(c1)
     g.add_claim(c2)
@@ -111,16 +116,18 @@ def test_award_claims_compare_points_required(claim_a: Claim, source_a: Source) 
         "cabin": "economy",
         "operating_carrier": "SQ",
     }
-    c1 = claim_a.model_copy(
-        update={
+    c1 = Claim(
+        **{
+            **claim_a.model_dump(),
             "claim_id": "c-1",
             "kind": ClaimKind.AWARD_AVAILABILITY,
             "identity": ident,
             "payload": {"points_required": 10000},
         }
     )
-    c2 = claim_a.model_copy(
-        update={
+    c2 = Claim(
+        **{
+            **claim_a.model_dump(),
             "claim_id": "c-2",
             "kind": ClaimKind.AWARD_AVAILABILITY,
             "identity": ident,
@@ -137,8 +144,25 @@ def test_award_claims_compare_points_required(claim_a: Claim, source_a: Source) 
 def test_observations_and_current_quotes_never_compare(claim_a: Claim, source_a: Source) -> None:
     g = EvidenceGraph()
     g.add_source(source_a)
-    c1 = claim_a.model_copy(update={"claim_id": "c-1", "kind": ClaimKind.CASH_QUOTE})
-    c2 = claim_a.model_copy(update={"claim_id": "c-2", "kind": ClaimKind.PRICE_OBSERVATION})
+    c1 = Claim(**{**claim_a.model_dump(), "claim_id": "c-1", "kind": ClaimKind.CASH_QUOTE})
+    c2 = Claim(
+        **{
+            **claim_a.model_dump(),
+            "claim_id": "c-2",
+            "kind": ClaimKind.PRICE_OBSERVATION,
+            "identity": {
+                "kind": "flight_price_observation",
+                "provider": "x",
+                "origin": "y",
+                "destination": "z",
+                "depart_date": "2026-10-12",
+                "return_date": None,
+                "cabin": "economy",
+                "stops": 0,
+                "observed_bucket": "2026-10-12T10:00:00Z",
+            },
+        }
+    )
     g.add_claim(c1)
     g.add_claim(c2)
 
@@ -151,9 +175,10 @@ def test_different_typed_identities_never_compare(claim_a: Claim, source_a: Sour
     g = EvidenceGraph()
     g.add_source(source_a)
     # Even if they are both cash quotes, if identity structures differ
-    c1 = claim_a.model_copy(update={"claim_id": "c-1"})
-    c2 = claim_a.model_copy(
-        update={
+    c1 = Claim(**{**claim_a.model_dump(), "claim_id": "c-1"})
+    c2 = Claim(
+        **{
+            **claim_a.model_dump(),
             "claim_id": "c-2",
             "identity": {
                 "kind": "hotel_quote",
@@ -184,9 +209,9 @@ def test_exact_threshold_does_not_contradict_one_bp_above_does(
     exact = 102_000  # exactly 2% higher than 100_000. abs(102000-100000)*10000 / 100000 = 200
     above = 102_010  # slightly above 2% (201 bps)
 
-    c1 = claim_a.model_copy(update={"claim_id": "c-1", "payload": {"total_minor": base}})
-    c2 = claim_a.model_copy(update={"claim_id": "c-2", "payload": {"total_minor": exact}})
-    c3 = claim_a.model_copy(update={"claim_id": "c-3", "payload": {"total_minor": above}})
+    c1 = Claim(**{**claim_a.model_dump(), "claim_id": "c-1", "payload": {"total_minor": base}})
+    c2 = Claim(**{**claim_a.model_dump(), "claim_id": "c-2", "payload": {"total_minor": exact}})
+    c3 = Claim(**{**claim_a.model_dump(), "claim_id": "c-3", "payload": {"total_minor": above}})
 
     g.add_claim(c1)
     g.add_claim(c2)
@@ -213,11 +238,13 @@ def test_invalid_comparison_values_skipped(claim_a: Claim, source_a: Source) -> 
 
     claims = []
     for i, payload in enumerate(invalid_payloads):
-        c = claim_a.model_copy(update={"claim_id": f"c-{i}", "payload": payload})
+        c = Claim(**{**claim_a.model_dump(), "claim_id": f"c-{i}", "payload": payload})
         g.add_claim(c)
         claims.append(f"c-{i}")
 
-    c_valid = claim_a.model_copy(update={"claim_id": "c-valid", "payload": {"total_minor": 100}})
+    c_valid = Claim(
+        **{**claim_a.model_dump(), "claim_id": "c-valid", "payload": {"total_minor": 100}}
+    )
     g.add_claim(c_valid)
     claims.append("c-valid")
 
@@ -230,8 +257,9 @@ def test_invalid_comparison_values_skipped(claim_a: Claim, source_a: Source) -> 
 def test_sandbox_and_reference_facts_unsupported(claim_a: Claim, source_a: Source) -> None:
     g = EvidenceGraph()
     g.add_source(source_a)
-    c1 = claim_a.model_copy(
-        update={
+    c1 = Claim(
+        **{
+            **claim_a.model_dump(),
             "claim_id": "c-1",
             "kind": ClaimKind.REFERENCE_FACT,
             "identity": {
@@ -242,8 +270,9 @@ def test_sandbox_and_reference_facts_unsupported(claim_a: Claim, source_a: Sourc
             },
         }
     )
-    c2 = claim_a.model_copy(
-        update={
+    c2 = Claim(
+        **{
+            **claim_a.model_dump(),
             "claim_id": "c-2",
             "kind": ClaimKind.REFERENCE_FACT,
             "identity": {
@@ -261,27 +290,24 @@ def test_sandbox_and_reference_facts_unsupported(claim_a: Claim, source_a: Sourc
     assert res.edges == []
     assert any("unsupported kind" in s for s in res.skipped)
 
+
 def test_contradiction_symmetry_with_straddling_pair(claim_a: Claim) -> None:
     from gateway.evidence.contradiction import detect_contradictions
-    
+
     # 102_010 and 100_000. Div by max gives 197 bp (no edge), div by min gives 201 bp (edge).
     # Since ids are sorted, left is c-1, right is c-2.
     # Base will be left (c-1 = 102_010). If we divide by base, it fails.
-    left = claim_a.model_copy(update={
-        "claim_id": "c-1", 
-        "payload": {"total_minor": 102_010}
-    })
-    right = claim_a.model_copy(update={
-        "claim_id": "c-2", 
-        "payload": {"total_minor": 100_000}
-    })
-    
+    left = Claim(**{**claim_a.model_dump(), "claim_id": "c-1", "payload": {"total_minor": 102_010}})
+    right = Claim(
+        **{**claim_a.model_dump(), "claim_id": "c-2", "payload": {"total_minor": 100_000}}
+    )
+
     from gateway.evidence.edges import EvidenceGraph
+
     g = EvidenceGraph()
     g.add_claim(left)
     g.add_claim(right)
-    
+
     result = detect_contradictions(g, ["c-1", "c-2"], created_by_run="r1")
     assert result.edges, "Expected CONTRADICTS edge"
     assert result.edges[0].kind == EdgeKind.CONTRADICTS
-

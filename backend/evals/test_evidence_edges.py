@@ -1,4 +1,5 @@
 """I0 Task 2: invalid and duplicate edges are unrepresentable."""
+
 import pytest
 
 from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph, InvalidEdge
@@ -16,8 +17,12 @@ def _artifact_a() -> Artifact:
 
 def _evaluation_a() -> Evaluation:
     return Evaluation(
-        evaluation_id="ev-a", subject_id="c-a", rubric_id="freshness.v1",
-        verdict="accept", reasons=[], run_id="r1",
+        evaluation_id="ev-a",
+        subject_id="c-a",
+        rubric_id="freshness.v1",
+        verdict="accept",
+        reasons=[],
+        run_id="r1",
     )
 
 
@@ -139,9 +144,13 @@ def test_supports_requires_claim_source_pointer(graph_a: EvidenceGraph) -> None:
     """SUPPORTS is structurally source -> claim, but the claim's own
     source_id must also point back at that source."""
     other_source = Source(
-        source_id="s-other", run_id="r1", provider="p", adapter_id="p",
+        source_id="s-other",
+        run_id="r1",
+        provider="p",
+        adapter_id="p",
         retrieved_at="2026-10-12T10:00:00Z",
-        source_url="https://example.test/other", terms_ref=None,
+        source_url="https://example.test/other",
+        terms_ref=None,
     )
     graph_a.add_source(other_source)
     with pytest.raises(InvalidEdge) as exc:

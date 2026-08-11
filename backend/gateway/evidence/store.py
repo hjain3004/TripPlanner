@@ -187,7 +187,7 @@ class SqliteEvidenceStore:
             touched_runs.add(edge.created_by_run)
 
         for source in graph.sources.values():
-            if hasattr(source, "run_id") and source.run_id:
+            if source.run_id:
                 touched_runs.add(source.run_id)
 
         for run in graph.runs.values():
@@ -223,14 +223,17 @@ class SqliteEvidenceStore:
                         (evaluation.evaluation_id, evaluation.run_id, evaluation.model_dump_json()),
                     )
 
-
-                sync_runs = touched_runs if graph.authoritative_runs is None else graph.authoritative_runs
+                sync_runs = (
+                    touched_runs if graph.authoritative_runs is None else graph.authoritative_runs
+                )
                 if sync_runs:
                     run_list = ",".join("?" for _ in sync_runs)
                     params = tuple(sync_runs)
 
                     conn.execute(f"DELETE FROM edges WHERE created_by_run IN ({run_list})", params)
-                    conn.execute(f"DELETE FROM resolutions WHERE created_by_run IN ({run_list})", params)
+                    conn.execute(
+                        f"DELETE FROM resolutions WHERE created_by_run IN ({run_list})", params
+                    )
 
                 for edge in graph.edges:
                     if edge.created_by_run in touched_runs:
@@ -243,7 +246,8 @@ class SqliteEvidenceStore:
                 for res in graph.resolutions.values():
                     if res.created_by_run in touched_runs:
                         conn.execute(
-                            "INSERT OR REPLACE INTO resolutions (id, created_by_run, body) VALUES (?,?,?)",
+                            "INSERT OR REPLACE INTO resolutions "
+                            "(id, created_by_run, body) VALUES (?,?,?)",
                             (res.resolution_id, res.created_by_run, res.model_dump_json()),
                         )
                 conn.commit()
@@ -303,6 +307,7 @@ class SqliteEvidenceStore:
             def load_bodies(table: str, id_set: set[str]) -> None:
                 missing = id_set - set(bodies[table].keys())
                 if missing:
+                    # TODO: SQLite SQLITE_MAX_VARIABLE_NUMBER ceiling applies here.
                     q = ",".join("?" for _ in missing)
                     cur.execute(f"SELECT id, body FROM {table} WHERE id IN ({q})", tuple(missing))
                     for rid, body in cur.fetchall():
@@ -313,8 +318,6 @@ class SqliteEvidenceStore:
 
                 for table, id_set in nodes.items():
                     load_bodies(table, id_set)
-
-                import json
 
                 unknown_ids = set()
 
@@ -393,6 +396,7 @@ class SqliteEvidenceStore:
                         required_edge_dsts.add(res_id)
 
                 if required_edge_srcs:
+                    # TODO: SQLite SQLITE_MAX_VARIABLE_NUMBER ceiling applies here.
                     q = ",".join("?" for _ in required_edge_srcs)
                     cur.execute(
                         f"SELECT kind, src, dst, created_by_run FROM edges WHERE src IN ({q})",
@@ -402,6 +406,7 @@ class SqliteEvidenceStore:
                         if row not in loaded_edges and row[2] in required_edge_dsts:
                             loaded_edges.append(row)
                 if required_edge_dsts:
+                    # TODO: SQLite SQLITE_MAX_VARIABLE_NUMBER ceiling applies here.
                     q = ",".join("?" for _ in required_edge_dsts)
                     cur.execute(
                         f"SELECT kind, src, dst, created_by_run FROM edges WHERE dst IN ({q})",
@@ -420,7 +425,7 @@ class SqliteEvidenceStore:
                 for table in ["sources", "claims", "artifacts", "evaluations", "resolutions"]:
                     known_ids.update(nodes[table])
                     known_ids.update(bodies[table].keys())
-                
+
                 unknown_ids -= known_ids
                 if unknown_ids:
                     for table in ["sources", "claims", "artifacts", "evaluations", "resolutions"]:

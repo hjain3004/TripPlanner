@@ -178,5 +178,28 @@ def test_claim_expires_at_must_be_timezone_aware() -> None:
             expires_at="2026-10-12T10:20:00",  # naive — no offset
         )
 
+
 def test_contradicts_field_removed() -> None:
     assert "contradicts" not in Claim.model_fields
+
+
+def test_claim_kind_identity_cross_validation(claim_a: Claim) -> None:
+    import pytest
+    from pydantic import ValidationError
+
+    from gateway.evidence.identity import AwardQuoteIdentity
+    from gateway.evidence.nodes import ClaimKind
+
+    award_identity = AwardQuoteIdentity(
+        kind="award_quote",
+        program_id="sky_miles",
+        origin="SIN",
+        destination="JFK",
+        depart_date="2026-10-15",
+        return_date=None,
+        cabin="Y",
+        operating_carrier="DL",
+    )
+
+    with pytest.raises(ValidationError, match="CASH_QUOTE must carry a quote identity"):
+        Claim(**{**claim_a.model_dump(), "identity": award_identity, "kind": ClaimKind.CASH_QUOTE})
