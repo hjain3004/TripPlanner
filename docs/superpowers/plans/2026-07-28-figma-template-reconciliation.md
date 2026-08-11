@@ -1,13 +1,13 @@
 # Figma template reconciliation — fixing the PR #4 integration
 
 **Date:** 2026-07-28
-**Status:** PLANNED — not started. Frontend development is **paused**; this plan waits.
-**Owner decision:** The Figma Make design is now the **visual template for the frontend**. Keep it. Do not revert it. Fix the integration around it.
-**Blocking:** Nothing. This plan may be picked up at any time. Backend work (specs 17/18, Gates A1/A2) takes priority and is independent of it.
+**Status:** **SUPERSEDED — DO NOT EXECUTE.** Historical context only.
+**Superseded by:** `docs/superpowers/specs/2026-08-11-japan-philatelic-figma-reconciliation-design.md`. The replacement starts from the current frontend, preserves the 2026-08-09 Japan foundation, selectively reconciles the Figma compositions, and incorporates the approved Atlas philatelic layer. This file contains stale implementation state and Singapore/Bodoni-era assumptions.
+**Historical owner decision:** The Figma Make design was adopted as a composition reference. The replacement document above now governs what is retained and how it is reconciled.
+**Blocking:** Not applicable. Do not assign or implement tasks from this file.
 
-Read this whole file before touching the frontend. It is written to be self-sufficient
-from a cold start — you should not need to re-read the F1–F4 handoff prompts, re-run the
-design probes, or re-derive any visual direction.
+Stop here and follow the superseding document. The remainder is retained only to explain
+the July 2026 integration history.
 
 ---
 
