@@ -4,8 +4,6 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from core.db import KnowledgeBase
 from core.models import (
     AwardChartEntry,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import statistics
 import time
-from typing import Iterable
+from collections.abc import Iterable
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +11,6 @@ from agents.retrieval import retrieve_candidates
 from core.db import KnowledgeBase
 from evals.itinerary_fixtures import (
     AnchorItinerary,
-    GoldenItineraryCase,
     load_anchor_itineraries,
     load_golden_itineraries,
 )
@@ -169,7 +168,9 @@ def _anchor_result(
     return AnchorValidationResult(ranked_anchors=ranked, passed=not failures, failures=failures)
 
 
-def _gate(anchor_result: AnchorValidationResult, aggregates: list[ItineraryAggregate]) -> GateStatus:
+def _gate(
+    anchor_result: AnchorValidationResult, aggregates: list[ItineraryAggregate]
+) -> GateStatus:
     failures = list(anchor_result.failures)
     for aggregate in aggregates:
         if aggregate.overall_mean < 4.0:

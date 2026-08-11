@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from agents.models import DraftItinerary, ItineraryDay, ItineraryItem, RetrievalContext, TripSpec
-from core.models import Area, POI, Channel, Provenance, UserWallet
+from core.models import POI, Area, Channel, Provenance, UserWallet
 from evals.judge import (
     HostedJudgeClient,
     JudgeCallError,
@@ -16,7 +16,6 @@ from evals.judge import (
     build_judge_prompt,
     complete_judge_with_repair,
 )
-
 
 PROV = Provenance(
     source_type="manual_curation",

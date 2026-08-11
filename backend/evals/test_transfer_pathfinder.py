@@ -5,6 +5,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from core.db import KnowledgeBase, load_kb, seed_database
 from core.models import (
     AwardChartEntry,
     AwardTarget,
@@ -15,7 +16,6 @@ from core.models import (
     TransferEdge,
     UserWallet,
 )
-from core.db import KnowledgeBase, load_kb, seed_database
 from core.transfer import find_transfer_plans
 from core.transfer.arithmetic import (
     destination_units,
@@ -113,12 +113,8 @@ def test_transfer_kb_queries_are_filtered_and_sorted() -> None:
         award_chart_entries=[award],
     )
     assert [edge.id for edge in kb.edges_from(["voyager"])] == ["a", "b"]
-    assert [row.id for row in kb.bonuses_active(["a"], date(2026, 7, 24))] == [
-        "bonus"
-    ]
-    assert [
-        row.id for row in kb.award_entries("del", "sin", "business", "round_trip")
-    ] == ["award"]
+    assert [row.id for row in kb.bonuses_active(["a"], date(2026, 7, 24))] == ["bonus"]
+    assert [row.id for row in kb.award_entries("del", "sin", "business", "round_trip")] == ["award"]
 
 
 def test_transfer_math_floors_forward_and_rounds_source_up() -> None:
@@ -318,10 +314,7 @@ def test_transfer_demo_fixture_matches_canonical_values() -> None:
     assert plan.points_consumed == expect["points_consumed"]
     assert plan.total_fees_minor == expect["total_fees_minor"]
     assert plan.value_per_point_micro == expect["value_per_point_micro"]
-    assert (
-        plan.effective_redemption_cost_minor
-        == expect["effective_redemption_cost_minor"]
-    )
+    assert plan.effective_redemption_cost_minor == expect["effective_redemption_cost_minor"]
     assert plan.savings_vs_cash_minor == expect["savings_vs_cash_minor"]
     sky = next(row for row in advice.infeasible if row.award_id == "sky-award")
     assert sky.shortfall_points == expect["sky_shortfall_points"]
