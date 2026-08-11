@@ -1,0 +1,18 @@
+[
+    {
+        "id": "sample_sg_1",
+        "name": "Sample Attraction Singapore",
+        "category": "attraction",
+        "coordinates": {"lat": 1.281, "lon": 103.863},
+        "opening_hours": "09:00-21:00",
+        "area_id": "sg_marina"
+    },
+    {
+        "id": "sample_sg_2",
+        "name": "Sample Cafe",
+        "category": "food",
+        "coordinates": {"lat": 1.282, "lon": 103.864},
+        "opening_hours": "08:00-20:00",
+        "area_id": "sg_marina"
+    }
+]
