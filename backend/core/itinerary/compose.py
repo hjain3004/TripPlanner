@@ -12,11 +12,12 @@ from __future__ import annotations
 
 import math
 from datetime import date, timedelta
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from agents.models import DraftItinerary, ItineraryDay, ItineraryItem, RetrievalContext, TripSpec
-from core.models import POI, TimezoneAwareHours
+from core.models import POI
+from core.trip_models import DraftItinerary, ItineraryDay, ItineraryItem, RetrievalContext, TripSpec
 
 PACE_ITEMS = {"relaxed": 1, "moderate": 2, "packed": 3}
 
@@ -55,11 +56,9 @@ class ComposerResult(BaseModel):
 # --------------------------------------------------------------------------- #
 
 
-from typing import Literal
-
 def check_poi_hours(poi: POI, visit_date: date) -> Literal["open", "closed", "unknown"]:
     """Check whether a POI is open on a given date.
-    
+
     Returns 'open', 'closed', or 'unknown' (if weekday hours are missing).
     """
     hours = poi.open_hours
@@ -70,12 +69,11 @@ def check_poi_hours(poi: POI, visit_date: date) -> Literal["open", "closed", "un
     weekday = visit_date.weekday()
     if weekday not in hours.regular_hours:
         return "unknown"
-        
+
     intervals = hours.regular_hours[weekday]
     if not intervals:
         return "closed"
     return "open"
-
 
 
 # --------------------------------------------------------------------------- #
@@ -177,7 +175,7 @@ def compose_itinerary(spec: TripSpec, retrieval: RetrievalContext) -> ComposerRe
         hotel_area_id = "unknown"
 
     # --- Build POI lookup ---
-    poi_by_id = {poi.id: poi for poi in retrieval.pois}
+    {poi.id: poi for poi in retrieval.pois}
 
     # --- Sort POIs: prefer hotel area, then alphabetical by area, then id ---
     pois = sorted(retrieval.pois, key=lambda poi: (poi.area != hotel_area_id, poi.area, poi.id))
@@ -219,7 +217,7 @@ def compose_itinerary(spec: TripSpec, retrieval: RetrievalContext) -> ComposerRe
                         kind="unknown_hours",
                         poi_id=candidate.id,
                         day_date=visit_date,
-                        message=f"Hours for {candidate.name} on {visit_date.isoformat()} are unknown. Verify before visiting."
+                        message=f"Hours for {candidate.name} on {visit_date.isoformat()} are unknown. Verify before visiting.",
                     )
                 )
 
@@ -258,7 +256,10 @@ def compose_itinerary(spec: TripSpec, retrieval: RetrievalContext) -> ComposerRe
         excluded_items=excluded,
     )
 
-def build_final_schedule(draft: DraftItinerary, spec: TripSpec, retrieval: RetrievalContext) -> ComposerResult:
+
+def build_final_schedule(
+    draft: DraftItinerary, spec: TripSpec, retrieval: RetrievalContext
+) -> ComposerResult:
     """Assigns times and validates an LLM-proposed itinerary."""
     warnings: list[ScheduleWarning] = []
     poi_by_id = {poi.id: poi for poi in retrieval.pois}
@@ -267,7 +268,7 @@ def build_final_schedule(draft: DraftItinerary, spec: TripSpec, retrieval: Retri
     for day in draft.days:
         current_time_min = 9 * 60  # Start at 09:00 AM
         day_pois: list[POI] = []
-        
+
         for i, item in enumerate(day.items):
             poi = poi_by_id.get(item.poi_id)
             if not poi:
@@ -277,19 +278,23 @@ def build_final_schedule(draft: DraftItinerary, spec: TripSpec, retrieval: Retri
 
             status = check_poi_hours(poi, day.date)
             if status == "closed":
-                warnings.append(ScheduleWarning(
-                    kind="closed_day",
-                    poi_id=poi.id,
-                    day_date=day.date,
-                    message=f"{poi.name} is scheduled on {day.date.isoformat()} but is explicitly closed."
-                ))
+                warnings.append(
+                    ScheduleWarning(
+                        kind="closed_day",
+                        poi_id=poi.id,
+                        day_date=day.date,
+                        message=f"{poi.name} is scheduled on {day.date.isoformat()} but is explicitly closed.",
+                    )
+                )
             elif status == "unknown":
-                warnings.append(ScheduleWarning(
-                    kind="unknown_hours",
-                    poi_id=poi.id,
-                    day_date=day.date,
-                    message=f"Hours for {poi.name} on {day.date.isoformat()} are unknown. Verify before visiting."
-                ))
+                warnings.append(
+                    ScheduleWarning(
+                        kind="unknown_hours",
+                        poi_id=poi.id,
+                        day_date=day.date,
+                        message=f"Hours for {poi.name} on {day.date.isoformat()} are unknown. Verify before visiting.",
+                    )
+                )
 
             if item.start_hint:
                 try:
@@ -298,12 +303,14 @@ def build_final_schedule(draft: DraftItinerary, spec: TripSpec, retrieval: Retri
                         h, m = int(parts[0]), int(parts[1][:2])
                         hint_min = h * 60 + m
                         if hint_min < current_time_min:
-                            warnings.append(ScheduleWarning(
-                                kind="overlap",
-                                poi_id=poi.id,
-                                day_date=day.date,
-                                message=f"Item {poi.id} start time {item.start_hint} overlaps with previous items."
-                            ))
+                            warnings.append(
+                                ScheduleWarning(
+                                    kind="overlap",
+                                    poi_id=poi.id,
+                                    day_date=day.date,
+                                    message=f"Item {poi.id} start time {item.start_hint} overlaps with previous items.",
+                                )
+                            )
                             # Do not adopt a hint that overlaps the previous item —
                             # keep the cursor moving forward from where it already is.
                         else:
@@ -321,12 +328,14 @@ def build_final_schedule(draft: DraftItinerary, spec: TripSpec, retrieval: Retri
             item.end_time = f"{end_h:02d}:{end_m:02d}"
 
             current_time_min = end_time_min
-            
+
             # Add travel time to next POI if there is one
             if i < len(day.items) - 1:
-                next_poi = poi_by_id.get(day.items[i+1].poi_id)
+                next_poi = poi_by_id.get(day.items[i + 1].poi_id)
                 if next_poi:
-                    current_time_min += estimate_travel_min(poi.lat, poi.lon, next_poi.lat, next_poi.lon)
+                    current_time_min += estimate_travel_min(
+                        poi.lat, poi.lon, next_poi.lat, next_poi.lon
+                    )
 
         if len(day_pois) > 1:
             travel_warnings = validate_day_travel_budget(day_pois, travel_budget)
