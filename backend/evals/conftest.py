@@ -197,3 +197,33 @@ def claims_one_missing_licence(claims: list[PlaceClaim]) -> list[PlaceClaim]:
     c2 = claims.copy()
     c2[0] = _cq("pl_1", "category", "park", lic="")
     return c2
+
+@pytest.fixture
+def active_catalog(tmp_path: Path) -> Path:
+    from gateway.catalog.build import build_catalog
+    from gateway.catalog.activate import activate
+    from pathlib import Path
+    
+    manifest_yaml = """
+catalog_id: sg_test
+catalog_release: "2026-08-01"
+sources:
+  - source_id: overture_sg
+    source_url: "http://x"
+    licence_id: "L"
+    source_release: "1"
+    checksum: "3b18c8bfa27eeb355f2f3bf7568833352c719338fa8faa213f1428cfa0fa2975"
+    max_bytes: 100
+    geographic_scope: "SG"
+    allowed_purpose: "non-commercial"
+    attribution_text: "Overture"
+"""
+    m = tmp_path / "manifest.yaml"
+    m.write_text(manifest_yaml)
+    
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    (raw / "overture_sg_1.zip").write_bytes(b'{"id":"a"}\n')
+    
+    artifact = build_catalog(m, raw, tmp_path / "work")
+    return activate(artifact, tmp_path / "catalogs")
