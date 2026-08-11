@@ -11,7 +11,7 @@ export type DestinationStampProps = {
 };
 
 const SIZE_CLASS = {
-  thumbnail: "w-[150px] sm:w-[170px]",
+  thumbnail: "w-[118px] sm:w-[132px]",
   feature: "w-[min(58vw,260px)]",
 } as const;
 
@@ -60,10 +60,8 @@ export function DestinationStamp({
         <div
           aria-hidden="true"
           data-testid="destination-stamp-postmark"
-          className="absolute -right-3 bottom-4 grid aspect-square w-[30%] min-w-12 place-items-center rounded-full border-2 border-border bg-transparent text-center font-mono text-[8px] font-medium uppercase tracking-[0.12em] text-text opacity-80"
-        >
-          <span className="block leading-[1.05]">Atlas</span>
-        </div>
+          className="absolute -right-2 bottom-5 aspect-square w-[24%] min-w-10 rounded-full border border-border bg-transparent opacity-35"
+        />
       </div>
     </figure>
   );

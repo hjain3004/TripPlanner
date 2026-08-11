@@ -4,6 +4,8 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { NotchLabel } from "@/components/product/notch-label";
 import { MonumentIllustration } from '@/components/product/Illustrations';
+import { DestinationStamp } from '@/components/product/destination-stamp';
+import { JAPAN_ATLAS_STAMP } from '@/lib/design/philatelic-assets';
 
 const DESTINATIONS = [
   {
@@ -37,7 +39,7 @@ export const ExploreView = () => (
     </header>
 
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-      {DESTINATIONS.map((destination) => (
+      {DESTINATIONS.map((destination, index) => (
         <article key={destination.title} className="border-2 border-border rounded-none bg-bg overflow-hidden shadow-1">
           <div className="relative overflow-hidden">
             <MonumentIllustration type={destination.type} />
@@ -49,6 +51,19 @@ export const ExploreView = () => (
             </p>
             <h3 className="font-ui font-semibold text-2xl mb-2">{destination.title}</h3>
             <p className="text-sm text-text-muted leading-relaxed">{destination.description}</p>
+            {index === 0 ? (
+              <div className="mt-5 grid grid-cols-[1fr_auto] items-end gap-4 border-t-2 border-border pt-4">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                    Japan artifact
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-text-muted">
+                    Decorative destination identity only. It does not imply verified availability.
+                  </p>
+                </div>
+                <DestinationStamp asset={JAPAN_ATLAS_STAMP} size="thumbnail" decorative />
+              </div>
+            ) : null}
           </div>
         </article>
       ))}

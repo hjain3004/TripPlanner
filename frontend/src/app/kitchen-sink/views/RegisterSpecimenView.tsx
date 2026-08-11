@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { ResultsView } from '@/components/product/results-view';
 import { japanVisualFixture } from '@/mocks/japan-visual-fixture';
 import { resolveTheme } from '@/lib/theme/resolver';
+import { JAPAN_ATLAS_STAMP } from '@/lib/design/philatelic-assets';
 
 export function RegisterSpecimenView() {
   const resolved = resolveTheme(japanVisualFixture.primaryCountryCode);
@@ -26,7 +27,15 @@ export function RegisterSpecimenView() {
         </p>
       </div>
 
-      <ResultsView report={japanVisualFixture.report} />
+      <ResultsView
+        report={japanVisualFixture.report}
+        destinationArtifact={{
+          asset: JAPAN_ATLAS_STAMP,
+          routeLabel: `${japanVisualFixture.report.trip_spec.origin_city} → ${japanVisualFixture.report.trip_spec.destination_city}`,
+          dateLabel: japanVisualFixture.report.trip_spec.start_date,
+          issued: true,
+        }}
+      />
     </motion.div>
   );
 }

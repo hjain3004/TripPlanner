@@ -11,6 +11,8 @@ import { TransferPlanPanel } from "@/components/product/transfer-plan-panel";
 import { BookingChecklist } from "@/components/product/booking-checklist";
 import { TrustChip } from "@/components/product/trust-chip";
 import { AssumptionsFooter } from "@/components/product/assumptions-footer";
+import { DestinationStamp } from "@/components/product/destination-stamp";
+import type { ApprovedPhilatelicAsset } from "@/lib/design/philatelic-assets";
 
 const GsapEntrance = dynamic(
   () => import("@/components/product/gsap-entrance").then((m) => ({ default: m.GsapEntrance })),
@@ -20,9 +22,15 @@ const GsapEntrance = dynamic(
 type ResultsViewProps = {
   report: FinalReport;
   onRetry?: () => void;
+  destinationArtifact?: {
+    asset: ApprovedPhilatelicAsset;
+    routeLabel: string;
+    dateLabel: string;
+    issued?: boolean;
+  };
 };
 
-export function ResultsView({ report, onRetry }: ResultsViewProps) {
+export function ResultsView({ report, onRetry, destinationArtifact }: ResultsViewProps) {
   const bt = report.budget_totals;
   const destination = report.trip_spec?.destination_city ?? "destination";
   const numDays = report.itinerary?.days?.length ?? 0;
@@ -31,12 +39,34 @@ export function ResultsView({ report, onRetry }: ResultsViewProps) {
     <div className="min-h-screen bg-bg font-ui text-text" data-testid="results-view">
       <div className="mx-auto max-w-2xl px-6 py-12 space-y-8">
 
-        <VerdictHeader
-          totals={bt}
-          destination={destination}
-          days={numDays}
-          confidence={report.confidence}
-        />
+        {destinationArtifact ? (
+          <section className="grid items-center gap-8 border-2 border-border bg-surface p-5 shadow-1 md:grid-cols-[1fr_auto]">
+            <div className="min-w-0">
+              <VerdictHeader
+                totals={bt}
+                destination={destination}
+                days={numDays}
+                confidence={report.confidence}
+              />
+            </div>
+            <div className="justify-self-center md:justify-self-end">
+              <DestinationStamp
+                asset={destinationArtifact.asset}
+                size="feature"
+                routeLabel={destinationArtifact.routeLabel}
+                dateLabel={destinationArtifact.dateLabel}
+                issued={destinationArtifact.issued}
+              />
+            </div>
+          </section>
+        ) : (
+          <VerdictHeader
+            totals={bt}
+            destination={destination}
+            days={numDays}
+            confidence={report.confidence}
+          />
+        )}
 
         {report.summary && (
           <p className="text-sm text-text-muted text-center -mt-4">{report.summary}</p>
