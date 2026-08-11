@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class ExternalId(BaseModel):
@@ -26,9 +26,7 @@ class PlaceIdentityData(BaseModel):
 
 
 def resolve_place_identity(
-    place1: PlaceIdentityData,
-    place2: PlaceIdentityData,
-    distance_m: float
+    place1: PlaceIdentityData, place2: PlaceIdentityData, distance_m: float
 ) -> Literal["merge", "separate", "ambiguous"]:
     """
     Resolve identity between two places.

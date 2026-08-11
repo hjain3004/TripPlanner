@@ -36,6 +36,7 @@ class ClaimKind(StrEnum):
     SANDBOX_FIXTURE = "sandbox_fixture"
     AWARD_AVAILABILITY = "award_availability"
     REFERENCE_FACT = "reference_fact"
+    PLACE_CLAIM = "place_claim"
 
 
 class FreshnessState(StrEnum):
@@ -102,6 +103,9 @@ class Claim(BaseModel):
         elif self.kind == ClaimKind.REFERENCE_FACT:
             if self.identity.kind != "reference_fact":
                 raise ValueError("REFERENCE_FACT must carry a reference identity")
+        elif self.kind == ClaimKind.PLACE_CLAIM:
+            if self.identity.kind != "place_claim":
+                raise ValueError("PLACE_CLAIM must carry a place identity")
         return self
 
 

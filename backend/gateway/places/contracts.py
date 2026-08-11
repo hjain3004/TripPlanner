@@ -52,6 +52,4 @@ def validate_adapter_response(request: PlaceSearchRequest, candidate: PlaceCandi
 
     for cat in category_claims:
         if cat not in request.category_filters:
-            raise ValueError(
-                f"Adapter broadened scope: category {cat} not in request filters {request.category_filters}"
-            )
+            raise ValueError(f"Adapter broadened scope: category {cat} not in request filters ")

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -73,7 +71,7 @@ def test_ambiguous_match_is_retained_as_ambiguous() -> None:
 
 
 def test_claim_class_carries_full_provenance() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     claim = PlaceClaim(
         place_id="p1",
         field="coordinates",
@@ -91,7 +89,7 @@ def test_claim_class_carries_full_provenance() -> None:
 
 
 def test_claim_with_missing_licence_id_is_rejected() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with pytest.raises(ValidationError):
         PlaceClaim(
             place_id="p1",
@@ -117,7 +115,7 @@ def test_search_request_max_results_ceiling() -> None:
 
 
 def test_place_candidate_roundtrips_through_json() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     claim = PlaceClaim(
         place_id="p1",
         field="category",
@@ -159,7 +157,7 @@ def test_adapter_broadening_scope_is_rejected() -> None:
     req = PlaceSearchRequest(
         destination_area_id="a1", category_filters=["museum", "park"], max_results=10
     )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     claim = PlaceClaim(
         place_id="p1",
         field="category",
