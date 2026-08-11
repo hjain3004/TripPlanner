@@ -80,9 +80,17 @@ class SqliteEvidenceStore:
             row = cur.fetchone()
             version = row[0] if row else 0
 
-            if version == 0:
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='edges'")
+            has_edges = cur.fetchone() is not None
+            is_v1 = False
+            if has_edges:
+                cur.execute("PRAGMA table_info(edges)")
+                columns = {r[1] for r in cur.fetchall()}
+                is_v1 = "run_id" in columns and "created_by_run" not in columns
+
+            if not has_edges and version == 0:
                 conn.executescript(_SCHEMA_V2)
-            elif version == 1:
+            elif is_v1 or version == 1:
                 self._migrate_v1_to_v2(conn)
             elif version > 2:
                 raise EvidenceStoreError(f"unsupported schema version {version}")

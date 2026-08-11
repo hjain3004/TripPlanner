@@ -344,7 +344,6 @@ def test_v1_store_migrates_without_losing_sources_claims_or_edges(
     """
     with sqlite3.connect(db_path) as conn:
         conn.executescript(_SCHEMA_V1)
-        conn.execute("PRAGMA user_version = 1")
 
         conn.execute(
             "INSERT INTO sources VALUES (?,?,?)",
