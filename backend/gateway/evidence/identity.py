@@ -53,6 +53,12 @@ class AwardQuoteIdentity(BaseModel):
     operating_carrier: str
 
 
+class PlaceClaimIdentity(BaseModel):
+    kind: Literal["place_claim"]
+    place_id: str
+    field: str
+
+
 class ReferenceFactIdentity(BaseModel):
     kind: Literal["reference_fact"]
     namespace: str
@@ -65,6 +71,7 @@ EvidenceIdentity = Annotated[
     | FlightObservationIdentity
     | HotelQuoteIdentity
     | AwardQuoteIdentity
-    | ReferenceFactIdentity,
+    | ReferenceFactIdentity
+    | PlaceClaimIdentity,
     Field(discriminator="kind"),
 ]
