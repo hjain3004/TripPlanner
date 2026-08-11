@@ -12,8 +12,7 @@ from agents.models import (
     TripSpec,
 )
 
-PACE_ITEMS = {"relaxed": 1, "moderate": 2, "packed": 3}
-
+from core.itinerary.compose import fallback_itinerary
 
 class PlannerValidationError(ValueError):
     pass
@@ -39,38 +38,7 @@ def validate_itinerary(
                 raise PlannerValidationError(f"unknown poi: {item.poi_id}")
 
 
-def fallback_itinerary(spec: TripSpec, retrieval: RetrievalContext) -> DraftItinerary:
-    if retrieval.areas:
-        ranked_areas = sorted(
-            retrieval.areas,
-            key=lambda area: (
-                -len(set(spec.interests).intersection(set(area.good_for_tags))),
-                -area.centrality_score,
-                area.id,
-            ),
-        )
-        hotel_area_id = ranked_areas[0].id
-    else:
-        hotel_area_id = "unknown"
 
-    pois = sorted(retrieval.pois, key=lambda poi: (poi.area != hotel_area_id, poi.area, poi.id))
-    per_day = PACE_ITEMS[spec.pace]
-    cursor = 0
-    days: list[ItineraryDay] = []
-    for offset in range(spec.nights):
-        items: list[ItineraryItem] = []
-        for _ in range(per_day):
-            if cursor >= len(pois):
-                break
-            items.append(ItineraryItem(poi_id=pois[cursor].id))
-            cursor += 1
-        days.append(ItineraryDay(date=spec.start_date + timedelta(days=offset), items=items))
-    return DraftItinerary(
-        hotel_area_id=hotel_area_id,
-        days=days,
-        notes=["Deterministic fallback itinerary from curated POIs."],
-        itinerary_quality="fallback",
-    )
 
 
 def _call_planner(
