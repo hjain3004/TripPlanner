@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 
 class PlaceGatewayError(Exception):
@@ -90,7 +90,6 @@ class ProviderRegistry(BaseModel):
             manifests.append(
                 SourceLicenceManifest(
                     provider_id=entry.provider_id,
-                    capabilities=entry.capabilities,
                     licences=["synthetic" if entry.provider_id == "sample_adapter" else "unknown"],
                 )
             )
@@ -99,8 +98,17 @@ class ProviderRegistry(BaseModel):
 
 class SourceLicenceManifest(BaseModel):
     provider_id: str
-    capabilities: AdapterCapabilities
-    licences: list[str]
+    domains: list[str] = Field(default_factory=list)
+    licences: list[str] = Field(default_factory=list)
+    # Spec 11: the manifest records these for every activated catalog input.
+    source_url: str | None = None
+    licence_id: str | None = None
+    source_release: str | None = None
+    checksum: str | None = None
+    retrieved_at: AwareDatetime | None = None
+    geographic_scope: str | None = None
+    allowed_purpose: str | None = None
+    attribution_text: str | None = None
 
 
 def get_default_place_registry() -> ProviderRegistry:

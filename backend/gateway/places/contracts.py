@@ -5,9 +5,33 @@ from typing import Any, Literal
 from pydantic import AwareDatetime, BaseModel, Field
 
 
+IdentifierNamespace = Literal["overture", "osm", "wikidata", "tomtom", "internal"]
+
+
+class ExternalId(BaseModel):
+    namespace: IdentifierNamespace
+    value: str = Field(min_length=1)
+
+
+class Place(BaseModel):
+    """An entity assembled from claims. Deliberately has no `name` field: spec 5.1
+    forbids names as primary keys. The display name is a claim like any other."""
+
+    place_id: str = Field(min_length=1)
+    external_ids: list[ExternalId] = Field(default_factory=list)
+
+
 class PlaceClaim(BaseModel):
-    place_id: str
-    field: Literal["coordinates", "category", "description", "opening_hours", "admission"]
+    place_id: str = Field(min_length=1)
+    field: Literal[
+        "coordinates",
+        "category",
+        "name",
+        "description",
+        "opening_hours",
+        "accessibility",
+        "admission",
+    ]
     value: Any
 
     source_id: str

@@ -26,13 +26,16 @@ dev = [
 
 [tool.setuptools]
 # Flat-layout packages that live directly under backend/ (gate commands run from backend/).
-packages = ["core", "core.optimizer", "core.transfer", "agents", "api", "evals",
-            "gateway", "gateway.evidence"]
+packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "agents", "api", "evals",
+            "gateway", "gateway.evidence", "gateway.places", "gateway.places.adapters",
+            "gateway.catalog"]
 
 [tool.setuptools.package-data]
 "core" = ["seeds/*.yaml"]
 "agents" = ["config.yaml"]
 "evals" = ["golden/*.yaml", "golden/*.txt"]
+"gateway.places" = ["fixtures/*.json"]
+"gateway.catalog" = ["fixtures/*.json", "fixtures/*.yaml", "fixtures/hostile/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["evals"]
