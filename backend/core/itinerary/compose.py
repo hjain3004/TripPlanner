@@ -291,6 +291,23 @@ def build_final_schedule(draft: DraftItinerary, spec: TripSpec, retrieval: Retri
                     message=f"Hours for {poi.name} on {day.date.isoformat()} are unknown. Verify before visiting."
                 ))
 
+            if item.start_hint:
+                try:
+                    parts = item.start_hint.split(":")
+                    if len(parts) >= 2:
+                        h, m = int(parts[0]), int(parts[1][:2])
+                        hint_min = h * 60 + m
+                        if hint_min < current_time_min:
+                            warnings.append(ScheduleWarning(
+                                kind="overlap",
+                                poi_id=poi.id,
+                                day_date=day.date,
+                                message=f"Item {poi.id} start time {item.start_hint} overlaps with previous items."
+                            ))
+                        current_time_min = hint_min
+                except ValueError:
+                    pass
+
             start_h = current_time_min // 60
             start_m = current_time_min % 60
             item.start_time = f"{start_h:02d}:{start_m:02d}"

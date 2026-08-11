@@ -77,6 +77,8 @@ def run_planner(
         try:
             validate_itinerary(itinerary, spec, retrieval)
             result = build_final_schedule(itinerary, spec, retrieval)
+            if any(w.kind == "overlap" for w in result.warnings):
+                raise PlannerValidationError("Overlapping schedule items detected.")
             return PlannerResult(
                 itinerary=result.itinerary, 
                 caveats=[w.message for w in result.warnings]
@@ -86,6 +88,7 @@ def run_planner(
             repaired = _call_planner(llm, system=system, user=repair_user)
             validate_itinerary(repaired, spec, retrieval)
             result = build_final_schedule(repaired, spec, retrieval)
+            # If the repair still overlaps, we just return the caveats. The LLM tried.
             return PlannerResult(
                 itinerary=result.itinerary, 
                 repair_attempted=True,

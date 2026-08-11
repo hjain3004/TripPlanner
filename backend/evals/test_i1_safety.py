@@ -303,3 +303,76 @@ def test_compose_determinism() -> None:
 
     assert r1.itinerary.model_dump_json() == r2.itinerary.model_dump_json()
     assert len(r1.warnings) == len(r2.warnings)
+
+# N1/N3/N4 Tests
+from agents.models import ItineraryDay, ItineraryItem, DraftItinerary
+from core.itinerary.compose import build_final_schedule
+
+def test_build_final_schedule_overlap_rejection():
+    """A schedule with two overlapping items emits a warning."""
+    poi1 = _poi("poi1")
+    poi1.typical_duration_min = 120
+    poi2 = _poi("poi2")
+    spec = _spec()
+    ctx = _retrieval([poi1, poi2])
+    
+    # LLM proposes an overlapping schedule
+    draft = DraftItinerary(
+        hotel_area_id="marina_bay",
+        days=[
+            ItineraryDay(
+                date=spec.start_date,
+                items=[
+                    ItineraryItem(poi_id="poi1", start_hint="09:00"),
+                    ItineraryItem(poi_id="poi2", start_hint="09:30") # Overlaps since poi1 is 2 hours!
+                ]
+            )
+        ]
+    )
+    result = build_final_schedule(draft, spec, ctx)
+    assert any(w.kind == "overlap" for w in result.warnings)
+
+def test_build_final_schedule_happy_path_retimes():
+    """build_final_schedule retimes a successful LLM draft (happy path)."""
+    poi1 = _poi("poi1")
+    poi1.typical_duration_min = 60
+    poi2 = _poi("poi2")
+    spec = _spec()
+    ctx = _retrieval([poi1, poi2])
+    
+    draft = DraftItinerary(
+        hotel_area_id="marina_bay",
+        days=[
+            ItineraryDay(
+                date=spec.start_date,
+                items=[
+                    ItineraryItem(poi_id="poi1"),
+                    ItineraryItem(poi_id="poi2")
+                ]
+            )
+        ]
+    )
+    result = build_final_schedule(draft, spec, ctx)
+    items = result.itinerary.days[0].items
+    assert items[0].start_time == "09:00"
+    assert items[0].end_time == "10:00"
+    assert items[1].start_time != None
+
+def test_build_final_schedule_unknown_hours_emits_verification_task():
+    """Unknown hours produce a verification task."""
+    # missing regular hours
+    poi1 = _poi("unknown-hours-poi", regular_hours={})
+    spec = _spec()
+    ctx = _retrieval([poi1])
+    
+    draft = DraftItinerary(
+        hotel_area_id="marina_bay",
+        days=[
+            ItineraryDay(
+                date=spec.start_date,
+                items=[ItineraryItem(poi_id="unknown-hours-poi")]
+            )
+        ]
+    )
+    result = build_final_schedule(draft, spec, ctx)
+    assert any(w.kind == "unknown_hours" for w in result.warnings)
