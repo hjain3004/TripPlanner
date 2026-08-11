@@ -18,7 +18,7 @@ CONTRADICTION_THRESHOLD_BPS: dict[ClaimKind, int] = {
 
 
 def detect_contradictions(
-    graph: EvidenceGraph, claim_ids: list[str]
+    graph: EvidenceGraph, claim_ids: list[str], *, created_by_run: str
 ) -> list[Edge]:
     """Return CONTRADICTS edges for same-identity claims that disagree."""
     edges: list[Edge] = []
@@ -43,6 +43,9 @@ def detect_contradictions(
             delta_bps = abs(other - base) * 10_000 // base
             if delta_bps > threshold:
                 edges.append(
-                    Edge(kind=EdgeKind.CONTRADICTS, src=left_id, dst=right_id)
+                    Edge(
+                        kind=EdgeKind.CONTRADICTS, src=left_id, dst=right_id,
+                        created_by_run=created_by_run,
+                    )
                 )
     return edges

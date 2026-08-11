@@ -12,7 +12,7 @@ def test_round_trip_preserves_claims_and_edges(
     g = EvidenceGraph()
     g.add_source(source_a)
     g.add_claim(claim_a)
-    g.add_edge(Edge(kind=EdgeKind.SUPPORTS, src="s-a", dst="c-a"))
+    g.add_edge(Edge(kind=EdgeKind.SUPPORTS, src="s-a", dst="c-a", created_by_run="r1"))
 
     store = SqliteEvidenceStore(tmp_path / "evidence.db")
     store.save(g)
@@ -34,7 +34,7 @@ def test_superseded_claims_survive_a_round_trip(
         "lifecycle": LifecycleState.SUPERSEDED, "superseded_by": "c-a2",
     }))
     g.add_claim(claim_a.model_copy(update={"claim_id": "c-a2"}))
-    g.add_edge(Edge(kind=EdgeKind.SUPERSEDES, src="c-a2", dst="c-a"))
+    g.add_edge(Edge(kind=EdgeKind.SUPERSEDES, src="c-a2", dst="c-a", created_by_run="r1"))
 
     store = SqliteEvidenceStore(tmp_path / "evidence.db")
     store.save(g)

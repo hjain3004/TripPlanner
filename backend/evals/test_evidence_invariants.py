@@ -9,7 +9,7 @@ def test_clean_graph_has_no_violations(claim_a: Claim, source_a: Source) -> None
     g = EvidenceGraph()
     g.add_source(source_a)
     g.add_claim(claim_a)
-    g.add_edge(Edge(kind=EdgeKind.SUPPORTS, src="s-a", dst="c-a"))
+    g.add_edge(Edge(kind=EdgeKind.SUPPORTS, src="s-a", dst="c-a", created_by_run="r1"))
     assert check_invariants(g) == []
 
 
@@ -68,7 +68,7 @@ def test_supersedes_edge_missing_field_is_a_violation(
     claim_a2 = claim_a.model_copy(update={"claim_id": "c-a2"})
     g.add_claim(claim_a) # Field is intentionally missing
     g.add_claim(claim_a2)
-    g.add_edge(Edge(kind=EdgeKind.SUPERSEDES, src="c-a2", dst="c-a"))
+    g.add_edge(Edge(kind=EdgeKind.SUPERSEDES, src="c-a2", dst="c-a", created_by_run="r1"))
     violations = check_invariants(g)
     assert any("superseded_by field missing" in v for v in violations)
 

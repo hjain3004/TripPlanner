@@ -83,5 +83,7 @@ class SqliteEvidenceStore:
             for kind, src, dst in conn.execute(
                 "SELECT kind, src, dst FROM edges WHERE run_id = ?", (run_id,)
             ):
-                graph.add_edge(Edge(kind=EdgeKind(kind), src=src, dst=dst))
+                graph.add_edge(
+                    Edge(kind=EdgeKind(kind), src=src, dst=dst, created_by_run=run_id)
+                )
         return graph

@@ -30,7 +30,9 @@ def mark_stale(graph: EvidenceGraph, claim_id: str, now: datetime) -> None:
         )
 
 
-def supersede(graph: EvidenceGraph, old_id: str, new_claim: Claim) -> None:
+def supersede(
+    graph: EvidenceGraph, old_id: str, new_claim: Claim, *, created_by_run: str
+) -> None:
     """Replace `old_id` with `new_claim`, keeping the old claim addressable."""
     old = graph.claims[old_id]
     graph.claims[old_id] = old.model_copy(update={
@@ -39,5 +41,10 @@ def supersede(graph: EvidenceGraph, old_id: str, new_claim: Claim) -> None:
     })
     graph.add_claim(new_claim)
     graph.add_edge(
-        Edge(kind=EdgeKind.SUPERSEDES, src=new_claim.claim_id, dst=old_id)
+        Edge(
+            kind=EdgeKind.SUPERSEDES,
+            src=new_claim.claim_id,
+            dst=old_id,
+            created_by_run=created_by_run,
+        )
     )

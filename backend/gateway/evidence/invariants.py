@@ -10,7 +10,7 @@ was built by a path that bypassed model validation, or a pointer dangles.
 """
 from __future__ import annotations
 
-from gateway.evidence.edges import EvidenceGraph, EdgeKind
+from gateway.evidence.edges import EvidenceGraph, EdgeKind, validate_edge_endpoints
 from gateway.evidence.nodes import LifecycleState
 
 
@@ -71,10 +71,9 @@ def check_invariants(graph: EvidenceGraph) -> list[str]:
             )
 
     for edge in graph.edges:
-        if not graph.has_node(edge.src):
-            violations.append(f"edge {edge.kind} has missing src {edge.src}")
-        if not graph.has_node(edge.dst):
-            violations.append(f"edge {edge.kind} has missing dst {edge.dst}")
+        structural_violation = validate_edge_endpoints(graph, edge)
+        if structural_violation is not None:
+            violations.append(structural_violation)
         if edge.kind is EdgeKind.SUPERSEDES:
             target_claim = graph.claims.get(edge.dst)
             if target_claim is not None and target_claim.superseded_by != edge.src:

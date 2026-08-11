@@ -67,7 +67,10 @@ def resolve(
     for member in members:
         if member != canonical_id:
             graph.add_edge(
-                Edge(kind=EdgeKind.RESOLVED_TO, src=member, dst=canonical_id)
+                Edge(
+                    kind=EdgeKind.RESOLVED_TO, src=member, dst=canonical_id,
+                    created_by_run=run_id,
+                )
             )
     return record
 

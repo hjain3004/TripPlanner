@@ -45,7 +45,7 @@ def test_supersede_keeps_the_old_claim_addressable(
         "claim_id": "c-a2",
         "payload": {**claim_a.payload, "total_minor": 2510000},
     })
-    supersede(g, old_id="c-a", new_claim=replacement)
+    supersede(g, old_id="c-a", new_claim=replacement, created_by_run="r1")
 
     assert g.claims["c-a"].lifecycle is LifecycleState.SUPERSEDED
     assert g.claims["c-a"].superseded_by == "c-a2"

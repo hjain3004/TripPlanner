@@ -15,7 +15,7 @@ def test_same_flight_similar_price_is_not_a_contradiction(
         "claim_id": "c-b",
         "payload": {**claim_a.payload, "total_minor": 2455000},  # +0.2%
     }))
-    assert detect_contradictions(g, ["c-a", "c-b"]) == []
+    assert detect_contradictions(g, ["c-a", "c-b"], created_by_run="r1") == []
 
 
 def test_same_flight_divergent_price_is_a_contradiction(
@@ -28,7 +28,7 @@ def test_same_flight_divergent_price_is_a_contradiction(
         "claim_id": "c-b",
         "payload": {**claim_a.payload, "total_minor": 2610000},  # +6.5%
     }))
-    edges = detect_contradictions(g, ["c-a", "c-b"])
+    edges = detect_contradictions(g, ["c-a", "c-b"], created_by_run="r1")
     assert len(edges) == 1
     assert edges[0].kind is EdgeKind.CONTRADICTS
 
@@ -44,7 +44,7 @@ def test_different_flights_are_never_contradictions(
         "payload": {**claim_a.payload, "flight_number": "AI9999",
                     "total_minor": 9999000},
     }))
-    assert detect_contradictions(g, ["c-a", "c-b"]) == []
+    assert detect_contradictions(g, ["c-a", "c-b"], created_by_run="r1") == []
 
 
 def test_threshold_is_defined_per_kind() -> None:

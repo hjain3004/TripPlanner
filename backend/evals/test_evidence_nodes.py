@@ -57,7 +57,7 @@ def test_superseding_a_verify_required_claim_preserves_the_safety_signal(
         "status": FreshnessState.VERIFY_REQUIRED
     }))
     replacement = claim_a.model_copy(update={"claim_id": "c-a2"})
-    supersede(g, old_id="c-a", new_claim=replacement)
+    supersede(g, old_id="c-a", new_claim=replacement, created_by_run="r1")
 
     assert g.claims["c-a"].lifecycle is LifecycleState.SUPERSEDED
     assert g.claims["c-a"].status is FreshnessState.VERIFY_REQUIRED   # preserved
