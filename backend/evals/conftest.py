@@ -8,7 +8,7 @@ from gateway.evidence.nodes import (
 @pytest.fixture
 def source_a() -> Source:
     return Source(
-        source_id="s-a", provider="adapter-a", adapter_id="adapter-a",
+        source_id="s-a", run_id="r1", provider="adapter-a", adapter_id="adapter-a",
         retrieved_at="2026-10-12T10:00:00Z",
         source_url="https://example.test/a", terms_ref=None,
     )
@@ -24,8 +24,8 @@ def claim_a(source_a: Source) -> Claim:
             "depart_date": "2026-10-12", "cabin": "economy",
             "fare_conditions": "SAVER",
             "total_minor": 2450000, "currency": "INR",
-            "expires_at": "2026-10-12T10:20:00Z",
         },
         source_id="s-a", is_inference=False,
         status=FreshnessState.LIVE, confidence=0.95, needs_verification=True,
+        expires_at="2026-10-12T10:20:00Z",
     )

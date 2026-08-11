@@ -42,7 +42,7 @@ def test_evaluation_of_unknown_subject_is_a_violation() -> None:
     g = EvidenceGraph()
     g.add_evaluation(Evaluation(evaluation_id="e1", subject_id="c-ghost",
                                 rubric_id="freshness.v1", verdict="reject",
-                                reasons=["expired"]))
+                                reasons=["expired"], run_id="r1"))
     violations = check_invariants(g)
     assert any("c-ghost" in v for v in violations)
 

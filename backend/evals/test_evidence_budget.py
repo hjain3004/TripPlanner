@@ -37,3 +37,33 @@ def test_partial_result_requires_a_stop_reason() -> None:
     with pytest.raises(ValueError):
         PartialResult(best_artifact_id=None, completed=[],
                       unresolved=["flights"], stop_reason="")
+
+
+# --- I0 Task 1: zero-spend enforcement ------------------------------------ #
+
+
+def test_plan_budget_defaults_to_zero_external_spend() -> None:
+    budget = _budget()  # no max_cost_minor override
+    assert budget.max_cost_minor == 0
+
+
+def test_budget_ledger_accepts_zero_cost() -> None:
+    ledger = BudgetLedger(_budget())  # default cap: 0
+    ledger.record_external_cost(0)
+    assert ledger.external_cost_minor == 0
+
+
+def test_budget_ledger_rejects_first_positive_cost_without_incrementing() -> None:
+    ledger = BudgetLedger(_budget())  # default cap: 0
+    with pytest.raises(BudgetExhausted) as exc:
+        ledger.record_external_cost(1)
+    assert "max_cost_minor" in str(exc.value)
+    assert ledger.external_cost_minor == 0  # rejected call left no trace
+
+
+def test_budget_ledger_rejects_cumulative_cost_above_explicit_cap() -> None:
+    ledger = BudgetLedger(_budget(max_cost_minor=100))
+    ledger.record_external_cost(60)
+    with pytest.raises(BudgetExhausted):
+        ledger.record_external_cost(50)  # 60 + 50 = 110 > 100
+    assert ledger.external_cost_minor == 60  # rejected call did not partially apply

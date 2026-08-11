@@ -8,7 +8,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
 
 class ClaimKind(StrEnum):
@@ -36,9 +36,10 @@ class LifecycleState(StrEnum):
 
 class Source(BaseModel):
     source_id: str = Field(min_length=1)
+    run_id: str = Field(min_length=1)
     provider: str = Field(min_length=1)
     adapter_id: str = Field(min_length=1)
-    retrieved_at: str = Field(min_length=1)   # ISO-8601
+    retrieved_at: AwareDatetime
     source_url: str = Field(min_length=1)
     terms_ref: str | None = None
 
@@ -56,6 +57,7 @@ class Claim(BaseModel):
     superseded_by: str | None = None
     confidence: float = Field(ge=0.0, le=1.0)
     needs_verification: bool
+    expires_at: AwareDatetime | None = None
 
     @model_validator(mode="after")
     def _source_or_inference(self) -> Claim:
@@ -79,8 +81,14 @@ class Artifact(BaseModel):
 
 class Run(BaseModel):
     run_id: str = Field(min_length=1)
-    started_at: str = Field(min_length=1)
-    ended_at: str | None = None
+    started_at: AwareDatetime
+    ended_at: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def _ended_not_before_started(self) -> Run:
+        if self.ended_at is not None and self.ended_at < self.started_at:
+            raise ValueError("ended_at must not be before started_at")
+        return self
 
 
 class Evaluation(BaseModel):
@@ -89,3 +97,4 @@ class Evaluation(BaseModel):
     rubric_id: str = Field(min_length=1)       # invariant 3
     verdict: str = Field(min_length=1)
     reasons: list[str] = Field(default_factory=list)
+    run_id: str = Field(min_length=1)

@@ -10,19 +10,18 @@ from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
 from gateway.evidence.nodes import Claim, FreshnessState, LifecycleState
 
 
-def _parse(ts: str) -> datetime:
-    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+def is_expired(claim: Claim, now: datetime) -> bool:
+    """True when the claim carries an expiry that now has reached or passed.
 
-
-def is_expired(claim: Claim, now: str) -> bool:
-    """True when the claim carries an expiry that has passed."""
-    expires_at = claim.payload.get("expires_at")
-    if not isinstance(expires_at, str):
+    Exact-instant equality counts as expired: evidence is live only while
+    now < expires_at (spec 16 §8).
+    """
+    if claim.expires_at is None:
         return False
-    return _parse(now) > _parse(expires_at)
+    return now >= claim.expires_at
 
 
-def mark_stale(graph: EvidenceGraph, claim_id: str, now: str) -> None:
+def mark_stale(graph: EvidenceGraph, claim_id: str, now: datetime) -> None:
     """Transition an expired live claim to stale. Idempotent; never deletes."""
     claim = graph.claims[claim_id]
     if claim.lifecycle == LifecycleState.ACTIVE and is_expired(claim, now) and claim.status is FreshnessState.LIVE:
