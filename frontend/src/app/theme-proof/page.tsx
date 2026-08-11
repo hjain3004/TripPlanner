@@ -1,4 +1,6 @@
 import { resolveTheme } from "@/lib/theme/resolver";
+import { DestinationStamp } from "@/components/product/destination-stamp";
+import { JAPAN_ATLAS_STAMP } from "@/lib/design/philatelic-assets";
 
 export default async function ThemeProofPage({
   searchParams,
@@ -69,6 +71,36 @@ export default async function ThemeProofPage({
           </div>
         </div>
       </section>
+
+      {resolved.globalTheme === "japan" ? (
+        <section className="space-y-6">
+          <div className="max-w-3xl">
+            <h2 className="text-h2">Philatelic artifact proof</h2>
+            <p className="mt-2 text-text-muted">
+              Diagnostic harness only. Product placement happens only when a caller supplies an explicit approved
+              destination artifact.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+            <div className="border-2 border-border bg-surface p-6 shadow-1" data-testid="stamp-proof-decorative">
+              <h3 className="mb-4 font-ui text-h3 font-semibold">Decorative specimen</h3>
+              <DestinationStamp asset={JAPAN_ATLAS_STAMP} size="thumbnail" decorative />
+            </div>
+
+            <div className="border-2 border-border bg-surface p-6 shadow-1" data-testid="stamp-proof-informative">
+              <h3 className="mb-4 font-ui text-h3 font-semibold">Informative specimen</h3>
+              <DestinationStamp
+                asset={JAPAN_ATLAS_STAMP}
+                size="feature"
+                routeLabel="DEL → TYO"
+                dateLabel="2026-11-03"
+                issued
+              />
+            </div>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
