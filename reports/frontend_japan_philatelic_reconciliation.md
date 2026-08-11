@@ -99,3 +99,32 @@ Repairs:
 - Removed the broad positive-currency-difference allowance from the no-orphan-number test.
 - Changed `CountUp` to render the supplied minor-unit value directly.
 - Darkened the natural fallback muted text token and raised the natural contrast assertion to AA for small text.
+
+## Task 6 red proof and verification
+
+Red proof:
+
+- `npx playwright test e2e/figma-reconciliation.spec.ts --config=e2e/playwright.config.ts --project=mobile` failed all six assertions before view reconciliation:
+  - Explore still showed fake redemption/deal claims.
+  - Deals lacked sample-evidence labelling and claimed live monitoring/active multipliers.
+  - Itinerary still rendered the old Singapore JSON fixture.
+  - Proof still rendered hardcoded Chase/Amex/ANA values.
+  - Wallet/Profile lacked preview-only quarantine and showed fake account/document details.
+  - Mobile width overflowed at 390px.
+
+Repairs:
+
+- Rebuilt Explore as three editorial Japan destination compositions with no financial claims.
+- Rebuilt Deals from the typed Japan visual fixture and labelled it sample evidence.
+- Rebuilt Itinerary from `japanVisualFixture.report`, then deleted the obsolete hand-authored `fixtures.json`.
+- Rebuilt Proof from typed `TransferAdvice`.
+- Replaced Wallet/Profile with preview-only empty-state anatomy and no fake credentials, balances, sync, or document claims.
+
+Verification:
+
+| Command | Result |
+|---|---|
+| `npx playwright test e2e/figma-reconciliation.spec.ts --config=e2e/playwright.config.ts --project=chromium --project=mobile` | Passed: 11 passed, 1 skipped |
+| `npx vitest run` | Passed: 5 files, 123 tests |
+| `npx tsc --noEmit` | Passed |
+| `node scripts/token-lint.mjs` | Passed: 0 violations across 15 rules |
