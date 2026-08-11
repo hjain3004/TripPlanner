@@ -348,3 +348,58 @@ def test_lexicographically_smaller_stale_or_unverified_claim_fails(
 
     record = resolve(g, ["c-a", "c-b"], created_by_run="r1")
     assert record.canonical_id == "c-b"
+
+def test_unresolve_preserves_shared_edges(claim_a: Claim) -> None:
+    from gateway.evidence.resolution import resolve, unresolve
+    from gateway.evidence.edges import EvidenceGraph
+    
+    g = EvidenceGraph()
+    claim_1 = claim_a.model_copy(update={"claim_id": "c-1"})
+    claim_2 = claim_a.model_copy(update={"claim_id": "c-2"})
+    claim_canon = claim_a.model_copy(update={"claim_id": "c-canon"})
+    
+    g.add_claim(claim_1)
+    g.add_claim(claim_2)
+    g.add_claim(claim_canon)
+    
+    res1 = resolve(g, ["c-1", "c-2", "c-canon"], created_by_run="r1")
+    # For testing unresolve overlapping, we need to bypass the resolve guard we are adding.
+    # We will manually add a second resolution overlapping.
+    from gateway.evidence.nodes import ResolutionRecord, LifecycleState
+    res2 = ResolutionRecord(
+        resolution_id="res:overlap",
+        members=["c-2", "c-canon"],
+        canonical_id=res1.canonical_id,
+        state=LifecycleState.ACTIVE,
+        created_by_run="r1",
+        rule="exact_identity",
+        confidence=1.0,
+    )
+    g.resolutions[res2.resolution_id] = res2
+    
+    unresolve(g, res1.resolution_id, reversed_by_run="r2")
+    
+    # c-2 -> canonical edge should survive for res2
+    from gateway.evidence.edges import EdgeKind, Edge
+    assert Edge(kind=EdgeKind.RESOLVED_TO, src="c-2", dst=res1.canonical_id, created_by_run="r1") in g.edges
+
+def test_resolve_rejects_claim_in_active_resolution(claim_a: Claim) -> None:
+    from gateway.evidence.resolution import resolve, ClaimAlreadyResolved
+    from gateway.evidence.edges import EvidenceGraph
+    
+    g = EvidenceGraph()
+    claim_1 = claim_a.model_copy(update={"claim_id": "c-1"})
+    claim_canon1 = claim_a.model_copy(update={"claim_id": "c-canon1"})
+    claim_canon2 = claim_a.model_copy(update={"claim_id": "c-canon2"})
+    
+    g.add_claim(claim_1)
+    g.add_claim(claim_canon1)
+    g.add_claim(claim_canon2)
+    
+    resolve(g, ["c-1", "c-canon1"], created_by_run="r1")
+    
+    import pytest
+    with pytest.raises(ClaimAlreadyResolved) as exc:
+        resolve(g, ["c-1", "c-canon2"], created_by_run="r2")
+    assert "c-1" in str(exc.value)
+

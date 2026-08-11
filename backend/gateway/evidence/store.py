@@ -426,8 +426,11 @@ class SqliteEvidenceStore:
                     for table in ["sources", "claims", "artifacts", "evaluations", "resolutions"]:
                         if not unknown_ids:
                             break
-                        found = set()
-                        for chunk in [list(unknown_ids)[i:i+900] for i in range(0, len(unknown_ids), 900)]:
+                        found: set[str] = set()
+                        chunks = [
+                            list(unknown_ids)[i : i + 900] for i in range(0, len(unknown_ids), 900)
+                        ]
+                        for chunk in chunks:
                             q = ",".join("?" for _ in chunk)
                             cur.execute(f"SELECT id FROM {table} WHERE id IN ({q})", tuple(chunk))
                             found.update(row[0] for row in cur.fetchall())
