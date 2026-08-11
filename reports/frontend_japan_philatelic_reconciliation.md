@@ -80,3 +80,22 @@ Verification:
 | confetti import | `verdict-header.tsx`, `booking-checklist.tsx` |
 
 The plan's Task 3 file list omitted some view files that the required broad guardrail intentionally flags. The mechanical repairs stayed limited to typography, transition specificity, scale-zero entrance removal, and confetti removal; content/data reconciliation remains Task 6.
+
+## Task 4 red proof and repairs
+
+Red proof:
+
+- `npx playwright test e2e/f3-results.spec.ts --config=e2e/playwright.config.ts --project=chromium -g "verdict"` failed because the verdict rendered derived currency savings (`₹10,000`) and did not render the supplied `savings_pct_bp` display (`10.0%`).
+
+Additional failures after tightening no-orphan-number coverage:
+
+- `CountUp` rendered transient interpolated money values that did not exist in fixtures.
+- The natural fallback muted text token produced 4.48:1 contrast on results-page small text after Task 2 removed the global Japan override.
+
+Repairs:
+
+- Extracted `ResultsView` from `/plan` without changing result section order.
+- `VerdictHeader` now renders gross cost, effective cost, and supplied savings percentage only.
+- Removed the broad positive-currency-difference allowance from the no-orphan-number test.
+- Changed `CountUp` to render the supplied minor-unit value directly.
+- Darkened the natural fallback muted text token and raised the natural contrast assertion to AA for small text.

@@ -53,6 +53,33 @@ test.describe("F3 results page: happy path", () => {
     // Verdict header with day count and destination code
     await expect(page.locator("h1")).toContainText(/SIN.*plan|plan.*SIN/);
   });
+
+  test("verdict renders supplied savings percentage, not derived currency savings", async ({ page }) => {
+    await page.goto(PLAN_URL);
+
+    await page.fill("#origin", "DEL");
+    await page.fill("#destination", "SIN");
+    await page.fill("#start-date", "2026-08-01");
+    await page.fill("#end-date", "2026-08-05");
+    await page.fill("#travelers", "2");
+    await page.locator("button").filter({ hasText: "Next" }).click();
+
+    await page.fill("#card-ids", "hdfc-infinia");
+    await page.fill("#points", "voyager-prime:140000");
+    await page.locator("button").filter({ hasText: "Next" }).click();
+
+    await page.fill("#interests", "nature, food");
+    await page.locator("button").filter({ hasText: "Next" }).click();
+
+    await page.locator("button").filter({ hasText: "Next" }).click();
+    await page.locator("button").filter({ hasText: "Generate plan" }).click();
+
+    await expect(page.getByTestId("results-view")).toBeVisible({ timeout: 15000 });
+
+    const verdict = page.locator("[data-motion=verdict]");
+    await expect(verdict).toContainText("10.0%");
+    await expect(verdict).not.toContainText("₹10,000");
+  });
 });
 
 test.describe("F3 results page: sections", () => {

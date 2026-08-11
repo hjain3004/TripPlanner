@@ -60,7 +60,7 @@ describe("WCAG contrast pairs (Natural fallback theme)", () => {
     surface: "oklch(0.985 0.005 85.0)",
     border: "oklch(0.350 0.015 60.0)",
     text: "oklch(0.350 0.015 60.0)",
-    textMuted: "oklch(0.550 0.010 60.0)",
+    textMuted: "oklch(0.540 0.010 60.0)",
     textFaint: "oklch(0.650 0.010 60.0)",
     onPrimary: "oklch(0.985 0.005 85.0)",
     primary: "oklch(0.350 0.015 60.0)",
@@ -83,12 +83,12 @@ describe("WCAG contrast pairs (Natural fallback theme)", () => {
     expect(ratio(T.text, T.surface)).toBeGreaterThanOrEqual(4.5);
   });
 
-  // muted text ≥ 3:1 (AA Large / non-text minimum)
-  it("text-muted on bg ≥ 3:1", () => {
-    expect(ratio(T.textMuted, T.bg)).toBeGreaterThanOrEqual(3);
+  // muted text appears in small metadata/body positions, so it must meet AA body contrast.
+  it("text-muted on bg ≥ 4.5:1", () => {
+    expect(ratio(T.textMuted, T.bg)).toBeGreaterThanOrEqual(4.5);
   });
-  it("text-muted on surface ≥ 3:1", () => {
-    expect(ratio(T.textMuted, T.surface)).toBeGreaterThanOrEqual(3);
+  it("text-muted on surface ≥ 4.5:1", () => {
+    expect(ratio(T.textMuted, T.surface)).toBeGreaterThanOrEqual(4.5);
   });
 
   // on-primary on primary — inverse text on button ≥ 4.5:1

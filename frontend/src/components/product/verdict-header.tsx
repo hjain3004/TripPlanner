@@ -15,6 +15,10 @@ function confidenceLabel(score?: number): string {
   return "Low";
 }
 
+function formatBasisPointPercentage(bp: number): string {
+  return `${(bp / 100).toFixed(1)}%`;
+}
+
 export function VerdictHeader({ totals, destination, days, confidence }: VerdictHeaderProps) {
   return (
     <div className="text-center py-12 border-b-2 border-border" data-motion="verdict">
@@ -37,7 +41,7 @@ export function VerdictHeader({ totals, destination, days, confidence }: Verdict
         <div>
           <span className="block text-xs text-text-muted">Savings</span>
           <span className="block text-2xl font-ui tabular-nums text-savings-text">
-            <CountUp valueMinor={totals.gross_minor - totals.effective_cost_minor} />
+            {formatBasisPointPercentage(totals.savings_pct_bp)}
           </span>
         </div>
       </div>
