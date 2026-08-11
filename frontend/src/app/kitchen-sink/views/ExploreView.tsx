@@ -49,7 +49,7 @@ export const ExploreView = () => (
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-3">
               {destination.subtitle}
             </p>
-            <h3 className="font-ui font-semibold text-2xl mb-2">{destination.title}</h3>
+            <h2 className="font-ui font-semibold text-2xl mb-2">{destination.title}</h2>
             <p className="text-sm text-text-muted leading-relaxed">{destination.description}</p>
             {index === 0 ? (
               <div className="mt-5 grid grid-cols-[1fr_auto] items-end gap-4 border-t-2 border-border pt-4">

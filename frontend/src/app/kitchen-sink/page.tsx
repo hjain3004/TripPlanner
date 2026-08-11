@@ -87,7 +87,7 @@ export default function KitchenSinkPage() {
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-6 py-12">
+      <div className="max-w-6xl mx-auto px-6 py-12">
         <AnimatePresence mode="wait">
           {activeTab === 'explore' && <ExploreView key="explore" />}
           {activeTab === 'deals' && <DealsView key="deals" />}
@@ -97,7 +97,7 @@ export default function KitchenSinkPage() {
           {activeTab === 'wallet' && <WalletView key="wallet" />}
           {activeTab === 'profile' && <ProfileView key="profile" />}
         </AnimatePresence>
-      </main>
+      </div>
     </div>
   );
 }
