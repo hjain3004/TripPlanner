@@ -14,10 +14,16 @@ def _overlap(poi: POI, interests: list[str]) -> int:
 
 def _poi_row(poi: POI) -> str:
     tags = ",".join(sorted(poi.tags))
+    trust_status = (
+        f"verified:{poi.provenance.verified_by}|"
+        f"needs_verification:{poi.provenance.needs_verification}|"
+        f"last_verified:{poi.provenance.last_verified.isoformat()}|"
+        f"confidence:{poi.provenance.confidence}"
+    )
     return (
         f"{poi.id} | {poi.name} | {poi.area} | {tags} | "
         f"{poi.price_minor} {poi.currency} minor | {poi.typical_duration_min} min | "
-        f"{poi.open_hours}"
+        f"{poi.open_hours} | {trust_status}"
     )
 
 
@@ -32,8 +38,17 @@ def retrieve_candidates(
     city = CITY_BY_IATA.get(spec.destination_city, spec.destination_city)
     pois = sorted(
         kb.pois(city),
-        key=lambda poi: (-_overlap(poi, spec.interests), poi.area, poi.id),
+        key=lambda poi: (
+            -_overlap(poi, spec.interests),
+            int(poi.provenance.needs_verification),
+            int(poi.provenance.verified_by == "UNVERIFIED"),
+            -poi.provenance.confidence,
+            -poi.provenance.last_verified.toordinal(),
+            poi.area,
+            poi.id,
+        ),
     )[:limit]
+
     areas = sorted(kb.areas(city), key=lambda area: area.id)
     return RetrievalContext(
         pois=pois,

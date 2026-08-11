@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from agents.models import DraftItinerary, ItineraryDay, ItineraryItem, RetrievalContext, TripSpec
-from core.models import POI, Area, Channel, Provenance, UserWallet
+from core.models import POI, Area, Channel, Provenance, TimezoneAwareHours, UserWallet
 from evals.judge import (
     HostedJudgeClient,
     JudgeCallError,
@@ -79,7 +79,11 @@ def _retrieval() -> RetrievalContext:
         lat=1.2816,
         lon=103.8636,
         area="marina_bay",
-        open_hours="09:00-21:00",
+        open_hours=TimezoneAwareHours(
+            timezone="Asia/Singapore",
+            regular_hours={i: ["09:00-21:00"] for i in range(7)},
+            closed_dates=[],
+        ),
         booking_channel=Channel.OTA_GENERIC,
         merchant_hint="Klook",
         description="Curated garden attraction.",

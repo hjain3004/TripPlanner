@@ -12,8 +12,12 @@ from agents.models import (
     TripSpec,
 )
 
-PACE_ITEMS = {"relaxed": 1, "moderate": 2, "packed": 3}
-
+from core.itinerary.compose import (
+    ComposerResult,
+    ScheduleWarning,
+    build_final_schedule,
+    fallback_itinerary,
+)
 
 class PlannerValidationError(ValueError):
     pass
@@ -39,38 +43,7 @@ def validate_itinerary(
                 raise PlannerValidationError(f"unknown poi: {item.poi_id}")
 
 
-def fallback_itinerary(spec: TripSpec, retrieval: RetrievalContext) -> DraftItinerary:
-    if retrieval.areas:
-        ranked_areas = sorted(
-            retrieval.areas,
-            key=lambda area: (
-                -len(set(spec.interests).intersection(set(area.good_for_tags))),
-                -area.centrality_score,
-                area.id,
-            ),
-        )
-        hotel_area_id = ranked_areas[0].id
-    else:
-        hotel_area_id = "unknown"
 
-    pois = sorted(retrieval.pois, key=lambda poi: (poi.area != hotel_area_id, poi.area, poi.id))
-    per_day = PACE_ITEMS[spec.pace]
-    cursor = 0
-    days: list[ItineraryDay] = []
-    for offset in range(spec.nights):
-        items: list[ItineraryItem] = []
-        for _ in range(per_day):
-            if cursor >= len(pois):
-                break
-            items.append(ItineraryItem(poi_id=pois[cursor].id))
-            cursor += 1
-        days.append(ItineraryDay(date=spec.start_date + timedelta(days=offset), items=items))
-    return DraftItinerary(
-        hotel_area_id=hotel_area_id,
-        days=days,
-        notes=["Deterministic fallback itinerary from curated POIs."],
-        itinerary_quality="fallback",
-    )
 
 
 def _call_planner(
@@ -86,6 +59,20 @@ def _call_planner(
         schema=DraftItinerary,
         temperature=0.0,
     )
+
+
+# Gate I1 (itinerary design §14): "no overlap, known-closed visits or
+# impossible transitions." unknown_hours is deliberately excluded — design
+# §5.4 requires it to surface as a visible verification task, not a rejection.
+_UNSAFE_WARNING_KINDS = frozenset({"overlap", "closed_day", "travel_budget_exceeded"})
+
+
+def _unsafe_warnings(result: ComposerResult) -> list[ScheduleWarning]:
+    return [w for w in result.warnings if w.kind in _UNSAFE_WARNING_KINDS]
+
+
+def _unsafe_warning_message(unsafe: list[ScheduleWarning]) -> str:
+    return "; ".join(w.message for w in unsafe)
 
 
 def run_planner(
@@ -108,12 +95,29 @@ def run_planner(
         itinerary = _call_planner(llm, system=system, user=user)
         try:
             validate_itinerary(itinerary, spec, retrieval)
-            return PlannerResult(itinerary=itinerary)
+            result = build_final_schedule(itinerary, spec, retrieval)
+            unsafe = _unsafe_warnings(result)
+            if unsafe:
+                raise PlannerValidationError(_unsafe_warning_message(unsafe))
+            return PlannerResult(
+                itinerary=result.itinerary,
+                caveats=[w.message for w in result.warnings]
+            )
         except PlannerValidationError as exc:
             repair_user = f"{user}\nValidation error: {exc}. Return corrected JSON only."
             repaired = _call_planner(llm, system=system, user=repair_user)
             validate_itinerary(repaired, spec, retrieval)
-            return PlannerResult(itinerary=repaired, repair_attempted=True)
+            result = build_final_schedule(repaired, spec, retrieval)
+            unsafe = _unsafe_warnings(result)
+            if unsafe:
+                raise PlannerValidationError(
+                    f"Repaired schedule still unsafe: {_unsafe_warning_message(unsafe)}"
+                )
+            return PlannerResult(
+                itinerary=result.itinerary,
+                repair_attempted=True,
+                caveats=[w.message for w in result.warnings]
+            )
     except Exception as exc:
         fallback = fallback_itinerary(spec, retrieval)
         return PlannerResult(
