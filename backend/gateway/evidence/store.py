@@ -218,42 +218,37 @@ class SqliteEvidenceStore:
                         "INSERT OR REPLACE INTO evaluations (id, run_id, body) VALUES (?,?,?)",
                         (evaluation.evaluation_id, evaluation.run_id, evaluation.model_dump_json()),
                     )
-                for res in graph.resolutions.values():
-                    conn.execute(
-                        "INSERT OR REPLACE INTO resolutions "
-                        "(id, created_by_run, body) VALUES (?,?,?)",
-                        (res.resolution_id, res.created_by_run, res.model_dump_json()),
-                    )
 
-                if touched_runs:
-                    run_list = ",".join("?" for _ in touched_runs)
-                    params = tuple(touched_runs)
+
+                sync_runs = touched_runs if graph.authoritative_runs is None else graph.authoritative_runs
+                if sync_runs:
+                    run_list = ",".join("?" for _ in sync_runs)
+                    params = tuple(sync_runs)
 
                     conn.execute(f"DELETE FROM edges WHERE created_by_run IN ({run_list})", params)
-                    for edge in graph.edges:
-                        if edge.created_by_run in touched_runs:
-                            conn.execute(
-                                "INSERT INTO edges (kind, src, dst, created_by_run) "
-                                "VALUES (?,?,?,?)",
-                                (edge.kind.value, edge.src, edge.dst, edge.created_by_run),
-                            )
+                    conn.execute(f"DELETE FROM resolutions WHERE created_by_run IN ({run_list})", params)
 
-                    conn.execute(
-                        f"DELETE FROM resolutions WHERE created_by_run IN ({run_list})", params
-                    )
-                    for res in graph.resolutions.values():
-                        if res.created_by_run in touched_runs:
-                            conn.execute(
-                                "INSERT INTO resolutions (id, created_by_run, body) VALUES (?,?,?)",
-                                (res.resolution_id, res.created_by_run, res.model_dump_json()),
-                            )
+                for edge in graph.edges:
+                    if edge.created_by_run in touched_runs:
+                        conn.execute(
+                            "INSERT OR REPLACE INTO edges (kind, src, dst, created_by_run) "
+                            "VALUES (?,?,?,?)",
+                            (edge.kind.value, edge.src, edge.dst, edge.created_by_run),
+                        )
+
+                for res in graph.resolutions.values():
+                    if res.created_by_run in touched_runs:
+                        conn.execute(
+                            "INSERT OR REPLACE INTO resolutions (id, created_by_run, body) VALUES (?,?,?)",
+                            (res.resolution_id, res.created_by_run, res.model_dump_json()),
+                        )
                 conn.commit()
             except Exception as e:
                 conn.rollback()
                 raise EvidenceStoreError(f"Save failed: {e}") from e
 
     def load(self, run_id: str) -> EvidenceGraph:
-        graph = EvidenceGraph()
+        graph = EvidenceGraph(authoritative_runs={run_id})
         with sqlite3.connect(self.path) as conn:
             conn.execute("PRAGMA foreign_keys = ON")
 

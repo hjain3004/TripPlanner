@@ -37,6 +37,7 @@ class EvidenceGraph(BaseModel):
     evaluations: dict[str, Evaluation] = Field(default_factory=dict)
     resolutions: dict[str, ResolutionRecord] = Field(default_factory=dict)
     edges: list[Edge] = Field(default_factory=list)
+    authoritative_runs: set[str] | None = None
 
     def add_claim(self, claim: Claim) -> None:
         self.claims[claim.claim_id] = claim

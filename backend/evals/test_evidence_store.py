@@ -365,3 +365,38 @@ def test_v1_store_migrates_without_losing_sources_claims_or_edges(
     assert len(loaded.edges) == 1
     assert loaded.edges[0].kind == EdgeKind.SUPPORTS
     assert loaded.edges[0].created_by_run == "r1"
+
+def test_save_loaded_graph_preserves_foreign_edges(tmp_path: Path, claim_a: Claim, source_a: Source) -> None:
+    from datetime import datetime, timezone
+    db_path = tmp_path / "evidence.db"
+    store = SqliteEvidenceStore(db_path)
+    
+    # Run 1 owns two separate edges
+    g1 = EvidenceGraph()
+    claim_z = claim_a.model_copy(update={"claim_id": "c-z", "source_id": "s-z"})
+    source_z = source_a.model_copy(update={"source_id": "s-z"})
+    g1.add_source(source_a)
+    g1.add_claim(claim_a)
+    g1.add_edge(Edge(kind=EdgeKind.SUPPORTS, src="s-a", dst="c-a", created_by_run="r1"))
+    g1.add_source(source_z)
+    g1.add_claim(claim_z)
+    g1.add_edge(Edge(kind=EdgeKind.SUPPORTS, src="s-z", dst="c-z", created_by_run="r1"))
+    g1.add_run(Run(run_id="r1", started_at="2026-10-12T10:00:00Z"))
+    store.save(g1)
+    
+    # Run 2 owns an artifact derived from c-a
+    g2 = EvidenceGraph(authoritative_runs={"r2"})
+    g2.add_source(source_a)
+    g2.add_claim(claim_a)
+    artifact = Artifact(artifact_id="a2", run_id="r2", kind="DraftItinerary", derived_from=["c-a"], data={}, version="1")
+    g2.add_artifact(artifact)
+    g2.add_run(Run(run_id="r2", started_at="2026-10-12T11:00:00Z"))
+    store.save(g2)
+    
+    loaded_r2 = store.load("r2")
+    store.save(loaded_r2)
+    
+    loaded_r1 = store.load("r1")
+    assert "c-z" in loaded_r1.claims
+    assert any(e.src == "s-z" and e.dst == "c-z" for e in loaded_r1.edges), "s-z->c-z edge was destroyed"
+
