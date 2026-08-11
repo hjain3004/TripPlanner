@@ -16,7 +16,7 @@ export const ItineraryView = () => (
   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl">
     <header className="mb-12">
       <NotchLabel>Curated for your wallet</NotchLabel>
-      <h1 className="font-display text-[56px] font-semibold leading-[1.05] tracking-[-0.02em] mt-6 mb-6 text-text">
+      <h1 className="font-display display-hero text-[56px] leading-[1.05] tracking-[-0.02em] mt-6 mb-6 text-text">
         Delhi & Singapore Escape
       </h1>
       <p className="text-[17px] leading-[1.65] text-text-muted max-w-2xl font-ui">

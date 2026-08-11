@@ -10,7 +10,7 @@ export const WalletView = () => (
   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl">
     <header className="mb-12">
       <NotchLabel>Your Points Arsenal</NotchLabel>
-      <h1 className="font-display text-4xl md:text-5xl font-bold leading-tight mt-4 mb-4">Digital Wallet</h1>
+      <h1 className="font-display display-hero text-4xl md:text-5xl leading-tight mt-4 mb-4">Digital Wallet</h1>
       <p className="text-lg text-text-muted max-w-2xl">A real-time overview of your optimized cards and transferable reward balances.</p>
     </header>
     
@@ -27,7 +27,7 @@ export const WalletView = () => (
           </div>
           <span className="text-sm font-medium tracking-widest text-text-muted">•••• 4092</span>
         </div>
-        <h3 className="font-display text-2xl font-bold relative z-10">Sapphire Reserve</h3>
+        <h3 className="font-ui text-2xl font-semibold relative z-10">Sapphire Reserve</h3>
         <div className="mt-6 flex items-end justify-between relative z-10">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-text-muted mb-1">Ultimate Rewards</p>
@@ -48,7 +48,7 @@ export const WalletView = () => (
           </div>
           <span className="text-sm font-medium tracking-widest text-text-muted">•••• 9011</span>
         </div>
-        <h3 className="font-display text-2xl font-bold relative z-10">Platinum Card</h3>
+        <h3 className="font-ui text-2xl font-semibold relative z-10">Platinum Card</h3>
         <div className="mt-6 flex items-end justify-between relative z-10">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-text-muted mb-1">Membership Rewards</p>

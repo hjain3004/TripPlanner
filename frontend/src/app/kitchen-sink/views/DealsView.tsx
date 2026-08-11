@@ -10,7 +10,7 @@ export const DealsView = () => (
   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl">
     <header className="mb-12">
       <NotchLabel>Card Synergy</NotchLabel>
-      <h1 className="font-display text-4xl md:text-5xl font-bold leading-tight mt-4 mb-4">
+      <h1 className="font-display display-hero text-4xl md:text-5xl leading-tight mt-4 mb-4">
         Curated Opportunities
       </h1>
       <p className="text-lg text-text-muted max-w-2xl">
@@ -22,7 +22,7 @@ export const DealsView = () => (
       <div className="lg:col-span-2 rounded-2xl border border-border bg-bg overflow-hidden shadow-sm">
         <MonumentIllustration type="synergy" />
         <div className="p-6 md:p-8">
-          <h3 className="font-display font-bold text-2xl mb-2">Amex + Chase Sweet Spot</h3>
+          <h3 className="font-ui font-semibold text-2xl mb-2">Amex + Chase Sweet Spot</h3>
           <p className="text-text-muted mb-6">
             You currently hold both UR and MR points. You can pool these points by transferring them to shared transfer partners like Virgin Atlantic, Air France/KLM Flying Blue, or British Airways Flying Club.
           </p>
@@ -46,7 +46,7 @@ export const DealsView = () => (
       </div>
       
       <div className="flex flex-col gap-4">
-        <h4 className="font-display font-bold text-lg text-text mb-2">Active Multipliers</h4>
+        <h4 className="font-ui font-semibold text-lg text-text mb-2">Active Multipliers</h4>
         <HighlightBox 
           title="Virgin Atlantic Bonus" 
           subtitle="Amex is offering a 30% transfer bonus to Virgin Atlantic Flying Club." 

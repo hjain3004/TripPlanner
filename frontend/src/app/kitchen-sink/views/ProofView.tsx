@@ -13,7 +13,7 @@ export const ProofView = () => {
   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl">
     <header className="mb-12">
       <NotchLabel>Points Transfer Graph</NotchLabel>
-      <h1 className="font-display text-[56px] font-semibold leading-[1.05] tracking-[-0.02em] mt-6 mb-6 text-text">
+      <h1 className="font-display display-hero text-[56px] leading-[1.05] tracking-[-0.02em] mt-6 mb-6 text-text">
         The Anatomy of a Deal
       </h1>
       <p className="text-[17px] leading-[1.65] text-text-muted max-w-2xl font-ui">
@@ -53,7 +53,7 @@ export const ProofView = () => {
               d="M 334 0 C 334 60, 200 60, 200 100" className="stroke-accent-4" strokeWidth="1.5" strokeDasharray="4 4" 
             />
           </svg>
-          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: reduced ? 0 : 1.5 }} className="bg-bg border border-border rounded-none p-3 shadow-sm z-10">
+          <motion.div initial={reduced ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reduced ? 0 : 1.5 }} className="bg-bg border border-border rounded-none p-3 shadow-sm z-10">
             <Tags className="w-4 h-4 text-text-muted" />
           </motion.div>
         </div>
@@ -77,7 +77,7 @@ export const ProofView = () => {
               initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: reduced ? 0 : 1, ease: "easeInOut", delay: reduced ? 0 : 2.0 }} 
               d="M 50 0 L 50 60" className="stroke-border" strokeWidth="1.5" 
             />
-            <motion.circle initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: reduced ? 0 : 3.0 }} cx="50" cy="60" r="4" className="fill-primary" />
+            <motion.circle initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduced ? 0 : 3.0 }} cx="50" cy="60" r="4" className="fill-primary" />
           </svg>
         </div>
 
@@ -96,7 +96,7 @@ export const ProofView = () => {
       </div>
     </div>
     <div className="mt-16 mb-8">
-      <h2 className="font-display text-2xl font-semibold mb-6">Primitives (Issue Register)</h2>
+      <h2 className="font-ui text-2xl font-semibold mb-6">Primitives (Issue Register)</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="p-6 bg-bg flex items-center justify-center">
           <OffsetPlate className="p-8 border-2 border-border bg-bg">

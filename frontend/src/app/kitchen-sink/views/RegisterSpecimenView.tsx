@@ -19,7 +19,7 @@ export function RegisterSpecimenView() {
       className="space-y-12 pb-24 max-w-2xl mx-auto"
     >
       <div className="space-y-4">
-        <h2 className="text-2xl font-display font-bold">Issue Register Specimen</h2>
+        <h2 className="text-2xl font-ui font-semibold">Issue Register Specimen</h2>
         <p className="text-text-muted">
           All §2 components rendered in their semantic form, proving they correctly receive the inverted tokens.
         </p>

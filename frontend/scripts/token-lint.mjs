@@ -300,6 +300,48 @@ rule(
   }
 );
 
+// R13: No transition-all in product source
+rule(
+  "no-transition-all",
+  "transition-all is forbidden; transition only the properties that need motion",
+  ({ violations, lines, rel }) => {
+    if (isVendor(rel)) return;
+    for (let i = 0; i < lines.length; i++) {
+      if (/\btransition-all\b/.test(lines[i]) && !isSuppressed(lines, i, "no-transition-all")) {
+        violations.push({ rule: "no-transition-all", file: rel, line: i + 1, text: lines[i].trim() });
+      }
+    }
+  }
+);
+
+// R14: No raw black utilities/literals in product source
+rule(
+  "no-black",
+  "Black utilities/literals are forbidden; use semantic theme tokens",
+  ({ violations, lines, rel }) => {
+    if (isVendor(rel) || isTheme(rel)) return;
+    const blackPattern = /(?:#000(?:000)?\b|\b(?:bg|text|border)-black\b|\bblack\b)/i;
+    for (let i = 0; i < lines.length; i++) {
+      if (blackPattern.test(lines[i]) && !isSuppressed(lines, i, "no-black")) {
+        violations.push({ rule: "no-black", file: rel, line: i + 1, text: lines[i].trim() });
+      }
+    }
+  }
+);
+
+// R15: No confetti celebration runtime
+rule(
+  "no-confetti-runtime",
+  "canvas-confetti is forbidden; the approved stamp reveal owns restrained celebration later",
+  ({ violations, lines, rel }) => {
+    for (let i = 0; i < lines.length; i++) {
+      if (/canvas-confetti/.test(lines[i]) && !isSuppressed(lines, i, "no-confetti-runtime")) {
+        violations.push({ rule: "no-confetti-runtime", file: rel, line: i + 1, text: lines[i].trim() });
+      }
+    }
+  }
+);
+
 // ---- runner ------------------------------------------------------------
 
 function run() {

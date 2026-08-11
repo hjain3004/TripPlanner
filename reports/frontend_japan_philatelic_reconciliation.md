@@ -66,3 +66,17 @@ Verification:
 | `npx vitest run` | Passed: 2 files, 112 tests |
 | `npm run build` | Passed after network permission for Google Fonts |
 | `npx playwright test e2e/r0-initial-route-bundle.spec.ts --config=e2e/playwright.config.ts --project=chromium` | Passed: 1 test |
+
+## Task 3 red proof — design drift guardrail
+
+`npx vitest run tests/design-drift.test.ts` failed before repairs with 34 violations. The failure covered the intended drift categories:
+
+| Category | Representative paths |
+|---|---|
+| `transition-all` | `ExploreView.tsx`, `theme-proof/page.tsx`, `SharedUI.tsx` |
+| faux-bold display typography | `ExploreView.tsx`, `DealsView.tsx`, `ItineraryView.tsx`, `ProofView.tsx`, `WalletView.tsx`, `ProfileView.tsx`, `RegisterSpecimenView.tsx` |
+| scale-zero entrances | `ProofView.tsx`, `Illustrations.tsx` |
+| raw black | `Illustrations.tsx` |
+| confetti import | `verdict-header.tsx`, `booking-checklist.tsx` |
+
+The plan's Task 3 file list omitted some view files that the required broad guardrail intentionally flags. The mechanical repairs stayed limited to typography, transition specificity, scale-zero entrance removal, and confetti removal; content/data reconciliation remains Task 6.
