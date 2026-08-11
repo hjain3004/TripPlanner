@@ -316,6 +316,8 @@ class SqliteEvidenceStore:
 
                 import json
 
+                unknown_ids = set()
+
                 for claim_body in bodies["claims"].values():
                     data = json.loads(claim_body)
                     if data.get("source_id"):
@@ -330,21 +332,14 @@ class SqliteEvidenceStore:
                     if data.get("run_id"):
                         nodes["runs"].add(data["run_id"])
                     for did in data.get("derived_from", []):
-                        if did.startswith("c-"):
-                            nodes["claims"].add(did)
-                        elif did.startswith("a"):
-                            nodes["artifacts"].add(did)
+                        unknown_ids.add(did)
 
                 for eval_body in bodies["evaluations"].values():
                     data = json.loads(eval_body)
                     if data.get("run_id"):
                         nodes["runs"].add(data["run_id"])
                     if data.get("subject_id"):
-                        subj = data["subject_id"]
-                        if subj.startswith("c-"):
-                            nodes["claims"].add(subj)
-                        elif subj.startswith("a"):
-                            nodes["artifacts"].add(subj)
+                        unknown_ids.add(data["subject_id"])
 
                 for res_body in bodies["resolutions"].values():
                     data = json.loads(res_body)
@@ -418,25 +413,26 @@ class SqliteEvidenceStore:
 
                 for e in loaded_edges:
                     nodes["runs"].add(e[3])
-                    if e[1].startswith("s-"):
-                        nodes["sources"].add(e[1])
-                    elif e[1].startswith("c-"):
-                        nodes["claims"].add(e[1])
-                    elif e[1].startswith("a"):
-                        nodes["artifacts"].add(e[1])
-                    elif e[1].startswith("e"):
-                        nodes["evaluations"].add(e[1])
-                    elif e[1].startswith("res:"):
-                        nodes["resolutions"].add(e[1])
+                    unknown_ids.add(e[1])
+                    unknown_ids.add(e[2])
 
-                    if e[2].startswith("c-"):
-                        nodes["claims"].add(e[2])
-                    elif e[2].startswith("a"):
-                        nodes["artifacts"].add(e[2])
-                    elif e[2].startswith("e"):
-                        nodes["evaluations"].add(e[2])
-                    elif e[2].startswith("res:"):
-                        nodes["resolutions"].add(e[2])
+                known_ids = set()
+                for table in ["sources", "claims", "artifacts", "evaluations", "resolutions"]:
+                    known_ids.update(nodes[table])
+                    known_ids.update(bodies[table].keys())
+                
+                unknown_ids -= known_ids
+                if unknown_ids:
+                    for table in ["sources", "claims", "artifacts", "evaluations", "resolutions"]:
+                        if not unknown_ids:
+                            break
+                        found = set()
+                        for chunk in [list(unknown_ids)[i:i+900] for i in range(0, len(unknown_ids), 900)]:
+                            q = ",".join("?" for _ in chunk)
+                            cur.execute(f"SELECT id FROM {table} WHERE id IN ({q})", tuple(chunk))
+                            found.update(row[0] for row in cur.fetchall())
+                        nodes[table].update(found)
+                        unknown_ids -= found
 
                 new_counts = sum(len(b) for b in bodies.values()) + len(loaded_edges)
                 if new_counts == prev_counts:

@@ -452,3 +452,41 @@ def test_v1_migration_is_atomic(tmp_path: Path, source_a: Source) -> None:
     with pytest.raises(EvidenceStoreError, match="Cannot uniquely derive run ownership"):
         SqliteEvidenceStore(db_path)
 
+
+def test_load_resolves_node_types_without_prefixes(tmp_path: Path, claim_a: Claim, source_a: Source) -> None:
+    db_path = tmp_path / "evidence.db"
+    store = SqliteEvidenceStore(db_path)
+    
+    g = EvidenceGraph()
+    claim_x = claim_a.model_copy(update={"claim_id": "place/xyz", "run_id": "r0", "source_id": "s-x"})
+    source_x = source_a.model_copy(update={"source_id": "s-x", "run_id": "r0"})
+    g.add_source(source_x)
+    g.add_claim(claim_x)
+    from gateway.evidence.edges import Edge, EdgeKind
+    g.add_edge(Edge(src=source_x.source_id, dst=claim_x.claim_id, kind=EdgeKind.SUPPORTS, created_by_run="r0"))
+    g.add_run(Run(run_id="r0", started_at="2026-10-12T09:00:00Z"))
+    store.save(g)
+    
+    g2 = EvidenceGraph(authoritative_runs={"r1"})
+    artifact = Artifact(
+        artifact_id="artifact-without-prefix",
+        run_id="r1",
+        kind="DraftItinerary",
+        derived_from=["place/xyz"],
+        data={},
+        version="1",
+    )
+    g2.add_artifact(artifact)
+    g2.add_run(Run(run_id="r1", started_at="2026-10-12T10:00:00Z"))
+    g2.add_source(source_x)
+    g2.add_claim(claim_x)
+    g2.add_edge(Edge(src=source_x.source_id, dst=claim_x.claim_id, kind=EdgeKind.SUPPORTS, created_by_run="r0"))
+    g2.add_edge(Edge(src=artifact.artifact_id, dst=claim_x.claim_id, kind=EdgeKind.DERIVED_FROM, created_by_run="r1"))
+    
+    store.save(g2)
+    
+    loaded = store.load("r1")
+    assert "place/xyz" in loaded.claims
+    assert "artifact-without-prefix" in loaded.artifacts
+    assert loaded.artifacts["artifact-without-prefix"].derived_from == ["place/xyz"]
+
