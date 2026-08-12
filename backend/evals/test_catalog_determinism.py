@@ -2,8 +2,10 @@ import json
 import random
 from hashlib import sha256
 from pathlib import Path
-from gateway.catalog.build import build_catalog
+
 from gateway.catalog.activate import canonical_json
+from gateway.catalog.build import build_catalog
+from gateway.places.contracts import PlaceClaim
 
 MANIFEST = """
 catalog_id: sg_test
@@ -21,7 +23,6 @@ sources:
 """
 
 def _build(manifest_yaml: str, rows: list[dict], work_dir: Path) -> str:
-    from gateway.catalog.build import build_catalog
     
     payload = b"\n".join(json.dumps(r).encode() for r in rows)
     checksum = sha256(payload).hexdigest()
@@ -47,7 +48,6 @@ def test_two_builds_from_the_same_inputs_are_byte_identical(tmp_path: Path) -> N
 
 def test_the_build_embeds_no_wall_clock_timestamp(tmp_path: Path) -> None:
     """A 'now' anywhere in the artifact would break reproducibility."""
-    from gateway.catalog.build import build_catalog
     rows = [{"id": "a"}]
     payload = b"\n".join(json.dumps(r).encode() for r in rows)
     checksum = sha256(payload).hexdigest()
@@ -63,13 +63,12 @@ def test_the_build_embeds_no_wall_clock_timestamp(tmp_path: Path) -> None:
     assert all(c.retrieved_at.isoformat().startswith("2026-01-01") for c in artifact.claims)
 
 def build_from_rows(rows: list[dict]) -> str:
-    from gateway.catalog.normalize import normalize_overture
-    from gateway.catalog.identity import resolve_places
-    from gateway.catalog.claims import select_claims
-    from gateway.catalog.quality import evaluate_quality
     from gateway.catalog.activate import CatalogArtifact, PinnedSource
-    
+    from gateway.catalog.claims import select_claims
+    from gateway.catalog.identity import resolve_places
     from gateway.catalog.manifest import PinnedSource as ManifestSource
+    from gateway.catalog.normalize import normalize_overture
+    from gateway.catalog.quality import evaluate_quality
     
     src = ManifestSource(
         source_id="overture_sg", source_release="1", source_url="http://x",
@@ -94,9 +93,6 @@ def build_from_rows(rows: list[dict]) -> str:
         else:
             merged_claims.append(c)
             
-    from gateway.catalog.claims import select_claims
-    from gateway.catalog.quality import evaluate_quality
-    from gateway.places.contracts import PlaceClaim
     
     winners, contradictions = select_claims(merged_claims)
     quality = evaluate_quality(places, winners)
@@ -135,3 +131,5 @@ def test_shuffled_input_rows_produce_the_same_artifact(tmp_path: Path) -> None:
     shuffled = rows[:]
     random.Random(1234).shuffle(shuffled)
     assert build_from_rows(rows) == build_from_rows(shuffled)
+
+
