@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+
 from gateway.places.contracts import Place, PlaceClaim
 
 SUPPORTED_CATEGORIES = ("park", "food_court", "restaurant", "cafe", "attraction", "museum")
@@ -36,7 +37,8 @@ def evaluate_quality(places: list[Place], claims: list[PlaceClaim]) -> QualityRe
     for p in places:
         c_list = place_claims[p.place_id]
         
-        # Determine category (spec 5.4 says warn on stale, but here we just need to count categories)
+        # Determine category (spec 5.4 says warn on stale, but here we just need
+        # to count categories)
         cats = [c.value for c in c_list if c.field == "category"]
         for cat in cats:
             if cat in by_category:
@@ -55,7 +57,9 @@ def evaluate_quality(places: list[Place], claims: list[PlaceClaim]) -> QualityRe
         
     for cat, minimum in _MIN_PER_CATEGORY.items():
         if by_category[cat] < minimum:
-            failures.append(f"Category {cat} below minimum (has {by_category[cat]}, needs {minimum})")
+            failures.append(
+                f"Category {cat} below minimum (has {by_category[cat]}, needs {minimum})"
+            )
             
     passed = len(failures) == 0
     failures.sort()

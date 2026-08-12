@@ -79,7 +79,11 @@ def build_from_rows(rows: list[dict]) -> str:
     claims = normalize_overture(rows, src)
     places, decisions = resolve_places(claims)
     
-    rewrites = {pid: d.resulting_place_id for d in decisions for pid in d.source_place_ids if d.merged}
+    rewrites = {
+        pid: d.resulting_place_id 
+        for d in decisions 
+        for pid in d.source_place_ids if d.merged
+    }
     merged_claims = []
     for c in claims:
         new_pid = rewrites.get(c.place_id, c.place_id)
@@ -115,9 +119,18 @@ def build_from_rows(rows: list[dict]) -> str:
 
 def test_shuffled_input_rows_produce_the_same_artifact(tmp_path: Path) -> None:
     rows = [
-        {"id": "a", "names": {"primary": "Park A"}, "categories": {"primary": "park"}, "geometry": {"lat": 1, "lon": 1}},
-        {"id": "b", "names": {"primary": "Park B"}, "categories": {"primary": "park"}, "geometry": {"lat": 2, "lon": 2}},
-        {"id": "c", "names": {"primary": "Park C"}, "categories": {"primary": "park"}, "geometry": {"lat": 3, "lon": 3}}
+        {
+            "id": "a", "names": {"primary": "Park A"}, 
+            "categories": {"primary": "park"}, "geometry": {"lat": 1, "lon": 1}
+        },
+        {
+            "id": "b", "names": {"primary": "Park B"}, 
+            "categories": {"primary": "park"}, "geometry": {"lat": 2, "lon": 2}
+        },
+        {
+            "id": "c", "names": {"primary": "Park C"}, 
+            "categories": {"primary": "park"}, "geometry": {"lat": 3, "lon": 3}
+        }
     ]
     shuffled = rows[:]
     random.Random(1234).shuffle(shuffled)

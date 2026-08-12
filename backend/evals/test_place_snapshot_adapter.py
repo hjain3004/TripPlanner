@@ -1,9 +1,14 @@
-import pytest
 from pathlib import Path
 
+import pytest
+
 from gateway.places.adapters.snapshot import SnapshotPlaceAdapter
-from gateway.places.contracts import PlaceSearchRequest, PlaceCandidate, PartialPlaceResult, validate_adapter_response
+from gateway.places.contracts import (
+    PlaceSearchRequest,
+    validate_adapter_response,
+)
 from gateway.places.registry import PlaceGatewayError
+
 
 def test_snapshot_adapter_returns_candidates_from_the_active_catalog(
     active_catalog: Path,

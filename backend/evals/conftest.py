@@ -1,5 +1,8 @@
-import pytest
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
+
+import pytest
 
 from gateway.evidence.nodes import (
     Claim,
@@ -7,6 +10,7 @@ from gateway.evidence.nodes import (
     FreshnessState,
     Source,
 )
+from gateway.places.contracts import Place, PlaceClaim
 
 
 @pytest.fixture
@@ -60,10 +64,6 @@ def claim_a(source_a: Source) -> Claim:
         needs_verification=True,
         expires_at="2026-10-12T10:20:00Z",
     )
-
-from datetime import UTC, datetime
-from gateway.places.contracts import PlaceClaim
-
 
 def _c(place_id: str, field: str, value: Any, source_id: str = "src") -> PlaceClaim:
     return PlaceClaim(
@@ -124,10 +124,11 @@ def claims_ambiguous() -> list[PlaceClaim]:
         _c("overture:a", "coordinates", {"lat": 1.280, "lon": 103.840}, "overture"),
         _c("osm:b", "name", "Park", "osm"),
         _c("osm:b", "category", "park", "osm"),
-        _c("osm:b", "coordinates", {"lat": 1.285, "lon": 103.840}, "osm"),  # ~550m away (threshold 400, ambiguous < 800)
+        _c(
+            "osm:b", "coordinates", {"lat": 1.285, "lon": 103.840}, "osm"
+        ),  # ~550m away (threshold 400, ambiguous < 800)
     ]
-from gateway.places.contracts import Place, PlaceClaim
-from typing import Any
+
 
 def _cq(place_id: str, field: str, value: Any, lic: str = "L") -> PlaceClaim:
     return PlaceClaim(
@@ -159,21 +160,53 @@ def places() -> list[Place]:
 def claims() -> list[PlaceClaim]:
     claims = []
     # 2 parks (1, 2)
-    claims.extend([_cq("pl_1", "category", "park"), _cq("pl_1", "coordinates", "1,1"), _cq("pl_1", "opening_hours", "x")])
-    claims.extend([_cq("pl_2", "category", "park"), _cq("pl_2", "coordinates", "1,1"), _cq("pl_2", "opening_hours", "x")])
+    claims.extend([
+        _cq("pl_1", "category", "park"),
+        _cq("pl_1", "coordinates", "1,1"),
+        _cq("pl_1", "opening_hours", "x"),
+        _cq("pl_2", "category", "park"),
+        _cq("pl_2", "coordinates", "1,1"),
+        _cq("pl_2", "opening_hours", "x"),
+    ])
     # 2 food_court (3, 4)
-    claims.extend([_cq("pl_3", "category", "food_court"), _cq("pl_3", "coordinates", "1,1"), _cq("pl_3", "opening_hours", "x")])
-    claims.extend([_cq("pl_4", "category", "food_court"), _cq("pl_4", "coordinates", "1,1"), _cq("pl_4", "opening_hours", "x")])
+    claims.extend([
+        _cq("pl_3", "category", "food_court"),
+        _cq("pl_3", "coordinates", "1,1"),
+        _cq("pl_3", "opening_hours", "x"),
+        _cq("pl_4", "category", "food_court"),
+        _cq("pl_4", "coordinates", "1,1"),
+        _cq("pl_4", "opening_hours", "x"),
+    ])
     # 2 restaurant (5, 6)
-    claims.extend([_cq("pl_5", "category", "restaurant"), _cq("pl_5", "coordinates", "1,1"), _cq("pl_5", "opening_hours", "x")])
-    claims.extend([_cq("pl_6", "category", "restaurant"), _cq("pl_6", "coordinates", "1,1"), _cq("pl_6", "opening_hours", "x")])
+    claims.extend([
+        _cq("pl_5", "category", "restaurant"),
+        _cq("pl_5", "coordinates", "1,1"),
+        _cq("pl_5", "opening_hours", "x"),
+        _cq("pl_6", "category", "restaurant"),
+        _cq("pl_6", "coordinates", "1,1"),
+        _cq("pl_6", "opening_hours", "x"),
+    ])
     # 1 cafe (7)
-    claims.extend([_cq("pl_7", "category", "cafe"), _cq("pl_7", "coordinates", "1,1"), _cq("pl_7", "opening_hours", "x")])
+    claims.extend([
+        _cq("pl_7", "category", "cafe"),
+        _cq("pl_7", "coordinates", "1,1"),
+        _cq("pl_7", "opening_hours", "x")
+    ])
     # 2 attraction (8, 9)
-    claims.extend([_cq("pl_8", "category", "attraction"), _cq("pl_8", "coordinates", "1,1"), _cq("pl_8", "opening_hours", "x")])
-    claims.extend([_cq("pl_9", "category", "attraction"), _cq("pl_9", "coordinates", "1,1"), _cq("pl_9", "opening_hours", "x")])
+    claims.extend([
+        _cq("pl_8", "category", "attraction"),
+        _cq("pl_8", "coordinates", "1,1"),
+        _cq("pl_8", "opening_hours", "x"),
+        _cq("pl_9", "category", "attraction"),
+        _cq("pl_9", "coordinates", "1,1"),
+        _cq("pl_9", "opening_hours", "x"),
+    ])
     # 1 museum (10)
-    claims.extend([_cq("pl_10", "category", "museum"), _cq("pl_10", "coordinates", "1,1"), _cq("pl_10", "opening_hours", "x")])
+    claims.extend([
+        _cq("pl_10", "category", "museum"),
+        _cq("pl_10", "coordinates", "1,1"),
+        _cq("pl_10", "opening_hours", "x")
+    ])
     return claims
 
 
@@ -200,9 +233,9 @@ def claims_one_missing_licence(claims: list[PlaceClaim]) -> list[PlaceClaim]:
 
 @pytest.fixture
 def active_catalog(tmp_path: Path) -> Path:
-    from gateway.catalog.build import build_catalog
+
     from gateway.catalog.activate import activate
-    from pathlib import Path
+    from gateway.catalog.build import build_catalog
     
     manifest_yaml = """
 catalog_id: sg_test

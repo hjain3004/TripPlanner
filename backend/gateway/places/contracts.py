@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, Field
 
-
 IdentifierNamespace = Literal["overture", "osm", "wikidata", "tomtom", "internal"]
 
 

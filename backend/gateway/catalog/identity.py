@@ -6,8 +6,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-from gateway.places.contracts import ExternalId, Place, PlaceClaim
 from core.itinerary.compose import haversine_km
+from gateway.places.contracts import ExternalId, Place, PlaceClaim
 
 
 @dataclass
@@ -65,7 +65,8 @@ def resolve_places(claims: list[PlaceClaim]) -> tuple[list[Place], list[MergeDec
 
     # Pass 1: exact_external_id
     # If two groups share any (namespace, value), they merge.
-    # original place_id is itself an external ID (e.g. overture:xxx -> namespace overture, value xxx)
+    # original place_id is itself an external ID 
+    # (e.g. overture:xxx -> namespace overture, value xxx)
     # Plus any other external IDs. But the spec says: "sharing any (namespace, value) merge".
     # Since original place_id carries the namespace implicitly in its prefix:
     def get_ext_ids(pid: str) -> list[ExternalId]:

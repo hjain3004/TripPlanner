@@ -1,15 +1,16 @@
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, UTC
 
-from gateway.catalog.manifest import load_manifest
-from gateway.catalog.quarantine import verify_and_stage, QuarantineRejected
-from gateway.catalog.identity import resolve_places
-from gateway.catalog.claims import select_claims
-from gateway.catalog.quality import evaluate_quality
 from gateway.catalog.activate import CatalogArtifact, PinnedSource
-import json
+from gateway.catalog.claims import select_claims
+from gateway.catalog.manifest import load_manifest
+from gateway.catalog.quality import evaluate_quality
+from gateway.catalog.quarantine import verify_and_stage
 
-def build_catalog(manifest_path: Path, raw_dir: Path, work_dir: Path, fail_quality: bool = False) -> CatalogArtifact:
+
+def build_catalog(
+    manifest_path: Path, raw_dir: Path, work_dir: Path, fail_quality: bool = False
+) -> CatalogArtifact:
     # 1. Manifest parsing & validation (Task 2)
     sources = load_manifest(manifest_path)
     
@@ -32,14 +33,19 @@ def build_catalog(manifest_path: Path, raw_dir: Path, work_dir: Path, fail_quali
         if fail_quality:
             from gateway.places.contracts import Place, PlaceClaim
             resolved_places = [Place(place_id="pl_1", external_ids=[])]
-            raw_claims = [PlaceClaim(
-                place_id="pl_1", field="category", value="unknown", source_id="mock", source_release="1", 
-                licence_id="L", confidence=1.0, source_url="mock://", retrieved_at=datetime.now(UTC), 
-                last_verified=datetime.now(UTC), verified_by="test", needs_verification=False
-            )]
+            raw_claims = [
+                PlaceClaim(
+                    place_id="pl_1", field="category", value="unknown", 
+                    source_id="mock", source_release="1", licence_id="L", 
+                    confidence=1.0, source_url="mock://", 
+                    retrieved_at=datetime.now(UTC), 
+                    last_verified=datetime.now(UTC), verified_by="test", 
+                    needs_verification=False
+                )
+            ]
         else:
+            from gateway.catalog.quality import _MIN_PER_CATEGORY
             from gateway.places.contracts import Place, PlaceClaim
-            from gateway.catalog.quality import SUPPORTED_CATEGORIES, _MIN_PER_CATEGORY
             resolved_places = []
             raw_claims = []
             
@@ -49,22 +55,43 @@ def build_catalog(manifest_path: Path, raw_dir: Path, work_dir: Path, fail_quali
                 for _ in range(min_count):
                     p_id = f"pl_{place_idx}"
                     resolved_places.append(Place(place_id=p_id, external_ids=[]))
-                    base_args = dict(source_id="overture_sg", source_release="1", licence_id="L", confidence=1.0, 
-                                     source_url="http://x", retrieved_at=datetime(2026, 1, 1, tzinfo=UTC), 
-                                     last_verified=datetime(2026, 1, 1, tzinfo=UTC), verified_by="test", needs_verification=False)
-                    raw_claims.append(PlaceClaim(place_id=p_id, field="category", value=cat, **base_args))
-                    raw_claims.append(PlaceClaim(place_id=p_id, field="coordinates", value={"lat": 1, "lon": 1}, **base_args))
-                    raw_claims.append(PlaceClaim(place_id=p_id, field="opening_hours", value="24/7", **base_args))
+                    base_args = dict(
+                        source_id="overture_sg", source_release="1", licence_id="L", 
+                        confidence=1.0, source_url="http://x", 
+                        retrieved_at=datetime(2026, 1, 1, tzinfo=UTC), 
+                        last_verified=datetime(2026, 1, 1, tzinfo=UTC), 
+                        verified_by="test", needs_verification=False
+                    )
+                    raw_claims.append(PlaceClaim(
+                        place_id=p_id, field="category", value=cat, **base_args
+                    ))
+                    raw_claims.append(PlaceClaim(
+                        place_id=p_id, field="coordinates", 
+                        value={"lat": 1, "lon": 1}, **base_args
+                    ))
+                    raw_claims.append(PlaceClaim(
+                        place_id=p_id, field="opening_hours", value="24/7", 
+                        **base_args
+                    ))
                     place_idx += 1
             
             # Add one extra place WITHOUT opening_hours
             p_id = f"pl_{place_idx}"
             resolved_places.append(Place(place_id=p_id, external_ids=[]))
-            base_args = dict(source_id="overture_sg", source_release="1", licence_id="L", confidence=1.0, 
-                             source_url="http://x", retrieved_at=datetime(2026, 1, 1, tzinfo=UTC), 
-                             last_verified=datetime(2026, 1, 1, tzinfo=UTC), verified_by="test", needs_verification=False)
-            raw_claims.append(PlaceClaim(place_id=p_id, field="category", value="park", **base_args))
-            raw_claims.append(PlaceClaim(place_id=p_id, field="coordinates", value={"lat": 1, "lon": 1}, **base_args))
+            base_args = dict(
+                source_id="overture_sg", source_release="1", licence_id="L", 
+                confidence=1.0, source_url="http://x", 
+                retrieved_at=datetime(2026, 1, 1, tzinfo=UTC), 
+                last_verified=datetime(2026, 1, 1, tzinfo=UTC), verified_by="test", 
+                needs_verification=False
+            )
+            raw_claims.append(PlaceClaim(
+                place_id=p_id, field="category", value="park", **base_args
+            ))
+            raw_claims.append(PlaceClaim(
+                place_id=p_id, field="coordinates", value={"lat": 1, "lon": 1}, 
+                **base_args
+            ))
             
         merged_claims = raw_claims
         

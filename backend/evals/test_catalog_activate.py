@@ -1,13 +1,13 @@
-import json
-import pytest
 from pathlib import Path
 
+import pytest
+
 from gateway.catalog.activate import (
+    ActivationRefused,
     activate,
     active_catalog_path,
-    ActivationRefused,
 )
-from gateway.catalog.build import build_catalog, CatalogArtifact
+from gateway.catalog.build import build_catalog
 from gateway.catalog.quarantine import QuarantineRejected
 
 FIXTURES = Path("raw")
@@ -40,7 +40,6 @@ sources:
     raw = tmp_path / "raw"
     raw.mkdir()
     
-    import zipfile
     payload = b'{"id":"a"}\n'
     # Update checksum in manifest to match this payload
     import hashlib
@@ -51,8 +50,11 @@ sources:
     bad.write_text(manifest_yaml.replace("abc", bad_checksum))
     
     # write raw payload
-    raw_file = raw / "overture_sg_1.zip" # wait, the source is not a zip here? no, verify_and_stage takes raw_path
-    # verify_and_stage in test_catalog_quarantine expects just the file payload (it doesn't have to be a zip if max_bytes check passes, but wait, the plan said "uncompressed size over budget...").
+    raw_file = raw / "overture_sg_1.zip" 
+    # wait, the source is not a zip here? no, verify_and_stage takes raw_path
+    # verify_and_stage in test_catalog_quarantine expects just the file payload 
+    # (it doesn't have to be a zip if max_bytes check passes, but wait, the plan 
+    # said "uncompressed size over budget...").
     raw_file.write_bytes(payload)
     
     return m, bad, thin, raw

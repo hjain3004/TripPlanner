@@ -35,34 +35,27 @@ def select_claims(claims: list[PlaceClaim]) -> tuple[list[PlaceClaim], list[tupl
         valid_claims = [c for c in field_claims if c.source_id in authority]
         if not valid_claims:
             # If all are invalid (e.g. admission from aggregator), they all lose
-            # Wait, the spec says "A claim whose source_id is absent from its field's authority tuple never wins"
+            # Wait, the spec says "A claim whose source_id is absent from its
+            # field's authority tuple never wins"
             # If no one wins, they are all losers, but who do they contradict?
             # "If that leaves no claims for the field, the field is dropped."
-            # Do they emit contradictions if there is no winner? The prompt: "Every loser emits a CONTRADICTS edge against the winner."
+            # Do they emit contradictions if there is no winner? The prompt:
+            # "Every loser emits a CONTRADICTS edge against the winner."
             # So if there is no winner, maybe just contradictions = []?
             # Let's emit a contradiction against 'None'? No, edge needs winner_key.
-            for c in field_claims:
+            for _c in field_claims:
                 # no winner to contradict, just drop it
                 pass
             continue
 
         # Sort to find the winner deterministically:
-        # highest authority rank wins; ties break on newer source_release, then on source_id lexicographically
-        def sort_key(c: PlaceClaim) -> tuple[int, str, str, str]:
-            rank = authority.index(c.source_id)
-            release = c.source_release or ""
-            # We want newer source_release to sort first, so we might need to negate or reverse
-            # Wait, release strings like "2026-07-20" sort lexicographically.
-            # Python sort is ascending. We want smallest rank first (highest authority).
-            # Then we want NEWEST release. We can't easily negate strings.
-            # But we can sort with `reverse=False` on rank and `reverse=True` on release?
-            # No, `key` function must return a tuple that sorts naturally.
-            # But we want to sort once.
-            return (rank, release, c.source_id, str(c.value)) # fallback value just in case
+        # highest authority rank wins; ties break on newer source_release,
+        # then on source_id lexicographically
         
         # Sort valid claims:
         # Since we want rank ascending, release descending, source_id ascending:
-        # We can sort by source_id ascending first, then release descending, then rank ascending using stable sort!
+        # We can sort by source_id ascending first, then release descending,
+        # then rank ascending using stable sort!
         # Or just use multiple sort passes.
         valid_claims.sort(key=lambda c: (c.source_id, str(c.value)))
         valid_claims.sort(key=lambda c: c.source_release or "", reverse=True)
@@ -84,7 +77,9 @@ def select_claims(claims: list[PlaceClaim]) -> tuple[list[PlaceClaim], list[tupl
     return winners, contradictions
 
 
-def add_catalog_place_to_graph(graph: EvidenceGraph, place: Place, claims: list[PlaceClaim], run_id: str) -> None:
+def add_catalog_place_to_graph(
+    graph: EvidenceGraph, place: Place, claims: list[PlaceClaim], run_id: str
+) -> None:
     # "follow the pattern already in gateway/places/evidence.py::add_place_candidate_to_graph"
     # Actually I should implement it directly here.
     
@@ -94,7 +89,8 @@ def add_catalog_place_to_graph(graph: EvidenceGraph, place: Place, claims: list[
     # Add claims (and their sources implicitly if not present, though we might not have them)
     # The prompt says: "losing claims remain addressable."
     # So we must add ALL claims to the graph!
-    # Wait, the spec says "Every loser emits a CONTRADICTS edge against the winner. A claim whose source_id is absent from its field's authority tuple never wins..."
+    # Wait, the spec says "Every loser emits a CONTRADICTS edge against the winner.
+    # A claim whose source_id is absent from its field's authority tuple never wins..."
     for c in claims:
         c_id = _claim_id(c.place_id, c.field, c.source_id)
         # We don't have the Claim object from gateway.evidence.nodes here directly?

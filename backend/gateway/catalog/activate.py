@@ -1,11 +1,12 @@
 import json
 import os
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel
-from gateway.places.contracts import Place, PlaceClaim
+
 from gateway.catalog.quality import QualityReport
+from gateway.places.contracts import Place, PlaceClaim
+
 
 class PinnedSource(BaseModel):
     attribution_text: str

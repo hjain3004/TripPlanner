@@ -1,13 +1,14 @@
-from pathlib import Path
 import json
+from pathlib import Path
 
 from gateway.places.contracts import (
-    PlaceSearchRequest,
-    PlaceCandidate,
     PartialPlaceResult,
+    PlaceCandidate,
     PlaceClaim,
+    PlaceSearchRequest,
 )
 from gateway.places.registry import PlaceGatewayError
+
 
 class SnapshotPlaceAdapter:
     def __init__(self, catalog_path: Path) -> None:
@@ -31,7 +32,8 @@ class SnapshotPlaceAdapter:
             for s in data.get("sources", []):
                 source_map[s["id"]] = s
                 
-            # claims have licence_id but lack attribution text? Wait, in conftest I set attribution_requirements.
+            # claims have licence_id but lack attribution text? 
+            # Wait, in conftest I set attribution_requirements.
             # wait, the spec says "map claims into PlaceCandidate"
             places_claims: dict[str, list[PlaceClaim]] = {}
             for c in data.get("claims", []):
@@ -75,9 +77,11 @@ class SnapshotPlaceAdapter:
         except PlaceGatewayError:
             raise
         except Exception as e:
-            raise PlaceGatewayError(code="provider_unavailable", message=str(e))
+            raise PlaceGatewayError(code="provider_unavailable", message=str(e)) from e
 
-    def search_places(self, request: PlaceSearchRequest) -> tuple[list[PlaceCandidate], PartialPlaceResult | None]:
+    def search_places(
+        self, request: PlaceSearchRequest
+    ) -> tuple[list[PlaceCandidate], PartialPlaceResult | None]:
         candidates = self._load()
         
         filtered = []
@@ -90,6 +94,12 @@ class SnapshotPlaceAdapter:
             filtered.append(c)
             
         if len(filtered) > request.max_results:
-            return filtered[:request.max_results], PartialPlaceResult(stop_reason="budget_exhausted", unresolved_needs=["budget_exhausted"])
+            return (
+                filtered[:request.max_results], 
+                PartialPlaceResult(
+                    stop_reason="budget_exhausted", 
+                    unresolved_needs=["budget_exhausted"]
+                )
+            )
             
         return filtered, None
