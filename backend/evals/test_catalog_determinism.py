@@ -133,3 +133,39 @@ def test_shuffled_input_rows_produce_the_same_artifact(tmp_path: Path) -> None:
     assert build_from_rows(rows) == build_from_rows(shuffled)
 
 
+
+def test_shuffled_merging_input_rows_produce_the_same_artifact() -> None:
+    rows = [
+        {
+            "id": "a", "names": {"primary": "Merlion"}, 
+            "categories": {"primary": "attraction"}, 
+            "geometry": {"lat": 1, "lon": 1}
+        },
+        {
+            "id": "b", "names": {"primary": "Merlion"}, 
+            "categories": {"primary": "attraction"}, 
+            "geometry": {"lat": 1, "lon": 1}
+        },
+        {
+            "id": "c", "names": {"primary": "Park C"}, 
+            "categories": {"primary": "park"}, "geometry": {"lat": 3, "lon": 3}
+        }
+    ]
+    
+    # Confirm merging happens
+    from gateway.catalog.identity import resolve_places
+    from gateway.catalog.manifest import PinnedSource as ManifestSource
+    from gateway.catalog.normalize import normalize_overture
+    src = ManifestSource(
+        source_id="overture_sg", source_release="1", source_url="http://x",
+        attribution_text="Overture", licence_id="L", checksum="0"*64,
+        max_bytes=1000, geographic_scope="SG", allowed_purpose="non-commercial"
+    )
+    claims = normalize_overture(rows, src)
+    places, decisions = resolve_places(claims)
+    
+    print(f"MERGE DECISIONS: {[d for d in decisions if d.merged]}")
+    
+    shuffled = rows[:]
+    random.Random(1234).shuffle(shuffled)
+    assert build_from_rows(rows) == build_from_rows(shuffled)
