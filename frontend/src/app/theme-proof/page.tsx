@@ -72,6 +72,32 @@ export default async function ThemeProofPage({
         </div>
       </section>
 
+      <section className="space-y-6">
+        <h2 className="text-h2">Nested theme scope</h2>
+        <p className="max-w-2xl text-text-muted">
+          Diagnostic token harness for Tailwind inline theme resolution. The inner swatch deliberately overrides the
+          surrounding proof theme.
+        </p>
+        <div className="grid max-w-2xl grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="border-2 border-border bg-surface p-4 shadow-1">
+            <p className="mb-3 font-mono text-caption text-text-muted">Outer scope primary</p>
+            <div
+              aria-label="Outer theme primary swatch"
+              className="h-16 border-2 border-border bg-primary"
+              data-testid="outside-primary"
+            />
+          </div>
+          <div className={`${resolved.globalTheme === "japan" ? "theme-natural" : "theme-japan"} border-2 border-border bg-surface p-4 shadow-1`}>
+            <p className="mb-3 font-mono text-caption text-text-muted">Inner override primary</p>
+            <div
+              aria-label="Inner theme primary swatch"
+              className="h-16 border-2 border-border bg-primary"
+              data-testid="inside-primary"
+            />
+          </div>
+        </div>
+      </section>
+
       {resolved.globalTheme === "japan" ? (
         <section className="space-y-6">
           <div className="max-w-3xl">

@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 
-const STAMP_ASSET = "/img/japan/philatelic/japan-atlas-stamp-01.webp";
 const STAMP_ASSET_NAME = "japan-atlas-stamp-01.webp";
 
 async function selectPreview(page: import("@playwright/test").Page, tab: string) {

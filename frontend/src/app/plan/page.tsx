@@ -451,7 +451,7 @@ function StepSubmit({ wizard, composeRawRequest: compose }: { wizard: WizardData
   return (
     <div className="space-y-4 text-sm">
       <p>You are about to submit this trip plan request:</p>
-      /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
+      {/* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */}
       <div className="rounded-lg border border-border bg-accent-2/30 p-3">
         <p className="font-mono text-xs">{raw}</p>
         {wizard.cardIds.length > 0 && (

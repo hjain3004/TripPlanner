@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { Plane } from "lucide-react";
+import { Plane, type LucideIcon } from "lucide-react";
 
 export type RouteNodeState = "done" | "current" | "pending" | "warning";
 
@@ -8,7 +8,7 @@ interface RouteNodeProps {
   state: RouteNodeState;
   label: string;
   subtitle?: string;
-  icon?: any;
+  icon?: LucideIcon;
   children?: ReactNode;
 }
 
