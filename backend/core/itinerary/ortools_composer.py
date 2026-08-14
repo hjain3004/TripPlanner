@@ -26,10 +26,7 @@ class ORToolsComposer:
             return GreedyComposer().compose(spec, retrieval, matrix, constraints)
 
         try:
-            from ortools.constraint_solver import (
-                pywrapcp,  # type: ignore[import-untyped]
-                routing_enums_pb2,
-            )
+            from ortools.constraint_solver import pywrapcp, routing_enums_pb2  # type: ignore[import-untyped]
         except ImportError:
             return GreedyComposer().compose(spec, retrieval, matrix, constraints)
 

@@ -1,9 +1,8 @@
 from datetime import UTC, datetime
 
-from core.itinerary.ortools import ORToolsComposer
-
 from core.itinerary.contracts import ItineraryConstraints, RouteCell, RouteMatrix
 from core.itinerary.greedy import GreedyComposer, score_draft
+from core.itinerary.ortools_composer import ORToolsComposer
 from evals.test_i1_safety import _poi, _retrieval, _spec
 
 

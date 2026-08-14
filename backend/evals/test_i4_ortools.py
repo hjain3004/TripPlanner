@@ -1,8 +1,7 @@
 from datetime import UTC, date, datetime
 
-from core.itinerary.ortools import ORToolsComposer
-
 from core.itinerary.contracts import ItineraryConstraints, RouteCell, RouteMatrix
+from core.itinerary.ortools_composer import ORToolsComposer
 from core.itinerary.validate import validate_draft
 from core.models import UserWallet
 from core.trip_models import TripSpec
