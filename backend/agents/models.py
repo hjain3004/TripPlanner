@@ -136,6 +136,7 @@ class JobError(BaseModel):
 
 PIPELINE_STAGES: list[str] = [
     "intake",
+    "discovery",
     "itinerary",
     "costing",
     "optimizing",
@@ -150,6 +151,7 @@ class PlanJobStatus(BaseModel):
     stage: (
         Literal[
             "intake",
+            "discovery",
             "itinerary",
             "costing",
             "optimizing",

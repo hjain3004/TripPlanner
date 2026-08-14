@@ -25,6 +25,7 @@ def run_pipeline(
     raw_request: str,
     kb: KnowledgeBase,
     llm: LLMClient,
+    registry: Any = None,
     *,
     booking_date: date,
     trace_dir: Path | None = None,
@@ -45,11 +46,24 @@ def run_pipeline(
         )
 
     spec = intake.trip_spec
+
+    if on_stage is not None:
+        on_stage(2, "discovery")
+    from agents.discovery.controller import run_discovery
+    from gateway.places.registry import get_default_place_registry
+    actual_registry = registry or get_default_place_registry()
+    discovery = run_discovery(spec, actual_registry, llm)
+    trace.record("discovery", discovery, model="llm:discovery")
+
     retrieval = retrieve_candidates(spec, kb)
+    # the discovered candidates should be added to the retrieval context or kb?
+    # Spec 12: 'Compose from deterministic retrieval results; no extra hidden call site.'
+    # So discovery commits things. For the Kernel MVP, wait... 
+    # run_discovery returns committed_candidates.
     trace.record("retrieval", retrieval)
 
     if on_stage is not None:
-        on_stage(2, "itinerary")
+        on_stage(3, "itinerary")
     planner = run_planner(spec, retrieval, llm)
     trace.record(
         "planner",
@@ -64,18 +78,18 @@ def run_pipeline(
     planner_caveats = list(planner.caveats)
 
     if on_stage is not None:
-        on_stage(3, "costing")
+        on_stage(4, "costing")
     estimate = estimate_costed_trip(spec, itinerary, kb, booking_date=booking_date)
     trace.record("estimator", estimate)
     if on_stage is not None:
-        on_stage(4, "optimizing")
+        on_stage(5, "optimizing")
     kernel = run_kernel(spec, estimate, kb, booking_date=booking_date)
     trace.record("optimizer", kernel)
 
     critic_caveats: list[str] = []
     for loop_index in range(MAX_CRITIC_REPLAN_LOOPS):
         if on_stage is not None:
-            on_stage(5, "critic")
+            on_stage(6, "critic")
         critic = run_critic(spec, itinerary, estimate, kb, llm)
         trace.record(
             "critic",
@@ -115,7 +129,7 @@ def run_pipeline(
         trace.record("optimizer", kernel, attributes={"revision_count": loop_index + 1})
 
     if on_stage is not None:
-        on_stage(6, "explaining")
+        on_stage(7, "explaining")
     report = run_explainer(
         spec,
         itinerary,

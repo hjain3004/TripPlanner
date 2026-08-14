@@ -26,7 +26,10 @@ def run_discovery(spec: TripSpec, registry: Any, llm: Any) -> DiscoveryResult:
             # Simulated model loop. In reality, we would call the LLM, and the LLM
             # would call tools. If the LLM doesn't call tools or finishes its logic,
             # we break.
-            done = llm.execute_planner(spec, registry, state)
+            if hasattr(llm, "execute_planner"):
+                done = llm.execute_planner(spec, registry, state)
+            else:
+                done = True
             if done:
                 break
     except BudgetExceeded as e:

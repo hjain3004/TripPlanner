@@ -16,6 +16,7 @@ from agents.models import (
 from agents.pipeline import run_pipeline
 from api.job_manager import job_manager
 from core.db import DB_PATH, KnowledgeBase, load_kb, seed_database
+from gateway.places.registry import ProviderRegistry, get_default_place_registry
 
 TRACE_DIR = Path(__file__).resolve().parents[1] / ".traces"
 
@@ -54,13 +55,14 @@ def plan(
     request: TripIntakeRequest,
     kb: KnowledgeBase = Depends(get_kb),
     llm: LLMClient = Depends(get_llm),
+    registry: ProviderRegistry = Depends(get_default_place_registry),
     booking_date: date = Depends(get_booking_date),
     trace_dir: Path = Depends(get_trace_dir),
 ) -> dict[str, str]:
     job_id = job_manager.create_job()
     thread = threading.Thread(
         target=_run_job,
-        args=(job_id, request, kb, llm, booking_date, trace_dir),
+        args=(job_id, request, kb, llm, registry, booking_date, trace_dir),
         daemon=True,
     )
     thread.start()
@@ -80,6 +82,7 @@ def _run_job(
     request: TripIntakeRequest,
     kb: KnowledgeBase,
     llm: LLMClient,
+    registry: ProviderRegistry,
     booking_date: date,
     trace_dir: Path,
 ) -> None:
@@ -92,6 +95,7 @@ def _run_job(
             request.raw_request,
             kb,
             llm,
+            registry,
             booking_date=booking_date,
             trace_dir=trace_dir,
             on_stage=on_stage,
