@@ -232,7 +232,8 @@ def compose_itinerary(spec: TripSpec, retrieval: RetrievalContext) -> ComposerRe
                         kind="unknown_hours",
                         poi_id=candidate.id,
                         day_date=visit_date,
-                        message=f"Hours for {candidate.name} on {visit_date.isoformat()} are unknown. Verify before visiting.",
+                        message=f"Hours for {candidate.name} on {visit_date.isoformat()} "
+                            "are unknown. Verify before visiting.",
                     )
                 )
 
@@ -298,7 +299,8 @@ def build_final_schedule(
                         kind="closed_day",
                         poi_id=poi.id,
                         day_date=day.date,
-                        message=f"{poi.name} is scheduled on {day.date.isoformat()} but is explicitly closed.",
+                        message=f"{poi.name} is scheduled on {day.date.isoformat()} "
+                        "but is explicitly closed.",
                     )
                 )
             elif status == "unknown":
@@ -307,7 +309,8 @@ def build_final_schedule(
                         kind="unknown_hours",
                         poi_id=poi.id,
                         day_date=day.date,
-                        message=f"Hours for {poi.name} on {day.date.isoformat()} are unknown. Verify before visiting.",
+                        message=f"Hours for {poi.name} on {day.date.isoformat()} "
+                        "are unknown. Verify before visiting.",
                     )
                 )
 
@@ -323,7 +326,8 @@ def build_final_schedule(
                                     kind="overlap",
                                     poi_id=poi.id,
                                     day_date=day.date,
-                                    message=f"Item {poi.id} start time {item.start_hint} overlaps with previous items.",
+                                    message=f"Item {poi.id} start time {item.start_hint} "
+                                    "overlaps with previous items.",
                                 )
                             )
                             # Do not adopt a hint that overlaps the previous item —

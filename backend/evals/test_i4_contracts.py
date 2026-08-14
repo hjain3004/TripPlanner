@@ -1,4 +1,3 @@
-# ruff: noqa: E501, E402
 from datetime import UTC, datetime
 
 import pytest
@@ -14,9 +13,15 @@ from core.itinerary.contracts import (
 
 def _cell(**over: object) -> RouteCell:
     base = dict(
-        origin_place_id="pl_a", destination_place_id="pl_b", mode="transit",
-        duration_min=18, distance_km=4.2, retrieved_at=datetime(2026, 1, 1, tzinfo=UTC),
-        source="geodesic_estimate", status="estimated", confidence=0.6,
+        origin_place_id="pl_a",
+        destination_place_id="pl_b",
+        mode="transit",
+        duration_min=18,
+        distance_km=4.2,
+        retrieved_at=datetime(2026, 1, 1, tzinfo=UTC),
+        source="geodesic_estimate",
+        status="estimated",
+        confidence=0.6,
     )
     base.update(over)
     return RouteCell(**base)  # type: ignore[arg-type]

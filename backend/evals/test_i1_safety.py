@@ -1,4 +1,3 @@
-# ruff: noqa: E501, E402
 """Tests for T4 (hours feasibility) and T5 (travel-time budget) in the composer.
 
 Uses synthetic fixtures with varied provenance (§4 of the I1 plan).

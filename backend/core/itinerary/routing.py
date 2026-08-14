@@ -1,4 +1,3 @@
-# ruff: noqa: E501, E402
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any
@@ -7,7 +6,9 @@ from core.itinerary.compose import estimate_travel_min, haversine_km
 from core.itinerary.contracts import RouteCell, RouteMatrix
 
 
-def build_geodesic_matrix_with_gaps(places: Iterable[Any], mode: str) -> tuple[RouteMatrix, list[str]]:
+def build_geodesic_matrix_with_gaps(
+    places: Iterable[Any], mode: str
+) -> tuple[RouteMatrix, list[str]]:
     valid_places = []
     unroutable = []
     for p in places:
@@ -15,14 +16,14 @@ def build_geodesic_matrix_with_gaps(places: Iterable[Any], mode: str) -> tuple[R
             unroutable.append(p.id)
         else:
             valid_places.append(p)
-            
+
     valid_places.sort(key=lambda p: p.id)
     cells = []
-    
+
     # Geodesic estimates are deterministic mathematical functions; their "retrieval"
     # is effectively constant. Use a fixed date so they test deterministically.
     now = datetime(2026, 1, 1, tzinfo=UTC)
-    
+
     # Generate all pairs
     for a in valid_places:
         for b in valid_places:
@@ -40,11 +41,12 @@ def build_geodesic_matrix_with_gaps(places: Iterable[Any], mode: str) -> tuple[R
                     retrieved_at=now,
                     source="geodesic_estimate",
                     status="estimated",
-                    confidence=0.8
+                    confidence=0.8,
                 )
             )
-            
+
     return RouteMatrix(cells=cells), unroutable
+
 
 def build_geodesic_matrix(places: Iterable[Any], mode: str) -> RouteMatrix:
     matrix, _ = build_geodesic_matrix_with_gaps(places, mode)

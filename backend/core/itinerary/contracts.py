@@ -1,4 +1,3 @@
-# ruff: noqa: E501, E402
 from datetime import datetime
 from typing import Literal
 
@@ -31,7 +30,11 @@ class RouteMatrix(BaseModel):
             if cell.mode == mode:
                 if cell.origin_place_id == origin and cell.destination_place_id == dest:
                     return cell.duration_min
-                if cell.status == "estimated" and cell.origin_place_id == dest and cell.destination_place_id == origin:
+                if (
+                    cell.status == "estimated"
+                    and cell.origin_place_id == dest
+                    and cell.destination_place_id == origin
+                ):
                     return cell.duration_min
         return None
 
@@ -49,7 +52,7 @@ class RejectionReason(BaseModel):
         "travel_time_infeasible",
         "accessibility_excluded",
         "fixed_window_violated",
-        "no_evidence_backed_place_id"
+        "no_evidence_backed_place_id",
     ]
     place_id: str | None = None
     detail: str | None = None
