@@ -8,7 +8,6 @@ from fastapi import Depends, FastAPI, HTTPException
 
 from agents.llm import HostedFreeTier, LLMClient
 from agents.models import (
-    PIPELINE_STAGES,
     PipelineStatus,
     PlanJobStatus,
     TripIntakeRequest,

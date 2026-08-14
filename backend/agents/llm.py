@@ -29,7 +29,8 @@ class LLMClient(Protocol):
         temperature: float = 0.0,
         max_tokens: int = 2048,
         timeout_s: int = 20,
-    ) -> T: ...
+        tools: list[dict[str, Any]] | None = None,
+    ) -> T | Any: ...
 
 
 class ScriptedLLMClient:
@@ -47,7 +48,8 @@ class ScriptedLLMClient:
         temperature: float = 0.0,
         max_tokens: int = 2048,
         timeout_s: int = 20,
-    ) -> T:
+        tools: list[dict[str, Any]] | None = None,
+    ) -> T | Any:
         self.invocations[node] += 1
         queue = self._scripts.get(node, [])
         if not queue:
@@ -62,7 +64,13 @@ class ScriptedLLMClient:
         if isinstance(response, str):
             return schema.model_validate_json(response)
         if isinstance(response, dict):
-            return schema.model_validate(response)
+            try:
+                return schema.model_validate(response)
+            except ValidationError:
+                if tools is not None:
+                    from agents.discovery.contracts import SearchIntent
+                    return SearchIntent.model_validate(response)
+                raise
         raise LLMCallError(f"unsupported scripted response for {node}: {type(response).__name__}")
 
 
@@ -82,7 +90,8 @@ class HostedFreeTier:
         temperature: float = 0.0,
         max_tokens: int = 2048,
         timeout_s: int = 20,
-    ) -> T:
+        tools: list[dict[str, Any]] | None = None,
+    ) -> T | Any:
         raise LLMCallError("HostedFreeTier is configured for runtime use, not test execution")
 
 
@@ -101,7 +110,8 @@ class OllamaLocal:
         temperature: float = 0.0,
         max_tokens: int = 2048,
         timeout_s: int = 20,
-    ) -> T:
+        tools: list[dict[str, Any]] | None = None,
+    ) -> T | Any:
         raise LLMCallError("OllamaLocal is configured for runtime use, not test execution")
 
 
@@ -115,7 +125,8 @@ def complete_with_repair(
     temperature: float = 0.0,
     max_tokens: int = 2048,
     timeout_s: int = 20,
-) -> T:
+    tools: list[dict[str, Any]] | None = None,
+) -> T | Any:
     try:
         return client.complete_json(
             node=node,
@@ -125,6 +136,7 @@ def complete_with_repair(
             temperature=temperature,
             max_tokens=max_tokens,
             timeout_s=timeout_s,
+            tools=tools,
         )
     except ValidationError as exc:
         repair_user = f"{user}\n\nSchema validation error, return corrected JSON only:\n{exc}"
@@ -137,6 +149,7 @@ def complete_with_repair(
                 temperature=temperature,
                 max_tokens=max_tokens,
                 timeout_s=timeout_s,
+                tools=tools,
             )
         except (ValidationError, json.JSONDecodeError) as retry_exc:
             raise LLMCallError(f"{node} schema repair failed") from retry_exc

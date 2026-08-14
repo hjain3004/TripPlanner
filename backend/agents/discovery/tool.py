@@ -29,9 +29,15 @@ class SearchExecutionResult:
 def execute_search_places(
     intent: SearchIntent, registry: Any, state: LoopState
 ) -> tuple[list[PlaceCandidate], SearchExecutionResult]:
-    # Real implementation would call the gateway here.
-    res = SearchExecutionResult([], adapter_selected_by="registry")
-    return [], res
+    from gateway.places.contracts import PlaceSearchRequest
+    req = PlaceSearchRequest(
+        query_text=intent.query_text,
+        destination_area_id=intent.destination_area_id,
+        max_results=10
+    )
+    candidates = registry.execute(req)
+    res = SearchExecutionResult(candidates, adapter_selected_by="registry")
+    return candidates, res
 
 
 def sanitize_text_for_model(text: str) -> str:

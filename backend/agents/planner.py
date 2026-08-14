@@ -27,9 +27,11 @@ def _trip_dates(spec: TripSpec) -> set[date]:
 
 
 def validate_itinerary(
-    itinerary: DraftItinerary, spec: TripSpec, retrieval: RetrievalContext
+    itinerary: DraftItinerary, spec: TripSpec, retrieval: RetrievalContext, discovered_poi_ids: set[str] | None = None
 ) -> None:
     poi_ids = {poi.id for poi in retrieval.pois}
+    if discovered_poi_ids:
+        poi_ids.update(discovered_poi_ids)
     area_ids = {area.id for area in retrieval.areas}
     if itinerary.hotel_area_id not in area_ids:
         raise PlannerValidationError(f"unknown hotel area: {itinerary.hotel_area_id}")
@@ -50,14 +52,31 @@ def _call_planner(
     *,
     system: str,
     user: str,
-) -> DraftItinerary:
-    return llm.complete_json(
-        node="planner",
-        system=system,
-        user=user,
-        schema=DraftItinerary,
-        temperature=0.0,
-    )
+    spec: TripSpec,
+    registry: Any = None,
+) -> tuple[DraftItinerary, set[str]]:
+    from agents.discovery.controller import run_discovery
+    from agents.discovery.tool import MODEL_TOOLS
+    from core.trip_models import DraftItinerary
+    from gateway.places.registry import get_default_place_registry
+    
+    def _execute():
+        return llm.complete_json(
+            node="planner",
+            system=system,
+            user=user,
+            schema=DraftItinerary,
+            tools=MODEL_TOOLS,
+        )
+    
+    reg = registry or get_default_place_registry()
+    discovery_result = run_discovery(spec, reg, _execute)
+    
+    if discovery_result.itinerary is not None:
+        discovered = {c.place_id for c in discovery_result.committed_candidates}
+        return discovery_result.itinerary, discovered
+        
+    raise PlannerValidationError("Discovery loop exhausted without producing a plan: " + discovery_result.stop_reason)
 
 
 # Gate I1 (itinerary design §14): "no overlap, known-closed visits or
@@ -91,9 +110,9 @@ def run_planner(
         f"Revision notes: {revision_notes or []}"
     )
     try:
-        itinerary = _call_planner(llm, system=system, user=user)
+        itinerary, discovered = _call_planner(llm, system=system, user=user, spec=spec)
         try:
-            validate_itinerary(itinerary, spec, retrieval)
+            validate_itinerary(itinerary, spec, retrieval, discovered)
             result = build_final_schedule(itinerary, spec, retrieval)
             unsafe = _unsafe_warnings(result)
             if unsafe:
@@ -104,8 +123,8 @@ def run_planner(
             )
         except PlannerValidationError as exc:
             repair_user = f"{user}\nValidation error: {exc}. Return corrected JSON only."
-            repaired = _call_planner(llm, system=system, user=repair_user)
-            validate_itinerary(repaired, spec, retrieval)
+            repaired, repaired_discovered = _call_planner(llm, system=system, user=repair_user, spec=spec)
+            validate_itinerary(repaired, spec, retrieval, repaired_discovered)
             result = build_final_schedule(repaired, spec, retrieval)
             unsafe = _unsafe_warnings(result)
             if unsafe:

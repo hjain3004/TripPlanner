@@ -105,7 +105,7 @@ def test_plan_endpoint_returns_job_id_then_completes(tmp_path: Path) -> None:
     job = _poll_job(client, job_id)
     assert job["status"] == "complete", f"Expected complete, got {job}"
     assert job["stage"] == "explaining"
-    assert job["stage_index"] == 7
+    assert job["stage_index"] == 6
     assert job["stages_total"] == len(PIPELINE_STAGES)
     assert job["report"]["summary"] == "Grounded summary."
     assert job["report"]["trace_id"] is not None

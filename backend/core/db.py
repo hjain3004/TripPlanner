@@ -26,13 +26,13 @@ from sqlalchemy import Text, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from core.models import (
+    POI,
     Area,
     AwardChartEntry,
     Card,
     FxRate,
     LoyaltyProgram,
     Offer,
-    POI,
     PointValuation,
     RedemptionPath,
     RewardRule,

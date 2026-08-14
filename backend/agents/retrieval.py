@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from agents.models import RetrievalContext, TripSpec
 from core.db import KnowledgeBase
-from core.models import Area, POI
+from core.models import POI, Area
 
 CITY_BY_IATA = {"SIN": "Singapore"}
 

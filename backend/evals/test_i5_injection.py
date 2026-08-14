@@ -78,17 +78,18 @@ def test_injected_text_cannot_mark_a_candidate_verified() -> None:
 
 
 def test_a_model_reply_claiming_a_place_id_it_never_received_is_rejected() -> None:
-    class ScriptedLLMClient:
-        def __init__(self, returns_place_ids=None):
-            self.returns_place_ids = returns_place_ids or []
-            
-        def execute_planner(self, spec, registry, state, **kwargs):
-            # simulate model adding a place
-            from agents.discovery.integrity import assert_ids_returned_by_gateway
-            returned_ids = {c.place_id for c in state.retained}
-            assert_ids_returned_by_gateway(self.returns_place_ids, returned_ids)
-            return True
-            
-    llm = ScriptedLLMClient(returns_place_ids=["pl_never_returned"])
+    def _execute():
+        from core.trip_models import DraftItinerary, ItineraryDay, ItineraryItem
+        return DraftItinerary(
+            hotel_area_id="dummy",
+            days=[ItineraryDay(
+                date=_spec().start_date, 
+                items=[ItineraryItem(poi_id="pl_never_returned")]
+            )],
+            notes=[],
+            itinerary_quality="fallback",
+            unverified_suggestions=[]
+        )
+        
     with pytest.raises(UnknownCandidate):
-        run_discovery(_spec(), None, llm=llm)
+        run_discovery(_spec(), None, _execute)

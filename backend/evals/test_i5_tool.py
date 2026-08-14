@@ -56,14 +56,14 @@ class MockRegistry:
 
 
 def test_the_gateway_selects_the_adapter_not_the_caller() -> None:
-    intent = SearchIntent(query_text="food", round_index=0)
+    intent = SearchIntent(query_text="food", destination_area_id="dummy", round_index=0)
     state = LoopState(budget=LoopBudget())
     candidates, result = execute_search_places(intent, MockRegistry(), state)
     assert result.adapter_selected_by == "registry"
 
 
 def test_returned_candidates_carry_claim_level_provenance() -> None:
-    intent = SearchIntent(query_text="food", round_index=0)
+    intent = SearchIntent(query_text="food", destination_area_id="dummy", round_index=0)
     state = LoopState(budget=LoopBudget())
     candidates, _ = execute_search_places(intent, MockRegistry(), state)
     for c in candidates:

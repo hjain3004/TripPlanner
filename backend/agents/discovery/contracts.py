@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class SearchIntent(BaseModel):
     query_text: str
+    destination_area_id: str
     round_index: int
 
     @field_validator("query_text")

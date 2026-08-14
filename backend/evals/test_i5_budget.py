@@ -80,24 +80,47 @@ def test_truncation_is_deterministic_not_arbitrary() -> None:
 def test_a_scripted_model_that_loops_forever_still_terminates() -> None:
     """The bound is enforced by code, not by the model's cooperation."""
 
+    from datetime import UTC, datetime
+
     from agents.discovery.controller import run_discovery
-    
-    class ScriptedLLMClient:
-        def __init__(self, always_requests_another_search=True):
-            self.always_requests_another_search = always_requests_another_search
-            self.calls = 0
-            
-        def execute_planner(self, spec, registry, state, **kwargs):
-            self.calls += 1
-            if self.always_requests_another_search:
-                state.record_call()
-                return False  # False means continue searching
-            return True # True means done
-            
-    llm = ScriptedLLMClient(always_requests_another_search=True)
+    from agents.llm import ScriptedLLMClient
     from evals.test_i1_safety import _spec
-    spec = _spec()
-    registry = None
-    result = run_discovery(spec, registry, llm=llm)
+    from gateway.places.contracts import PlaceCandidate, PlaceClaim
+    
+    class MockRegistry:
+        def execute(self, req):
+            return [PlaceCandidate(
+                place_id="mock_id",
+                status="live",
+                claims=[
+                    PlaceClaim(
+                        place_id="mock_id",
+                        field="name",
+                        value="Mock",
+                        source_id="mock",
+                        source_url="",
+                        retrieved_at=datetime.now(UTC),
+                        last_verified=datetime.now(UTC),
+                        verified_by="mock",
+                        confidence=1.0,
+                        needs_verification=False,
+                        licence_id="mock"
+                    )
+                ]
+            )]
+            
+    from agents.discovery.contracts import SearchIntent
+    
+    intent = SearchIntent(query_text="mock", destination_area_id="mock", round_index=0)
+    # Feed exactly 10 intents. 10 > 6, so it must terminate at 6 (max_calls).
+    llm = ScriptedLLMClient({
+        "planner": [intent.model_dump()] * 10
+    })
+    
+    def _execute():
+        from core.trip_models import DraftItinerary
+        return llm.complete_json(node="planner", system="", user="", schema=DraftItinerary, tools=[])
+        
+    result = run_discovery(_spec(), MockRegistry(), _execute)
     assert result.stop_reason in ("budget_exhausted", "rounds_exhausted")
     assert result.calls_made <= 6

@@ -97,7 +97,6 @@ def test_pipeline_runs_fixed_graph_and_writes_trace(tmp_path) -> None:
     events = json.loads(trace_file.read_text())
     assert [event["name"] for event in events] == [
         "intake",
-        "discovery",
         "retrieval",
         "planner",
         "estimator",

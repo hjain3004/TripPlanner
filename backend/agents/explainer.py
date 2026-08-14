@@ -15,7 +15,7 @@ from agents.models import (
     SelectedHotelArea,
     TripSpec,
 )
-from core.models import LineAssignment, OptimizerResult, SpendLineItem, TransferAdvice
+from core.models import LineAssignment, OptimizerResult, TransferAdvice
 
 RUPEE_RE = re.compile(r"₹\s?[0-9][0-9,]*")
 

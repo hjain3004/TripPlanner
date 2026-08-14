@@ -8,10 +8,10 @@ from agents.models import DraftItinerary, EstimatorResult, TripSpec
 from agents.retrieval import CITY_BY_IATA
 from core.db import KnowledgeBase
 from core.models import (
+    POI,
     Area,
     Channel,
     CostedTrip,
-    POI,
     SampleFlight,
     SampleHotel,
     SpendCategory,

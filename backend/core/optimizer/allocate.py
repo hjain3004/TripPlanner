@@ -9,10 +9,10 @@ residual sub-optimality. Deterministic tie-breaking throughout.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date
 from itertools import combinations
-from typing import Callable
 
 from core.db import KnowledgeBase
 from core.models import (

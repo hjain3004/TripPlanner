@@ -17,9 +17,17 @@ from core.models import (
 )
 from core.trip_models import (
     DraftItinerary as DraftItinerary,
+)
+from core.trip_models import (
     ItineraryDay as ItineraryDay,
+)
+from core.trip_models import (
     ItineraryItem as ItineraryItem,
+)
+from core.trip_models import (
     RetrievalContext as RetrievalContext,
+)
+from core.trip_models import (
     TripSpec as TripSpec,
 )
 
@@ -136,7 +144,6 @@ class JobError(BaseModel):
 
 PIPELINE_STAGES: list[str] = [
     "intake",
-    "discovery",
     "itinerary",
     "costing",
     "optimizing",
@@ -151,7 +158,6 @@ class PlanJobStatus(BaseModel):
     stage: (
         Literal[
             "intake",
-            "discovery",
             "itinerary",
             "costing",
             "optimizing",
