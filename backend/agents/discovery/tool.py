@@ -34,16 +34,29 @@ def execute_search_places(
     return [], res
 
 
+import re
+
+def sanitize_text_for_model(text: str) -> str:
+    """Spec 10: Strip scripts, active markup, unsupported URLs, and prompt-like control text."""
+    # Remove html tags
+    text = re.sub(r'<[^>]*>', '', text)
+    # Remove control tokens like [[INST]] or SYSTEM:
+    text = re.sub(r'\[\[.*?\]\]', '', text)
+    text = re.sub(r'(?i)system:\s*', '', text)
+    text = re.sub(r'(?i)ignore all previous', '', text)
+    return text.strip()
+
 def project_for_model(candidates: list[PlaceCandidate]) -> list[dict[str, Any]]:
-    # Filter out anything with source_url or http
-    # Specifically, only return safe fields
     safe_candidates = []
     for c in candidates:
         safe_claims = []
         for cl in c.claims:
+            val = cl.value
+            if isinstance(val, str):
+                val = sanitize_text_for_model(val)
             safe_claims.append({
                 "field": cl.field,
-                "value": cl.value,
+                "value": val,
             })
         
         safe_candidates.append({
