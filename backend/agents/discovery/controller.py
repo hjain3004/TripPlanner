@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 from core.trip_models import TripSpec
 from gateway.places.contracts import PlaceCandidate
+from gateway.places.registry import PlaceGatewayError
 from agents.discovery.contracts import LoopState, LoopBudget, BudgetExceeded
 
 class PartialDiscoveryResult(BaseModel):
@@ -33,9 +34,31 @@ def run_discovery(spec: TripSpec, registry: Any, llm: Any) -> DiscoveryResult:
             committed_candidates=state.retained,
             partial=PartialDiscoveryResult(
                 unresolved_needs=["budget exceeded"],
-                stop_reason="budget_exhausted" if "max_calls" in str(e) else "rounds_exhausted"
+                stop_reason="budget_exhausted"
             ),
-            stop_reason="budget_exhausted" if "max_calls" in str(e) else "rounds_exhausted",
+            stop_reason="budget_exhausted",
+            calls_made=state.calls_made
+        )
+    except PlaceGatewayError as e:
+        return DiscoveryResult(
+            committed_candidates=state.retained,
+            partial=PartialDiscoveryResult(
+                unresolved_needs=[e.message],
+                stop_reason=e.code
+            ),
+            stop_reason=e.code,
+            calls_made=state.calls_made
+        )
+        
+        
+    if not state.retained:
+        return DiscoveryResult(
+            committed_candidates=[],
+            partial=PartialDiscoveryResult(
+                unresolved_needs=["No places discovered"],
+                stop_reason="no_results"
+            ),
+            stop_reason="no_results",
             calls_made=state.calls_made
         )
         
