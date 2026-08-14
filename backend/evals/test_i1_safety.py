@@ -438,3 +438,14 @@ def test_build_final_schedule_overlap_does_not_adopt_bad_hint():
     # poi3 must in turn be timed forward from poi2's corrected placement.
     assert items[2].start_time is not None
     assert items[2].start_time > items[1].start_time
+
+
+def test_greedy_composer_matches_compose_itinerary_exactly() -> None:
+    """The protocol wrapper must be behavior-identical to the I1 function."""
+    from core.itinerary.compose import compose_itinerary
+    from core.itinerary.greedy import GreedyComposer
+    s = _spec()
+    ctx = _retrieval([_poi("a"), _poi("b")])
+    legacy = compose_itinerary(s, ctx)
+    wrapped = GreedyComposer().compose(s, ctx)
+    assert wrapped.model_dump_json() == legacy.model_dump_json()
