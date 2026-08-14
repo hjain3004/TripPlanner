@@ -50,7 +50,7 @@ gate: ## THE backend gate: tests + strict types + lint + frozen artifacts + clea
 	  | grep -c '^[A-Z][0-9]' || true); \
 	  echo "core/ + api/ ruff findings: $$COUNT (ceiling 12)"; \
 	  if [ "$$COUNT" -gt 12 ]; then \
-	    echo "FAIL: legacy lint debt grew past 24 — fix what you touched"; exit 1; \
+	    echo "FAIL: legacy lint debt grew past 12 — fix what you touched"; exit 1; \
 	  fi
 	@echo "  NOTE: these are pre-existing M1/M1b findings. Two are B905 (zip without"
 	@echo "  strict=) in core/transfer/pathfinder.py — Tier-F code where strict=True"
