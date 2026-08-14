@@ -12,6 +12,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "pyyaml>=6.0",
     "fastapi>=0.116",
+    "ortools>=9.10",
 ]
 
 [project.optional-dependencies]
