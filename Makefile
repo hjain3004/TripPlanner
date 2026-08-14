@@ -48,11 +48,11 @@ gate: ## THE backend gate: tests + strict types + lint + frozen artifacts + clea
 	@echo "--- ruff (core/ + api/: legacy debt, ratcheted, must not grow) ---"
 	@cd $(BACKEND) && COUNT=$$(.venv/bin/ruff check core/ api/ 2>/dev/null \
 	  | grep -c '^[A-Z][0-9]' || true); \
-	  echo "core/ + api/ ruff findings: $$COUNT (ceiling 24)"; \
-	  if [ "$$COUNT" -gt 24 ]; then \
+	  echo "core/ + api/ ruff findings: $$COUNT (ceiling 12)"; \
+	  if [ "$$COUNT" -gt 12 ]; then \
 	    echo "FAIL: legacy lint debt grew past 24 — fix what you touched"; exit 1; \
 	  fi
-	@echo "  NOTE: the 24 are pre-existing M1/M1b findings. Two are B905 (zip without"
+	@echo "  NOTE: these are pre-existing M1/M1b findings. Two are B905 (zip without"
 	@echo "  strict=) in core/transfer/pathfinder.py — Tier-F code where strict=True"
 	@echo "  changes truncation behavior. Clearing them is its own task with its own"
 	@echo "  golden-test run, not a drive-by fix. Lower this ceiling when you do it."
