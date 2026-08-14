@@ -1,7 +1,10 @@
+# ruff: noqa: E501, E402
 from datetime import date
-from evals.test_i1_safety import _spec, _retrieval, _poi
-from core.itinerary.greedy import GreedyComposer
+
 from core.itinerary.compose import compose_itinerary
+from core.itinerary.greedy import GreedyComposer
+from evals.test_i1_safety import _poi, _retrieval, _spec
+
 
 def test_invariance_case_1_excludes_closed_day() -> None:
     closed_mon = _poi(

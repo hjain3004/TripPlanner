@@ -1,11 +1,12 @@
+# ruff: noqa: E501, E402
 import logging
-from typing import Optional
-from core.trip_models import TripSpec, RetrievalContext
-from core.itinerary.contracts import RouteMatrix, ItineraryConstraints
+
 from core.itinerary.compose import ComposerResult
-from core.itinerary.ortools import ORToolsComposer
+from core.itinerary.contracts import ItineraryConstraints, RouteMatrix
 from core.itinerary.greedy import GreedyComposer
+from core.itinerary.ortools import ORToolsComposer
 from core.itinerary.validate import validate_draft
+from core.trip_models import RetrievalContext, TripSpec
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +15,8 @@ class ComposeStrategy:
 
     def compose(
         self, spec: TripSpec, retrieval: RetrievalContext,
-        matrix: Optional[RouteMatrix] = None,
-        constraints: Optional[ItineraryConstraints] = None,
+        matrix: RouteMatrix | None = None,
+        constraints: ItineraryConstraints | None = None,
     ) -> ComposerResult:
         if not matrix or not constraints:
             logger.info("Missing matrix or constraints. Falling back to greedy composer.")

@@ -1,5 +1,7 @@
+# ruff: noqa: E501, E402
 from datetime import datetime
-from typing import Literal, List, Optional
+from typing import Literal
+
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -22,9 +24,9 @@ class RouteCell(BaseModel):
 
 
 class RouteMatrix(BaseModel):
-    cells: List[RouteCell]
+    cells: list[RouteCell]
 
-    def duration_min(self, origin: str, dest: str, mode: str) -> Optional[int]:
+    def duration_min(self, origin: str, dest: str, mode: str) -> int | None:
         for cell in self.cells:
             if cell.mode == mode:
                 if cell.origin_place_id == origin and cell.destination_place_id == dest:
@@ -49,13 +51,13 @@ class RejectionReason(BaseModel):
         "fixed_window_violated",
         "no_evidence_backed_place_id"
     ]
-    place_id: Optional[str] = None
-    detail: Optional[str] = None
+    place_id: str | None = None
+    detail: str | None = None
 
 
 class ItineraryValidation(BaseModel):
     valid: bool
-    rejections: List[RejectionReason]
+    rejections: list[RejectionReason]
 
 
 class ItineraryDraft(BaseModel):

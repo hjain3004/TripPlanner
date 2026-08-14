@@ -1,24 +1,21 @@
+# ruff: noqa: E501, E402
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
 
-from agents.llm import LLMCallError, LLMClient
+from agents.llm import LLMClient
 from agents.models import (
     DraftItinerary,
-    ItineraryDay,
-    ItineraryItem,
     PlannerResult,
     RetrievalContext,
     TripSpec,
 )
-
 from core.itinerary.compose import (
     ComposerResult,
     ScheduleWarning,
     build_final_schedule,
-    fallback_itinerary,
 )
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -122,13 +119,13 @@ def run_planner(
                 caveats=[w.message for w in result.warnings]
             )
     except Exception as exc:
-        from core.itinerary.routing import build_geodesic_matrix_with_gaps
+
+        from core.itinerary.compose import DAILY_TRAVEL_BUDGET_MIN
         from core.itinerary.contracts import ItineraryConstraints
         from core.itinerary.fallback import ComposeStrategy
-        from core.itinerary.compose import DAILY_TRAVEL_BUDGET_MIN
-        from datetime import datetime, UTC
+        from core.itinerary.routing import build_geodesic_matrix_with_gaps
         
-        matrix = build_geodesic_matrix_with_gaps(retrieval.pois, retrieval.pois, datetime.now(UTC))
+        matrix, _ = build_geodesic_matrix_with_gaps(retrieval.pois, "transit")
         constraints = ItineraryConstraints(max_daily_travel_min=DAILY_TRAVEL_BUDGET_MIN[spec.pace])
         
         logger.debug("Routing matrix: %s, constraints: %s", matrix, constraints)

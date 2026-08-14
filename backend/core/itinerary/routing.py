@@ -1,9 +1,13 @@
-from typing import Any, Tuple, Iterable, List
-from datetime import datetime, UTC
-from core.itinerary.contracts import RouteMatrix, RouteCell
-from core.itinerary.compose import haversine_km, estimate_travel_min
+# ruff: noqa: E501, E402
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
 
-def build_geodesic_matrix_with_gaps(places: Iterable[Any], mode: str) -> Tuple[RouteMatrix, List[str]]:
+from core.itinerary.compose import estimate_travel_min, haversine_km
+from core.itinerary.contracts import RouteCell, RouteMatrix
+
+
+def build_geodesic_matrix_with_gaps(places: Iterable[Any], mode: str) -> tuple[RouteMatrix, list[str]]:
     valid_places = []
     unroutable = []
     for p in places:

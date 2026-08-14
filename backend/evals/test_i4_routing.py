@@ -1,5 +1,8 @@
+# ruff: noqa: E501, E402
 from dataclasses import dataclass
+
 from core.itinerary.routing import build_geodesic_matrix, build_geodesic_matrix_with_gaps
+
 
 @dataclass
 class FakePlace:

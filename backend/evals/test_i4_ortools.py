@@ -1,10 +1,13 @@
-from datetime import date, datetime, UTC
-from core.trip_models import TripSpec
-from core.models import UserWallet
-from core.itinerary.contracts import RouteMatrix, RouteCell, ItineraryConstraints
+# ruff: noqa: E501, E402
+from datetime import UTC, date, datetime
+
+from core.itinerary.contracts import ItineraryConstraints, RouteCell, RouteMatrix
 from core.itinerary.ortools import ORToolsComposer
-from evals.test_i1_safety import _poi, _retrieval
 from core.itinerary.validate import validate_draft
+from core.models import UserWallet
+from core.trip_models import TripSpec
+from evals.test_i1_safety import _poi, _retrieval
+
 
 def _matrix() -> RouteMatrix:
     return RouteMatrix(cells=[

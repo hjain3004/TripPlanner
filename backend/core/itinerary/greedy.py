@@ -1,8 +1,16 @@
-from typing import Optional
-from core.trip_models import TripSpec, RetrievalContext, DraftItinerary
-from core.itinerary.contracts import RouteMatrix, ItineraryConstraints
-from core.itinerary.compose import ComposerResult, check_poi_hours, validate_day_travel_budget, ItineraryDay, ItineraryItem
+# ruff: noqa: E501, E402
 from datetime import timedelta
+
+from core.itinerary.compose import (
+    ComposerResult,
+    ItineraryDay,
+    ItineraryItem,
+    check_poi_hours,
+    validate_day_travel_budget,
+)
+from core.itinerary.contracts import ItineraryConstraints, RouteMatrix
+from core.trip_models import DraftItinerary, RetrievalContext, TripSpec
+
 
 def score_draft(
     draft: DraftItinerary,
@@ -36,10 +44,10 @@ class GreedyComposer:
 
     def compose(
         self, spec: TripSpec, retrieval: RetrievalContext,
-        matrix: Optional[RouteMatrix] = None,
-        constraints: Optional[ItineraryConstraints] = None,
+        matrix: RouteMatrix | None = None,
+        constraints: ItineraryConstraints | None = None,
     ) -> ComposerResult:
-        from core.itinerary.compose import PACE_ITEMS, DAILY_TRAVEL_BUDGET_MIN
+        from core.itinerary.compose import DAILY_TRAVEL_BUDGET_MIN, PACE_ITEMS
         
         warnings = []
         excluded = []

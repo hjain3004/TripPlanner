@@ -1,3 +1,4 @@
+# ruff: noqa: E501, E402
 """Tests for T4 (hours feasibility) and T5 (travel-time budget) in the composer.
 
 Uses synthetic fixtures with varied provenance (§4 of the I1 plan).
@@ -8,18 +9,19 @@ from __future__ import annotations
 
 from datetime import date
 
-from agents.models import DraftItinerary, RetrievalContext, TripSpec
-from core.models import POI, Area, Channel, Provenance, TimezoneAwareHours, UserWallet
+from agents.models import DraftItinerary, ItineraryDay, ItineraryItem, RetrievalContext, TripSpec
 from core.itinerary.compose import (
     ComposerResult,
+    build_final_schedule,
+    check_poi_hours,
     compose_itinerary,
     day_travel_minutes,
     estimate_travel_min,
     fallback_itinerary,
     haversine_km,
-    check_poi_hours,
     validate_day_travel_budget,
 )
+from core.models import POI, Area, Channel, Provenance, TimezoneAwareHours, UserWallet
 
 PROV = Provenance(
     source_type="manual_curation",
@@ -305,8 +307,8 @@ def test_compose_determinism() -> None:
     assert len(r1.warnings) == len(r2.warnings)
 
 # N1/N3/N4 Tests
-from agents.models import ItineraryDay, ItineraryItem, DraftItinerary
-from core.itinerary.compose import build_final_schedule
+# (imports moved to top or within functions if needed)
+
 
 def test_build_final_schedule_overlap_rejection():
     """A schedule with two overlapping items emits a warning."""
@@ -356,7 +358,7 @@ def test_build_final_schedule_happy_path_retimes():
     items = result.itinerary.days[0].items
     assert items[0].start_time == "09:00"
     assert items[0].end_time == "10:00"
-    assert items[1].start_time != None
+    assert items[1].start_time is not None
 
 def test_build_final_schedule_unknown_hours_emits_verification_task():
     """Unknown hours produce a verification task."""
@@ -451,9 +453,9 @@ def test_greedy_composer_matches_compose_itinerary_exactly() -> None:
     assert wrapped.model_dump_json() == legacy.model_dump_json()
 
 def test_planner_fallback_uses_compose_strategy(monkeypatch) -> None:
-    from agents.planner import run_planner
+
     from agents.llm import LLMCallError
-    import logging
+    from agents.planner import run_planner
     
     s = _spec()
     ctx = _retrieval([_poi("p1")])
@@ -467,14 +469,14 @@ def test_planner_fallback_uses_compose_strategy(monkeypatch) -> None:
     def mock_build_matrix(*args, **kwargs):
         matrix_called.append(True)
         from core.itinerary.contracts import RouteMatrix
-        return RouteMatrix(cells=[])
+        return RouteMatrix(cells=[]), []
     monkeypatch.setattr("core.itinerary.routing.build_geodesic_matrix_with_gaps", mock_build_matrix)
     
     strategy_called = []
     def mock_compose(*args, **kwargs):
         strategy_called.append(True)
-        from core.itinerary.compose import ComposerResult
         from agents.models import DraftItinerary
+        from core.itinerary.compose import ComposerResult
         dummy = DraftItinerary(hotel_area_id="a", days=[ItineraryDay(date=date(2026, 8, 3), items=[])], notes=["Dummy"])
         return ComposerResult(itinerary=dummy, warnings=[], excluded_items=[])
     monkeypatch.setattr("core.itinerary.fallback.ComposeStrategy.compose", mock_compose)

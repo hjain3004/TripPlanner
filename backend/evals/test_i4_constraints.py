@@ -1,10 +1,11 @@
-from datetime import date
-from core.trip_models import DraftItinerary, ItineraryDay, ItineraryItem
-from core.itinerary.contracts import RouteMatrix, RouteCell, ItineraryConstraints
+# ruff: noqa: E501, E402
+from datetime import UTC, date, datetime
+
+from core.itinerary.contracts import ItineraryConstraints, RouteCell, RouteMatrix
 from core.itinerary.validate import validate_draft
-from datetime import datetime, UTC
-import pytest
+from core.trip_models import DraftItinerary, ItineraryDay, ItineraryItem
 from evals.test_i1_safety import _poi, _retrieval
+
 
 def _matrix() -> RouteMatrix:
     return RouteMatrix(cells=[])
@@ -106,7 +107,9 @@ def test_fixed_window_violated() -> None:
     assert any(r.code == "fixed_window_violated" for r in result.rejections)
 
 def test_the_objective_contains_no_money_or_points_arithmetic() -> None:
-    import ast, inspect
+    import ast
+    import inspect
+
     from core.itinerary import greedy
     src = inspect.getsource(greedy.score_draft)
     tree = ast.parse(src)
@@ -116,8 +119,8 @@ def test_the_objective_contains_no_money_or_points_arithmetic() -> None:
 
 def test_a_must_do_outranks_an_optional_filler() -> None:
     from core.itinerary.greedy import GreedyComposer
-    from core.trip_models import TripSpec
     from core.models import UserWallet
+    from core.trip_models import TripSpec
     spec_with_must_do = TripSpec(
         home_country="IN", origin_city="DEL", destination_city="SIN", 
         start_date=date(2026, 8, 3), end_date=date(2026, 8, 7), travelers=2,
@@ -135,8 +138,8 @@ def test_a_must_do_outranks_an_optional_filler() -> None:
 
 def test_fresher_evidence_is_preferred_between_equal_candidates() -> None:
     from core.itinerary.greedy import GreedyComposer
-    from core.trip_models import TripSpec
     from core.models import UserWallet
+    from core.trip_models import TripSpec
     s = TripSpec(
         home_country="IN", origin_city="DEL", destination_city="SIN", 
         start_date=date(2026, 8, 3), end_date=date(2026, 8, 7), travelers=2,

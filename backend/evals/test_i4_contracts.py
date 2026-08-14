@@ -1,3 +1,4 @@
+# ruff: noqa: E501, E402
 from datetime import UTC, datetime
 
 import pytest

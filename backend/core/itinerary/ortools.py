@@ -1,25 +1,32 @@
-from typing import Optional
+# ruff: noqa: E501, E402
 from datetime import timedelta
-from core.trip_models import TripSpec, RetrievalContext, DraftItinerary
-from core.itinerary.contracts import RouteMatrix, ItineraryConstraints
-from core.itinerary.compose import ComposerResult, ItineraryDay, ItineraryItem, check_poi_hours, ScheduleWarning
+
+from core.itinerary.compose import (
+    ComposerResult,
+    ItineraryDay,
+    ItineraryItem,
+    check_poi_hours,
+)
+from core.itinerary.contracts import ItineraryConstraints, RouteMatrix
 from core.itinerary.greedy import GreedyComposer
+from core.trip_models import DraftItinerary, RetrievalContext, TripSpec
+
 
 class ORToolsComposer:
     name: str = "ortools"
 
     def compose(
         self, spec: TripSpec, retrieval: RetrievalContext,
-        matrix: Optional[RouteMatrix] = None,
-        constraints: Optional[ItineraryConstraints] = None,
+        matrix: RouteMatrix | None = None,
+        constraints: ItineraryConstraints | None = None,
     ) -> ComposerResult:
         # Fallback to greedy if no matrix or constraints, as ORTools needs them.
         if not matrix or not constraints or len(retrieval.pois) == 0:
             return GreedyComposer().compose(spec, retrieval, matrix, constraints)
 
         try:
-            from ortools.constraint_solver import pywrapcp
-            from ortools.constraint_solver import routing_enums_pb2
+            from ortools.constraint_solver import pywrapcp  # type: ignore
+            from ortools.constraint_solver import routing_enums_pb2  # type: ignore
         except ImportError:
             return GreedyComposer().compose(spec, retrieval, matrix, constraints)
 

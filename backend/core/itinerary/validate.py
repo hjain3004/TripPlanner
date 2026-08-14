@@ -1,6 +1,13 @@
-from core.trip_models import DraftItinerary, RetrievalContext
-from core.itinerary.contracts import RouteMatrix, ItineraryConstraints, ItineraryValidation, RejectionReason
+# ruff: noqa: E501, E402
 from core.itinerary.compose import check_poi_hours
+from core.itinerary.contracts import (
+    ItineraryConstraints,
+    ItineraryValidation,
+    RejectionReason,
+    RouteMatrix,
+)
+from core.trip_models import DraftItinerary, RetrievalContext
+
 
 def _parse_time(hm: str) -> int:
     if not hm:

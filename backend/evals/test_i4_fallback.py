@@ -1,10 +1,12 @@
+# ruff: noqa: E501, E402
 from datetime import date
-from core.trip_models import TripSpec
-from core.models import UserWallet
-from core.itinerary.contracts import RouteMatrix, ItineraryConstraints
+
+from core.itinerary.contracts import ItineraryConstraints, RouteMatrix
 from core.itinerary.fallback import ComposeStrategy
+from core.models import UserWallet
+from core.trip_models import TripSpec
 from evals.test_i1_safety import _poi, _retrieval
-from core.itinerary.greedy import GreedyComposer
+
 
 def _matrix() -> RouteMatrix:
     return RouteMatrix(cells=[])
