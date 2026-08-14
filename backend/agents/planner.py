@@ -18,6 +18,9 @@ from core.itinerary.compose import (
     build_final_schedule,
     fallback_itinerary,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PlannerValidationError(ValueError):
     pass
@@ -119,10 +122,23 @@ def run_planner(
                 caveats=[w.message for w in result.warnings]
             )
     except Exception as exc:
-        fallback = fallback_itinerary(spec, retrieval)
+        from core.itinerary.routing import build_geodesic_matrix_with_gaps
+        from core.itinerary.contracts import ItineraryConstraints
+        from core.itinerary.fallback import ComposeStrategy
+        from core.itinerary.compose import DAILY_TRAVEL_BUDGET_MIN
+        from datetime import datetime, UTC
+        
+        matrix = build_geodesic_matrix_with_gaps(retrieval.pois, retrieval.pois, datetime.now(UTC))
+        constraints = ItineraryConstraints(max_daily_travel_min=DAILY_TRAVEL_BUDGET_MIN[spec.pace])
+        
+        logger.debug("Routing matrix: %s, constraints: %s", matrix, constraints)
+        
+        strategy = ComposeStrategy()
+        result = strategy.compose(spec, retrieval, matrix, constraints)
+        
         return PlannerResult(
-            itinerary=fallback,
+            itinerary=result.itinerary,
             used_fallback=True,
             repair_attempted=True,
-            caveats=[f"Planner fallback used: {exc}"],
+            caveats=[f"Planner fallback used: {exc}"] + [w.message for w in result.warnings],
         )
