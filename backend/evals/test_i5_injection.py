@@ -78,7 +78,7 @@ def test_injected_text_cannot_mark_a_candidate_verified() -> None:
 
 
 def test_a_model_reply_claiming_a_place_id_it_never_received_is_rejected() -> None:
-    def _execute():
+    def _execute(*args, **kwargs):
         from core.trip_models import DraftItinerary, ItineraryDay, ItineraryItem
         return DraftItinerary(
             hotel_area_id="dummy",

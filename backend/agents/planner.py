@@ -4,6 +4,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
+from agents.discovery.contracts import SearchIntent
 from agents.llm import LLMClient
 from agents.models import (
     DraftItinerary,
@@ -64,17 +65,17 @@ def _call_planner(
     from core.trip_models import DraftItinerary
     from gateway.places.registry import get_default_place_registry
     
-    def _execute() -> DraftItinerary:
+    def _execute(prompt: str) -> DraftItinerary | SearchIntent:
         return llm.complete_json(
             node="planner",
             system=system,
-            user=user,
+            user=prompt,
             schema=DraftItinerary,
             tools=MODEL_TOOLS,
         )
     
     reg = registry or get_default_place_registry()
-    discovery_result = run_discovery(spec, reg, _execute)
+    discovery_result = run_discovery(spec, reg, _execute, base_prompt=user)
     
     if discovery_result.itinerary is not None:
         discovered = {c.place_id for c in discovery_result.committed_candidates}

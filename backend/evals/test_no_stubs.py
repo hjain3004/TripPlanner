@@ -68,16 +68,7 @@ def _production_sources() -> list[Path]:
 # Known gaps, each with a DEVIATIONS.md row. This list must only ever shrink —
 # adding to it is how a guard dies. Keyed by "<relative path>:<line>" is too
 # brittle across edits, so it is keyed by file and the guard reports the line.
-#
-# agents/discovery/controller.py — the I5 loop calls search_places and retains
-#   candidates, but never rebuilds the user prompt between rounds, so the model
-#   cannot actually refine its query. Spec section 4 step 4 ("The LLM can
-#   broaden/narrow the query") and the Phase I5 deliverable "allow query
-#   refinement" are therefore unimplemented. The 3-round budget exists but the
-#   rounds cannot differ. Found by this guard on 2026-08-14.
-KNOWN_GAPS = {
-    "agents/discovery/controller.py",
-}
+KNOWN_GAPS: set[str] = set()
 
 
 def test_production_code_contains_no_stub_markers() -> None:

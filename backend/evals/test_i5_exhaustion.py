@@ -75,7 +75,7 @@ def run_pipeline(spec, registry, execute_callback):
 
 def test_budget_exhaustion_returns_a_typed_partial_result() -> None:
     llm = create_mock_llm(always_requests_another_search=True)
-    def _execute():
+    def _execute(*args, **kwargs):
         return llm.complete_json(
             node="planner", system="", user="", schema=DraftItinerary, tools=[]
         )
@@ -88,7 +88,7 @@ def test_budget_exhaustion_returns_a_typed_partial_result() -> None:
 
 def test_an_adapter_failure_falls_back_without_inventing_venues() -> None:
     llm = create_mock_llm(always_requests_another_search=True)
-    def _execute():
+    def _execute(*args, **kwargs):
         return llm.complete_json(
             node="planner", system="", user="", schema=DraftItinerary, tools=[]
         )
@@ -106,7 +106,7 @@ def test_an_adapter_failure_falls_back_without_inventing_venues() -> None:
 def test_no_results_is_reported_as_an_unmet_need_not_an_empty_success() -> None:
     """Spec 12: 'Return the unmet need; do not invent a venue.'"""
     llm = create_mock_llm(always_requests_another_search=False)
-    def _execute():
+    def _execute(*args, **kwargs):
         return llm.complete_json(
             node="planner", system="", user="", schema=DraftItinerary, tools=[]
         )
@@ -124,7 +124,7 @@ def test_no_results_is_reported_as_an_unmet_need_not_an_empty_success() -> None:
 def test_the_pipeline_still_produces_a_plan_when_discovery_fails_entirely() -> None:
     """Spec 12: 'Compose from deterministic retrieval results; no extra hidden call site.'"""
     llm = create_mock_llm(always_requests_another_search=True)
-    def _execute():
+    def _execute(*args, **kwargs):
         return llm.complete_json(
             node="planner", system="", user="", schema=DraftItinerary, tools=[]
         )

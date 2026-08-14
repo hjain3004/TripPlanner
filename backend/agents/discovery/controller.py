@@ -23,7 +23,8 @@ class DiscoveryResult(BaseModel):
 def run_discovery(
     spec: TripSpec, 
     registry: Any, 
-    execute_planner_call: Callable[[], DraftItinerary | SearchIntent | Any],
+    execute_planner_call: Callable[[str], DraftItinerary | SearchIntent],
+    base_prompt: str = ""
 ) -> DiscoveryResult:
     state = LoopState(budget=LoopBudget())
     
@@ -31,9 +32,16 @@ def run_discovery(
         while True:
             state.begin_round()
             
-            from agents.discovery.tool import execute_search_places
+            import json
+
+            from agents.discovery.tool import execute_search_places, project_for_model
             
-            response = execute_planner_call()
+            prompt = base_prompt
+            if state.retained:
+                safe_cands = project_for_model(state.retained)
+                prompt += f"\n\nDiscovered Candidates:\n{json.dumps(safe_cands, indent=2)}"
+                
+            response = execute_planner_call(prompt)
             
             if isinstance(response, DraftItinerary):
                 proposed_ids = [
@@ -69,10 +77,6 @@ def run_discovery(
                 state.record_call()
                 candidates, _ = execute_search_places(response, registry, state)
                 state.retain(candidates)
-                # Note: The real system would rebuild the user prompt with new candidates here.
-                # For the Kernel MVP, the loop does exactly one simulated pass (or zero) and exits.
-                # Since we don't rebuild the prompt, the model shouldn't be asked to continue
-                # if it just loops forever, but the budget handles exhaustion.
             else:
                 break
     except BudgetExceeded:

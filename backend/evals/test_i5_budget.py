@@ -117,7 +117,7 @@ def test_a_scripted_model_that_loops_forever_still_terminates() -> None:
         "planner": [intent.model_dump()] * 10
     })
     
-    def _execute():
+    def _execute(*args, **kwargs):
         from core.trip_models import DraftItinerary
         return llm.complete_json(
             node="planner", system="", user="", schema=DraftItinerary, tools=[]
