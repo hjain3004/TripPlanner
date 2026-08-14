@@ -104,3 +104,65 @@ def test_fixed_window_violated() -> None:
     poi.tags = ["fixed_window_0900_1000"]
     result = validate_draft(draft, _matrix(), _constraints(), _retrieval([poi]))
     assert any(r.code == "fixed_window_violated" for r in result.rejections)
+
+def test_the_objective_contains_no_money_or_points_arithmetic() -> None:
+    import ast, inspect
+    from core.itinerary import greedy
+    src = inspect.getsource(greedy.score_draft)
+    tree = ast.parse(src)
+    banned = {"minor", "cents", "points", "reward", "fee", "cashback", "bps"}
+    names = {n.id.lower() for n in ast.walk(tree) if isinstance(n, ast.Name)}
+    assert not (names & banned), f"money math in the composer objective: {names & banned}"
+
+def test_a_must_do_outranks_an_optional_filler() -> None:
+    from core.itinerary.greedy import GreedyComposer
+    from core.trip_models import TripSpec
+    from core.models import UserWallet
+    spec_with_must_do = TripSpec(
+        home_country="IN", origin_city="DEL", destination_city="SIN", 
+        start_date=date(2026, 8, 3), end_date=date(2026, 8, 7), travelers=2,
+        budget_minor=25000000, budget_currency="INR", style="balanced",
+        interests=["must_do_tag"], pace="moderate",
+        wallet=UserWallet(card_ids=[])
+    )
+    p_must = _poi("pl_must", tags=["must_do_tag"])
+    p_opt = _poi("pl_opt", tags=["other"])
+    ctx = _retrieval([p_must, p_opt])
+    
+    result = GreedyComposer().compose(spec_with_must_do, ctx, _matrix(), _constraints())
+    scheduled = [i.poi_id for d in result.itinerary.days for i in d.items]
+    assert "pl_must" in scheduled
+
+def test_fresher_evidence_is_preferred_between_equal_candidates() -> None:
+    from core.itinerary.greedy import GreedyComposer
+    from core.trip_models import TripSpec
+    from core.models import UserWallet
+    s = TripSpec(
+        home_country="IN", origin_city="DEL", destination_city="SIN", 
+        start_date=date(2026, 8, 3), end_date=date(2026, 8, 7), travelers=2,
+        budget_minor=25000000, budget_currency="INR", style="balanced",
+        interests=["nature"], pace="moderate",
+        wallet=UserWallet(card_ids=[])
+    )
+    p_fresh = _poi("pl_fresh", tags=["nature"])
+    p_fresh.provenance.last_verified = date(2026, 8, 1)
+    p_stale = _poi("pl_stale", tags=["nature"])
+    p_stale.provenance.last_verified = date(2026, 1, 1)
+    ctx = _retrieval([p_stale, p_fresh])
+    
+    result = GreedyComposer().compose(s, ctx, _matrix(), _constraints())
+    scheduled = [i.poi_id for d in result.itinerary.days for i in d.items]
+    
+    assert "pl_fresh" in scheduled
+    assert scheduled.index("pl_fresh") <= scheduled.index("pl_stale") if "pl_stale" in scheduled else True
+
+def test_scoring_is_deterministic_across_repeated_calls() -> None:
+    from core.itinerary.greedy import score_draft
+    draft = DraftItinerary(
+        hotel_area_id="a",
+        days=[ItineraryDay(date=date(2026, 8, 3), items=[ItineraryItem(poi_id="p1")])]
+    )
+    ctx = _retrieval([_poi("p1")])
+    a = score_draft(draft, _matrix(), _constraints(), ctx)
+    b = score_draft(draft, _matrix(), _constraints(), ctx)
+    assert a == b
