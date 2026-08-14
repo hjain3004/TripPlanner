@@ -325,7 +325,8 @@ def test_build_final_schedule_overlap_rejection():
                 date=spec.start_date,
                 items=[
                     ItineraryItem(poi_id="poi1", start_hint="09:00"),
-                    ItineraryItem(poi_id="poi2", start_hint="09:30") # Overlaps since poi1 is 2 hours!
+                    # Overlaps: poi1 runs 2 hours.
+                    ItineraryItem(poi_id="poi2", start_hint="09:30"),
                 ]
             )
         ]
@@ -476,7 +477,11 @@ def test_planner_fallback_uses_compose_strategy(monkeypatch) -> None:
         strategy_called.append(True)
         from agents.models import DraftItinerary
         from core.itinerary.compose import ComposerResult
-        dummy = DraftItinerary(hotel_area_id="a", days=[ItineraryDay(date=date(2026, 8, 3), items=[])], notes=["Dummy"])
+        dummy = DraftItinerary(
+            hotel_area_id="a",
+            days=[ItineraryDay(date=date(2026, 8, 3), items=[])],
+            notes=["Dummy"],
+        )
         return ComposerResult(itinerary=dummy, warnings=[], excluded_items=[])
     monkeypatch.setattr("core.itinerary.fallback.ComposeStrategy.compose", mock_compose)
     

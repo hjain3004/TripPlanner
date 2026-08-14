@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
+from typing import Any
 
 from agents.llm import LLMClient
 from agents.models import (
@@ -27,7 +28,10 @@ def _trip_dates(spec: TripSpec) -> set[date]:
 
 
 def validate_itinerary(
-    itinerary: DraftItinerary, spec: TripSpec, retrieval: RetrievalContext, discovered_poi_ids: set[str] | None = None
+    itinerary: DraftItinerary,
+    spec: TripSpec,
+    retrieval: RetrievalContext,
+    discovered_poi_ids: set[str] | None = None,
 ) -> None:
     poi_ids = {poi.id for poi in retrieval.pois}
     if discovered_poi_ids:
@@ -60,7 +64,7 @@ def _call_planner(
     from core.trip_models import DraftItinerary
     from gateway.places.registry import get_default_place_registry
     
-    def _execute():
+    def _execute() -> DraftItinerary:
         return llm.complete_json(
             node="planner",
             system=system,
@@ -76,7 +80,9 @@ def _call_planner(
         discovered = {c.place_id for c in discovery_result.committed_candidates}
         return discovery_result.itinerary, discovered
         
-    raise PlannerValidationError("Discovery loop exhausted without producing a plan: " + discovery_result.stop_reason)
+    raise PlannerValidationError(
+        "Discovery loop exhausted without producing a plan: " + discovery_result.stop_reason
+    )
 
 
 # Gate I1 (itinerary design §14): "no overlap, known-closed visits or
@@ -123,14 +129,16 @@ def run_planner(
             )
         except PlannerValidationError as exc:
             repair_user = f"{user}\nValidation error: {exc}. Return corrected JSON only."
-            repaired, repaired_discovered = _call_planner(llm, system=system, user=repair_user, spec=spec)
+            repaired, repaired_discovered = _call_planner(
+                llm, system=system, user=repair_user, spec=spec
+            )
             validate_itinerary(repaired, spec, retrieval, repaired_discovered)
             result = build_final_schedule(repaired, spec, retrieval)
             unsafe = _unsafe_warnings(result)
             if unsafe:
                 raise PlannerValidationError(
                     f"Repaired schedule still unsafe: {_unsafe_warning_message(unsafe)}"
-                )
+                ) from None
             return PlannerResult(
                 itinerary=result.itinerary,
                 repair_attempted=True,

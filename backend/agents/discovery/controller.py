@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from agents.discovery.contracts import BudgetExceeded, LoopBudget, LoopState
+from agents.discovery.contracts import BudgetExceeded, LoopBudget, LoopState, SearchIntent
 from core.trip_models import DraftItinerary, TripSpec
 from gateway.places.contracts import PlaceCandidate
 from gateway.places.registry import PlaceGatewayError
@@ -36,7 +36,12 @@ def run_discovery(
             response = execute_planner_call()
             
             if isinstance(response, DraftItinerary):
-                proposed_ids = [item.poi_id for day in response.days for item in day.items if str(item.poi_id).startswith("pl_")]
+                proposed_ids = [
+                    item.poi_id
+                    for day in response.days
+                    for item in day.items
+                    if str(item.poi_id).startswith("pl_")
+                ]
                 returned_ids = {c.place_id for c in state.retained}
                 from agents.discovery.integrity import assert_ids_returned_by_gateway
                 assert_ids_returned_by_gateway(proposed_ids, returned_ids)

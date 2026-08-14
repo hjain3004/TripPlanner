@@ -64,7 +64,9 @@ def _payment_rows(assignments: list[LineAssignment]) -> list[PaymentStrategyRow]
     ]
 
 
-def _checklist(assignments: list[LineAssignment], transfer_advice: TransferAdvice | None) -> list[str]:
+def _checklist(
+    assignments: list[LineAssignment], transfer_advice: TransferAdvice | None
+) -> list[str]:
     out = ["Verify all sample prices, award availability, and card/offer terms before paying."]
     for assignment in sorted(assignments, key=lambda row: row.line.id):
         out.append(

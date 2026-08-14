@@ -119,7 +119,9 @@ def test_a_scripted_model_that_loops_forever_still_terminates() -> None:
     
     def _execute():
         from core.trip_models import DraftItinerary
-        return llm.complete_json(node="planner", system="", user="", schema=DraftItinerary, tools=[])
+        return llm.complete_json(
+            node="planner", system="", user="", schema=DraftItinerary, tools=[]
+        )
         
     result = run_discovery(_spec(), MockRegistry(), _execute)
     assert result.stop_reason in ("budget_exhausted", "rounds_exhausted")
