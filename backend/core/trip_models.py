@@ -67,6 +67,7 @@ class DraftItinerary(BaseModel):
     days: list[ItineraryDay] = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
     itinerary_quality: Literal["llm", "fallback"] = "llm"
+    unverified_suggestions: list[str] = Field(default_factory=list)
 
 
 class RetrievalContext(BaseModel):
