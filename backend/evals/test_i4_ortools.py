@@ -31,6 +31,22 @@ def test_ortools_composer_produces_valid_itinerary():
     valid = validate_draft(result.itinerary, _matrix(), ItineraryConstraints(max_daily_travel_min=120), ctx)
     assert valid.valid is True, f"Rejections: {valid.rejections}"
     
+def test_ortools_composer_ignores_none_poi():
+    s = TripSpec(
+        home_country="IN", origin_city="DEL", destination_city="SIN", 
+        start_date=date(2026, 8, 3), end_date=date(2026, 8, 7), travelers=2,
+        budget_minor=25000000, budget_currency="INR", style="balanced",
+        interests=["nature"], pace="moderate",
+        wallet=UserWallet(card_ids=[])
+    )
+    # Give it multiple items, and since nodes=[None]+pois, the node at index 0 is None. 
+    # OR-Tools routing visits the depot (0) and then visits other nodes.
+    # The fix ensures that poi is not None when reading node_index.
+    ctx = _retrieval([_poi("p1")])
+    composer = ORToolsComposer()
+    result = composer.compose(s, ctx, _matrix(), ItineraryConstraints(max_daily_travel_min=120))
+    assert len(result.itinerary.days) > 0
+    
     # Needs to schedule at least something
     scheduled = [i.poi_id for d in result.itinerary.days for i in d.items]
     assert len(scheduled) > 0

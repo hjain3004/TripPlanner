@@ -3,13 +3,13 @@ from datetime import timedelta
 
 from core.itinerary.compose import (
     ComposerResult,
-    ItineraryDay,
-    ItineraryItem,
     check_poi_hours,
+    ScheduleWarning,
 )
 from core.itinerary.contracts import ItineraryConstraints, RouteMatrix
 from core.itinerary.greedy import GreedyComposer
-from core.trip_models import DraftItinerary, RetrievalContext, TripSpec
+from core.trip_models import DraftItinerary, RetrievalContext, TripSpec, ItineraryDay, ItineraryItem
+from core.models import POI
 
 
 class ORToolsComposer:
@@ -25,37 +25,39 @@ class ORToolsComposer:
             return GreedyComposer().compose(spec, retrieval, matrix, constraints)
 
         try:
-            from ortools.constraint_solver import pywrapcp  # type: ignore
-            from ortools.constraint_solver import routing_enums_pb2  # type: ignore
+            from ortools.constraint_solver import pywrapcp  # type: ignore[import-untyped]
+            from ortools.constraint_solver import routing_enums_pb2
         except ImportError:
             return GreedyComposer().compose(spec, retrieval, matrix, constraints)
 
         # Simplified VRP setup: 1 depot (dummy), nodes = pois
         # Vehicles = nights.
         num_vehicles = spec.nights
-        nodes = [None] + retrieval.pois # 0 is dummy depot
+        nodes: list[POI | None] = [None] + list(retrieval.pois) # 0 is dummy depot
         
         # We need a travel time matrix
         time_matrix = []
         for i in range(len(nodes)):
             row = []
             for j in range(len(nodes)):
-                if i == 0 or j == 0:
+                node_i = nodes[i]
+                node_j = nodes[j]
+                if node_i is None or node_j is None:
                     row.append(0)
                 elif i == j:
                     row.append(0)
                 else:
-                    dur = matrix.duration_min(nodes[i].id, nodes[j].id, "transit")
+                    dur = matrix.duration_min(node_i.id, node_j.id, "transit")
                     row.append(dur if dur is not None else 30) # default 30 min
             time_matrix.append(row)
 
         manager = pywrapcp.RoutingIndexManager(len(nodes), num_vehicles, 0)
         routing = pywrapcp.RoutingModel(manager)
 
-        def time_callback(from_index, to_index):
+        def time_callback(from_index: int, to_index: int) -> int:
             from_node = manager.IndexToNode(from_index)
             to_node = manager.IndexToNode(to_index)
-            return time_matrix[from_node][to_node]
+            return int(time_matrix[from_node][to_node])
 
         transit_callback_index = routing.RegisterTransitCallback(time_callback)
         routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
@@ -68,7 +70,7 @@ class ORToolsComposer:
             True,  # start cumul to zero
             "Time"
         )
-        time_dimension = routing.GetDimensionOrDie("Time")
+        routing.GetDimensionOrDie("Time")
 
         # Add penalties for dropping visits (so it's optional to visit all)
         penalty = 1000
@@ -84,9 +86,9 @@ class ORToolsComposer:
         if not solution:
             return GreedyComposer().compose(spec, retrieval, matrix, constraints)
 
-        days = []
-        warnings = []
-        excluded = []
+        days: list[ItineraryDay] = []
+        warnings: list[ScheduleWarning] = []
+        excluded: list[str] = []
         
         hotel_area_id = retrieval.areas[0].id if retrieval.areas else "unknown"
 
@@ -98,8 +100,8 @@ class ORToolsComposer:
             # Extract route
             while not routing.IsEnd(index):
                 node_index = manager.IndexToNode(index)
-                if node_index != 0:
-                    poi = nodes[node_index]
+                poi = nodes[node_index]
+                if poi is not None:
                     status = check_poi_hours(poi, visit_date)
                     if status == "closed":
                         excluded.append(poi.id)

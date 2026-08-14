@@ -4,7 +4,7 @@ import logging
 from core.itinerary.compose import ComposerResult
 from core.itinerary.contracts import ItineraryConstraints, RouteMatrix
 from core.itinerary.greedy import GreedyComposer
-from core.itinerary.ortools import ORToolsComposer
+from core.itinerary.ortools_composer import ORToolsComposer
 from core.itinerary.validate import validate_draft
 from core.trip_models import RetrievalContext, TripSpec
 

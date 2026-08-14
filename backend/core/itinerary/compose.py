@@ -21,6 +21,21 @@ from core.trip_models import DraftItinerary, ItineraryDay, ItineraryItem, Retrie
 
 PACE_ITEMS = {"relaxed": 1, "moderate": 2, "packed": 3}
 
+__all__ = [
+    "ComposerResult",
+    "DAILY_TRAVEL_BUDGET_MIN",
+    "PACE_ITEMS",
+    "ScheduleWarning",
+    "build_final_schedule",
+    "check_poi_hours",
+    "compose_itinerary",
+    "day_travel_minutes",
+    "estimate_travel_min",
+    "fallback_itinerary",
+    "haversine_km",
+    "validate_day_travel_budget",
+]
+
 # Conservative travel-time constants (Tier-C, logged in DEVIATIONS).
 # Haversine gives great-circle distance; real urban transit is longer.
 # 1.4x straight-line-to-route ratio + 15 min base overhead (wait/transfer).

@@ -3,13 +3,13 @@ from datetime import timedelta
 
 from core.itinerary.compose import (
     ComposerResult,
-    ItineraryDay,
-    ItineraryItem,
     check_poi_hours,
     validate_day_travel_budget,
+    ScheduleWarning,
 )
 from core.itinerary.contracts import ItineraryConstraints, RouteMatrix
-from core.trip_models import DraftItinerary, RetrievalContext, TripSpec
+from core.trip_models import DraftItinerary, RetrievalContext, TripSpec, ItineraryDay, ItineraryItem
+from core.models import POI
 
 
 def score_draft(
@@ -49,8 +49,8 @@ class GreedyComposer:
     ) -> ComposerResult:
         from core.itinerary.compose import DAILY_TRAVEL_BUDGET_MIN, PACE_ITEMS
         
-        warnings = []
-        excluded = []
+        warnings: list[ScheduleWarning] = []
+        excluded: list[str] = []
         
         if retrieval.areas:
             ranked_areas = sorted(
@@ -65,7 +65,7 @@ class GreedyComposer:
         else:
             hotel_area_id = "unknown"
             
-        def poi_score(poi):
+        def poi_score(poi: POI) -> int:
             sc = 0
             if poi.area == hotel_area_id: sc += 100
             if any(t in poi.tags for t in spec.interests): sc += 500
@@ -79,13 +79,13 @@ class GreedyComposer:
         per_day = PACE_ITEMS[spec.pace]
         
         cursor = 0
-        days = []
+        days: list[ItineraryDay] = []
         travel_budget = DAILY_TRAVEL_BUDGET_MIN[spec.pace]
         
         for offset in range(spec.nights):
             visit_date = spec.start_date + timedelta(days=offset)
-            items = []
-            day_pois = []
+            items: list[ItineraryItem] = []
+            day_pois: list[POI] = []
             skipped = 0
             
             while len(items) < per_day and cursor + skipped < len(pois):
@@ -93,7 +93,6 @@ class GreedyComposer:
                 status = check_poi_hours(candidate, visit_date)
                 if status == "closed":
                     # T4: skip closed POI, emit warning
-                    from core.itinerary.compose import ScheduleWarning
                     warnings.append(
                         ScheduleWarning(
                             kind="closed_day",
@@ -109,7 +108,6 @@ class GreedyComposer:
                     skipped += 1
                     continue
                 elif status == "unknown":
-                    from core.itinerary.compose import ScheduleWarning
                     warnings.append(
                         ScheduleWarning(
                             kind="unknown_hours",
