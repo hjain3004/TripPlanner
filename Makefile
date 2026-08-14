@@ -26,6 +26,54 @@ demo: ## Print the worked-example optimizer report (02 §8)
 demo-check: ## Assert demo output is byte-identical to the committed fixture
 	cd $(BACKEND) && $(PY) -m core.optimizer demo | diff -u evals/golden/demo_expected_output.txt -
 
+## ---------------------------------------------------------------------------
+## `make gate` is THE backend gate for all current work (I0 onward).
+##
+## It exists so the gate cannot be narrowed. There is no target set to shrink,
+## no --strict to drop, no subset to substitute — five phases of this project
+## shipped red because a narrower command was run and reported under the gate's
+## name. Run this, paste all of it.
+##
+## The per-milestone targets below (typecheck, typecheck-m2, typecheck-m3, ...)
+## are kept for historical gate reproduction only. Do NOT use them to verify
+## current work.
+## ---------------------------------------------------------------------------
+gate: ## THE backend gate: tests + strict types + lint + frozen artifacts + clean tree
+	@echo "--- pytest (full suite) ---"
+	cd $(BACKEND) && .venv/bin/pytest -q
+	@echo "--- mypy --strict (every source package) ---"
+	cd $(BACKEND) && .venv/bin/mypy --strict core/ agents/ api/ gateway/
+	@echo "--- ruff (zero-tolerance scope) ---"
+	cd $(BACKEND) && .venv/bin/ruff check agents/ gateway/ evals/
+	@echo "--- ruff (core/ + api/: legacy debt, ratcheted, must not grow) ---"
+	@cd $(BACKEND) && COUNT=$$(.venv/bin/ruff check core/ api/ 2>/dev/null \
+	  | grep -c '^[A-Z][0-9]' || true); \
+	  echo "core/ + api/ ruff findings: $$COUNT (ceiling 24)"; \
+	  if [ "$$COUNT" -gt 24 ]; then \
+	    echo "FAIL: legacy lint debt grew past 24 — fix what you touched"; exit 1; \
+	  fi
+	@echo "  NOTE: the 24 are pre-existing M1/M1b findings. Two are B905 (zip without"
+	@echo "  strict=) in core/transfer/pathfinder.py — Tier-F code where strict=True"
+	@echo "  changes truncation behavior. Clearing them is its own task with its own"
+	@echo "  golden-test run, not a drive-by fix. Lower this ceiling when you do it."
+	@echo "--- frozen artifacts ---"
+	@git diff --exit-code -- $(BACKEND)/evals/golden/ >/dev/null \
+	  && echo "GOLDENS_OK" \
+	  || (echo "FAIL: backend/evals/golden/ changed — money math moved (Tier F)"; exit 1)
+	@git diff --exit-code -- contract/openapi.json >/dev/null \
+	  && echo "CONTRACT_OK" \
+	  || (echo "FAIL: contract/openapi.json changed — schema/codegen/MSW/UI ship in ONE PR (spec 12 §8)"; exit 1)
+	@cmp AGENTS.md CLAUDE.md \
+	  && echo "BRIEFS_IDENTICAL" \
+	  || (echo "FAIL: AGENTS.md and CLAUDE.md drifted — they must be byte-identical"; exit 1)
+	@echo "--- working tree ---"
+	@test -z "$$(git status --porcelain)" \
+	  && echo "TREE_CLEAN" \
+	  || (echo "FAIL: uncommitted changes — the tested state is not the committed state:"; \
+	      git status --short; exit 1)
+	@echo ""
+	@echo "================ GATE PASSED ================"
+
 test: ## Run the full eval suite
 	cd $(BACKEND) && $(PY) -m pytest evals/ -q
 
