@@ -6,10 +6,9 @@ from agents.discovery.integrity import (
     assert_ids_returned_by_gateway,
     resolve_discovery_candidate,
 )
-from core.itinerary.contracts import ItineraryConstraints
-from core.trip_models import DraftItinerary, RetrievalContext, TripSpec
-from gateway.places.contracts import PlaceCandidate, PlaceClaim
+from core.trip_models import DraftItinerary
 from evals.test_i1_safety import _spec
+from gateway.places.contracts import PlaceCandidate, PlaceClaim
 
 
 class MockRegistry:
@@ -172,5 +171,7 @@ def test_a_candidate_below_minimum_evidence_is_not_committed() -> None:
         ]
     )
     registry = MockRegistry([candidate_no_coordinates])
-    resolved = resolve_discovery_candidate(DiscoveryCandidate(mentioned_name="Incomplete"), registry)
+    resolved = resolve_discovery_candidate(
+        DiscoveryCandidate(mentioned_name="Incomplete"), registry
+    )
     assert resolved.verification_state == "unresolved"

@@ -1,4 +1,5 @@
 from typing import Any
+
 from agents.discovery.contracts import DiscoveryCandidate
 
 

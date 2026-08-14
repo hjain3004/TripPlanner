@@ -1,8 +1,8 @@
+import re
 from typing import Any
 
 from agents.discovery.contracts import LoopState, SearchIntent
-from gateway.places.contracts import PlaceCandidate, PlaceSearchRequest
-
+from gateway.places.contracts import PlaceCandidate
 
 SEARCH_PLACES_TOOL = {
     "name": "search_places",
@@ -33,8 +33,6 @@ def execute_search_places(
     res = SearchExecutionResult([], adapter_selected_by="registry")
     return [], res
 
-
-import re
 
 def sanitize_text_for_model(text: str) -> str:
     """Spec 10: Strip scripts, active markup, unsupported URLs, and prompt-like control text."""

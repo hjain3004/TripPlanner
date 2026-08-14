@@ -7,6 +7,7 @@ from gateway.places.contracts import PlaceCandidate
 
 def candidate(i: int) -> PlaceCandidate:
     from datetime import UTC, datetime
+
     from gateway.places.contracts import PlaceClaim
     return PlaceCandidate(
         place_id=f"pl_{i}",
@@ -28,7 +29,14 @@ def candidate(i: int) -> PlaceCandidate:
         ]
     )
 
-shuffled_sixty = [candidate(i) for i in [13, 42, 7, 59, 1, 33, 25, 48, 19, 56, 3, 38, 22, 51, 8, 45, 16, 54, 28, 5, 31, 11, 41, 14, 49, 21, 57, 36, 0, 39, 24, 53, 9, 44, 20, 50, 10, 43, 17, 55, 30, 2, 34, 27, 47, 18, 52, 6, 37, 23, 46, 15, 58, 29, 4, 32, 12, 40, 26, 35]]
+shuffled_sixty = [
+    candidate(i) for i in [
+        13, 42, 7, 59, 1, 33, 25, 48, 19, 56, 3, 38, 22, 51, 8, 45, 16, 54,
+        28, 5, 31, 11, 41, 14, 49, 21, 57, 36, 0, 39, 24, 53, 9, 44, 20, 50,
+        10, 43, 17, 55, 30, 2, 34, 27, 47, 18, 52, 6, 37, 23, 46, 15, 58, 29,
+        4, 32, 12, 40, 26, 35
+    ]
+]
 
 def test_a_fourth_round_is_refused() -> None:
     state = LoopState(budget=LoopBudget())
@@ -71,9 +79,8 @@ def test_truncation_is_deterministic_not_arbitrary() -> None:
 
 def test_a_scripted_model_that_loops_forever_still_terminates() -> None:
     """The bound is enforced by code, not by the model's cooperation."""
+
     from agents.discovery.controller import run_discovery
-    from core.trip_models import TripSpec
-    from datetime import date
     
     class ScriptedLLMClient:
         def __init__(self, always_requests_another_search=True):

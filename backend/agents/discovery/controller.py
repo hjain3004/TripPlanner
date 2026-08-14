@@ -1,10 +1,12 @@
 from typing import Any
+
 from pydantic import BaseModel, Field
 
+from agents.discovery.contracts import BudgetExceeded, LoopBudget, LoopState
 from core.trip_models import TripSpec
 from gateway.places.contracts import PlaceCandidate
 from gateway.places.registry import PlaceGatewayError
-from agents.discovery.contracts import LoopState, LoopBudget, BudgetExceeded
+
 
 class PartialDiscoveryResult(BaseModel):
     unresolved_needs: list[str] = Field(default_factory=list)
@@ -32,7 +34,7 @@ def run_discovery(spec: TripSpec, registry: Any, llm: Any) -> DiscoveryResult:
                 done = True
             if done:
                 break
-    except BudgetExceeded as e:
+    except BudgetExceeded:
         return DiscoveryResult(
             committed_candidates=state.retained,
             partial=PartialDiscoveryResult(
