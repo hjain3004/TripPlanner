@@ -84,11 +84,19 @@ export function TripMap({ mapData, itinerary }: TripMapProps) {
 
   return (
     <div className="aspect-video relative overflow-hidden rounded-none border-2 border-border shadow-1">
-      <div 
-        ref={containerRef} 
+      {/* `inert`, not `aria-hidden`. The itinerary list is the accessible
+          equivalent of this map (I6 list parity), so the canvas should not be
+          announced - but MapLibre injects its own focusable controls (zoom,
+          compass, and a tabindex="0" canvas) into this subtree. aria-hidden
+          alone leaves those keyboard-reachable while invisible to screen
+          readers, which aXe flags as aria-hidden-focus (serious): a keyboard
+          user tabs into controls their screen reader never announced. `inert`
+          removes the subtree from the a11y tree AND the tab order together. */}
+      <div
+        ref={containerRef}
         className="absolute inset-0 w-full h-full"
         data-testid="map-container"
-        aria-hidden="true"
+        inert
       />
       {!mounted && (
         <div className="absolute inset-0 flex items-center justify-center bg-accent-2">

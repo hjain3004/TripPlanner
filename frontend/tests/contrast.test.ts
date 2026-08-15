@@ -155,6 +155,7 @@ describe("WCAG contrast pairs (Japan theme)", () => {
     onPrimary: "oklch(0.977 0.010 81.8)",
     primary: "oklch(0.398 0.021 46.3)",
     primaryHover: "oklch(0.338 0.016 43.0)",
+    accent2: "oklch(0.902 0.019 43.2)",
     accent4: "oklch(0.642 0.033 65.6)",
     success: "oklch(0.577 0.042 139.2)",
     successText: "oklch(0.462 0.044 141.4)",
@@ -191,6 +192,17 @@ describe("WCAG contrast pairs (Japan theme)", () => {
   });
   it("text-faint on bg is ~3.42:1", () => {
     expect(ratio(T.textFaint, T.bg)).toBeCloseTo(3.42, 1);
+  });
+
+  // TrustChip renders 11px text, which is AA *small* text and so needs 4.5:1 -
+  // not the 3:1 the text-muted assertions guarantee. The chip paired
+  // text-muted with accent-2 at 4.35:1 and failed the aXe check on the
+  // results page. text on accent-2 is 6.95:1.
+  it("trust-chip text on accent-2 >= 4.5:1 (11px is AA small text)", () => {
+    expect(ratio(T.text, T.accent2)).toBeGreaterThanOrEqual(4.5);
+  });
+  it("text-muted on accent-2 is the 4.35:1 that failed - do not use it there", () => {
+    expect(ratio(T.textMuted, T.accent2)).toBeLessThan(4.5);
   });
 });
 
