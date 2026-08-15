@@ -1,12 +1,30 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import BaseModel, Field
 
 from agents.llm import LLMClient, complete_with_repair
 from agents.models import TripSpec
 from core.db import KnowledgeBase
+from gateway.catalog.regions import load_regions
 
-SUPPORTED_ROUTES = {("DEL", "SIN"), ("BOM", "SIN")}
+# India is the initial corridor origin (CLAUDE.md). Unrelated to which regional
+# catalogs exist - this is the traveler's home airport, not a destination.
+ORIGIN_CITIES = {"DEL", "BOM"}
+
+_REGIONS_PATH = Path(__file__).parent.parent / "gateway" / "catalog" / "fixtures" / "regions.yaml"
+
+
+def _supported_destinations() -> set[str]:
+    """A destination is supported when it has a registered Region entry.
+
+    Derived from regions.yaml rather than hardcoded, so Task 7/8 additions make
+    a destination selectable without another edit here. Whether that region's
+    catalog is actually *built* is a separate, request-time concern reported by
+    RegionCapability - not something intake-time route validation checks.
+    """
+    return set(load_regions(_REGIONS_PATH).keys())
 
 
 class IntakeResult(BaseModel):
@@ -24,7 +42,9 @@ def _validate_intake(spec: TripSpec, kb: KnowledgeBase) -> list[str]:
     for card_id in spec.wallet.card_ids:
         if not kb.has_card(card_id):
             unresolved.append(f"unknown card id: {card_id}")
-    if (spec.origin_city, spec.destination_city) not in SUPPORTED_ROUTES:
+    unsupported_origin = spec.origin_city not in ORIGIN_CITIES
+    unsupported_destination = spec.destination_city not in _supported_destinations()
+    if unsupported_origin or unsupported_destination:
         unresolved.append(f"unsupported route: {spec.origin_city}->{spec.destination_city}")
     return sorted(set(unresolved))
 
