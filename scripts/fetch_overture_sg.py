@@ -19,7 +19,7 @@ def fetch_overture() -> None:
     query = """
     COPY (
         SELECT id, names, categories, geometry
-        FROM read_parquet('s3://overturemaps-us-west-2/release/2024-03-12-alpha.0/theme=places/type=place/*', filename=true, hive_partitioning=1)
+        FROM read_parquet('s3://overturemaps-us-west-2/release/2026-07-22.0/theme=places/type=place/*', filename=true, hive_partitioning=1)
         WHERE bbox.minx >= 103.6 AND bbox.maxx <= 104.1
           AND bbox.miny >= 1.15 AND bbox.maxy <= 1.48
     ) TO 'overture_sg.json' (FORMAT JSON, ARRAY TRUE);

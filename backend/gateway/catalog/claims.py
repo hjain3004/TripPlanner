@@ -22,14 +22,14 @@ def _claim_id(place_id: str, field: str, source_id: str) -> str:
     return "cl_" + hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 def select_claims(claims: list[PlaceClaim]) -> tuple[list[PlaceClaim], list[tuple[str, str]]]:
-    by_field: dict[str, list[PlaceClaim]] = defaultdict(list)
+    by_place_and_field: dict[tuple[str, str], list[PlaceClaim]] = defaultdict(list)
     for c in claims:
-        by_field[c.field].append(c)
+        by_place_and_field[(c.place_id, c.field)].append(c)
 
     winners: list[PlaceClaim] = []
     contradictions: list[tuple[str, str]] = []
 
-    for field, field_claims in by_field.items():
+    for (_place_id, field), field_claims in by_place_and_field.items():
         authority = _AUTHORITY.get(field, ())
         
         valid_claims = [c for c in field_claims if c.source_id in authority]

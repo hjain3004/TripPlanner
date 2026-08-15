@@ -45,30 +45,10 @@ def _generate_place_id(external_ids: list[ExternalId]) -> str:
 
 
 def resolve_places(claims: list[PlaceClaim]) -> tuple[list[Place], list[MergeDecision]]:
-    # Group claims by original place_id
     claims_by_pid: dict[str, list[PlaceClaim]] = defaultdict(list)
     for c in claims:
         claims_by_pid[c.place_id].append(c)
 
-    # We will build components of merged pids
-    # Start with each original pid in its own component
-    pid_groups: list[set[str]] = [{pid} for pid in claims_by_pid]
-
-    decisions: list[MergeDecision] = []
-
-    # Helper to merge two groups
-    def merge_groups(i: int, j: int, rule: str) -> None:
-        if i == j:
-            return
-        pid_groups[i].update(pid_groups[j])
-        pid_groups[j].clear()
-
-    # Pass 1: exact_external_id
-    # If two groups share any (namespace, value), they merge.
-    # original place_id is itself an external ID 
-    # (e.g. overture:xxx -> namespace overture, value xxx)
-    # Plus any other external IDs. But the spec says: "sharing any (namespace, value) merge".
-    # Since original place_id carries the namespace implicitly in its prefix:
     def get_ext_ids(pid: str) -> list[ExternalId]:
         res = []
         for part in pid.split("|"):
@@ -77,29 +57,54 @@ def resolve_places(claims: list[PlaceClaim]) -> tuple[list[Place], list[MergeDec
                 res.append(ExternalId(namespace=ns, value=val))
         return res
 
-    for i in range(len(pid_groups)):
-        for j in range(i + 1, len(pid_groups)):
-            if not pid_groups[i] or not pid_groups[j]:
-                continue
-            
-            # Check for shared external IDs
-            ext_i = set((e.namespace, e.value) for pid in pid_groups[i] for e in get_ext_ids(pid))
-            ext_j = set((e.namespace, e.value) for pid in pid_groups[j] for e in get_ext_ids(pid))
-            
-            if ext_i & ext_j:
-                decisions.append(MergeDecision(
-                    rule="exact_external_id",
-                    merged=True,
-                    source_place_ids=sorted(list(pid_groups[i] | pid_groups[j])),
-                    resulting_place_id=None # will fill later
-                ))
-                merge_groups(i, j, "exact_external_id")
+    parent: dict[str, str] = {}
+    def find(i: str) -> str:
+        if parent[i] == i:
+            return i
+        parent[i] = find(parent[i])
+        return parent[i]
 
-    # Clean up empty groups
-    pid_groups = [g for g in pid_groups if g]
+    def union(i: str, j: str) -> bool:
+        root_i = find(i)
+        root_j = find(j)
+        if root_i != root_j:
+            parent[root_i] = root_j
+            return True
+        return False
 
-    # Pass 2 & 3: name_category_distance and ambiguous_review
-    # We compare groups pairwise.
+    decisions: list[MergeDecision] = []
+    
+    # Pass 1: exact_external_id
+    ext_id_to_pids = defaultdict(list)
+    for pid in claims_by_pid:
+        parent[pid] = pid
+        for ext in get_ext_ids(pid):
+            ext_id_to_pids[(ext.namespace, ext.value)].append(pid)
+
+    for pids in ext_id_to_pids.values():
+        for i in range(1, len(pids)):
+            if union(pids[0], pids[i]):
+                # It's hard to track decisions correctly with union find for exact pairs
+                # The existing code added a decision per merge.
+                pass
+    
+    # To match original behaviour of adding decisions, we can just rebuild groups
+    groups = defaultdict(set)
+    for pid in claims_by_pid:
+        groups[find(pid)].add(pid)
+    
+    pid_groups = list(groups.values())
+    
+    # Re-add Pass 1 decisions (it merged everything in the set)
+    for g in pid_groups:
+        if len(g) > 1:
+            decisions.append(MergeDecision(
+                rule="exact_external_id",
+                merged=True,
+                source_place_ids=sorted(list(g)),
+                resulting_place_id=None
+            ))
+
     def get_group_data(g: set[str]) -> tuple[set[str], set[str], list[dict[str, Any]]]:
         names = set()
         categories = set()
@@ -117,59 +122,71 @@ def resolve_places(claims: list[PlaceClaim]) -> tuple[list[Place], list[MergeDec
     changed = True
     while changed:
         changed = False
-        for i in range(len(pid_groups)):
-            for j in range(i + 1, len(pid_groups)):
-                if not pid_groups[i] or not pid_groups[j]:
-                    continue
-                
-                n_i, cat_i, coord_i = get_group_data(pid_groups[i])
-                n_j, cat_j, coord_j = get_group_data(pid_groups[j])
-                
-                # Must share at least one normalized name and one category
-                shared_names = n_i & n_j
-                shared_cats = cat_i & cat_j
-                if not shared_names or not shared_cats:
-                    continue
-                
-                if not coord_i or not coord_j:
-                    continue
-                
-                # Check distances between any pair of coords
-                min_dist = float('inf')
-                for c1 in coord_i:
-                    for c2 in coord_j:
-                        min_dist = min(min_dist, _get_distance_m(c1, c2))
-                
-                # Category threshold (use the first shared category for threshold)
-                cat = sorted(shared_cats)[0]
-                threshold = _MERGE_THRESHOLD_M.get(cat, _DEFAULT_THRESHOLD_M)
-                
-                if min_dist <= threshold:
-                    decisions.append(MergeDecision(
-                        rule="name_category_distance",
-                        merged=True,
-                        source_place_ids=sorted(list(pid_groups[i] | pid_groups[j])),
-                        resulting_place_id=None
-                    ))
-                    merge_groups(i, j, "name_category_distance")
-                    changed = True
-                    break
-                elif min_dist <= 2 * threshold:
-                    decisions.append(MergeDecision(
-                        rule="ambiguous_review",
-                        merged=False,
-                        source_place_ids=sorted(list(pid_groups[i] | pid_groups[j])),
-                        resulting_place_id=None
-                    ))
         
-        pid_groups = [g for g in pid_groups if g]
+        # Build index
+        index = defaultdict(list)
+        group_data = []
+        for idx, g in enumerate(pid_groups):
+            n, cat, coord = get_group_data(g)
+            group_data.append((n, cat, coord))
+            for name in n:
+                for category in cat:
+                    index[(name, category)].append(idx)
+                    
+        merged_in_this_pass: set[int] = set()
+        
+        for idxs in index.values():
+            if len(idxs) < 2:
+                continue
+            for i in range(len(idxs)):
+                for j in range(i + 1, len(idxs)):
+                    idx_i = idxs[i]
+                    idx_j = idxs[j]
+                    if idx_i in merged_in_this_pass or idx_j in merged_in_this_pass:
+                        continue
+                    
+                    n_i, cat_i, coord_i = group_data[idx_i]
+                    n_j, cat_j, coord_j = group_data[idx_j]
+                    
+                    shared_names = n_i & n_j
+                    shared_cats = cat_i & cat_j
+                    if not shared_names or not shared_cats:
+                        continue
+                    if not coord_i or not coord_j:
+                        continue
+                        
+                    min_dist = float('inf')
+                    for c1 in coord_i:
+                        for c2 in coord_j:
+                            min_dist = min(min_dist, _get_distance_m(c1, c2))
+                            
+                    best_cat = sorted(list(shared_cats))[0]
+                    threshold = _MERGE_THRESHOLD_M.get(best_cat, _DEFAULT_THRESHOLD_M)
+                    
+                    if min_dist <= threshold:
+                        decisions.append(MergeDecision(
+                            rule="name_category_distance",
+                            merged=True,
+                            source_place_ids=sorted(list(pid_groups[idx_i] | pid_groups[idx_j])),
+                            resulting_place_id=None
+                        ))
+                        pid_groups[idx_i].update(pid_groups[idx_j])
+                        merged_in_this_pass.add(idx_j)
+                        changed = True
+                        break # Break out of inner to re-index, or continue?
+                    elif min_dist <= 2 * threshold:
+                        decisions.append(MergeDecision(
+                            rule="ambiguous_review",
+                            merged=False,
+                            source_place_ids=sorted(list(pid_groups[idx_i] | pid_groups[idx_j])),
+                            resulting_place_id=None
+                        ))
+        
+        if changed:
+            pid_groups = [g for idx, g in enumerate(pid_groups) if idx not in merged_in_this_pass]
 
-    # Generate final places and update decisions
     places: list[Place] = []
-    
-    # Sort groups deterministically based on original pids
     pid_groups = sorted(pid_groups, key=lambda g: sorted(list(g))[0])
-    
     group_to_final_pid: dict[frozenset[str], str] = {}
     
     for g in pid_groups:
@@ -177,7 +194,6 @@ def resolve_places(claims: list[PlaceClaim]) -> tuple[list[Place], list[MergeDec
         for pid in g:
             ext_ids.extend(get_ext_ids(pid))
         
-        # Keep unique external IDs deterministically
         unique_ext_ids = []
         seen = set()
         for e in ext_ids:
@@ -192,16 +208,12 @@ def resolve_places(claims: list[PlaceClaim]) -> tuple[list[Place], list[MergeDec
         places.append(Place(place_id=final_pid, external_ids=unique_ext_ids))
         group_to_final_pid[frozenset(g)] = final_pid
                 
-    # Update decisions with final resulting place ids (for merged ones)
     for d in decisions:
         if d.merged:
-            # find which group this became part of
             for fz_g, final_pid in group_to_final_pid.items():
                 if set(d.source_place_ids).issubset(fz_g):
                     d.resulting_place_id = final_pid
                     break
 
-    # Re-sort places deterministically
     places.sort(key=lambda p: p.place_id)
-    
     return places, decisions

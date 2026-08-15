@@ -2,14 +2,15 @@ catalog_id: sg-core
 catalog_release: "2026-08-11.0"
 sources:
   - source_id: overture_sg
-    source_url: https://example.invalid/fixtures/overture_sg_sample.jsonl
+    source_url: s3://overturemaps-us-west-2/release/2026-07-22.0/
     licence_id: CDLA-Permissive-2.0
-    source_release: "2026-07-24.0"
-    checksum: "d9670c56fc3be19c83f327dab56250611691d10da1ad31bb2905d49373e2cfb6"
-    max_bytes: 1000000
+    source_release: "2026-07-22.0"
+    checksum: "9cb84d867ea1458cceca52e4be208ce6b31d50bced445f71b07f8b0dd9caf419"
+    max_bytes: 50000000
     geographic_scope: SG
     allowed_purpose: non-commercial student prototype
     attribution_text: "(c) Overture Maps Foundation"
+
   - source_id: osm_sg
     source_url: https://example.invalid/fixtures/osm_sg_sample.json
     licence_id: ODbL-1.0

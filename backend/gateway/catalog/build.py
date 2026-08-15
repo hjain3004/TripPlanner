@@ -25,6 +25,25 @@ def build_catalog(
     from gateway.places.contracts import PlaceClaim
     raw_claims: list[PlaceClaim] = []
     
+    import json
+    import zipfile
+
+    from gateway.catalog.normalize import normalize_osm, normalize_overture, normalize_wikivoyage
+
+    for source, staged_file in zip(sources, staged, strict=True):
+        if zipfile.is_zipfile(staged_file):
+            with zipfile.ZipFile(staged_file) as z:
+                for name in z.namelist():
+                    if name.endswith('.json'):
+                        with z.open(name) as f:
+                            data = json.load(f)
+                            if source.source_id.startswith('overture'):
+                                raw_claims.extend(normalize_overture(data, source))
+                            elif source.source_id.startswith('osm'):
+                                raw_claims.extend(normalize_osm(data, source))
+                            elif source.source_id.startswith('wikivoyage'):
+                                raw_claims.extend(normalize_wikivoyage(data, source))
+    
     source_is_mock = False
     
     # Mocking for tests
@@ -95,11 +114,26 @@ def build_catalog(
             
         merged_claims = raw_claims
         
+    if not source_is_mock:
+        merged_claims = raw_claims
+        
     # 5. Field Selection & Contradictions (Task 6)
     if source_is_mock:
         winners = merged_claims
         contradictions: list[tuple[str, str]] = []
     else:
+        from gateway.catalog.identity import resolve_places
+        resolved_places, decisions = resolve_places(merged_claims)
+        
+        # update claims with resolved place_ids
+        ext_to_pid = {}
+        for p in resolved_places:
+            for e in p.external_ids:
+                ext_to_pid[f"{e.namespace}:{e.value}"] = p.place_id
+                
+        for c in merged_claims:
+            if c.place_id in ext_to_pid:
+                c.place_id = ext_to_pid[c.place_id]
         winners, contradictions = select_claims(merged_claims)
     
     # 6. Quality Report (Task 7)

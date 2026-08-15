@@ -34,14 +34,38 @@ def normalize_overture(rows: list[dict[str, Any]], source: PinnedSource) -> list
     claims: list[PlaceClaim] = []
     for row in rows:
         pid = f"overture:{row['id']}"
-        name = sanitize_text(str(row.get("names", {}).get("primary", "")))
+        names = row.get("names") or {}
+        name = sanitize_text(str(names.get("primary", ""))) if isinstance(names, dict) else ""
         if name:
             claims.append(_claim(source, pid, "name", name))
-        category = row.get("categories", {}).get("primary")
+        categories = row.get("categories") or {}
+        raw_category = categories.get("primary") if isinstance(categories, dict) else None
+        
+        category = None
+        if raw_category:
+            raw_category = str(raw_category)
+            if raw_category in ("park", "food_court", "restaurant", "cafe", "museum"):
+                category = raw_category
+            elif raw_category in (
+                "landmark_and_historical_building",
+                "amusement_park",
+                "zoo",
+                "aquarium",
+                "botanical_garden"
+            ):
+                category = "attraction"
+                
         if category:
             claims.append(_claim(source, pid, "category", sanitize_text(str(category))))
         geom = row.get("geometry")
-        if geom and "lat" in geom and "lon" in geom:
+        if isinstance(geom, str) and geom.startswith("POINT"):
+            parts = geom.replace("POINT (", "").replace(")", "").split()
+            if len(parts) == 2:
+                lon, lat = float(parts[0]), float(parts[1])
+                claims.append(
+                    _claim(source, pid, "coordinates", {"lat": lat, "lon": lon})
+                )
+        elif geom and "lat" in geom and "lon" in geom:
             claims.append(
                 _claim(source, pid, "coordinates", {"lat": geom["lat"], "lon": geom["lon"]})
             )
