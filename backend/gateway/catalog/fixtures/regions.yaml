@@ -44,3 +44,12 @@ regions:
     centroid_lon: -0.1278
     currency: "GBP"
     budget_supported: false
+  - iata: "PAR"
+    city_name: "Paris"
+    country_code: "FR"
+    timezone: "Europe/Paris"
+    catalog_id: "par-core"
+    centroid_lat: 48.8566
+    centroid_lon: 2.3522
+    currency: "EUR"
+    budget_supported: false
