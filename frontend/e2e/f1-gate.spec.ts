@@ -23,15 +23,19 @@ test.describe("F1 Gate: routes", () => {
 
 test.describe("F1 Gate: fonts", () => {
   test("Poiret One applied on display headings", async ({ page }) => {
-    await page.goto(BASE + "/kitchen-sink", { waitUntil: "networkidle" }); await page.locator("button:has-text('UI')").click();
+    await page.goto(BASE + "/kitchen-sink", { waitUntil: "networkidle" });
+    await page.locator("button:has-text('UI')").click();
     const h1 = page.locator("h1").first();
+    await h1.waitFor({ state: "visible" });
     const font = await h1.evaluate((el) => getComputedStyle(el).fontFamily);
     expect(font.toLowerCase()).toContain("poiret");
   });
 
   test("Roboto Mono on metadata elements", async ({ page }) => {
-    await page.goto(BASE + "/kitchen-sink", { waitUntil: "networkidle" }); await page.locator("button:has-text('UI')").click();
+    await page.goto(BASE + "/kitchen-sink", { waitUntil: "networkidle" });
+    await page.locator("button:has-text('UI')").click();
     const meta = page.locator("text=Roboto Mono").first();
+    await meta.waitFor({ state: "visible" });
     const font = await meta.evaluate((el) => getComputedStyle(el).fontFamily);
     expect(font.toLowerCase()).toContain("roboto");
   });
