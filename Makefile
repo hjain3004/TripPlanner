@@ -60,9 +60,9 @@ gate: ## THE backend gate: tests + strict types + lint + frozen artifacts + clea
 	@git diff --exit-code -- $(BACKEND)/evals/golden/ >/dev/null \
 	  && echo "GOLDENS_OK" \
 	  || (echo "FAIL: backend/evals/golden/ changed — money math moved (Tier F)"; exit 1)
-	@git diff --exit-code -- contract/openapi.json >/dev/null \
-	  && echo "CONTRACT_OK" \
-	  || (echo "FAIL: contract/openapi.json changed — schema/codegen/MSW/UI ship in ONE PR (spec 12 §8)"; exit 1)
+	@cd $(BACKEND) && .venv/bin/pytest -q evals/test_contract_one_pr.py >/dev/null \
+	  && echo "CONTRACT_OK (unchanged, or changed with codegen and fixtures)" \
+	  || (echo "FAIL: contract changed without codegen/fixtures in the same commit (one-PR rule)"; exit 1)
 	@cmp AGENTS.md CLAUDE.md \
 	  && echo "BRIEFS_IDENTICAL" \
 	  || (echo "FAIL: AGENTS.md and CLAUDE.md drifted — they must be byte-identical"; exit 1)
