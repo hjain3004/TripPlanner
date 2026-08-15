@@ -547,11 +547,24 @@ function ResultsView({ report, onRetry }: {
           <p className="text-sm text-text-muted text-center -mt-4">{report.summary}</p>
         )}
 
-        {report.region_capability && (report.region_capability.known_gaps?.length ?? 0) > 0 && (
+        {report.region_capability && (
           <div className="flex flex-wrap items-center justify-center gap-2 -mt-4" data-testid="region-capability-note">
-            {report.region_capability.known_gaps!.map((gap, i) => (
-              <TrustChip key={i} variant="needs-verification" label={gap} />
-            ))}
+            {report.region_capability.catalog_status === "provisioning" && (
+              <TrustChip
+                variant="needs-verification"
+                label="Places catalog is being prepared offline; using curated highlights for this run"
+              />
+            )}
+            {report.region_capability.catalog_status === "absent" && (
+              <TrustChip
+                variant="needs-verification"
+                label={`Curated highlights only — no open data place catalog active for ${report.region_capability.region}`}
+              />
+            )}
+            {(report.region_capability.known_gaps?.length ?? 0) > 0 &&
+              report.region_capability.known_gaps!.map((gap, i) => (
+                <TrustChip key={i} variant="needs-verification" label={gap} />
+              ))}
           </div>
         )}
 

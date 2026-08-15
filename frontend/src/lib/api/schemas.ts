@@ -19,7 +19,7 @@ const jobErrorSchema = z.object({
 
 const regionCapabilitySchema = z.object({
   region: z.string(),
-  catalog_status: z.enum(["active", "absent", "stale"]),
+  catalog_status: z.enum(["active", "absent", "provisioning", "stale"]),
   place_count: z.number().int(),
   budget_supported: z.boolean(),
   known_gaps: z.array(z.string()),

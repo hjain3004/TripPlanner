@@ -622,7 +622,7 @@ export type RegionCapability = {
     /**
      * Catalog Status
      */
-    catalog_status: 'active' | 'absent' | 'stale';
+    catalog_status: 'active' | 'absent' | 'provisioning' | 'stale';
     /**
      * Place Count
      */
