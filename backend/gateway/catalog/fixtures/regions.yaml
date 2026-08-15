@@ -1,0 +1,19 @@
+regions:
+  - iata: "SIN"
+    city_name: "Singapore"
+    country_code: "SG"
+    timezone: "Asia/Singapore"
+    catalog_id: "overture_sg"
+    centroid_lat: 1.3521
+    centroid_lon: 103.8198
+    currency: "SGD"
+    budget_supported: true
+  - iata: "TPE"
+    city_name: "Taipei"
+    country_code: "TW"
+    timezone: "Asia/Taipei"
+    catalog_id: "overture_tpe"
+    centroid_lat: 25.0330
+    centroid_lon: 121.5654
+    currency: "TWD"
+    budget_supported: false

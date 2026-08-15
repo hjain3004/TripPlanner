@@ -6,11 +6,14 @@ from pathlib import Path
 from agents.models import RetrievalContext, TripSpec
 from core.db import KnowledgeBase
 from core.models import POI, Area
+from gateway.catalog.regions import Region
 from gateway.places.contracts import PlaceCandidate
 
 CITY_BY_IATA = {"SIN": "Singapore"}
 
-def _map_candidate_to_poi(c: PlaceCandidate, city: str) -> POI:
+def _map_candidate_to_poi(
+    c: PlaceCandidate, city: str, region: Region | None = None
+) -> POI:
     name = next((cl.value for cl in c.claims if cl.field == "name"), "Unknown")
     cat = next((cl.value for cl in c.claims if cl.field == "category"), "other")
     coords = next(
@@ -40,12 +43,14 @@ def _map_candidate_to_poi(c: PlaceCandidate, city: str) -> POI:
         tags=[str(cat)],
         typical_duration_min=90,
         price_minor=0,
-        currency="INR",
+        currency=region.currency if region else "INR",
         lat=lat,
         lon=lon,
         area="Unknown",
         open_hours=TimezoneAwareHours(
-            timezone="Asia/Singapore", regular_hours=regular_hours, closed_dates=[]
+            timezone=region.timezone if region else "UTC",
+            regular_hours=regular_hours,
+            closed_dates=[],
         ),
         booking_channel="pos_abroad",
         description="",
@@ -110,28 +115,34 @@ def _area_row(area: Area) -> str:
 def retrieve_candidates(
     spec: TripSpec, kb: KnowledgeBase, limit: int = 40, catalog: Path | None = None
 ) -> RetrievalContext:
-    if catalog is None:
+    from gateway.catalog.regions import get_region
+    region = get_region(spec.destination_city)
+    
+    if catalog is None and region is not None:
         from gateway.catalog.activate import active_catalog_path
         try:
-            catalog = active_catalog_path(Path("catalogs"))
+            catalog = active_catalog_path(Path("catalogs"), catalog_id=region.catalog_id)
         except FileNotFoundError:
             catalog = None
 
-    city = CITY_BY_IATA.get(spec.destination_city, spec.destination_city)
+    if region:
+        city = region.city_name
+    else:
+        city = CITY_BY_IATA.get(
+            spec.destination_city, spec.destination_city
+        )
     pois = kb.pois(city)
     
     poi_provenance = []
 
     if catalog and catalog.exists():
         from core.trip_models import POIEvidence
-        from gateway.catalog.manifest import load_manifest
         from gateway.catalog.quality import SUPPORTED_CATEGORIES
         from gateway.places.adapters.snapshot import SnapshotPlaceAdapter
         from gateway.places.contracts import PlaceSearchRequest
         
-        manifest = load_manifest(Path("gateway/catalog/fixtures/manifest_sg.yaml"))
-        origin_lat = manifest.centroid_lat if manifest.centroid_lat is not None else 0.0
-        origin_lon = manifest.centroid_lon if manifest.centroid_lon is not None else 0.0
+        origin_lat = region.centroid_lat if region else 0.0
+        origin_lon = region.centroid_lon if region else 0.0
 
         adapter = SnapshotPlaceAdapter(catalog)
         req = PlaceSearchRequest(
@@ -145,7 +156,7 @@ def retrieve_candidates(
         candidates, _ = adapter.search_places(req)
 
         for c in candidates:
-            poi = _map_candidate_to_poi(c, city)
+            poi = _map_candidate_to_poi(c, city, region)
             pois.append(poi)
 
             status = c.status

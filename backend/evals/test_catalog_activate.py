@@ -83,7 +83,6 @@ def test_successful_build_becomes_the_active_catalog(tmp_path: Path, test_manife
     MANIFEST, BAD, THIN, RAW = test_manifests
     artifact = build_catalog(MANIFEST, RAW, tmp_path / "work")
     activate(artifact, tmp_path / "catalogs")
-    print("\nFILES:", list((tmp_path / "catalogs").iterdir()))
     active = active_catalog_path(tmp_path / "catalogs", catalog_id="overture_sg")
     assert active is not None and active.exists()
 

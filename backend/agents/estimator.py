@@ -29,6 +29,10 @@ def _home_currency(spec: TripSpec) -> str:
 
 
 def _destination_city(spec: TripSpec) -> str:
+    from gateway.catalog.regions import get_region
+    region = get_region(spec.destination_city)
+    if region:
+        return region.city_name
     return CITY_BY_IATA.get(spec.destination_city, spec.destination_city)
 
 
@@ -150,8 +154,15 @@ def _poi_lines(spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase) -> 
 
 
 def _per_diem_lines(spec: TripSpec, kb: KnowledgeBase) -> list[SpendLineItem]:
+    from gateway.catalog.regions import get_region
+    region = get_region(spec.destination_city)
     home_currency = _home_currency(spec)
-    destination_currency = DESTINATION_CURRENCY_BY_IATA[spec.destination_city]
+    if region:
+        destination_currency = region.currency
+    else:
+        destination_currency = DESTINATION_CURRENCY_BY_IATA.get(
+            spec.destination_city, "SGD"
+        )
     fx = kb.fx_rate(destination_currency, home_currency)
     if fx is None:
         raise ValueError(f"Missing FX rate for {destination_currency}->{home_currency}")
