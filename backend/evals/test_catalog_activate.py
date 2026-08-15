@@ -24,7 +24,7 @@ sources:
     licence_id: "L"
     source_release: "1"
     checksum: "abc"
-    max_bytes: 100
+    max_bytes: 5000
     geographic_scope: "SG"
     allowed_purpose: "non-commercial"
     attribution_text: "Overture"
@@ -41,7 +41,28 @@ sources:
     raw = tmp_path / "raw"
     raw.mkdir()
 
-    payload = b'{"id":"a"}\n'
+    # Create a valid zip with one valid claim (not enough for quality gate)
+    import json
+    import zipfile
+    
+    zip_path = tmp_path / "dummy.zip"
+    with zipfile.ZipFile(zip_path, "w") as z:
+        from gateway.catalog.quality import _MIN_PER_CATEGORY
+        places = []
+        idx = 1
+        for cat, min_count in _MIN_PER_CATEGORY.items():
+            for _ in range(min_count):
+                places.append({
+                    "id": f"ext_{idx}",
+                    "names": {"primary": f"Place {idx}"},
+                    "categories": {"primary": "zoo" if cat == "attraction" else cat},
+                    "geometry": {"lat": 1.3, "lon": 103.8}
+                })
+                idx += 1
+        z.writestr("data.json", json.dumps(places))
+        
+    payload = zip_path.read_bytes()
+
     # Update checksum in manifest to match this payload
     import hashlib
 
@@ -53,10 +74,6 @@ sources:
 
     # write raw payload
     raw_file = raw / "overture_sg_1.zip"
-    # wait, the source is not a zip here? no, verify_and_stage takes raw_path
-    # verify_and_stage in test_catalog_quarantine expects just the file payload
-    # (it doesn't have to be a zip if max_bytes check passes, but wait, the plan
-    # said "uncompressed size over budget...").
     raw_file.write_bytes(payload)
 
     return m, bad, thin, raw
@@ -89,7 +106,37 @@ def test_a_failed_build_leaves_the_previous_catalog_active(tmp_path: Path, test_
 
 def test_a_quality_failure_refuses_activation(tmp_path: Path, test_manifests) -> None:
     MANIFEST, BAD, THIN, RAW = test_manifests
-    artifact = build_catalog(THIN, RAW, tmp_path / "work", fail_quality=True)
+    
+    # Create a new RAW directory that fails quality
+    import json
+    import zipfile
+    
+    fail_raw = tmp_path / "fail_raw"
+    fail_raw.mkdir()
+    
+    zip_path = tmp_path / "fail_dummy.zip"
+    with zipfile.ZipFile(zip_path, "w") as z:
+        places = [{
+            "id": "ext_1",
+            "names": {"primary": "Single Place"},
+            "categories": {"primary": "park"},
+            "geometry": {"lat": 1.3, "lon": 103.8}
+        }]
+        z.writestr("data.json", json.dumps(places))
+        
+    payload = zip_path.read_bytes()
+    
+    import hashlib
+    true_checksum = hashlib.sha256(payload).hexdigest()
+    
+    thin2 = tmp_path / "thin2.yaml"
+    old_chk = THIN.read_text().split('checksum: "')[1].split('"')[0]
+    thin2.write_text(THIN.read_text().replace(old_chk, true_checksum))
+    
+    raw_file = fail_raw / "overture_sg_1.zip"
+    raw_file.write_bytes(payload)
+
+    artifact = build_catalog(thin2, fail_raw, tmp_path / "work2")
     assert artifact.quality.passed is False
     with pytest.raises(ActivationRefused, match="quality"):
         activate(artifact, tmp_path / "catalogs")

@@ -257,7 +257,7 @@ sources:
     licence_id: "L"
     source_release: "1"
     checksum: "3b18c8bfa27eeb355f2f3bf7568833352c719338fa8faa213f1428cfa0fa2975"
-    max_bytes: 100
+    max_bytes: 5000
     geographic_scope: "SG"
     allowed_purpose: "non-commercial"
     attribution_text: "Overture"
@@ -265,9 +265,35 @@ sources:
     m = tmp_path / "manifest.yaml"
     m.write_text(manifest_yaml)
 
+    import json
+    import zipfile
+    
+    zip_path = tmp_path / "dummy.zip"
+    with zipfile.ZipFile(zip_path, "w") as z:
+        from gateway.catalog.quality import _MIN_PER_CATEGORY
+        places = []
+        idx = 1
+        for cat, min_count in _MIN_PER_CATEGORY.items():
+            for _ in range(min_count):
+                places.append({
+                    "id": f"ext_{idx}",
+                    "names": {"primary": f"Place {idx}"},
+                    "categories": {"primary": "zoo" if cat == "attraction" else cat},
+                    "geometry": {"lat": 1.3, "lon": 103.8}
+                })
+                idx += 1
+        z.writestr("data.json", json.dumps(places))
+        
+    payload = zip_path.read_bytes()
+
     raw = tmp_path / "raw"
     raw.mkdir()
-    (raw / "overture_sg_1.zip").write_bytes(b'{"id":"a"}\n')
+    (raw / "overture_sg_1.zip").write_bytes(payload)
+    
+    import hashlib
+    true_checksum = hashlib.sha256(payload).hexdigest()
+    old_chk = "3b18c8bfa27eeb355f2f3bf7568833352c719338fa8faa213f1428cfa0fa2975"
+    m.write_text(manifest_yaml.replace(old_chk, true_checksum))
 
     artifact = build_catalog(m, raw, tmp_path / "work")
     return activate(artifact, tmp_path / "catalogs")

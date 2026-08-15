@@ -53,6 +53,8 @@ STUB_MARKERS = (
     r"placeholder",
     r"not implemented yet",
     r"NotImplementedError",
+    r"mocking for tests",
+    r"^\s*#\s*mock\b",
 )
 
 _MARKER_RE = re.compile("|".join(STUB_MARKERS), re.IGNORECASE)
