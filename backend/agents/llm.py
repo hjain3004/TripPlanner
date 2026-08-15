@@ -240,19 +240,40 @@ class HostedFreeTier:
             method="POST",
         )
 
-        try:
-            with urllib.request.urlopen(request, timeout=timeout_s) as response:
-                raw = response.read().decode("utf-8")
-        except TimeoutError as exc:
-            raise LLMTimeoutError(f"{node} timed out after {timeout_s}s") from exc
-        except urllib.error.HTTPError as exc:
-            # Never surface request headers - they carry the API key.
-            detail = exc.read().decode("utf-8", errors="replace")[:500]
-            raise LLMCallError(f"{node} provider returned HTTP {exc.code}: {detail}") from exc
-        except urllib.error.URLError as exc:
-            if isinstance(exc.reason, TimeoutError):
-                raise LLMTimeoutError(f"{node} timed out after {timeout_s}s") from exc
-            raise LLMCallError(f"{node} provider unreachable: {exc.reason}") from exc
+        import time
+
+        max_retries = 3
+        raw = ""
+        for attempt in range(max_retries + 1):
+            try:
+                with urllib.request.urlopen(request, timeout=timeout_s) as response:
+                    raw = response.read().decode("utf-8")
+                break
+            except TimeoutError as exc:
+                if attempt == max_retries:
+                    raise LLMTimeoutError(f"{node} timed out after {timeout_s}s") from exc
+                time.sleep(2)
+            except urllib.error.HTTPError as exc:
+                if exc.code == 429 and attempt < max_retries:
+                    retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                    delay = float(retry_after) if retry_after else float(2**attempt * 3)
+                    time.sleep(min(60.0, delay))
+                    continue
+                detail = (
+                    exc.read().decode("utf-8", errors="replace")[:500]
+                    if getattr(exc, "fp", None)
+                    else str(exc)
+                )
+                raise LLMCallError(
+                    f"{node} provider returned HTTP {exc.code}: {detail}"
+                ) from exc
+            except urllib.error.URLError as exc:
+                if isinstance(exc.reason, TimeoutError):
+                    if attempt == max_retries:
+                        raise LLMTimeoutError(f"{node} timed out after {timeout_s}s") from exc
+                    time.sleep(2)
+                    continue
+                raise LLMCallError(f"{node} provider unreachable: {exc.reason}") from exc
 
         envelope = json.loads(raw)
         try:
