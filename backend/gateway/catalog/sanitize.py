@@ -6,9 +6,7 @@ import unicodedata
 MAX_TEXT_LEN = 2000
 
 _TAG_RE = re.compile(r"<[^>]*>")
-_CONTROL_RE = re.compile(
-    r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u202a-\u202e\u2066-\u2069]"
-)
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u202a-\u202e\u2066-\u2069]")
 _PROMPT_PATTERNS = [
     re.compile(r"ignore\s+(all\s+)?(previous|prior|above)\s+instructions?", re.I),
     re.compile(r"^\s*(system|assistant|user)\s*:", re.I | re.M),

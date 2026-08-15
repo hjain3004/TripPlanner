@@ -53,8 +53,9 @@ def test_resolution_is_order_independent(claims_near_duplicate: list[PlaceClaim]
     a, _ = resolve_places(claims_near_duplicate)
     b, _ = resolve_places(list(reversed(claims_near_duplicate)))
     assert [p.place_id for p in a] == [p.place_id for p in b]
-    assert [sorted(e.value for e in p.external_ids) for p in a] == \
-           [sorted(e.value for e in p.external_ids) for p in b]
+    assert [sorted(e.value for e in p.external_ids) for p in a] == [
+        sorted(e.value for e in p.external_ids) for p in b
+    ]
 
 
 def test_names_are_never_used_as_the_primary_key(

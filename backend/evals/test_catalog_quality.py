@@ -46,9 +46,7 @@ def test_licence_coverage_must_be_total(
     assert any("licence" in f for f in report.failures)
 
 
-def test_report_serializes_deterministically(
-    places: list[Place], claims: list[PlaceClaim]
-) -> None:
+def test_report_serializes_deterministically(places: list[Place], claims: list[PlaceClaim]) -> None:
     a = evaluate_quality(places, claims).model_dump_json()
     b = evaluate_quality(places, claims).model_dump_json()
     assert a == b

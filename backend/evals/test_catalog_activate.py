@@ -12,6 +12,7 @@ from gateway.catalog.quarantine import QuarantineRejected
 
 FIXTURES = Path("raw")
 
+
 @pytest.fixture
 def test_manifests(tmp_path: Path):
     manifest_yaml = """
@@ -30,34 +31,36 @@ sources:
 """
     m = tmp_path / "manifest.yaml"
     m.write_text(manifest_yaml)
-    
+
     bad = tmp_path / "bad.yaml"
     bad.write_text(manifest_yaml.replace("abc", "000"))
-    
+
     thin = tmp_path / "thin.yaml"
     thin.write_text(manifest_yaml)
-    
+
     raw = tmp_path / "raw"
     raw.mkdir()
-    
+
     payload = b'{"id":"a"}\n'
     # Update checksum in manifest to match this payload
     import hashlib
+
     true_checksum = hashlib.sha256(payload).hexdigest()
     bad_checksum = "0" * 64
     m.write_text(manifest_yaml.replace("abc", true_checksum))
     thin.write_text(manifest_yaml.replace("abc", true_checksum))
     bad.write_text(manifest_yaml.replace("abc", bad_checksum))
-    
+
     # write raw payload
-    raw_file = raw / "overture_sg_1.zip" 
+    raw_file = raw / "overture_sg_1.zip"
     # wait, the source is not a zip here? no, verify_and_stage takes raw_path
-    # verify_and_stage in test_catalog_quarantine expects just the file payload 
-    # (it doesn't have to be a zip if max_bytes check passes, but wait, the plan 
+    # verify_and_stage in test_catalog_quarantine expects just the file payload
+    # (it doesn't have to be a zip if max_bytes check passes, but wait, the plan
     # said "uncompressed size over budget...").
     raw_file.write_bytes(payload)
-    
+
     return m, bad, thin, raw
+
 
 def test_successful_build_becomes_the_active_catalog(tmp_path: Path, test_manifests) -> None:
     MANIFEST, BAD, THIN, RAW = test_manifests

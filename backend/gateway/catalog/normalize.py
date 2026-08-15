@@ -40,7 +40,7 @@ def normalize_overture(rows: list[dict[str, Any]], source: PinnedSource) -> list
             claims.append(_claim(source, pid, "name", name))
         categories = row.get("categories") or {}
         raw_category = categories.get("primary") if isinstance(categories, dict) else None
-        
+
         category = None
         if raw_category:
             raw_category = str(raw_category)
@@ -51,10 +51,10 @@ def normalize_overture(rows: list[dict[str, Any]], source: PinnedSource) -> list
                 "amusement_park",
                 "zoo",
                 "aquarium",
-                "botanical_garden"
+                "botanical_garden",
             ):
                 category = "attraction"
-                
+
         if category:
             claims.append(_claim(source, pid, "category", sanitize_text(str(category))))
         geom = row.get("geometry")
@@ -62,9 +62,7 @@ def normalize_overture(rows: list[dict[str, Any]], source: PinnedSource) -> list
             parts = geom.replace("POINT (", "").replace(")", "").split()
             if len(parts) == 2:
                 lon, lat = float(parts[0]), float(parts[1])
-                claims.append(
-                    _claim(source, pid, "coordinates", {"lat": lat, "lon": lon})
-                )
+                claims.append(_claim(source, pid, "coordinates", {"lat": lat, "lon": lon}))
         elif geom and "lat" in geom and "lon" in geom:
             claims.append(
                 _claim(source, pid, "coordinates", {"lat": geom["lat"], "lon": geom["lon"]})
@@ -77,19 +75,19 @@ def normalize_osm(rows: list[dict[str, Any]], source: PinnedSource) -> list[Plac
     for row in rows:
         tags = row.get("tags", {})
         pid = f"osm:{row['type']}/{row['id']}"
-        
+
         name = sanitize_text(tags.get("name", ""))
         if name:
             claims.append(_claim(source, pid, "name", name))
-            
+
         hours = sanitize_text(tags.get("opening_hours", ""))
         if hours:
             claims.append(_claim(source, pid, "opening_hours", hours))
-            
+
         wheelchair = sanitize_text(tags.get("wheelchair", ""))
         if wheelchair:
             claims.append(_claim(source, pid, "accessibility", {"wheelchair": wheelchair}))
-            
+
     return sorted(claims, key=lambda c: (c.place_id, c.field))
 
 
@@ -100,11 +98,11 @@ def normalize_wikivoyage(rows: list[dict[str, Any]], source: PinnedSource) -> li
         if "wikidata" in row:
             pid = f"wikidata:{row['wikidata']}"
         else:
-            slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+            slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
             pid = f"internal:{slug}"
-            
+
         extract = sanitize_text(row.get("extract", ""))
         if extract:
             claims.append(_claim(source, pid, "description", extract))
-            
+
     return sorted(claims, key=lambda c: (c.place_id, c.field))

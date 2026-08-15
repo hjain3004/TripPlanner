@@ -17,23 +17,29 @@ class PinnedSource(BaseModel):
     release: str
     url: str
 
+
 class CatalogArtifact(BaseModel):
     catalog_id: str
     catalog_release: str
     sources: list[PinnedSource]
     places: list[Place]
     claims: list[PlaceClaim]
-    contradictions: list[list[str]] # wait, tuple is coerced to list by JSON
+    contradictions: list[list[str]]  # wait, tuple is coerced to list by JSON
     quality: QualityReport
+
 
 class ActivationRefused(Exception):
     pass
 
+
 def canonical_json(artifact: CatalogArtifact) -> str:
     return json.dumps(
         artifact.model_dump(mode="json"),
-        sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
     )
+
 
 def activate(artifact: CatalogArtifact, catalog_root: Path) -> Path:
     if not artifact.quality.passed:
@@ -44,8 +50,9 @@ def activate(artifact: CatalogArtifact, catalog_root: Path) -> Path:
     target = catalog_root / "active.json"
     tmp = catalog_root / "active.json.tmp"
     tmp.write_text(canonical_json(artifact), encoding="utf-8")
-    os.replace(tmp, target)   # atomic within a filesystem
+    os.replace(tmp, target)  # atomic within a filesystem
     return target
+
 
 def active_catalog_path(catalog_root: Path) -> Path | None:
     p = catalog_root / "active.json"

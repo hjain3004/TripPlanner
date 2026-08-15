@@ -5,6 +5,7 @@ CATALOG = Path(__file__).parent.parent / "gateway" / "catalog"
 NETWORK = {"requests", "httpx", "urllib", "socket", "aiohttp", "http", "ftplib"}
 UPPER = {"agents", "api"}
 
+
 def _imports(root: Path, banned: set[str]) -> list[str]:
     offenders: list[str] = []
     for path in sorted(root.rglob("*.py")):
@@ -19,8 +20,10 @@ def _imports(root: Path, banned: set[str]) -> list[str]:
                     offenders.append(f"{path.name}: from {node.module}")
     return offenders
 
+
 def test_catalog_package_contains_no_network_imports() -> None:
     assert _imports(CATALOG, NETWORK) == []
+
 
 def test_catalog_does_not_import_agents_or_api() -> None:
     assert _imports(CATALOG, UPPER) == []

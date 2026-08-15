@@ -8,7 +8,7 @@ from gateway.places.contracts import Place, PlaceClaim
 def _c(field: str, value: str, source_id: str, release: str = "1") -> PlaceClaim:
     return PlaceClaim(
         place_id="pl_1",
-        field=field, # type: ignore
+        field=field,  # type: ignore
         value=value,
         source_id=source_id,
         source_url="http://x",
@@ -77,5 +77,6 @@ def test_contradiction_becomes_a_graph_edge() -> None:
 def test_ties_are_broken_deterministically_not_by_input_order() -> None:
     a, _ = select_claims(claims_tied)
     b, _ = select_claims(list(reversed(claims_tied)))
-    assert [(c.place_id, c.field, c.source_id) for c in a] == \
-           [(c.place_id, c.field, c.source_id) for c in b]
+    assert [(c.place_id, c.field, c.source_id) for c in a] == [
+        (c.place_id, c.field, c.source_id) for c in b
+    ]
