@@ -6,8 +6,75 @@ from pathlib import Path
 from agents.models import RetrievalContext, TripSpec
 from core.db import KnowledgeBase
 from core.models import POI, Area
+from gateway.places.contracts import PlaceCandidate
 
 CITY_BY_IATA = {"SIN": "Singapore"}
+
+def _map_candidate_to_poi(c: PlaceCandidate, city: str) -> POI:
+    name = next((cl.value for cl in c.claims if cl.field == "name"), "Unknown")
+    cat = next((cl.value for cl in c.claims if cl.field == "category"), "other")
+    coords = next(
+        (cl.value for cl in c.claims if cl.field == "coordinates"), {"lat": 0.0, "lon": 0.0}
+    )
+
+    lat = coords["lat"] if isinstance(coords, dict) and "lat" in coords else 0.0
+    lon = coords["lon"] if isinstance(coords, dict) and "lon" in coords else 0.0
+
+    hours_str = next((cl.value for cl in c.claims if cl.field == "opening_hours"), None)
+    # Unknown hours never become open. A venue whose hours cannot be parsed is verify_required
+    needs_verification_override = False
+    regular_hours = {}
+    if hours_str == "24/7":
+        regular_hours = {i: ["00:00-23:59"] for i in range(7)}
+    elif hours_str:
+        needs_verification_override = True
+    else:
+        needs_verification_override = True
+
+    from core.models import Provenance, TimezoneAwareHours
+    
+    poi = POI(
+        id=c.place_id,
+        city=city,
+        name=str(name),
+        tags=[str(cat)],
+        typical_duration_min=90,
+        price_minor=0,
+        currency="INR",
+        lat=lat,
+        lon=lon,
+        area="Unknown",
+        open_hours=TimezoneAwareHours(
+            timezone="Asia/Singapore", regular_hours=regular_hours, closed_dates=[]
+        ),
+        booking_channel="pos_abroad",
+        description="",
+        provenance=Provenance(
+            source_type="crawl_draft",
+            last_verified=date(2026, 1, 1),
+            verified_by="UNVERIFIED",
+            needs_verification=True if needs_verification_override else c.status == "verify_required",
+            confidence=0.5,
+        ),
+    )
+    if c.status == "verify_required" or needs_verification_override:
+        poi.provenance.needs_verification = True
+    return poi
+
+def get_catalog_poi(poi_id: str, city: str) -> POI | None:
+    from gateway.catalog.activate import active_catalog_path
+    from pathlib import Path
+    try:
+        catalog = active_catalog_path(Path("catalogs"))
+        if catalog and catalog.exists():
+            from gateway.places.adapters.snapshot import SnapshotPlaceAdapter
+            adapter = SnapshotPlaceAdapter(catalog)
+            for c in adapter._load():
+                if c.place_id == poi_id:
+                    return _map_candidate_to_poi(c, city)
+    except FileNotFoundError:
+        pass
+    return None
 
 
 def _overlap(poi: POI, interests: list[str]) -> int:
@@ -40,9 +107,16 @@ def _area_row(area: Area) -> str:
 def retrieve_candidates(
     spec: TripSpec, kb: KnowledgeBase, limit: int = 40, catalog: Path | None = None
 ) -> RetrievalContext:
+    if catalog is None:
+        from gateway.catalog.activate import active_catalog_path
+        try:
+            catalog = active_catalog_path(Path("catalogs"))
+        except FileNotFoundError:
+            catalog = None
+
     city = CITY_BY_IATA.get(spec.destination_city, spec.destination_city)
     pois = kb.pois(city)
-
+    
     poi_provenance = []
 
     if catalog and catalog.exists():
@@ -57,60 +131,15 @@ def retrieve_candidates(
         candidates, _ = adapter.search_places(req)
 
         for c in candidates:
-            # We map PlaceCandidate into POI and POIEvidence
-            name = next((cl.value for cl in c.claims if cl.field == "name"), "Unknown")
-            cat = next((cl.value for cl in c.claims if cl.field == "category"), "other")
-            coords = next(
-                (cl.value for cl in c.claims if cl.field == "coordinates"), {"lat": 0.0, "lon": 0.0}
-            )
-
-            # Use real data fallback
-            lat = coords["lat"] if isinstance(coords, dict) else 0.0
-            lon = coords["lon"] if isinstance(coords, dict) else 0.0
-
-            # Find the most credible source for provenance
-            lic = next((cl.licence_id for cl in c.claims if cl.licence_id), None)
-            attr = next(
-                (cl.attribution_requirements for cl in c.claims if cl.attribution_requirements),
-                None,
-            )
-
-            # Ensure safe string formatting for coords and hours
-            next((cl.value for cl in c.claims if cl.field == "opening_hours"), "Unknown")
-
-            from core.models import Provenance, TimezoneAwareHours
-
-            poi = POI(
-                id=c.place_id,
-                city=city,
-                name=str(name),
-                tags=[str(cat)],
-                typical_duration_min=90,
-                price_minor=0,
-                currency="INR",
-                lat=lat,
-                lon=lon,
-                area="Unknown",
-                open_hours=TimezoneAwareHours(
-                    timezone="Asia/Singapore", regular_hours={}, closed_dates=[]
-                ),
-                booking_channel="pos_abroad",  # default
-                description="",
-                provenance=Provenance(
-                    source_type="crawl_draft",
-                    last_verified=date(2026, 1, 1),
-                    verified_by="UNVERIFIED",
-                    needs_verification=True,
-                    confidence=0.5,
-                ),
-            )
-            # wait, the POI model expects TimezoneAwareHours.
-            # actually we don't need to put perfectly valid hours, just mock it? No, POI validated!
+            poi = _map_candidate_to_poi(c, city)
             pois.append(poi)
 
             status = c.status
             if status == "verify_required":
                 poi.provenance.needs_verification = True
+
+            lic = next((cl.licence_id for cl in c.claims if cl.licence_id), None)
+            attr = next((cl.attribution_requirements for cl in c.claims if cl.attribution_requirements), None)
 
             ev = POIEvidence(
                 poi_id=c.place_id,

@@ -99,8 +99,7 @@ def _pick_hotel(
     ), assumptions
 
 
-def _poi_index(kb: KnowledgeBase, spec: TripSpec) -> dict[str, POI]:
-    return {poi.id: poi for poi in kb.pois(_destination_city(spec))}
+
 
 
 def _poi_category(poi: POI) -> SpendCategory:
@@ -111,15 +110,27 @@ def _poi_category(poi: POI) -> SpendCategory:
 
 def _poi_lines(spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase) -> list[SpendLineItem]:
     home_currency = _home_currency(spec)
-    by_id = _poi_index(kb, spec)
     seen: set[str] = set()
     lines: list[SpendLineItem] = []
+    
+    # Pre-fetch kb pois for fast lookup
+    kb_pois = {poi.id: poi for poi in kb.pois(_destination_city(spec))}
+    
     for day in itinerary.days:
         for item in day.items:
             if item.poi_id in seen:
                 continue
             seen.add(item.poi_id)
-            poi = by_id[item.poi_id]
+            
+            poi = kb_pois.get(item.poi_id)
+            if not poi:
+                from agents.retrieval import get_catalog_poi
+                poi = get_catalog_poi(item.poi_id, _destination_city(spec))
+                
+            if not poi:
+                # If a POI is genuinely hallucinated, skip costing it for now
+                continue
+                
             amount = (
                 _price_in_home(poi.price_minor, poi.currency, home_currency, kb)
                 * spec.travelers
