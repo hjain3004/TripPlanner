@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
+from typing import Any
 
 from gateway.catalog.activate import CatalogArtifact, PinnedSource, canonical_json
 from gateway.catalog.quality import QualityReport
@@ -136,9 +137,15 @@ def build_tiles_from_claims(
 class TiledPlaceAdapter:
     """Place provider adapter that loads only the spatial tiles intersecting the search radius."""
 
-    def __init__(self, tile_root: Path, radius_km: float = 15.0) -> None:
+    def __init__(
+        self,
+        tile_root: Path,
+        radius_km: float = 15.0,
+        cache_manager: Any = None,
+    ) -> None:
         self.tile_root = tile_root
         self.radius_km = radius_km
+        self.cache_manager = cache_manager
         self._tile_cache: dict[str, list[PlaceCandidate]] = {}
         self.last_loaded_tiles: list[str] = []
         self.last_bytes_loaded: int = 0
@@ -152,6 +159,9 @@ class TiledPlaceAdapter:
             p = self.tile_root / f"active_{tile_id}.json"
         if not p.exists():
             return []
+
+        if self.cache_manager:
+            self.cache_manager.touch_tile(tile_id)
 
         self.last_bytes_loaded += p.stat().st_size
         self.last_loaded_tiles.append(tile_id)
