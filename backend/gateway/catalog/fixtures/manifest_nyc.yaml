@@ -1,0 +1,20 @@
+catalog_id: nyc-core
+catalog_release: 2026-08-15.0
+max_places: 80000
+bbox:
+  min_lon: -74.05
+  min_lat: 40.55
+  max_lon: -73.75
+  max_lat: 40.92
+centroid_lat: 40.7128
+centroid_lon: -74.0060
+sources:
+- source_id: overture_nyc
+  source_url: s3://overturemaps-us-west-2/release/2026-07-22.0/
+  licence_id: CDLA-Permissive-2.0
+  source_release: 2026-07-22.0
+  checksum: c0861fa4c1cd2a9c40987ba0c549ad541aac6015fa8605b8e2e5c63abefb080c
+  max_bytes: 200000000
+  geographic_scope: US-NY
+  allowed_purpose: non-commercial student prototype
+  attribution_text: (c) Overture Maps Foundation

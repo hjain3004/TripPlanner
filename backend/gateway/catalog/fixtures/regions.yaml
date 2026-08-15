@@ -26,3 +26,12 @@ regions:
     centroid_lon: 55.2708
     currency: "AED"
     budget_supported: false
+  - iata: "NYC"
+    city_name: "New York City"
+    country_code: "US"
+    timezone: "America/New_York"
+    catalog_id: "nyc-core"
+    centroid_lat: 40.7128
+    centroid_lon: -74.0060
+    currency: "USD"
+    budget_supported: false
