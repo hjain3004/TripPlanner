@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -334,3 +336,112 @@ def complete_with_repair(
             raise LLMCallError(f"{node} schema repair failed") from retry_exc
     except json.JSONDecodeError as exc:
         raise LLMCallError(f"{node} returned invalid JSON") from exc
+
+
+_DEFAULT_RECORDINGS_DIR = Path(__file__).parent.parent / "evals" / "recorded"
+
+
+def compute_recording_key(system: str, user: str, model: str = "") -> str:
+    raw = f"{system}\n---USER---\n{user}\n---MODEL---\n{model}".encode()
+    return hashlib.sha256(raw).hexdigest()[:16]
+
+
+class RecordingLLMClient:
+    """Wraps an LLMClient, recording raw response payloads to disk under
+    evals/recorded/{node}/{key}.json."""
+
+    def __init__(
+        self, inner: LLMClient | Any, recordings_dir: Path = _DEFAULT_RECORDINGS_DIR
+    ) -> None:
+        self.inner = inner
+        self.recordings_dir = recordings_dir
+        self.calls_recorded = 0
+
+    @property
+    def model(self) -> str:
+        return str(getattr(self.inner, "model", "") or "")
+
+    def complete_json(
+        self,
+        *,
+        node: str,
+        system: str,
+        user: str,
+        schema: type[T],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        timeout_s: int = 20,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> T | Any:
+        result = self.inner.complete_json(
+            node=node,
+            system=system,
+            user=user,
+            schema=schema,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout_s=timeout_s,
+            tools=tools,
+        )
+
+        key = compute_recording_key(system, user, self.model)
+        target_dir = self.recordings_dir / node
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_file = target_dir / f"{key}.json"
+
+        if isinstance(result, BaseModel):
+            response_payload: Any = result.model_dump(mode="json")
+        elif isinstance(result, (dict, list, str, int, float, bool)):
+            response_payload = result
+        else:
+            response_payload = str(result)
+
+        data = {
+            "key": key,
+            "node": node,
+            "model": self.model,
+            "system": system,
+            "user": user,
+            "response": response_payload,
+        }
+        target_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        self.calls_recorded += 1
+        return result
+
+
+class ReplayLLMClient:
+    """Replays recorded LLM responses from evals/recorded/ with zero network calls."""
+
+    def __init__(
+        self, recordings_dir: Path = _DEFAULT_RECORDINGS_DIR, model: str = ""
+    ) -> None:
+        self.recordings_dir = recordings_dir
+        self.model = model
+        self.calls_replayed = 0
+
+    def complete_json(
+        self,
+        *,
+        node: str,
+        system: str,
+        user: str,
+        schema: type[T],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        timeout_s: int = 20,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> T | Any:
+        key = compute_recording_key(system, user, self.model)
+        target_file = self.recordings_dir / node / f"{key}.json"
+
+        if not target_file.exists():
+            raise LLMCallError(
+                f"No recording for {node} (key={key}, model={self.model}). "
+                "Run in --record mode with a live client to capture this prompt response."
+            )
+
+        data = json.loads(target_file.read_text(encoding="utf-8"))
+        payload = data.get("response")
+        self.calls_replayed += 1
+        return _validate_or_intent(payload, schema, tools)
+
