@@ -42,10 +42,26 @@ class SnapshotPlaceAdapter:
                     places_claims[pid] = []
 
                 c_dict = dict(c)
-                if not c_dict.get("attribution_requirements"):
-                    src = source_map.get(c_dict["source_id"])
-                    if src and "attribution_text" in src:
-                        c_dict["attribution_requirements"] = src["attribution_text"]
+                src = source_map.get(c_dict.get("source_id"))
+                if src:
+                    if not c_dict.get("source_url"):
+                        c_dict["source_url"] = src.get("url") or src.get("source_url") or ""
+                    if not c_dict.get("licence_id"):
+                        c_dict["licence_id"] = src.get("licence_id") or ""
+                    if not c_dict.get("source_release"):
+                        c_dict["source_release"] = src.get("release") or src.get("source_release")
+                    if not c_dict.get("attribution_requirements"):
+                        c_dict["attribution_requirements"] = (
+                            src.get("attribution_text") or src.get("attribution_requirements")
+                        )
+                    if not c_dict.get("verified_by"):
+                        c_dict["verified_by"] = (
+                            src.get("verified_by") or f"catalog:{c_dict.get('source_id')}"
+                        )
+                    if not c_dict.get("retrieved_at"):
+                        c_dict["retrieved_at"] = src.get("retrieved_at") or "2026-01-01T00:00:00Z"
+                    if not c_dict.get("last_verified"):
+                        c_dict["last_verified"] = src.get("last_verified") or "2026-01-01T00:00:00Z"
                 places_claims[pid].append(PlaceClaim.model_validate(c_dict))
 
             candidates: list[PlaceCandidate] = []

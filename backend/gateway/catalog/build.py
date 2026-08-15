@@ -130,12 +130,27 @@ def build_catalog(
         for s in sources
     ]
 
+    from gateway.places.contracts import CompactClaim
+
+    compacted_winners = [
+        CompactClaim(
+            place_id=c.place_id,
+            field=c.field,
+            value=c.value,
+            source_id=c.source_id,
+            confidence=c.confidence,
+            needs_verification=c.needs_verification,
+            lifecycle_state=c.lifecycle_state,
+        )
+        for c in winners
+    ]
+
     return CatalogArtifact(
         catalog_id=manifest.catalog_id,
         catalog_release=str(manifest.catalog_release),
         sources=pinned,
         places=resolved_places,
-        claims=winners,
+        claims=compacted_winners,
         contradictions=[list(c) for c in contradictions],
         quality=quality,
     )

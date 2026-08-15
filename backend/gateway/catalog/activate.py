@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from gateway.catalog.quality import QualityReport
-from gateway.places.contracts import Place, PlaceClaim
+from gateway.places.contracts import CompactClaim, Place, PlaceClaim
 
 
 class PinnedSource(BaseModel):
@@ -23,7 +23,7 @@ class CatalogArtifact(BaseModel):
     catalog_release: str
     sources: list[PinnedSource]
     places: list[Place]
-    claims: list[PlaceClaim]
+    claims: list[CompactClaim] | list[PlaceClaim]
     contradictions: list[list[str]]  # wait, tuple is coerced to list by JSON
     quality: QualityReport
 
@@ -41,7 +41,7 @@ class CatalogSummary(BaseModel):
 
 def canonical_json(artifact: CatalogArtifact) -> str:
     return json.dumps(
-        artifact.model_dump(mode="json"),
+        artifact.model_dump(mode="json", exclude_none=True),
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,

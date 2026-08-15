@@ -68,7 +68,11 @@ def test_zero_places_are_missing_coordinates(catalog_id: str, data: dict) -> Non
 def test_every_claim_carries_a_licence(catalog_id: str, data: dict) -> None:
     claims = data["claims"]
     assert claims, "fixture must not be vacuous"
-    assert all(c.get("licence_id") for c in claims)
+    source_map = {s["id"]: s for s in data.get("sources", [])}
+    assert all(
+        c.get("licence_id") or source_map.get(c.get("source_id"), {}).get("licence_id")
+        for c in claims
+    )
 
 
 @pytest.mark.parametrize("catalog_id,data", _ACTIVATED, ids=[c for c, _ in _ACTIVATED])

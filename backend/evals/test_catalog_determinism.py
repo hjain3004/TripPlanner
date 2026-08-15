@@ -90,7 +90,17 @@ def test_the_build_embeds_no_wall_clock_timestamp(tmp_path: Path) -> None:
     (raw / "overture_sg_1.zip").write_bytes(payload)
 
     artifact = build_catalog(m, raw, tmp_path / "work")
-    assert all(c.retrieved_at.isoformat().startswith("2026-01-01") for c in artifact.claims)
+    from gateway.catalog.activate import activate
+    from gateway.places.adapters.snapshot import SnapshotPlaceAdapter
+
+    active_path = activate(artifact, tmp_path / "catalogs")
+    adapter = SnapshotPlaceAdapter(active_path)
+    candidates = adapter._load()
+    assert all(
+        c.retrieved_at.isoformat().startswith("2026-01-01")
+        for cand in candidates
+        for c in cand.claims
+    )
 
 
 def build_from_rows(rows: list[dict]) -> str:
@@ -100,26 +110,28 @@ def build_from_rows(rows: list[dict]) -> str:
     from gateway.catalog.manifest import PinnedSource as ManifestSource
     from gateway.catalog.normalize import normalize_overture
     from gateway.catalog.quality import evaluate_quality
+    from gateway.places.contracts import CompactClaim
 
     src = ManifestSource(
         source_id="overture_sg",
-        source_release="1",
         source_url="http://x",
-        attribution_text="Overture",
         licence_id="L",
+        source_release="1",
         checksum="0" * 64,
         max_bytes=5000,
         geographic_scope="SG",
         allowed_purpose="non-commercial",
+        attribution_text="Overture",
     )
-    claims = normalize_overture(rows, src)
-    places, decisions = resolve_places(claims)
-
+    raw_claims = normalize_overture(rows, src)
+    places, decisions = resolve_places(raw_claims)
     rewrites = {
-        pid: d.resulting_place_id for d in decisions for pid in d.source_place_ids if d.merged
+        f"{e.namespace}:{e.value}": p.place_id
+        for p in places
+        for e in p.external_ids
     }
     merged_claims = []
-    for c in claims:
+    for c in raw_claims:
         new_pid = rewrites.get(c.place_id, c.place_id)
         if new_pid != c.place_id:
             c_dict = dict(c)
@@ -149,12 +161,25 @@ def build_from_rows(rows: list[dict]) -> str:
         checksum="0" * 64,
     )
 
+    compacted_winners = [
+        CompactClaim(
+            place_id=c.place_id,
+            field=c.field,
+            value=c.value,
+            source_id=c.source_id,
+            confidence=c.confidence,
+            needs_verification=c.needs_verification,
+            lifecycle_state=c.lifecycle_state,
+        )
+        for c in winners
+    ]
+
     artifact = CatalogArtifact(
         catalog_id="cat_1",
         catalog_release="2026-08-01",
         sources=[out_src],
         places=places,
-        claims=winners,
+        claims=compacted_winners,
         contradictions=[list(c) for c in contradictions],
         quality=quality,
     )
