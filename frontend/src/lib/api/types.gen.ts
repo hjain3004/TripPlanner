@@ -238,6 +238,7 @@ export type FinalReport = {
      */
     trace_id: string;
     status?: PipelineStatus;
+    region_capability?: RegionCapability | null;
 };
 
 /**
@@ -609,6 +610,32 @@ export type RecommendationKind = 'REDEEM' | 'PAY_CASH' | 'NO_DATA';
  * RedemptionPath
  */
 export type RedemptionPath = 'cashback' | 'portal_flights' | 'portal_hotels' | 'transfer_airline' | 'transfer_hotel' | 'voucher';
+
+/**
+ * RegionCapability
+ */
+export type RegionCapability = {
+    /**
+     * Region
+     */
+    region: string;
+    /**
+     * Catalog Status
+     */
+    catalog_status: 'active' | 'absent' | 'stale';
+    /**
+     * Place Count
+     */
+    place_count?: number;
+    /**
+     * Budget Supported
+     */
+    budget_supported?: boolean;
+    /**
+     * Known Gaps
+     */
+    known_gaps?: Array<string>;
+};
 
 /**
  * Rejection

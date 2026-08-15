@@ -13,13 +13,47 @@ from agents.explainer import run_explainer
 from agents.intake import run_intake
 from agents.kernel import run_kernel
 from agents.llm import LLMClient
-from agents.models import PipelineStatus, PlanResponse
+from agents.models import PipelineStatus, PlanResponse, RegionCapability
 from agents.planner import run_planner
 from agents.retrieval import retrieve_candidates
 from agents.trace import TraceRecorder
 from core.db import KnowledgeBase
+from gateway.catalog.activate import active_catalog_summary
+from gateway.catalog.regions import get_region
 
 MAX_CRITIC_REPLAN_LOOPS = load_agent_config().llm["critic"].max_replan_loops or 2
+
+
+def build_region_capability(destination_iata: str, catalog_root: Path) -> RegionCapability | None:
+    """Honest, request-time capability report for a destination.
+
+    Reads the small activation summary sidecar rather than the full catalog
+    (which can run tens of megabytes) just to learn a place count.
+    """
+    region = get_region(destination_iata)
+    if region is None:
+        return None
+
+    summary = active_catalog_summary(catalog_root, catalog_id=region.catalog_id)
+
+    if summary is not None:
+        catalog_status = "active"
+        place_count = summary.place_count
+    else:
+        catalog_status = "absent"
+        place_count = 0
+
+    gaps: list[str] = []
+    if not region.budget_supported:
+        gaps.append(f"No FX rates or per-diem data for {region.currency}")
+
+    return RegionCapability(
+        region=region.iata,
+        catalog_status=catalog_status,
+        place_count=place_count,
+        budget_supported=region.budget_supported,
+        known_gaps=gaps,
+    )
 
 
 def run_pipeline(
@@ -47,6 +81,8 @@ def run_pipeline(
         )
 
     spec = intake.trip_spec
+
+    region_cap = build_region_capability(spec.destination_city, Path("catalogs"))
 
     retrieval = retrieve_candidates(spec, kb)
     trace.record("retrieval", retrieval)
@@ -128,6 +164,7 @@ def run_pipeline(
         critic_caveats=[*planner_caveats, *critic_caveats],
         trace_id=trace_id,
         llm=llm,
+        region_capability=region_cap,
     )
     trace.record("explainer", report, model="llm:explainer")
     return PlanResponse(status=PipelineStatus.OK, trace_id=trace_id, report=report)

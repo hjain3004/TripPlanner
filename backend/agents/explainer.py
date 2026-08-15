@@ -12,6 +12,7 @@ from agents.models import (
     FinalReport,
     KernelResult,
     PaymentStrategyRow,
+    RegionCapability,
     RetrievalContext,
     SelectedHotelArea,
     TripSpec,
@@ -221,6 +222,7 @@ def build_final_report(
     critic_caveats: list[str],
     explainer: ExplainerOutput,
     trace_id: str,
+    region_capability: RegionCapability | None = None,
 ) -> FinalReport:
     optimizer = kernel.optimizer_result
     caveats = [*critic_caveats, *explainer.caveats]
@@ -250,9 +252,13 @@ def build_final_report(
         budget_totals=_totals(optimizer),
         payment_strategy=_payment_rows(optimizer.assignments),
         transfer_advice=kernel.transfer_advice,
-        booking_checklist=_checklist(optimizer.assignments, kernel.transfer_advice),
+        booking_checklist=_checklist(
+            optimizer.assignments, kernel.transfer_advice
+        ),
         assumptions=[*estimate.assumptions, *optimizer.assumptions],
-        provenance_warnings=_provenance_warnings(estimate, optimizer, kernel.transfer_advice),
+        provenance_warnings=_provenance_warnings(
+            estimate, optimizer, kernel.transfer_advice
+        ),
         confidence=optimizer.confidence,
         caveats=caveats,
         summary=explainer.summary,
@@ -260,6 +266,7 @@ def build_final_report(
         payment_overview=explainer.payment_overview,
         footer=_footer(estimate, kernel.transfer_advice),
         trace_id=trace_id,
+        region_capability=region_capability,
     )
 
 
@@ -273,6 +280,7 @@ def run_explainer(
     critic_caveats: list[str],
     trace_id: str,
     llm: LLMClient,
+    region_capability: RegionCapability | None = None,
 ) -> FinalReport:
     caveats = list(critic_caveats)
     try:
@@ -280,17 +288,25 @@ def run_explainer(
             llm,
             node="explainer",
             system=_explainer_system(),
-            user=_explainer_user(spec, itinerary, estimate, kernel, critic_caveats),
+            user=_explainer_user(
+                spec, itinerary, estimate, kernel, critic_caveats
+            ),
             schema=ExplainerOutput,
             temperature=0.3,
             max_tokens=2048,
             timeout_s=20,
         )
         if not _is_grounded(explainer, estimate, kernel):
-            caveats.append("Explainer groundedness gate failed; deterministic prose fallback used.")
+            caveats.append(
+                "Explainer groundedness gate failed;"
+                " deterministic prose fallback used."
+            )
             explainer = _template_explainer(kernel)
     except Exception:
-        caveats.append("Explainer unavailable; deterministic prose fallback used.")
+        caveats.append(
+            "Explainer unavailable;"
+            " deterministic prose fallback used."
+        )
         explainer = _template_explainer(kernel)
     return build_final_report(
         spec,
@@ -301,4 +317,5 @@ def run_explainer(
         critic_caveats=caveats,
         explainer=explainer,
         trace_id=trace_id,
+        region_capability=region_capability,
     )

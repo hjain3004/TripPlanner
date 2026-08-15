@@ -17,6 +17,14 @@ const jobErrorSchema = z.object({
   trace_id: z.string(),
 });
 
+const regionCapabilitySchema = z.object({
+  region: z.string(),
+  catalog_status: z.enum(["active", "absent", "stale"]),
+  place_count: z.number().int(),
+  budget_supported: z.boolean(),
+  known_gaps: z.array(z.string()),
+});
+
 const finalReportSchema = z.object({
   trace_id: z.string(),
   summary: z.string().optional(),
@@ -29,6 +37,7 @@ const finalReportSchema = z.object({
   booking_checklist: z.array(z.string()).optional(),
   confidence: z.number(),
   status: z.enum(["needs_clarification", "ok", "error"]).optional(),
+  region_capability: regionCapabilitySchema.nullable().optional(),
 }).passthrough();
 
 export const planJobStatusSchema = z.object({

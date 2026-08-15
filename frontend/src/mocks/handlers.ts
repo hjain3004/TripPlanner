@@ -229,6 +229,33 @@ function createNoDataReport(): FinalReport {
   };
 }
 
+function createRegionCapabilityReport(): FinalReport {
+  return {
+    ...baseReport(),
+    trace_id: "msw-region-cap-001",
+    status: "ok",
+    itinerary: {
+      hotel_area_id: "marina_bay",
+      days: [
+        { date: "2026-08-01", unmet_needs: [], rejections: [], items: [] },
+        { date: "2026-08-02", unmet_needs: [], rejections: [], items: [] },
+      ],
+      itinerary_quality: "llm",
+    },
+    summary: "Itinerary ready — cost data isn't available for this destination yet.",
+    itinerary_overview: "A first look at the destination, without a costed budget.",
+    payment_overview: "",
+    footer: "Sample data. Verify before booking.",
+    region_capability: {
+      region: "BOM",
+      catalog_status: "active",
+      place_count: 340,
+      budget_supported: false,
+      known_gaps: ["No FX rates or per-diem data for INR"],
+    },
+  };
+}
+
 function createClarificationStatus(): PlanJobStatus {
   return {
     job_id: "",
@@ -330,4 +357,5 @@ export const fixtureHandlers = {
   redeemReport: () => createRedeemReport(),
   payCashReport: () => createPayCashReport(),
   noDataReport: () => createNoDataReport(),
+  regionCapabilityReport: () => createRegionCapabilityReport(),
 };

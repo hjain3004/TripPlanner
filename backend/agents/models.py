@@ -121,6 +121,7 @@ class FinalReport(BaseModel):
     footer: str = ""
     trace_id: str
     status: PipelineStatus = PipelineStatus.OK
+    region_capability: RegionCapability | None = None
 
 
 class TripIntakeRequest(BaseModel):
@@ -224,3 +225,11 @@ class EstimatorResult(BaseModel):
 class KernelResult(BaseModel):
     optimizer_result: OptimizerResult
     transfer_advice: TransferAdvice | None = None
+
+
+class RegionCapability(BaseModel):
+    region: str
+    catalog_status: Literal["active", "absent", "stale"]
+    place_count: int = 0
+    budget_supported: bool = False
+    known_gaps: list[str] = Field(default_factory=list)

@@ -24,6 +24,7 @@ const FIXTURES = [
   { name: "redeem", fn: fixtureHandlers.redeemReport },
   { name: "pay-cash", fn: fixtureHandlers.payCashReport },
   { name: "no-data", fn: fixtureHandlers.noDataReport },
+  { name: "region-capability", fn: fixtureHandlers.regionCapabilityReport },
 ] as const;
 
 describe("contract: fixtures parse through Zod", () => {
@@ -165,7 +166,7 @@ describe("contract: non-negative fixture monetary fields", () => {
 
   it("all fixtures have matching trace_id prefix", () => {
     const prefixes = FIXTURES.map((f) => f.fn().trace_id.split("-").slice(0, 2).join("-"));
-    const expected = ["msw-happy", "msw-fallback", "msw-prov", "msw-redeem", "msw-cash", "msw-nodata"];
+    const expected = ["msw-happy", "msw-fallback", "msw-prov", "msw-redeem", "msw-cash", "msw-nodata", "msw-region"];
     for (let i = 0; i < prefixes.length; i++) {
       expect(prefixes[i]).toBe(expected[i]);
     }

@@ -547,6 +547,14 @@ function ResultsView({ report, onRetry }: {
           <p className="text-sm text-text-muted text-center -mt-4">{report.summary}</p>
         )}
 
+        {report.region_capability && (report.region_capability.known_gaps?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap items-center justify-center gap-2 -mt-4" data-testid="region-capability-note">
+            {report.region_capability.known_gaps!.map((gap, i) => (
+              <TrustChip key={i} variant="needs-verification" label={gap} />
+            ))}
+          </div>
+        )}
+
         <GsapEntrance />
 
         {/* Itinerary */}

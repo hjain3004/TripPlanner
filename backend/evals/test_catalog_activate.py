@@ -6,6 +6,8 @@ from gateway.catalog.activate import (
     ActivationRefused,
     activate,
     active_catalog_path,
+    active_catalog_summary,
+    list_active_catalogs,
 )
 from gateway.catalog.build import build_catalog
 from gateway.catalog.quarantine import QuarantineRejected
@@ -157,3 +159,44 @@ def test_the_artifact_embeds_the_full_source_manifest(tmp_path: Path, test_manif
     assert len(artifact.sources) == 1
     for s in artifact.sources:
         assert s.attribution_text and s.licence_id and s.checksum
+
+
+def test_activation_writes_a_readable_summary_sidecar(tmp_path: Path, test_manifests) -> None:
+    """RegionCapability reads place counts from this instead of parsing the
+    full (potentially tens-of-MB) catalog on every plan request."""
+    MANIFEST, BAD, THIN, RAW = test_manifests
+    artifact = build_catalog(MANIFEST, RAW, tmp_path / "work")
+    activate(artifact, tmp_path / "catalogs")
+
+    summary = active_catalog_summary(tmp_path / "catalogs", catalog_id="overture_sg")
+    assert summary is not None
+    assert summary.catalog_id == "overture_sg"
+    assert summary.place_count == len(artifact.places)
+    assert summary.place_count > 0
+    assert summary.quality_passed is True
+
+
+def test_two_catalogs_activate_independently(tmp_path: Path, test_manifests) -> None:
+    """Task 4: activating a second catalog must not disturb the first - neither
+    its data file nor its summary sidecar."""
+    MANIFEST, BAD, THIN, RAW = test_manifests
+    first = build_catalog(MANIFEST, RAW, tmp_path / "work1")
+    activate(first, tmp_path / "catalogs")
+
+    second_manifest = MANIFEST.read_text().replace("catalog_id: overture_sg", "catalog_id: other")
+    m2 = tmp_path / "manifest2.yaml"
+    m2.write_text(second_manifest)
+    second = build_catalog(m2, RAW, tmp_path / "work2")
+    activate(second, tmp_path / "catalogs")
+
+    first_path = active_catalog_path(tmp_path / "catalogs", catalog_id="overture_sg")
+    second_path = active_catalog_path(tmp_path / "catalogs", catalog_id="other")
+    assert first_path is not None and second_path is not None
+    assert first_path != second_path
+    assert first_path.read_bytes() != b""
+    assert second_path.read_bytes() != b""
+
+    summaries = {s.catalog_id: s for s in list_active_catalogs(tmp_path / "catalogs")}
+    assert set(summaries) == {"overture_sg", "other"}
+    assert summaries["overture_sg"].place_count == len(first.places)
+    assert summaries["other"].place_count == len(second.places)
