@@ -12,6 +12,7 @@ from agents.models import (
     FinalReport,
     KernelResult,
     PaymentStrategyRow,
+    RetrievalContext,
     SelectedHotelArea,
     TripSpec,
 )
@@ -215,6 +216,7 @@ def build_final_report(
     itinerary: DraftItinerary,
     estimate: EstimatorResult,
     kernel: KernelResult,
+    retrieval: RetrievalContext,
     *,
     critic_caveats: list[str],
     explainer: ExplainerOutput,
@@ -222,6 +224,21 @@ def build_final_report(
 ) -> FinalReport:
     optimizer = kernel.optimizer_result
     caveats = [*critic_caveats, *explainer.caveats]
+    
+    # Enrich itinerary items with rendering data
+    poi_map = {p.id: p for p in retrieval.pois}
+    ev_map = {ev.poi_id: ev for ev in retrieval.poi_provenance}
+    
+    for day in itinerary.days:
+        for item in day.items:
+            poi = poi_map.get(item.poi_id)
+            if poi:
+                item.name = poi.name
+                item.category = next(iter(poi.tags), "other")
+            ev = ev_map.get(item.poi_id)
+            if ev:
+                item.evidence = ev
+    
     return FinalReport(
         trip_spec=spec,
         itinerary=itinerary,
@@ -251,6 +268,7 @@ def run_explainer(
     itinerary: DraftItinerary,
     estimate: EstimatorResult,
     kernel: KernelResult,
+    retrieval: RetrievalContext,
     *,
     critic_caveats: list[str],
     trace_id: str,
@@ -279,6 +297,7 @@ def run_explainer(
         itinerary,
         estimate,
         kernel,
+        retrieval,
         critic_caveats=caveats,
         explainer=explainer,
         trace_id=trace_id,

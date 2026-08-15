@@ -233,7 +233,7 @@ def compose_itinerary(spec: TripSpec, retrieval: RetrievalContext) -> ComposerRe
                         poi_id=candidate.id,
                         day_date=visit_date,
                         message=f"Hours for {candidate.name} on {visit_date.isoformat()} "
-                            "are unknown. Verify before visiting.",
+                        "are unknown. Verify before visiting.",
                     )
                 )
 

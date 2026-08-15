@@ -6,13 +6,7 @@ FX_RATE_MICRO = 1_000_000
 
 
 def destination_units(source: int, edge: TransferEdge, bonus_bp: int = 0) -> int:
-    return (
-        source
-        * edge.ratio_to
-        * (BASIS_POINTS + bonus_bp)
-        // edge.ratio_from
-        // BASIS_POINTS
-    )
+    return source * edge.ratio_to * (BASIS_POINTS + bonus_bp) // edge.ratio_from // BASIS_POINTS
 
 
 def round_up_to_increment(value: int, increment: int) -> int:

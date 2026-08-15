@@ -111,11 +111,15 @@ def test_critic_failure_skips_with_caveat(tmp_path) -> None:
 def test_build_final_report_is_deterministic_and_uses_kernel_numbers(tmp_path) -> None:
     _kb, spec, itinerary, estimate, kernel = _artifacts(tmp_path)
 
+    from agents.models import RetrievalContext
+    retrieval = RetrievalContext(pois=[], areas=[], poi_rows=[], area_rows=[], poi_provenance=[])
+
     report = build_final_report(
         spec,
         itinerary,
         estimate,
         kernel,
+        retrieval,
         critic_caveats=["Manual caveat."],
         explainer=ExplainerOutput(
             summary="Structured prototype summary.",
@@ -148,11 +152,15 @@ def test_explainer_groundedness_falls_back_on_invented_currency_amount(tmp_path)
         }
     )
 
+    from agents.models import RetrievalContext
+    retrieval = RetrievalContext(pois=[], areas=[], poi_rows=[], area_rows=[], poi_provenance=[])
+
     report = run_explainer(
         spec,
         itinerary,
         estimate,
         kernel,
+        retrieval,
         critic_caveats=[],
         trace_id="trace-ground",
         llm=llm,

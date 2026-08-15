@@ -124,6 +124,7 @@ def run_pipeline(
         itinerary,
         estimate,
         kernel,
+        retrieval,
         critic_caveats=[*planner_caveats, *critic_caveats],
         trace_id=trace_id,
         llm=llm,

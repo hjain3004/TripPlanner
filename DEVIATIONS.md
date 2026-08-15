@@ -155,3 +155,4 @@ Judgment-call log (spec 06 §3). One row per decision. Columns: `date · doc§ �
 2026-08-11, 08/09, pinned _PINNED_RETRIEVED_AT constant (Task 4), use a fixed timestamp 2026-01-01 instead of wall-clock to ensure reproducible builds, 06 tier V, backend/gateway/catalog/normalize.py
 2026-08-11, 08/09, Task 6 file placement, placed field selection and contradictions logic in gateway/catalog/claims.py rather than a generic name to keep domain logic grouped, 06 tier V, backend/gateway/catalog/claims.py
 2026-08-14, 03/14, I5 Agentic Discovery integrity projection, we inject an execute_planner_call callback and restrict projection schemas rather than adding a 5th pipeline site, 06 tier F, backend/agents/discovery/controller.py
+2026-08-15, I6 Vertical Slice, Live LLM Run, HostedFreeTier is hardcoded to fail so a live run with NEXT_PUBLIC_API_MODE=live fails at intake; used ScriptedLLMClient to verify the catalog mapping instead, agents/llm.py, api/main.py

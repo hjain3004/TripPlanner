@@ -1,10 +1,13 @@
-import pytest
-from agents.models import DraftItinerary, ItineraryDay, ItineraryItem, TripSpec
-from agents.estimator import estimate_costed_trip
 from datetime import date
-from core.db import KnowledgeBase
 from pathlib import Path
 
+import pytest
+
+from agents.estimator import estimate_costed_trip
+from agents.models import DraftItinerary, ItineraryDay, ItineraryItem, TripSpec
+
+
+@pytest.mark.allow_real_catalog
 def test_estimator_can_cost_a_catalog_poi_without_keyerror(active_catalog, tmp_path):
     from core.db import load_kb, seed_database
     db_path = tmp_path / "tripwise.sqlite"

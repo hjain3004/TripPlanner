@@ -71,10 +71,10 @@ function createHappyReport(): FinalReport {
     itinerary: {
       hotel_area_id: "marina_bay",
       days: [
-        { date: "2026-08-01", items: [{ poi_id: "poi_001", start_hint: "morning" }] },
-        { date: "2026-08-02", items: [] },
-        { date: "2026-08-03", items: [] },
-        { date: "2026-08-04", items: [] },
+        { date: "2026-08-01", unmet_needs: ["travel budget exceeded"], rejections: [], items: [{ poi_id: "poi_001", start_hint: "morning", name: "Sample POI", category: "other", travel_from_previous: { duration_min: 15, status: "estimated", source: "mock" }, evidence: { status: "live", last_verified: "2026-07-01", licence_id: null, attribution: null, needs_verification: true, poi_id: "poi_001" } }] },
+        { date: "2026-08-02", unmet_needs: [], rejections: [], items: [] },
+        { date: "2026-08-03", unmet_needs: [], rejections: [], items: [] },
+        { date: "2026-08-04", unmet_needs: [], rejections: [], items: [] },
       ],
       itinerary_quality: "llm",
     },
@@ -93,10 +93,10 @@ function createFallbackReport(): FinalReport {
     itinerary: {
       hotel_area_id: "marina_bay",
       days: [
-        { date: "2026-08-01", items: [{ poi_id: "poi_001", start_hint: "morning" }] },
-        { date: "2026-08-02", items: [] },
-        { date: "2026-08-03", items: [] },
-        { date: "2026-08-04", items: [] },
+        { date: "2026-08-01", unmet_needs: [], rejections: [], items: [{ poi_id: "poi_001", start_hint: "morning" }] },
+        { date: "2026-08-02", unmet_needs: [], rejections: [], items: [] },
+        { date: "2026-08-03", unmet_needs: [], rejections: [], items: [] },
+        { date: "2026-08-04", unmet_needs: [], rejections: [], items: [] },
       ],
       itinerary_quality: "fallback",
       notes: ["Best-effort itinerary — LLM was unavailable"],
@@ -116,7 +116,7 @@ function createProvenanceWarningsReport(): FinalReport {
     status: "ok",
     itinerary: {
       hotel_area_id: "marina_bay",
-      days: [{ date: "2026-08-01", items: [] }, { date: "2026-08-02", items: [] }, { date: "2026-08-03", items: [] }, { date: "2026-08-04", items: [] }],
+      days: [{ date: "2026-08-01", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-02", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-03", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-04", unmet_needs: [], rejections: [], items: [] }],
       itinerary_quality: "llm",
     },
     summary: "Trip plan with data quality warnings.",
@@ -138,7 +138,7 @@ function createRedeemReport(): FinalReport {
     status: "ok",
     itinerary: {
       hotel_area_id: "marina_bay",
-      days: [{ date: "2026-08-01", items: [] }, { date: "2026-08-02", items: [] }, { date: "2026-08-03", items: [] }, { date: "2026-08-04", items: [] }],
+      days: [{ date: "2026-08-01", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-02", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-03", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-04", unmet_needs: [], rejections: [], items: [] }],
       itinerary_quality: "llm",
     },
     summary: "Maximize your points by redeeming through Voyager Prime.",
@@ -182,7 +182,7 @@ function createPayCashReport(): FinalReport {
     status: "ok",
     itinerary: {
       hotel_area_id: "marina_bay",
-      days: [{ date: "2026-08-01", items: [] }, { date: "2026-08-02", items: [] }, { date: "2026-08-03", items: [] }, { date: "2026-08-04", items: [] }],
+      days: [{ date: "2026-08-01", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-02", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-03", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-04", unmet_needs: [], rejections: [], items: [] }],
       itinerary_quality: "llm",
     },
     summary: "Paying cash gives you the best deal for this trip.",
@@ -212,7 +212,7 @@ function createNoDataReport(): FinalReport {
     status: "ok",
     itinerary: {
       hotel_area_id: "marina_bay",
-      days: [{ date: "2026-08-01", items: [] }, { date: "2026-08-02", items: [] }, { date: "2026-08-03", items: [] }, { date: "2026-08-04", items: [] }],
+      days: [{ date: "2026-08-01", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-02", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-03", unmet_needs: [], rejections: [], items: [] }, { date: "2026-08-04", unmet_needs: [], rejections: [], items: [] }],
       itinerary_quality: "llm",
     },
     summary: "We couldn't find award or transfer options for your wallet.",

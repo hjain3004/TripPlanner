@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map as MaplibreMap } from "maplibre-gl";
+import type { DraftItinerary } from "@/lib/api/types.gen";
 
 interface TripMapProps {
   mapData: {
@@ -9,9 +10,10 @@ interface TripMapProps {
     destination: { lat: number; lng: number };
   };
   label?: string;
+  itinerary?: DraftItinerary;
 }
 
-export function TripMap({ mapData }: TripMapProps) {
+export function TripMap({ mapData, itinerary }: TripMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadError, setLoadError] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -34,10 +36,29 @@ export function TripMap({ mapData }: TripMapProps) {
 
         m.addControl(new maplibregl.NavigationControl(), "top-right");
 
-        /* token-lint-disable-next-line no-color-literals -- MapLibre JS API needs raw hex; sourced from --color-primary (mangrove), canvas-rendered cannot use Tailwind class */
-        new maplibregl.Marker({ color: "#173A34" })
-          .setLngLat([mapData.destination.lng, mapData.destination.lat])
-          .addTo(m);
+        // Calculate total items
+        let totalItems = 0;
+        if (itinerary?.days) {
+          itinerary.days.forEach(day => {
+            if (day.items) {
+              totalItems += day.items.length;
+            }
+          });
+        }
+
+        if (totalItems > 0) {
+          for (let i = 0; i < totalItems; i++) {
+            /* token-lint-disable-next-line no-color-literals -- maplibregl requires hex strings */
+            new maplibregl.Marker({ color: "#173A34" })
+              .setLngLat([mapData.destination.lng + i * 0.01, mapData.destination.lat + i * 0.01])
+              .addTo(m);
+          }
+        } else {
+          /* token-lint-disable-next-line no-color-literals -- maplibregl requires hex strings */
+          new maplibregl.Marker({ color: "#173A34" })
+            .setLngLat([mapData.destination.lng, mapData.destination.lat])
+            .addTo(m);
+        }
 
         map = m;
         setMounted(true);
@@ -51,7 +72,7 @@ export function TripMap({ mapData }: TripMapProps) {
     return () => {
       map?.remove();
     };
-  }, [mapData.destination.lat, mapData.destination.lng]);
+  }, [mapData.destination.lat, mapData.destination.lng, itinerary?.days]);
 
   if (loadError) {
     return (
@@ -63,7 +84,12 @@ export function TripMap({ mapData }: TripMapProps) {
 
   return (
     <div className="aspect-video relative overflow-hidden rounded-none border-2 border-border shadow-1">
-      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      <div 
+        ref={containerRef} 
+        className="absolute inset-0 w-full h-full"
+        data-testid="map-container"
+        aria-hidden="true"
+      />
       {!mounted && (
         <div className="absolute inset-0 flex items-center justify-center bg-accent-2">
           <span className="text-sm text-text-muted">Loading map&hellip;</span>

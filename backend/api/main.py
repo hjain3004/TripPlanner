@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 from datetime import date
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 
@@ -52,11 +53,11 @@ def health() -> dict[str, str]:
 @app.post("/plan", status_code=202)
 def plan(
     request: TripIntakeRequest,
-    kb: KnowledgeBase = Depends(get_kb),
-    llm: LLMClient = Depends(get_llm),
-    registry: ProviderRegistry = Depends(get_default_place_registry),
-    booking_date: date = Depends(get_booking_date),
-    trace_dir: Path = Depends(get_trace_dir),
+    kb: Annotated[KnowledgeBase, Depends(get_kb)],
+    llm: Annotated[LLMClient, Depends(get_llm)],
+    registry: Annotated[ProviderRegistry, Depends(get_default_place_registry)],
+    booking_date: Annotated[date, Depends(get_booking_date)],
+    trace_dir: Annotated[Path, Depends(get_trace_dir)],
 ) -> dict[str, str]:
     job_id = job_manager.create_job()
     thread = threading.Thread(
@@ -100,9 +101,7 @@ def _run_job(
             on_stage=on_stage,
         )
         if result.status == PipelineStatus.NEEDS_CLARIFICATION:
-            job_manager.complete(
-                job_id, "needs_clarification", unresolved=result.unresolved
-            )
+            job_manager.complete(job_id, "needs_clarification", unresolved=result.unresolved)
         elif result.status == PipelineStatus.ERROR:
             job_manager.complete(
                 job_id,
@@ -125,3 +124,28 @@ def _run_job(
                 "trace_id": "",
             },
         )
+
+
+if __name__ == "__main__":
+    import argparse
+    import json
+    import sys
+
+    from fastapi.openapi.utils import get_openapi
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--export-schema", type=str)
+    args = parser.parse_args()
+
+    if args.export_schema:
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            openapi_version=app.openapi_version,
+            description=app.description,
+            routes=app.routes,
+        )
+        with open(args.export_schema, "w") as f:
+            json.dump(schema, f, indent=2)
+        print(f"Exported schema to {args.export_schema}")
+        sys.exit(0)

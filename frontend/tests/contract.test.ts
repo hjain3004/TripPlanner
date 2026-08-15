@@ -171,3 +171,19 @@ describe("contract: non-negative fixture monetary fields", () => {
     }
   });
 });
+
+describe("contract: itinerary rendering evidence", () => {
+  it("happy report itinerary items contain rendering metadata", () => {
+    const r = fixtureHandlers.happyReport();
+    const firstDay = r.itinerary.days[0];
+    if (!firstDay) throw new Error("no days");
+    expect(firstDay.unmet_needs).toBeDefined();
+    expect(firstDay.rejections).toBeDefined();
+    const item = firstDay.items[0];
+    if (!item) throw new Error("no items");
+    expect(item.name).toBeDefined();
+    expect(item.category).toBeDefined();
+    expect(item.travel_from_previous).toBeDefined();
+    expect(item.evidence).toBeDefined();
+  });
+});

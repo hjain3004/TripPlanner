@@ -53,7 +53,9 @@ def _map_candidate_to_poi(c: PlaceCandidate, city: str) -> POI:
             source_type="crawl_draft",
             last_verified=date(2026, 1, 1),
             verified_by="UNVERIFIED",
-            needs_verification=True if needs_verification_override else c.status == "verify_required",
+            needs_verification=(
+                True if needs_verification_override else c.status == "verify_required"
+            ),
             confidence=0.5,
         ),
     )
@@ -62,8 +64,9 @@ def _map_candidate_to_poi(c: PlaceCandidate, city: str) -> POI:
     return poi
 
 def get_catalog_poi(poi_id: str, city: str) -> POI | None:
-    from gateway.catalog.activate import active_catalog_path
     from pathlib import Path
+
+    from gateway.catalog.activate import active_catalog_path
     try:
         catalog = active_catalog_path(Path("catalogs"))
         if catalog and catalog.exists():
@@ -139,7 +142,10 @@ def retrieve_candidates(
                 poi.provenance.needs_verification = True
 
             lic = next((cl.licence_id for cl in c.claims if cl.licence_id), None)
-            attr = next((cl.attribution_requirements for cl in c.claims if cl.attribution_requirements), None)
+            attr = next(
+                (cl.attribution_requirements for cl in c.claims if cl.attribution_requirements),
+                None,
+            )
 
             ev = POIEvidence(
                 poi_id=c.place_id,

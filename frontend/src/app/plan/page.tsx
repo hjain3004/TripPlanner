@@ -30,6 +30,7 @@ import { PaymentStrategyCard } from "@/components/product/payment-strategy-card"
 import { TransferPlanPanel } from "@/components/product/transfer-plan-panel";
 import { BookingChecklist } from "@/components/product/booking-checklist";
 import { TrustChip } from "@/components/product/trust-chip";
+import { TripMap } from "@/components/product/trip-map";
 import { AssumptionsFooter } from "@/components/product/assumptions-footer";
 import dynamic from "next/dynamic";
 
@@ -464,7 +465,7 @@ function StepSubmit({ wizard, composeRawRequest: compose }: { wizard: WizardData
   return (
     <div className="space-y-4 text-sm">
       <p>You are about to submit this trip plan request:</p>
-      /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
+      {/* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */}
       <div className="rounded-lg border border-border bg-accent-2/30 p-3">
         <p className="font-mono text-xs">{raw}</p>
         {wizard.cardIds.length > 0 && (
@@ -552,7 +553,17 @@ function ResultsView({ report, onRetry }: {
         <section className="gsap-section">
           <h2 className="font-ui font-semibold text-h2 mb-4">Itinerary</h2>
           {report.itinerary_overview && <p className="text-sm text-text-muted mb-4">{report.itinerary_overview}</p>}
-          <ItineraryTimeline itinerary={report.itinerary} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <ItineraryTimeline itinerary={report.itinerary} />
+            <div>
+              <div className="sticky top-24">
+                <TripMap 
+                  itinerary={report.itinerary} 
+                  mapData={{ origin: { lat: 28.53, lng: 77.39 }, destination: { lat: 1.35, lng: 103.81 } }} 
+                />
+              </div>
+            </div>
+          </div>
         </section>
 
         <hr className="border-border" />

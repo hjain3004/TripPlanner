@@ -190,9 +190,7 @@ class KnowledgeBase:
         self._valuations_by_card: dict[str, list[PointValuation]] = {}
         for val in point_valuations:
             self._valuations_by_card.setdefault(val.card_id, []).append(val)
-        self._fx: dict[tuple[str, str], FxRate] = {
-            (f.base, f.quote): f for f in (fx_rates or [])
-        }
+        self._fx: dict[tuple[str, str], FxRate] = {(f.base, f.quote): f for f in (fx_rates or [])}
         self._pois: list[POI] = sorted(pois or [], key=lambda p: p.id)
         self._areas: list[Area] = sorted(areas or [], key=lambda a: a.id)
         self._flights: list[SampleFlight] = sorted(sample_flights or [], key=lambda f: f.id)
@@ -200,9 +198,7 @@ class KnowledgeBase:
         self._programs: dict[str, LoyaltyProgram] = {
             p.id: p for p in sorted(loyalty_programs or [], key=lambda p: p.id)
         }
-        self._transfer_edges: list[TransferEdge] = sorted(
-            transfer_edges or [], key=lambda e: e.id
-        )
+        self._transfer_edges: list[TransferEdge] = sorted(transfer_edges or [], key=lambda e: e.id)
         self._transfer_bonuses: list[TransferBonus] = sorted(
             transfer_bonuses or [], key=lambda b: b.id
         )
@@ -322,15 +318,15 @@ class KnowledgeBase:
     def pois(self, city: str, tags: list[str] | None = None) -> list[POI]:
         wanted = set(tags or [])
         return [
-            p
-            for p in self._pois
-            if p.city == city and (not wanted or wanted.issubset(set(p.tags)))
+            p for p in self._pois if p.city == city and (not wanted or wanted.issubset(set(p.tags)))
         ]
 
     def areas(self, city: str) -> list[Area]:
         return [a for a in self._areas if a.city == city]
 
-    def sample_flights(self, origin: str, destination: str, cabin: str | None = None) -> list[SampleFlight]:
+    def sample_flights(
+        self, origin: str, destination: str, cabin: str | None = None
+    ) -> list[SampleFlight]:
         origin_key = origin.casefold()
         destination_key = destination.casefold()
         cabin_key = cabin.casefold() if cabin is not None else None
@@ -407,6 +403,7 @@ def _neg_path(path: RedemptionPath) -> str:
 # --------------------------------------------------------------------------- #
 
 _T = TypeVar("_T", bound=BaseModel)
+
 
 def _load(path: Path, model: type[_T]) -> list[_T]:
     if not path.exists():
@@ -529,7 +526,8 @@ def load_kb(db_path: Path = DB_PATH) -> KnowledgeBase:
     with Session(engine) as session:
         cards = [Card.model_validate_json(r.payload) for r in session.scalars(select(CardRow))]
         rules = [
-            RewardRule.model_validate_json(r.payload) for r in session.scalars(select(RewardRuleRow))
+            RewardRule.model_validate_json(r.payload)
+            for r in session.scalars(select(RewardRuleRow))
         ]
         offers = [Offer.model_validate_json(r.payload) for r in session.scalars(select(OfferRow))]
         vals = [

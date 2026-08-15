@@ -186,8 +186,7 @@ def earn_schedule(
             EarnSegment(
                 source="base",
                 description=(
-                    f"Base earn {base_earn.points} pts per "
-                    f"{_rupees(base_earn.per_amount_minor)}"
+                    f"Base earn {base_earn.points} pts per {_rupees(base_earn.per_amount_minor)}"
                 ),
                 points=pts,
                 amount_minor=remaining,
@@ -198,7 +197,9 @@ def earn_schedule(
 
 
 def _rule_desc(rule: RewardRule) -> str:
-    return f"Matched rule {rule.id} ({rule.earn.points} pts per {_rupees(rule.earn.per_amount_minor)})"
+    return (
+        f"Matched rule {rule.id} ({rule.earn.points} pts per {_rupees(rule.earn.per_amount_minor)})"
+    )
 
 
 def _rupees(minor: int) -> str:

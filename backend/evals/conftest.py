@@ -271,3 +271,14 @@ sources:
 
     artifact = build_catalog(m, raw, tmp_path / "work")
     return activate(artifact, tmp_path / "catalogs")
+
+@pytest.fixture(autouse=True)
+def mock_active_catalog_path(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> None:
+    """Prevent tests from loading the real 161MB catalog by default."""
+    if "allow_real_catalog" in request.keywords:
+        return
+    def _mock(*args, **kwargs):
+        raise FileNotFoundError("Mocked: catalog not found")
+    monkeypatch.setattr("gateway.catalog.activate.active_catalog_path", _mock)
