@@ -16,7 +16,7 @@ FIXTURES = Path("raw")
 @pytest.fixture
 def test_manifests(tmp_path: Path):
     manifest_yaml = """
-catalog_id: sg_test
+catalog_id: overture_sg
 catalog_release: "2026-08-01"
 sources:
   - source_id: overture_sg
@@ -83,7 +83,8 @@ def test_successful_build_becomes_the_active_catalog(tmp_path: Path, test_manife
     MANIFEST, BAD, THIN, RAW = test_manifests
     artifact = build_catalog(MANIFEST, RAW, tmp_path / "work")
     activate(artifact, tmp_path / "catalogs")
-    active = active_catalog_path(tmp_path / "catalogs")
+    print("\nFILES:", list((tmp_path / "catalogs").iterdir()))
+    active = active_catalog_path(tmp_path / "catalogs", catalog_id="overture_sg")
     assert active is not None and active.exists()
 
 
@@ -92,14 +93,14 @@ def test_a_failed_build_leaves_the_previous_catalog_active(tmp_path: Path, test_
     MANIFEST, BAD, THIN, RAW = test_manifests
     good = build_catalog(MANIFEST, RAW, tmp_path / "w1")
     activate(good, tmp_path / "catalogs")
-    active = active_catalog_path(tmp_path / "catalogs")
+    active = active_catalog_path(tmp_path / "catalogs", catalog_id="overture_sg")
     assert active is not None
     before = active.read_bytes()
 
     with pytest.raises(QuarantineRejected):
         build_catalog(BAD, RAW, tmp_path / "w2")
 
-    after_path = active_catalog_path(tmp_path / "catalogs")
+    after_path = active_catalog_path(tmp_path / "catalogs", catalog_id="overture_sg")
     assert after_path is not None
     assert after_path.read_bytes() == before
 

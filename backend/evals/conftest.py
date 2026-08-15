@@ -249,7 +249,7 @@ def active_catalog(tmp_path: Path) -> Path:
     from gateway.catalog.build import build_catalog
 
     manifest_yaml = """
-catalog_id: sg_test
+catalog_id: overture_sg
 catalog_release: "2026-08-01"
 sources:
   - source_id: overture_sg

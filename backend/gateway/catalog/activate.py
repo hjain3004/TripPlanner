@@ -47,15 +47,23 @@ def activate(artifact: CatalogArtifact, catalog_root: Path) -> Path:
             f"quality gate failed, refusing activation: {artifact.quality.failures}"
         )
     catalog_root.mkdir(parents=True, exist_ok=True)
-    target = catalog_root / "active.json"
-    tmp = catalog_root / "active.json.tmp"
+    target = catalog_root / f"active_{artifact.catalog_id}.json"
+    tmp = catalog_root / f"active_{artifact.catalog_id}.json.tmp"
     tmp.write_text(canonical_json(artifact), encoding="utf-8")
     os.replace(tmp, target)  # atomic within a filesystem
     return target
 
 
-def active_catalog_path(catalog_root: Path) -> Path | None:
-    p = catalog_root / "active.json"
+def active_catalog_path(catalog_root: Path, catalog_id: str | None = None) -> Path | None:
+    if catalog_id is None:
+        import warnings
+        warnings.warn(
+            "active_catalog_path without catalog_id is deprecated",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        catalog_id = "overture_sg"
+    p = catalog_root / f"active_{catalog_id}.json"
     if p.exists():
         return p
     return None

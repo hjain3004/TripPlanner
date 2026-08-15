@@ -131,7 +131,7 @@ def build_catalog(
     ]
 
     return CatalogArtifact(
-        catalog_id="cat_1",
+        catalog_id=manifest.catalog_id,
         catalog_release="2026-08-01",
         sources=pinned,
         places=resolved_places,
