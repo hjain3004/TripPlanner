@@ -1,6 +1,6 @@
 catalog_id: sg-core
 catalog_release: 2026-08-11.0
-max_places: 25000
+max_places: 50000
 bbox:
   min_lon: 103.6
   min_lat: 1.2
