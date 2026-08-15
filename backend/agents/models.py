@@ -229,7 +229,7 @@ class KernelResult(BaseModel):
 
 class RegionCapability(BaseModel):
     region: str
-    catalog_status: Literal["active", "absent", "stale"]
+    catalog_status: Literal["active", "absent", "provisioning", "stale"]
     place_count: int = 0
     budget_supported: bool = False
     known_gaps: list[str] = Field(default_factory=list)

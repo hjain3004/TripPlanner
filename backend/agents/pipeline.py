@@ -39,6 +39,9 @@ def build_region_capability(destination_iata: str, catalog_root: Path) -> Region
     if summary is not None:
         catalog_status = "active"
         place_count = summary.place_count
+    elif (catalog_root / f".provisioning_{region.catalog_id}").exists():
+        catalog_status = "provisioning"
+        place_count = 0
     else:
         catalog_status = "absent"
         place_count = 0
