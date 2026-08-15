@@ -70,8 +70,18 @@ class DraftItinerary(BaseModel):
     unverified_suggestions: list[str] = Field(default_factory=list)
 
 
+class POIEvidence(BaseModel):
+    poi_id: str
+    status: Literal["live", "cached", "estimated", "stale", "verify_required"]
+    last_verified: date
+    licence_id: str | None = None
+    attribution: str | None = None
+    needs_verification: bool
+
+
 class RetrievalContext(BaseModel):
     pois: list[POI]
     areas: list[Area]
     poi_rows: list[str]
     area_rows: list[str]
+    poi_provenance: list[POIEvidence] = Field(default_factory=list)
