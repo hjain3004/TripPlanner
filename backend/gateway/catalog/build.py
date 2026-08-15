@@ -154,3 +154,76 @@ def build_catalog(
         contradictions=[list(c) for c in contradictions],
         quality=quality,
     )
+
+
+def build_catalog_tiles(
+    manifest_path: Path, raw_dir: Path, work_dir: Path, tiles_dir: Path, step: float = 0.1
+) -> dict[str, Path]:
+    from gateway.catalog.tiles import build_tiles_from_claims
+
+    manifest = load_manifest(manifest_path)
+    sources = manifest.sources
+
+    work_dir.mkdir(parents=True, exist_ok=True)
+    staged = []
+    for source in sources:
+        raw_path = raw_dir / f"{source.source_id}_{source.source_release}.zip"
+        staged_file = verify_and_stage(source, raw_path, work_dir)
+        staged.append(staged_file)
+
+    raw_claims = []
+    import json
+    import zipfile
+
+    from gateway.catalog.normalize import normalize_osm, normalize_overture, normalize_wikivoyage
+
+    for source, staged_file in zip(sources, staged, strict=True):
+        if zipfile.is_zipfile(staged_file):
+            with zipfile.ZipFile(staged_file) as z:
+                for name in z.namelist():
+                    if name.endswith(".json"):
+                        with z.open(name) as f:
+                            data = json.load(f)
+                            if source.source_id.startswith("overture"):
+                                raw_claims.extend(normalize_overture(data, source))
+                            elif source.source_id.startswith("osm"):
+                                raw_claims.extend(normalize_osm(data, source))
+                            elif source.source_id.startswith("wikivoyage"):
+                                raw_claims.extend(normalize_wikivoyage(data, source))
+
+    from collections import defaultdict
+    place_claims = defaultdict(list)
+    for c in raw_claims:
+        place_claims[c.place_id].append(c)
+
+    filtered_claims = []
+    for _pid, c_list in place_claims.items():
+        has_category = any(c.field == "category" for c in c_list)
+        if not has_category:
+            continue
+        if manifest.bbox:
+            coords = next((c.value for c in c_list if c.field == "coordinates"), None)
+            if not coords or not isinstance(coords, dict):
+                continue
+            lat = float(coords["lat"])
+            lon = float(coords["lon"])
+            b = manifest.bbox
+            if not (b.min_lat <= lat <= b.max_lat and b.min_lon <= lon <= b.max_lon):
+                continue
+        filtered_claims.extend(c_list)
+
+    from gateway.catalog.identity import resolve_places
+    resolved_places, _ = resolve_places(filtered_claims)
+
+    ext_to_pid = {}
+    for p in resolved_places:
+        for e in p.external_ids:
+            ext_to_pid[f"{e.namespace}:{e.value}"] = p.place_id
+
+    for c in filtered_claims:
+        if c.place_id in ext_to_pid:
+            c.place_id = ext_to_pid[c.place_id]
+
+    winners, _ = select_claims(filtered_claims)
+    return build_tiles_from_claims(winners, tiles_dir, step=step)
+
