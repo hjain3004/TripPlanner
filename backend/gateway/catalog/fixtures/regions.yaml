@@ -17,3 +17,12 @@ regions:
     centroid_lon: 72.8777
     currency: "INR"
     budget_supported: false
+  - iata: "DXB"
+    city_name: "Dubai"
+    country_code: "AE"
+    timezone: "Asia/Dubai"
+    catalog_id: "dxb-core"
+    centroid_lat: 25.2048
+    centroid_lon: 55.2708
+    currency: "AED"
+    budget_supported: false
