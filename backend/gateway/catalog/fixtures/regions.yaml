@@ -35,3 +35,12 @@ regions:
     centroid_lon: -74.0060
     currency: "USD"
     budget_supported: false
+  - iata: "LON"
+    city_name: "London"
+    country_code: "GB"
+    timezone: "Europe/London"
+    catalog_id: "lon-core"
+    centroid_lat: 51.5074
+    centroid_lon: -0.1278
+    currency: "GBP"
+    budget_supported: false
