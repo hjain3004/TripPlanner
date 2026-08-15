@@ -77,6 +77,22 @@ class SnapshotPlaceAdapter:
         self, request: PlaceSearchRequest
     ) -> tuple[list[PlaceCandidate], PartialPlaceResult | None]:
         candidates = self._load()
+        import math
+
+        def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+            R = 6371.0
+            lat1_rad = math.radians(lat1)
+            lon1_rad = math.radians(lon1)
+            lat2_rad = math.radians(lat2)
+            lon2_rad = math.radians(lon2)
+            dlat = lat2_rad - lat1_rad
+            dlon = lon2_rad - lon1_rad
+            a = (
+                math.sin(dlat / 2) ** 2
+                + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
+            )
+            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+            return R * c
 
         filtered = []
         for c in candidates:
@@ -86,6 +102,25 @@ class SnapshotPlaceAdapter:
                 if cat not in request.category_filters:
                     continue
             filtered.append(c)
+
+        if request.origin_lat is not None and request.origin_lon is not None:
+            # Capture for mypy
+            o_lat = request.origin_lat
+            o_lon = request.origin_lon
+
+            def get_distance(c: PlaceCandidate) -> float:
+                coords = next(
+                    (claim.value for claim in c.claims if claim.field == "coordinates"), None
+                )
+                if not coords or not isinstance(coords, dict):
+                    return float("inf")
+                lat = coords.get("lat")
+                lon = coords.get("lon")
+                if lat is None or lon is None:
+                    return float("inf")
+                return haversine(o_lat, o_lon, lat, lon)
+
+            filtered.sort(key=lambda c: (get_distance(c), c.place_id))
 
         if len(filtered) > request.max_results:
             return (

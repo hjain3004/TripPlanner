@@ -124,12 +124,23 @@ def retrieve_candidates(
 
     if catalog and catalog.exists():
         from core.trip_models import POIEvidence
+        from gateway.catalog.manifest import load_manifest
+        from gateway.catalog.quality import SUPPORTED_CATEGORIES
         from gateway.places.adapters.snapshot import SnapshotPlaceAdapter
         from gateway.places.contracts import PlaceSearchRequest
+        
+        manifest = load_manifest(Path("gateway/catalog/fixtures/manifest_sg.yaml"))
+        origin_lat = manifest.centroid_lat if manifest.centroid_lat is not None else 0.0
+        origin_lon = manifest.centroid_lon if manifest.centroid_lon is not None else 0.0
 
         adapter = SnapshotPlaceAdapter(catalog)
         req = PlaceSearchRequest(
-            origin_lat=0, origin_lon=0, max_results=limit, timeout_ms=5000, destination_area_id=""
+            origin_lat=origin_lat, 
+            origin_lon=origin_lon, 
+            max_results=limit, 
+            timeout_ms=5000, 
+            destination_area_id="",
+            category_filters=list(SUPPORTED_CATEGORIES)
         )
         candidates, _ = adapter.search_places(req)
 

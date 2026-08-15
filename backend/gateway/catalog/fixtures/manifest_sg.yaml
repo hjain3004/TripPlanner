@@ -6,6 +6,8 @@ bbox:
   min_lat: 1.2
   max_lon: 104.09
   max_lat: 1.48
+centroid_lat: 1.3521
+centroid_lon: 103.8198
 sources:
 - source_id: overture_sg
   source_url: s3://overturemaps-us-west-2/release/2026-07-22.0/

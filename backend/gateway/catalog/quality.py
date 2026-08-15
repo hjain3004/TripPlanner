@@ -14,9 +14,6 @@ _MIN_PER_CATEGORY = {
 }
 
 
-
-
-
 class QualityReport(BaseModel):
     passed: bool
     failures: list[str]
@@ -28,7 +25,7 @@ class QualityReport(BaseModel):
 
 
 def evaluate_quality(
-    places: list[Place], 
+    places: list[Place],
     claims: list[PlaceClaim],
     manifest: CatalogManifest,
     dropped_uncategorized: int = 0,
@@ -84,6 +81,20 @@ def evaluate_quality(
 
     if manifest.max_places and len(places) > manifest.max_places:
         failures.append(f"Catalog size {len(places)} exceeds max_places {manifest.max_places}")
+
+    if places:
+        categorized_count = sum(
+            1
+            for p in places
+            if any(
+                c.field == "category" and c.value in SUPPORTED_CATEGORIES
+                for c in place_claims[p.place_id]
+            )
+        )
+        if categorized_count / len(places) < 0.95:
+            failures.append(
+                f"Categorized places {categorized_count}/{len(places)} is below 95% threshold"
+            )
 
     passed = len(failures) == 0
     failures.sort()

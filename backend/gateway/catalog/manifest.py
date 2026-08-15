@@ -30,6 +30,8 @@ class CatalogManifest(BaseModel):
     sources: list[PinnedSource] = Field(min_length=1)
     bbox: BoundingBox | None = None
     max_places: int | None = None
+    centroid_lat: float | None = None
+    centroid_lon: float | None = None
 
 
 def load_manifest(path: Path) -> CatalogManifest:

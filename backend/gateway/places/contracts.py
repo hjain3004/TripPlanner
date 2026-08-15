@@ -58,6 +58,9 @@ class PlaceSearchRequest(BaseModel):
     category_filters: list[str] = Field(default_factory=list)
     max_results: int = Field(le=50)
     budget_context_id: str | None = None
+    origin_lat: float | None = None
+    origin_lon: float | None = None
+    timeout_ms: int | None = None
 
 
 class PartialPlaceResult(BaseModel):
