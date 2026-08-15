@@ -1,31 +1,36 @@
 catalog_id: sg-core
-catalog_release: "2026-08-11.0"
+catalog_release: 2026-08-11.0
+max_places: 25000
+bbox:
+  min_lon: 103.6
+  min_lat: 1.2
+  max_lon: 104.09
+  max_lat: 1.48
 sources:
-  - source_id: overture_sg
-    source_url: s3://overturemaps-us-west-2/release/2026-07-22.0/
-    licence_id: CDLA-Permissive-2.0
-    source_release: "2026-07-22.0"
-    checksum: "9cb84d867ea1458cceca52e4be208ce6b31d50bced445f71b07f8b0dd9caf419"
-    max_bytes: 50000000
-    geographic_scope: SG
-    allowed_purpose: non-commercial student prototype
-    attribution_text: "(c) Overture Maps Foundation"
-
-  - source_id: osm_sg
-    source_url: https://example.invalid/fixtures/osm_sg_sample.json
-    licence_id: ODbL-1.0
-    source_release: "2026-07-20"
-    checksum: "ba917650702fd9f7e62e088777ba4c52321079a5b86d0b59711f5b29a97a4cab"
-    max_bytes: 1000000
-    geographic_scope: SG
-    allowed_purpose: non-commercial student prototype
-    attribution_text: "(c) OpenStreetMap contributors, ODbL"
-  - source_id: wikivoyage_sg
-    source_url: https://example.invalid/fixtures/wikivoyage_sg_sample.json
-    licence_id: CC-BY-SA-4.0
-    source_release: "rev-889012"
-    checksum: "347a0fbf037697b2004c5b4d27fb75fbe84858e714ef02bb22d6f4de25f3e7d1"
-    max_bytes: 1000000
-    geographic_scope: SG
-    allowed_purpose: non-commercial student prototype
-    attribution_text: "Wikivoyage contributors, CC BY-SA 4.0"
+- source_id: overture_sg
+  source_url: s3://overturemaps-us-west-2/release/2026-07-22.0/
+  licence_id: CDLA-Permissive-2.0
+  source_release: 2026-07-22.0
+  checksum: cdf259a59cab61f7cc0348f876e8125332f0f07f5a18e49ce485b52e4ab211f8
+  max_bytes: 50000000
+  geographic_scope: SG
+  allowed_purpose: non-commercial student prototype
+  attribution_text: (c) Overture Maps Foundation
+- source_id: osm_sg
+  source_url: https://example.invalid/fixtures/osm_sg_sample.json
+  licence_id: ODbL-1.0
+  source_release: '2026-07-20'
+  checksum: e11bfab1e6410517b7446d4adc4f190c6b9ba48659e96293635f472970a23bce
+  max_bytes: 5000000
+  geographic_scope: SG
+  allowed_purpose: non-commercial student prototype
+  attribution_text: (c) OpenStreetMap contributors, ODbL
+- source_id: wikivoyage_sg
+  source_url: https://example.invalid/fixtures/wikivoyage_sg_sample.json
+  licence_id: CC-BY-SA-4.0
+  source_release: rev-889012
+  checksum: 3093df9b7b4f60513cc7f2666c879405a8824eb3b3dfa23c3c006fa9b25ffbec
+  max_bytes: 5000000
+  geographic_scope: SG
+  allowed_purpose: non-commercial student prototype
+  attribution_text: Wikivoyage contributors, CC BY-SA 4.0

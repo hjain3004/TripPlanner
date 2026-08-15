@@ -14,7 +14,8 @@ def build_catalog(
     manifest_path: Path, raw_dir: Path, work_dir: Path, fail_quality: bool = False
 ) -> CatalogArtifact:
     # 1. Manifest parsing & validation (Task 2)
-    sources = load_manifest(manifest_path)
+    manifest = load_manifest(manifest_path)
+    sources = manifest.sources
 
     # quarantine step
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -60,6 +61,37 @@ def build_catalog(
                 empty_sources.append(source.source_id)
         raise CatalogBuildError(f"No claims produced by sources: {', '.join(empty_sources)}")
 
+    from collections import defaultdict
+    place_claims = defaultdict(list)
+    for c in raw_claims:
+        place_claims[c.place_id].append(c)
+
+    filtered_claims = []
+    dropped_uncategorized = 0
+    dropped_out_of_bbox = 0
+    
+    for _pid, c_list in place_claims.items():
+        has_category = any(c.field == "category" for c in c_list)
+        if not has_category:
+            dropped_uncategorized += 1
+            continue
+            
+        if manifest.bbox:
+            coords = next((c.value for c in c_list if c.field == "coordinates"), None)
+            if not coords or not isinstance(coords, dict):
+                dropped_out_of_bbox += 1
+                continue
+            lat = float(coords["lat"])
+            lon = float(coords["lon"])
+            b = manifest.bbox
+            if not (b.min_lat <= lat <= b.max_lat and b.min_lon <= lon <= b.max_lon):
+                dropped_out_of_bbox += 1
+                continue
+                
+        filtered_claims.extend(c_list)
+        
+    raw_claims = filtered_claims
+
     # 5. Field Selection & Contradictions (Task 6)
     from gateway.catalog.identity import resolve_places
 
@@ -77,7 +109,13 @@ def build_catalog(
     winners, contradictions = select_claims(raw_claims)
 
     # 6. Quality Report (Task 7)
-    quality = evaluate_quality(resolved_places, winners)
+    quality = evaluate_quality(
+        resolved_places, 
+        winners, 
+        manifest, 
+        dropped_uncategorized=dropped_uncategorized, 
+        dropped_out_of_bbox=dropped_out_of_bbox
+    )
 
     pinned = [
         PinnedSource(

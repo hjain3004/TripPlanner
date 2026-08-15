@@ -129,7 +129,15 @@ def build_from_rows(rows: list[dict]) -> str:
             merged_claims.append(c)
 
     winners, contradictions = select_claims(merged_claims)
-    quality = evaluate_quality(places, winners)
+    from gateway.catalog.manifest import CatalogManifest
+    m = CatalogManifest(
+        catalog_id="test",
+        catalog_release="test",
+        sources=[src],
+        bbox=None,
+        max_places=None
+    )
+    quality = evaluate_quality(places, winners, m)
 
     out_src = PinnedSource(
         id="overture_sg",

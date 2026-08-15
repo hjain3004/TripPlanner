@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+from gateway.catalog.manifest import CatalogManifest
 from gateway.places.contracts import Place, PlaceClaim
 
 SUPPORTED_CATEGORIES = ("park", "food_court", "restaurant", "cafe", "attraction", "museum")
@@ -13,15 +14,26 @@ _MIN_PER_CATEGORY = {
 }
 
 
+
+
+
 class QualityReport(BaseModel):
     passed: bool
     failures: list[str]
     by_category: dict[str, int]
     places_without_coordinates: int
     places_with_unknown_hours: int
+    dropped_uncategorized: int
+    dropped_out_of_bbox: int
 
 
-def evaluate_quality(places: list[Place], claims: list[PlaceClaim]) -> QualityReport:
+def evaluate_quality(
+    places: list[Place], 
+    claims: list[PlaceClaim],
+    manifest: CatalogManifest,
+    dropped_uncategorized: int = 0,
+    dropped_out_of_bbox: int = 0,
+) -> QualityReport:
     by_category: dict[str, int] = {cat: 0 for cat in SUPPORTED_CATEGORIES}
     places_without_coords = 0
     places_with_unknown_hours = 0
@@ -70,6 +82,9 @@ def evaluate_quality(places: list[Place], claims: list[PlaceClaim]) -> QualityRe
                 f"Category {cat} below minimum (has {by_category[cat]}, needs {minimum})"
             )
 
+    if manifest.max_places and len(places) > manifest.max_places:
+        failures.append(f"Catalog size {len(places)} exceeds max_places {manifest.max_places}")
+
     passed = len(failures) == 0
     failures.sort()
 
@@ -79,4 +94,6 @@ def evaluate_quality(places: list[Place], claims: list[PlaceClaim]) -> QualityRe
         by_category=by_category,
         places_without_coordinates=places_without_coords,
         places_with_unknown_hours=places_with_unknown_hours,
+        dropped_uncategorized=dropped_uncategorized,
+        dropped_out_of_bbox=dropped_out_of_bbox,
     )

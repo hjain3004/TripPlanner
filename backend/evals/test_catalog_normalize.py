@@ -9,7 +9,8 @@ FIXTURES = Path(__file__).parent.parent / "gateway" / "catalog" / "fixtures"
 
 
 def _source(source_id: str) -> PinnedSource:
-    return next(s for s in load_manifest(FIXTURES / "manifest_sg.yaml") if s.source_id == source_id)
+    manifest = load_manifest(FIXTURES / "manifest_sg.yaml")
+    return next(s for s in manifest.sources if s.source_id == source_id)
 
 
 def _overture_rows() -> list[dict[str, Any]]:

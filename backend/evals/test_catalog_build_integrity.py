@@ -65,8 +65,8 @@ sources:
                 places.append({
                     "id": f"ext_{idx}",
                     "names": {"primary": f"Place {idx}"},
-                    "categories": {"primary": cat},
-                    "geometry": {"type": "Point", "coordinates": [103.8, 1.3]}
+                    "categories": {"primary": "zoo" if cat == "attraction" else cat},
+                    "geometry": {"lat": 1.3, "lon": 103.8}
                 })
                 idx += 1
                 
@@ -82,4 +82,128 @@ sources:
     assert len(artifact.places) > 0, "anti-vacuity: fixture must produce places"
     for p in artifact.places:
         assert len(p.external_ids) > 0, f"Fabricated place found: {p.place_id}"
+
+def test_out_of_bbox_places_are_dropped(tmp_path):
+    manifest_yaml = """
+catalog_id: sg_test
+catalog_release: "2026-08-01"
+bbox:
+  min_lon: 103.6
+  min_lat: 1.20
+  max_lon: 104.09
+  max_lat: 1.48
+sources:
+  - source_id: overture_sg
+    source_url: "http://x"
+    licence_id: "L"
+    source_release: "1"
+    checksum: "d41d8cd98f00b204e9800998ecf8427e"
+    max_bytes: 5000
+    geographic_scope: "SG"
+    allowed_purpose: "non-commercial"
+    attribution_text: "Overture"
+"""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    
+    zip_path = raw / "overture_sg_1.zip"
+    with zipfile.ZipFile(zip_path, "w") as z:
+        places = [
+            {
+                "id": "ext_in",
+                "names": {"primary": "In BBox"},
+                "categories": {"primary": "park"},
+                "geometry": {"lat": 1.3, "lon": 103.8}
+            },
+            {
+                "id": "ext_out",
+                "names": {"primary": "Out BBox"},
+                "categories": {"primary": "park"},
+                "geometry": {"lat": 1.3, "lon": 104.5}
+            }
+        ]
+        from gateway.catalog.quality import _MIN_PER_CATEGORY
+        idx = 3
+        for cat, min_count in _MIN_PER_CATEGORY.items():
+            for _ in range(min_count):
+                places.append({
+                    "id": f"ext_{idx}",
+                    "names": {"primary": f"Place {idx}"},
+                    "categories": {"primary": "zoo" if cat == "attraction" else cat},
+                    "geometry": {"lat": 1.3, "lon": 103.8}
+                })
+                idx += 1
+                
+        z.writestr("data.json", json.dumps(places))
+        
+    import hashlib
+    chk = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+    
+    m = tmp_path / "manifest.yaml"
+    m.write_text(manifest_yaml.replace("d41d8cd98f00b204e9800998ecf8427e", chk))
+
+    artifact = build_catalog(m, raw, tmp_path / "work")
+    # In BBox survives, Out BBox drops. Plus MIN_PER_CATEGORY places survive.
+    # Total places = 1 (in) + sum(min)
+    expected_count = 1 + sum(_MIN_PER_CATEGORY.values())
+    assert len(artifact.places) == expected_count
+    assert artifact.quality.dropped_out_of_bbox == 1
+
+def test_uncategorized_places_are_dropped(tmp_path):
+    manifest_yaml = """
+catalog_id: sg_test
+catalog_release: "2026-08-01"
+sources:
+  - source_id: overture_sg
+    source_url: "http://x"
+    licence_id: "L"
+    source_release: "1"
+    checksum: "d41d8cd98f00b204e9800998ecf8427e"
+    max_bytes: 5000
+    geographic_scope: "SG"
+    allowed_purpose: "non-commercial"
+    attribution_text: "Overture"
+"""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    
+    zip_path = raw / "overture_sg_1.zip"
+    with zipfile.ZipFile(zip_path, "w") as z:
+        places = [
+            {
+                "id": "ext_cat",
+                "names": {"primary": "Categorized"},
+                "categories": {"primary": "park"},
+                "geometry": {"lat": 1.3, "lon": 103.8}
+            },
+            {
+                "id": "ext_uncat",
+                "names": {"primary": "Uncategorized"},
+                "geometry": {"lat": 1.3, "lon": 103.8}
+            }
+        ]
+        from gateway.catalog.quality import _MIN_PER_CATEGORY
+        idx = 3
+        for cat, min_count in _MIN_PER_CATEGORY.items():
+            for _ in range(min_count):
+                places.append({
+                    "id": f"ext_{idx}",
+                    "names": {"primary": f"Place {idx}"},
+                    "categories": {"primary": "zoo" if cat == "attraction" else cat},
+                    "geometry": {"lat": 1.3, "lon": 103.8}
+                })
+                idx += 1
+                
+        z.writestr("data.json", json.dumps(places))
+        
+    import hashlib
+    chk = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+    
+    m = tmp_path / "manifest.yaml"
+    m.write_text(manifest_yaml.replace("d41d8cd98f00b204e9800998ecf8427e", chk))
+
+    artifact = build_catalog(m, raw, tmp_path / "work")
+    expected_count = 1 + sum(_MIN_PER_CATEGORY.values())
+    assert len(artifact.places) == expected_count
+    assert artifact.quality.dropped_uncategorized == 1
 
