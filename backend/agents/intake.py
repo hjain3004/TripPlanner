@@ -51,8 +51,16 @@ def _validate_intake(spec: TripSpec, kb: KnowledgeBase) -> list[str]:
 
 def run_intake(raw_request: str, kb: KnowledgeBase, llm: LLMClient) -> IntakeResult:
     system = (
-        "You convert a travel request into strict TripSpec JSON. "
-        "Use only card IDs from the catalog. Put ambiguity in unresolved."
+        "You convert a travel request into strict JSON. "
+        "Use only card IDs from the catalog. "
+        # "Put ambiguity in unresolved" alone was far too loose against a real
+        # model: llama-3.3-70b filed "ambiguity in food and nature interests"
+        # for a perfectly clear request, so every trip returned
+        # needs_clarification. unresolved is for genuinely unanswerable
+        # REQUIRED fields, not for preferences it could simply record.
+        "Leave `unresolved` empty unless a REQUIRED field genuinely cannot be "
+        "determined from the request. Vague-but-usable preferences such as "
+        "interests or style are not unresolved - record your best reading."
     )
     user = f"Request:\n{raw_request}\n\nCard catalog:\n{_card_catalog(kb)}"
     try:

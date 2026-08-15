@@ -74,6 +74,12 @@ class ScriptedLLMClient:
         raise LLMCallError(f"unsupported scripted response for {node}: {type(response).__name__}")
 
 
+# Honest self-identification on every outbound provider call (spec 05's Fetcher
+# rule: "identify honestly via user agent"). Also load-bearing: urllib's default
+# UA is rejected by some providers' edge protection.
+_USER_AGENT = "TripPlanner/0.1 (non-commercial student project)"
+
+
 def _strip_code_fence(text: str) -> str:
     """Some models wrap JSON in ```json fences despite JSON mode."""
     stripped = text.strip()
@@ -182,6 +188,21 @@ class HostedFreeTier:
         self.calls_made += 1
 
         system_prompt = system
+        if self.json_mode:
+            # Provider adaptation, deliberately here and not in the four call
+            # sites' prompts (those are Tier-F structure; their phrasing stays
+            # theirs). OpenAI-style json_object mode returns *some* object, not
+            # necessarily the right shape: asked for "strict TripSpec JSON",
+            # llama-3.3-70b returned {"trip_spec": {...}} - reading the model
+            # name as a wrapper key - and did it again on the repair retry, so
+            # intake failed outright. Naming the fields removes the guess.
+            system_prompt = (
+                f"{system_prompt}\n\n"
+                "Return ONE JSON object conforming to this JSON Schema. Emit the "
+                "properties at the TOP LEVEL. Do not nest them under a wrapper "
+                "key, and do not echo the schema itself.\n"
+                f"{json.dumps(schema.model_json_schema())}"
+            )
         if tools:
             system_prompt = (
                 f"{system}\n\nYou may either return the requested JSON object, or call a "
@@ -207,6 +228,12 @@ class HostedFreeTier:
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
+                # Identify honestly (spec 05's Fetcher rule), and because
+                # urllib's default "Python-urllib/x.y" is blocked outright by
+                # some providers' edge protection - Groq returns HTTP 403
+                # Cloudflare error 1010 for it, while the identical request
+                # with a real UA succeeds.
+                "User-Agent": _USER_AGENT,
             },
             method="POST",
         )
