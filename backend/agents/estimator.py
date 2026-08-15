@@ -149,10 +149,27 @@ def _poi_lines(spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase) -> 
     return lines
 
 
-def _per_diem_lines(spec: TripSpec, kb: KnowledgeBase) -> list[SpendLineItem]:
+def _per_diem_lines(spec: TripSpec, kb: KnowledgeBase) -> tuple[list[SpendLineItem], list[str]]:
     from gateway.catalog.regions import get_region
     region = get_region(spec.destination_city)
     home_currency = _home_currency(spec)
+
+    # Per-diem constants (PER_DIEM_MINOR_BY_STYLE) are SGD-denominated seed
+    # data - Singapore-specific. A region without verified per-diem/FX data
+    # gets no per-diem line rather than a converted-through-SGD guess (I7
+    # constraint: no currencies or FX rates added speculatively for new
+    # regions). This also fixes a real crash: registering Mumbai without this
+    # gate raised ValueError("Missing FX rate for INR->INR") on every trip,
+    # because _pick_flight/_pick_hotel already degrade gracefully but this
+    # unconditionally required an FX rate. Matches their (value, assumptions)
+    # return shape.
+    if region and not region.budget_supported:
+        city = region.city_name
+        return [], [
+            f"No per-diem cost data for {city} yet; "
+            "dining and local transport are not included in the budget."
+        ]
+
     if region:
         destination_currency = region.currency
     else:
@@ -164,7 +181,7 @@ def _per_diem_lines(spec: TripSpec, kb: KnowledgeBase) -> list[SpendLineItem]:
         raise ValueError(f"Missing FX rate for {destination_currency}->{home_currency}")
     constants = PER_DIEM_MINOR_BY_STYLE[spec.style]
     days = spec.nights
-    return [
+    lines = [
         SpendLineItem(
             id="per_diem:dining",
             label="Dining per-diem estimate",
@@ -182,6 +199,12 @@ def _per_diem_lines(spec: TripSpec, kb: KnowledgeBase) -> list[SpendLineItem]:
             available_channels=[Channel.POS_ABROAD],
         ),
     ]
+    assumptions = [
+        f"Sample per-diem estimate uses {spec.style} Singapore constants: "
+        f"{constants['dining']} SGD cents dining and "
+        f"{constants['misc']} SGD cents misc per person-day."
+    ]
+    return lines, assumptions
 
 
 def estimate_costed_trip(
@@ -228,7 +251,8 @@ def estimate_costed_trip(
         )
 
     lines.extend(_poi_lines(spec, itinerary, kb))
-    lines.extend(_per_diem_lines(spec, kb))
+    per_diem_lines, per_diem_assumptions = _per_diem_lines(spec, kb)
+    lines.extend(per_diem_lines)
 
     return EstimatorResult(
         costed_trip=CostedTrip(
@@ -245,10 +269,6 @@ def estimate_costed_trip(
         assumptions=[
             *flight_assumptions,
             *hotel_assumptions,
-            (
-                f"Sample per-diem estimate uses {spec.style} Singapore constants: "
-                f"{PER_DIEM_MINOR_BY_STYLE[spec.style]['dining']} SGD cents dining and "
-                f"{PER_DIEM_MINOR_BY_STYLE[spec.style]['misc']} SGD cents misc per person-day."
-            ),
+            *per_diem_assumptions,
         ],
     )

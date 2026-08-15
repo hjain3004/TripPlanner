@@ -41,6 +41,9 @@ packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "agents
 [tool.pytest.ini_options]
 testpaths = ["evals"]
 python_files = ["test_*.py"]
+markers = [
+    "allow_real_catalog: exempts a test from the autouse mock that blocks the real activated catalog",
+]
 
 [tool.mypy]
 python_version = "3.11"

@@ -80,3 +80,19 @@ def test_ties_are_broken_deterministically_not_by_input_order() -> None:
     assert [(c.place_id, c.field, c.source_id) for c in a] == [
         (c.place_id, c.field, c.source_id) for c in b
     ]
+
+
+def test_authority_recognizes_any_region_not_just_singapore() -> None:
+    """I7 Task 7 finding: _AUTHORITY was a hardcoded ("overture_sg", "osm_sg")
+    tuple. A real Mumbai build (source_id "overture_bom") lost every single
+    claim silently - select_claims returned zero winners from 38,700 valid
+    claims, because "overture_bom" != "overture_sg". Authority must recognize
+    the provider family (overture/osm/wikivoyage), not one hardcoded region's
+    literal source_id string."""
+    mumbai_category = _c("category", "restaurant", "overture_bom")
+    winners, _ = select_claims([mumbai_category])
+    assert winners == [mumbai_category]
+
+    mumbai_name = _c("name", "Cafe Mumbai", "osm_bom")
+    winners, _ = select_claims([mumbai_name])
+    assert winners == [mumbai_name]

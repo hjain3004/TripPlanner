@@ -7,14 +7,24 @@ from gateway.evidence.edges import Edge, EvidenceGraph
 from gateway.places.contracts import Place, PlaceClaim
 
 _AUTHORITY: dict[str, tuple[str, ...]] = {
-    "coordinates": ("overture_sg", "osm_sg"),
-    "category": ("overture_sg", "osm_sg"),
-    "name": ("overture_sg", "osm_sg"),
-    "description": ("wikivoyage_sg",),
-    "opening_hours": ("official_venue", "osm_sg"),
-    "accessibility": ("official_venue", "osm_sg"),
+    "coordinates": ("overture", "osm"),
+    "category": ("overture", "osm"),
+    "name": ("overture", "osm"),
+    "description": ("wikivoyage",),
+    "opening_hours": ("official_venue", "osm"),
+    "accessibility": ("official_venue", "osm"),
     "admission": ("official_venue",),
 }
+
+
+def _authority_rank(source_id: str, authority: tuple[str, ...]) -> int:
+    """Rank by provider family (the manifest-declared prefix before the
+    region suffix, e.g. "overture" in "overture_bom"), not the literal
+    source_id - source_id is unique per region (overture_sg, overture_bom, ...)."""
+    for i, prefix in enumerate(authority):
+        if source_id.startswith(prefix):
+            return i
+    raise ValueError(f"{source_id!r} not in authority {authority!r}")
 
 
 def _claim_id(place_id: str, field: str, source_id: str) -> str:
@@ -34,7 +44,9 @@ def select_claims(claims: list[PlaceClaim]) -> tuple[list[PlaceClaim], list[tupl
     for (_place_id, field), field_claims in by_place_and_field.items():
         authority = _AUTHORITY.get(field, ())
 
-        valid_claims = [c for c in field_claims if c.source_id in authority]
+        valid_claims = [
+            c for c in field_claims if any(c.source_id.startswith(p) for p in authority)
+        ]
         if not valid_claims:
             # If all are invalid (e.g. admission from aggregator), they all lose
             # Wait, the spec says "A claim whose source_id is absent from its
@@ -61,7 +73,7 @@ def select_claims(claims: list[PlaceClaim]) -> tuple[list[PlaceClaim], list[tupl
         # Or just use multiple sort passes.
         valid_claims.sort(key=lambda c: (c.source_id, str(c.value)))
         valid_claims.sort(key=lambda c: c.source_release or "", reverse=True)
-        valid_claims.sort(key=lambda c: authority.index(c.source_id))
+        valid_claims.sort(key=lambda c: _authority_rank(c.source_id, authority))
 
         winner = valid_claims[0]
         winners.append(winner)

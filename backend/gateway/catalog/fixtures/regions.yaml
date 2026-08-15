@@ -8,3 +8,12 @@ regions:
     centroid_lon: 103.8198
     currency: "SGD"
     budget_supported: true
+  - iata: "BOM"
+    city_name: "Mumbai"
+    country_code: "IN"
+    timezone: "Asia/Kolkata"
+    catalog_id: "bom-core"
+    centroid_lat: 19.0760
+    centroid_lon: 72.8777
+    currency: "INR"
+    budget_supported: false
