@@ -1,8 +1,7 @@
 from pathlib import Path
 
-from agents.retrieval import retrieve_candidates
 from agents.models import TripSpec
-from core.db import KnowledgeBase
+from agents.retrieval import retrieve_candidates
 
 
 class StubKB:

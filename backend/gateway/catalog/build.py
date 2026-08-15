@@ -132,7 +132,7 @@ def build_catalog(
 
     return CatalogArtifact(
         catalog_id=manifest.catalog_id,
-        catalog_release="2026-08-01",
+        catalog_release=str(manifest.catalog_release),
         sources=pinned,
         places=resolved_places,
         claims=winners,

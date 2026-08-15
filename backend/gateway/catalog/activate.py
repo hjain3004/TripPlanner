@@ -54,15 +54,7 @@ def activate(artifact: CatalogArtifact, catalog_root: Path) -> Path:
     return target
 
 
-def active_catalog_path(catalog_root: Path, catalog_id: str | None = None) -> Path | None:
-    if catalog_id is None:
-        import warnings
-        warnings.warn(
-            "active_catalog_path without catalog_id is deprecated",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        catalog_id = "overture_sg"
+def active_catalog_path(catalog_root: Path, catalog_id: str) -> Path | None:
     p = catalog_root / f"active_{catalog_id}.json"
     if p.exists():
         return p

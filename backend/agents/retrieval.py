@@ -11,6 +11,15 @@ from gateway.places.contracts import PlaceCandidate
 
 CITY_BY_IATA = {"SIN": "Singapore"}
 
+
+def resolve_destination_city(destination_iata: str) -> str:
+    from gateway.catalog.regions import get_region
+
+    region = get_region(destination_iata)
+    if region:
+        return region.city_name
+    return CITY_BY_IATA.get(destination_iata, destination_iata)
+
 def _map_candidate_to_poi(
     c: PlaceCandidate, city: str, region: Region | None = None
 ) -> POI:
@@ -68,18 +77,23 @@ def _map_candidate_to_poi(
         poi.provenance.needs_verification = True
     return poi
 
-def get_catalog_poi(poi_id: str, city: str) -> POI | None:
+def get_catalog_poi(poi_id: str, destination_iata: str) -> POI | None:
     from pathlib import Path
 
     from gateway.catalog.activate import active_catalog_path
+    from gateway.catalog.regions import get_region
+
+    region = get_region(destination_iata)
+    if region is None:
+        return None
     try:
-        catalog = active_catalog_path(Path("catalogs"))
+        catalog = active_catalog_path(Path("catalogs"), catalog_id=region.catalog_id)
         if catalog and catalog.exists():
             from gateway.places.adapters.snapshot import SnapshotPlaceAdapter
             adapter = SnapshotPlaceAdapter(catalog)
             for c in adapter._load():
                 if c.place_id == poi_id:
-                    return _map_candidate_to_poi(c, city)
+                    return _map_candidate_to_poi(c, region.city_name, region)
     except FileNotFoundError:
         pass
     return None
@@ -125,12 +139,7 @@ def retrieve_candidates(
         except FileNotFoundError:
             catalog = None
 
-    if region:
-        city = region.city_name
-    else:
-        city = CITY_BY_IATA.get(
-            spec.destination_city, spec.destination_city
-        )
+    city = resolve_destination_city(spec.destination_city)
     pois = kb.pois(city)
     
     poi_provenance = []

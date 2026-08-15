@@ -5,7 +5,7 @@ from typing import Literal
 
 from agents.config import load_agent_config
 from agents.models import DraftItinerary, EstimatorResult, TripSpec
-from agents.retrieval import CITY_BY_IATA
+from agents.retrieval import resolve_destination_city
 from core.db import KnowledgeBase
 from core.models import (
     POI,
@@ -29,11 +29,7 @@ def _home_currency(spec: TripSpec) -> str:
 
 
 def _destination_city(spec: TripSpec) -> str:
-    from gateway.catalog.regions import get_region
-    region = get_region(spec.destination_city)
-    if region:
-        return region.city_name
-    return CITY_BY_IATA.get(spec.destination_city, spec.destination_city)
+    return resolve_destination_city(spec.destination_city)
 
 
 def _preferred_cabin(style: str) -> Literal["economy", "premium", "business"]:
@@ -129,7 +125,7 @@ def _poi_lines(spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase) -> 
             poi = kb_pois.get(item.poi_id)
             if not poi:
                 from agents.retrieval import get_catalog_poi
-                poi = get_catalog_poi(item.poi_id, _destination_city(spec))
+                poi = get_catalog_poi(item.poi_id, spec.destination_city)
                 
             if not poi:
                 # If a POI is genuinely hallucinated, skip costing it for now

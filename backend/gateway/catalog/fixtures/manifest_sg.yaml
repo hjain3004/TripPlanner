@@ -13,7 +13,7 @@ sources:
   source_url: s3://overturemaps-us-west-2/release/2026-07-22.0/
   licence_id: CDLA-Permissive-2.0
   source_release: 2026-07-22.0
-  checksum: cdf259a59cab61f7cc0348f876e8125332f0f07f5a18e49ce485b52e4ab211f8
+  checksum: 9cb84d867ea1458cceca52e4be208ce6b31d50bced445f71b07f8b0dd9caf419
   max_bytes: 50000000
   geographic_scope: SG
   allowed_purpose: non-commercial student prototype
@@ -22,7 +22,7 @@ sources:
   source_url: https://example.invalid/fixtures/osm_sg_sample.json
   licence_id: ODbL-1.0
   source_release: '2026-07-20'
-  checksum: e11bfab1e6410517b7446d4adc4f190c6b9ba48659e96293635f472970a23bce
+  checksum: b8f14e57d42c18aedc1df14fec2cebcc2bae7da844b81525033fd72000cf6ab7
   max_bytes: 5000000
   geographic_scope: SG
   allowed_purpose: non-commercial student prototype
@@ -31,7 +31,7 @@ sources:
   source_url: https://example.invalid/fixtures/wikivoyage_sg_sample.json
   licence_id: CC-BY-SA-4.0
   source_release: rev-889012
-  checksum: 3093df9b7b4f60513cc7f2666c879405a8824eb3b3dfa23c3c006fa9b25ffbec
+  checksum: 72bc56ba7a468b2cac2cd96ff698cf12298283b10929af17d9f4ae6e6feacc85
   max_bytes: 5000000
   geographic_scope: SG
   allowed_purpose: non-commercial student prototype
