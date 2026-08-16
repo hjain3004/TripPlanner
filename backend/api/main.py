@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import os
 import threading
 from datetime import date
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from agents.llm import HostedFreeTier, LLMClient
 from agents.models import (
@@ -24,6 +26,27 @@ app = FastAPI(
     title="TripPlanner Kernel API",
     version="0.3.0",
     description="Kernel MVP API over local curated sample data.",
+)
+
+# Without this, a browser's preflight OPTIONS /plan gets 405 and the POST never
+# fires - exactly what happened the first time the real frontend talked to the
+# real backend. Every prior test missed it: MSW intercepts inside the browser and
+# the Playwright suites ran against mocks, so no real preflight was ever sent.
+#
+# Explicit origins, not "*": the wildcard cannot be combined with credentials,
+# and this API will carry a session once spec 17 accounts land. Override with
+# TRIPWISE_CORS_ORIGINS (comma-separated) for other hosts.
+_DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        origin.strip()
+        for origin in os.getenv("TRIPWISE_CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",")
+        if origin.strip()
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
