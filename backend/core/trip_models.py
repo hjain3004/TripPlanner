@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -103,3 +103,29 @@ class RetrievalContext(BaseModel):
     poi_rows: list[str]
     area_rows: list[str]
     poi_provenance: list[POIEvidence] = Field(default_factory=list)
+
+
+class MoveItem(BaseModel):
+    op: Literal["move_item"] = "move_item"
+    poi_id: str
+    from_day_index: int = Field(ge=0)
+    to_day_index: int = Field(ge=0)
+    position: int = Field(ge=0)
+
+
+class RemoveItem(BaseModel):
+    op: Literal["remove_item"] = "remove_item"
+    poi_id: str
+    day_index: int = Field(ge=0)
+
+
+class ReorderDay(BaseModel):
+    op: Literal["reorder_day"] = "reorder_day"
+    day_index: int = Field(ge=0)
+    poi_ids: list[str]
+
+
+ItineraryEdit = Annotated[
+    Union[MoveItem, RemoveItem, ReorderDay],
+    Field(discriminator="op"),
+]

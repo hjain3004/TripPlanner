@@ -22,7 +22,19 @@ from core.trip_models import (
     ItineraryDay as ItineraryDay,
 )
 from core.trip_models import (
+    ItineraryEdit as ItineraryEdit,
+)
+from core.trip_models import (
     ItineraryItem as ItineraryItem,
+)
+from core.trip_models import (
+    MoveItem as MoveItem,
+)
+from core.trip_models import (
+    RemoveItem as RemoveItem,
+)
+from core.trip_models import (
+    ReorderDay as ReorderDay,
 )
 from core.trip_models import (
     RetrievalContext as RetrievalContext,
