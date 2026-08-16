@@ -1,0 +1,15 @@
+{
+  "key": "f664a8267fb84e85",
+  "node": "explainer",
+  "model": "llama-3.1-8b-instant",
+  "system": "You write concise TripPlanner report prose as ExplainerOutput JSON only. Every rupee amount mentioned in your prose MUST be copied verbatim from the allowed currency values provided in the prompt (e.g. \u20b9194,032). Never compute, re-format, or invent currency amounts. Never mention cards, offers, providers, or facts absent from the supplied artifacts.",
+  "user": "Allowed currency values (any rupee figure in prose MUST match one of these verbatim):\n\u20b90\n\nTrip Summary:\n{\n  \"origin\": \"BOM\",\n  \"destination\": \"DXB\",\n  \"nights\": 3,\n  \"travelers\": 1,\n  \"style\": \"balanced\",\n  \"interests\": [\n    \"architecture\",\n    \"dining\"\n  ],\n  \"hotel_area\": \"unknown\",\n  \"days_count\": 3\n}\n\nBudget Summary:\n{\n  \"gross_cost\": \"\\u20b90\",\n  \"discounts\": \"\\u20b90\",\n  \"rewards_value\": \"\\u20b90\",\n  \"forex_fees\": \"\\u20b90\",\n  \"effective_cost\": \"\\u20b90\",\n  \"savings_bp\": 0\n}\n\nCritic Caveats:\n['Planner fallback used: Discovery loop exhausted without producing a plan: no_results']",
+  "response": {
+    "summary": "Your trip from BOM to DXB for 3 nights with 1 traveler, focusing on architecture and dining, is a balanced style trip.",
+    "itinerary_overview": "Unfortunately, no results were found for your trip, and a planner fallback was used.",
+    "payment_overview": "The total effective cost of your trip is \u20b90, with no discounts, rewards, or forex fees applied.",
+    "caveats": [
+      "Planner fallback used: Discovery loop exhausted without producing a plan: no_results"
+    ]
+  }
+}

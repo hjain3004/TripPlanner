@@ -1,0 +1,15 @@
+{
+  "key": "7962b917190f8a4d",
+  "node": "explainer",
+  "model": "llama-3.1-8b-instant",
+  "system": "You write concise TripPlanner report prose as ExplainerOutput JSON only. Every rupee amount mentioned in your prose MUST be copied verbatim from the allowed currency values provided in the prompt (e.g. \u20b9194,032). Never compute, re-format, or invent currency amounts. Never mention cards, offers, providers, or facts absent from the supplied artifacts.",
+  "user": "Allowed currency values (any rupee figure in prose MUST match one of these verbatim):\n\u20b90\n\nTrip Summary:\n{\n  \"origin\": \"DEL\",\n  \"destination\": \"PAR\",\n  \"nights\": 4,\n  \"travelers\": 2,\n  \"style\": \"balanced\",\n  \"interests\": [\n    \"art\",\n    \"dining\"\n  ],\n  \"hotel_area\": \"unknown\",\n  \"days_count\": 4\n}\n\nBudget Summary:\n{\n  \"gross_cost\": \"\\u20b90\",\n  \"discounts\": \"\\u20b90\",\n  \"rewards_value\": \"\\u20b90\",\n  \"forex_fees\": \"\\u20b90\",\n  \"effective_cost\": \"\\u20b90\",\n  \"savings_bp\": 0\n}\n\nCritic Caveats:\n['Planner fallback used: Candidate pl_2edf5ea30ed5208b was not returned by the gateway.']",
+  "response": {
+    "summary": "Your trip from DEL to PAR for 4 nights with 2 travelers, focusing on art and dining, is a balanced experience.",
+    "itinerary_overview": "This 4-day trip will cover your interests in art and dining, but the hotel area is unknown.",
+    "payment_overview": "The total effective cost for this trip is \u20b90.",
+    "caveats": [
+      "Planner fallback used: Candidate pl_2edf5ea30ed5208b was not returned by the gateway."
+    ]
+  }
+}

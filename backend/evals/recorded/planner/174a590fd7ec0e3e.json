@@ -1,0 +1,140 @@
+{
+  "key": "174a590fd7ec0e3e",
+  "node": "planner",
+  "model": "llama-3.1-8b-instant",
+  "system": "Create DraftItinerary JSON with top-level properties `hotel_area_id` (string) and `days` (list of ItineraryDay with `date` in YYYY-MM-DD and `items` with `poi_id`). Use only listed poi_id and hotel_area_id values. Do not invent attractions or area IDs.",
+  "user": "Trip: {\"home_country\":\"IN\",\"origin_city\":\"DEL\",\"destination_city\":\"PAR\",\"start_date\":\"2026-09-01\",\"end_date\":\"2026-09-05\",\"travelers\":2,\"budget_minor\":null,\"budget_currency\":\"INR\",\"style\":\"balanced\",\"interests\":[\"art\",\"dining\"],\"pace\":\"moderate\",\"dietary\":[],\"wallet\":{\"card_ids\":[\"hdfc-infinia\"],\"points_balances\":{}},\"optimization\":{\"objective\":\"max_savings\"},\"unresolved\":[]}\nPOIs:\npl_0febb23b69c3fa55 | Sushi Shop BHV | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_1f3f8ef47128c5ed | La Rel\u00e8ve du Rap Fran\u00e7ais | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_23cefc92a9a8e440 | Abant Grill | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_2a2f4ce108edc58a | Tour of Europe | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_2edf5ea30ed5208b | Eataly Paris Marais | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_2f58db37781bdcbb | Burger King Paris | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_2f8d105ede60a611 | Jardin des Combattants De La Nueve | Unknown | park | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_359656bf211d3924 | Restaurante le jules verne | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_3aec1e66a178d45f | \u064a\u0648\u0633\u0641 \u0641\u0631\u0646\u0633\u0627 | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_42ea3af9163310e8 | The French Bastards | Unknown | cafe | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_45786277ee500614 | Plaza De La Concordia, Par\u00eds | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_4acd7914e8ea9b74 | Shok jutt da | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_4ef7b7d0ae0d8a45 | La table cache'e par Michel Roth - BHV Marais | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_4efbfa48c62964a2 | PizzaPresto.Paris | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_4f01b9b817e5f613 | Le Marguerite | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_54313010d27d124e | Okito | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_58d80366beb1d9bd | Ben's Cookies | Unknown | cafe | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_5949b2a52771213a | Premi\u00e8re Classe Roissy | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_5ec6b0e56c29445b | Le Bistrot | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_6013a963cc88c613 | M\u1ef9 Ph\u1ea9m Ki\u1ec1u Linh | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_6efa11849e1fae6b | Parkrun du Bois de Boulonge Paris, France | Unknown | park | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_766e9edefe85253e | \u0642\u0635\u0631 \u0627\u0644\u0628\u0644\u062f\u064a\u0629 (\u0645\u062a\u0631\u0648 \u0628\u0627\u0631\u064a\u0633) | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_7dd812adb29009e8 | Arenes de Lutece | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_7f168b1e3e0d5ee2 | Fundacion Louis Viuitton | Unknown | museum | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_95d00456e92ada55 | Travailler | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_9764f6f833c3b15f | Pars | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_a17a4f1a1f8f6f28 | Parc Monceau | Unknown | park | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_bb65a11b376795d2 | Museu das Armas De Paris | Unknown | museum | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_c1aeeda9a562e2c7 | Ch\u00e2teau De Fontainebleau, Fontainebleau, France | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_c1e78b8706078725 | Croq'Pouce | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_c9fb30659c0111e0 | Ports de Paris | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_e0c94ae84e87ed00 | Ksar | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_e7363ac5e466fb98 | Eglise Saint-Honor\u00e9 | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_e7c06340c35567c1 | \u00c9glise de la Madeleine | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_ee665f81e76cd90e | Ayan | Unknown | restaurant | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_f42ba99bb82e4b1b | Les News de Disneyland paris | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_f4b56731c287b137 | ExpositionsHoteldevilleParis | Unknown | museum | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_fc0013c195200c08 | Airtrix Chelles | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_fd3b226c0464ffea | Louie Vuitton Foundation | Unknown | museum | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_fe544fe5ed880dd6 | La Place de la R\u00e9publique | Unknown | attraction | 0 EUR minor | 90 min | timezone='Europe/Paris' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\nAreas:\n\nRevision notes: []",
+  "response": {
+    "hotel_area_id": "pl_2edf5ea30ed5208b",
+    "days": [
+      {
+        "date": "2026-09-01",
+        "items": [
+          {
+            "poi_id": "pl_2edf5ea30ed5208b",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          },
+          {
+            "poi_id": "pl_1f3f8ef47128c5ed",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          }
+        ],
+        "unmet_needs": [],
+        "rejections": []
+      },
+      {
+        "date": "2026-09-02",
+        "items": [
+          {
+            "poi_id": "pl_2f58db37781bdcbb",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          },
+          {
+            "poi_id": "pl_4ef7b7d0ae0d8a45",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          }
+        ],
+        "unmet_needs": [],
+        "rejections": []
+      },
+      {
+        "date": "2026-09-03",
+        "items": [
+          {
+            "poi_id": "pl_7dd812adb29009e8",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          },
+          {
+            "poi_id": "pl_7f168b1e3e0d5ee2",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          }
+        ],
+        "unmet_needs": [],
+        "rejections": []
+      },
+      {
+        "date": "2026-09-04",
+        "items": [
+          {
+            "poi_id": "pl_95d00456e92ada55",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          },
+          {
+            "poi_id": "pl_9764f6f833c3b15f",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          }
+        ],
+        "unmet_needs": [],
+        "rejections": []
+      },
+      {
+        "date": "2026-09-05",
+        "items": [
+          {
+            "poi_id": "pl_45786277ee500614",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          },
+          {
+            "poi_id": "pl_4f01b9b817e5f613",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          }
+        ],
+        "unmet_needs": [],
+        "rejections": []
+      }
+    ],
+    "notes": [],
+    "itinerary_quality": "llm",
+    "unverified_suggestions": []
+  }
+}

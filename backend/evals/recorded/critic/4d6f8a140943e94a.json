@@ -10,98 +10,38 @@
       {
         "severity": "warning",
         "kind": "hours",
-        "message": "No hours of operation found for Maharaja Bhog-Oberoi Mall on 2026-09-01",
-        "poi_id": "pl_be3b4e92a88d9e4c"
+        "message": "Some POIs have no hours information",
+        "poi_id": null
       },
       {
         "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Chennai Cafe on 2026-09-01",
-        "poi_id": "pl_b8a2fd703e2b189f"
+        "kind": "geography",
+        "message": "Some POIs are not in the same city",
+        "poi_id": null
       },
       {
         "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Third Wave Coffee on 2026-09-01",
-        "poi_id": "pl_3c5a7fe9af3ddcb6"
+        "kind": "pace",
+        "message": "The itinerary has 8 activities on the first day, which may be too many",
+        "poi_id": null
       },
       {
         "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Baby Casba Restaurant on 2026-09-01",
-        "poi_id": "pl_ae16b52d520ac327"
+        "kind": "budget",
+        "message": "The total cost of the trip is not provided",
+        "poi_id": null
       },
       {
         "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Mumbai Imejika Water Park on 2026-09-01",
-        "poi_id": "pl_a58ea4b4e931ba82"
+        "kind": "dietary",
+        "message": "No dietary restrictions are specified",
+        "poi_id": null
       },
       {
         "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Urban Tadka on 2026-09-01",
-        "poi_id": "pl_2f80f4b5bd6b1605"
-      },
-      {
-        "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Pizza Hut on 2026-09-01",
-        "poi_id": "pl_9d76f3ffc463689f"
-      },
-      {
-        "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Penthouzz on 2026-09-01",
-        "poi_id": "pl_743657316ff62d54"
-      },
-      {
-        "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Orchid Springs on 2026-09-02",
-        "poi_id": "pl_d5fa265a967d17de"
-      },
-      {
-        "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Delhi Zaika on 2026-09-02",
-        "poi_id": "pl_cf91e8eaf5fa16d7"
-      },
-      {
-        "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Marhaba on 2026-09-02",
-        "poi_id": "pl_ca9babea05f53d5d"
-      },
-      {
-        "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for St.joseph Church, Airoli on 2026-09-02",
-        "poi_id": "pl_c4dc00b3bff7bb79"
-      },
-      {
-        "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Falafel\u2019s on 2026-09-02",
-        "poi_id": "pl_978b07b640177f8e"
-      },
-      {
-        "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Gate of India on 2026-09-02",
-        "poi_id": "pl_816f9420119acd43"
-      },
-      {
-        "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Deliciae - the Dessert Cafe on 2026-09-02",
-        "poi_id": "pl_75b5737d48eabd13"
-      },
-      {
-        "severity": "warning",
-        "kind": "hours",
-        "message": "No hours of operation found for Punjab Grill Kalaghoda on 2026-09-02",
-        "poi_id": "pl_56a3212d00222464"
+        "kind": "unsupported_claim",
+        "message": "The itinerary quality is set to 'fallback', which may not be the best option",
+        "poi_id": null
       }
     ]
   }
