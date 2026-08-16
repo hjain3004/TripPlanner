@@ -11,11 +11,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from agents.llm import HostedFreeTier, LLMClient
 from agents.models import (
+    FinalReport,
     PipelineStatus,
     PlanJobStatus,
+    RecomputeRequest,
     TripIntakeRequest,
 )
 from agents.pipeline import run_pipeline
+from agents.recompute import recompute_itinerary
 from api.job_manager import job_manager
 from core.db import DB_PATH, KnowledgeBase, load_kb, seed_database
 from gateway.places.registry import ProviderRegistry, get_default_place_registry
@@ -98,6 +101,24 @@ def get_job_status(job_id: str) -> PlanJobStatus:
     if state is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return state.to_status(job_id)
+
+
+@app.post("/plan/recompute", response_model=FinalReport)
+def recompute_plan(
+    request: RecomputeRequest,
+    kb: Annotated[KnowledgeBase, Depends(get_kb)],
+    booking_date: Annotated[date, Depends(get_booking_date)],
+) -> FinalReport:
+    try:
+        return recompute_itinerary(
+            request.trip_spec,
+            request.itinerary,
+            request.edit,
+            kb,
+            booking_date=booking_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _run_job(

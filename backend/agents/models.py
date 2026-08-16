@@ -141,6 +141,12 @@ class TripIntakeRequest(BaseModel):
     wallet: UserWallet | None = None
 
 
+class RecomputeRequest(BaseModel):
+    trip_spec: TripSpec
+    itinerary: DraftItinerary
+    edit: ItineraryEdit
+
+
 class PlanResponse(BaseModel):
     status: PipelineStatus
     trace_id: str = Field(default_factory=lambda: uuid4().hex)
