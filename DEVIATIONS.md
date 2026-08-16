@@ -180,3 +180,13 @@ Judgment-call log (spec 06 §3). One row per decision. Columns: `date · doc§ �
 2026-08-16, lazy provisioning state machine, added provisioning state to RegionCapability.catalog_status; request path reads status and never calls external network (asserted by test_the_request_path_makes_no_network_call monkeypatching socket layer), 06 tier C, backend/agents/models.py backend/agents/pipeline.py backend/evals/test_network_isolation.py
 2026-08-16, offline provisioning job, python -m gateway.catalog.provision creates full and tiled catalogs with idempotent re-runs; strictly decoupled from agents request path (asserted by AST import boundary test), 06 tier C, backend/gateway/catalog/provision.py backend/evals/test_catalog_provision.py
 
+## P1 — Real-model prompt hardening (spec 03 / spec 04 / I5)
+
+| date | doc§ | question | decision | rationale | affected_files |
+|---|---|---|---|---|---|
+| 2026-08-16 | 03 §1 / 06 Tier F | How to count provider calls across discovery and repairs? | `run_discovery` calls `state.record_call()` before every provider invocation, including initial calls and schema repair retries, strictly capping provider calls at 6. | Enforces I5 bound at the invocation level rather than iteration level. | `backend/agents/discovery/controller.py`, `backend/evals/test_i5_budget.py` |
+| 2026-08-16 | 03 §4 / 06 Tier C | How should estimator handle missing FX rates for non-home currencies? | `_poi_lines` catches `ValueError` on missing FX rates and records an explicit assumption instead of crashing. `amount_minor == 0` early return avoids redundant FX calls for zero-cost venues. | Matches `_per_diem_lines` and `_pick_flight` graceful degradation without inventing unverified FX rates. | `backend/agents/estimator.py` |
+| 2026-08-16 | 04 §2 / 06 Tier F | Explainer groundedness check trailing punctuation and prompt size. | Kept `_is_grounded` and `_allowed_currency_strings` intact (Tier-F invariant). Added `.rstrip(".,")` to prevent trailing sentence punctuation from breaking currency string equality. Compacted `_explainer_user` prompt from 12k tokens to ~300 tokens with structured summaries and explicit allowed rupee list. | Drastically reduced token burn while strictly enforcing arithmetic groundedness against the deterministic artifacts. | `backend/agents/explainer.py` |
+| 2026-08-16 | 03 §2 / 06 Tier C | Model IATA city code conversion in Intake. | Added explicit IATA conversion instructions and dictionary mapping for metropolitan airports (`CDG -> PAR`, `LHR -> LON`, `JFK -> NYC`) in `_intake_system`. | Prevents schema errors when models generate city names or airport codes instead of region IATA codes. | `backend/agents/intake.py` |
+
+
