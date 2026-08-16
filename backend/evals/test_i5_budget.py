@@ -126,3 +126,32 @@ def test_a_scripted_model_that_loops_forever_still_terminates() -> None:
     result = run_discovery(_spec(), MockRegistry(), _execute)
     assert result.stop_reason in ("budget_exhausted", "rounds_exhausted")
     assert result.calls_made <= 6
+
+
+def test_repairs_count_against_discovery_call_budget_and_refuse_seventh_call() -> None:
+    """Every provider call (including schema repair retries) must count against max_calls=6."""
+    from agents.discovery.contracts import SearchIntent
+    from agents.discovery.controller import run_discovery
+    from core.trip_models import DraftItinerary
+    from evals.test_i1_safety import _spec
+
+    class MockRegistry:
+        def execute(self, req: object) -> list[object]:
+            return []
+
+    real_provider_calls = 0
+
+    def alternating_execute(prompt: str) -> object:
+        nonlocal real_provider_calls
+        real_provider_calls += 1
+        # Odd calls fail schema validation to trigger repair
+        if real_provider_calls % 2 == 1:
+            DraftItinerary.model_validate({"invalid_field": 123})
+        # Even repair calls return a valid SearchIntent so the loop continues
+        return SearchIntent(query_text="mock", destination_area_id="mock", round_index=0)
+
+    result = run_discovery(_spec(), MockRegistry(), alternating_execute)
+    assert result.stop_reason == "budget_exhausted"
+    assert real_provider_calls == 6
+    assert result.calls_made == 6
+

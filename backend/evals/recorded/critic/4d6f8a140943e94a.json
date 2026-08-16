@@ -1,0 +1,108 @@
+{
+  "key": "4d6f8a140943e94a",
+  "node": "critic",
+  "model": "llama-3.1-8b-instant",
+  "system": "You are the TripPlanner critic. Return only CriticVerdict JSON. Check hours/closed-day conflicts, same-day geography scatter, pace overload, budget overshoot over 15%, dietary conflicts, and unsupported claims. Do not add facts that are absent from the provided artifacts.",
+  "user": "TripSpec:\n{\"home_country\":\"IN\",\"origin_city\":\"DEL\",\"destination_city\":\"BOM\",\"start_date\":\"2026-09-01\",\"end_date\":\"2026-09-04\",\"travelers\":2,\"budget_minor\":null,\"budget_currency\":\"INR\",\"style\":\"balanced\",\"interests\":[\"Food\",\"Culture\"],\"pace\":\"moderate\",\"dietary\":[],\"wallet\":{\"card_ids\":[\"axis-atlas\"],\"points_balances\":{}},\"optimization\":{\"objective\":\"max_savings\"},\"unresolved\":[]}\nDraftItinerary:\n{\"hotel_area_id\":\"unknown\",\"days\":[{\"date\":\"2026-09-01\",\"items\":[{\"poi_id\":\"pl_be3b4e92a88d9e4c\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_b8a2fd703e2b189f\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_3c5a7fe9af3ddcb6\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_ae16b52d520ac327\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_a58ea4b4e931ba82\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_2f80f4b5bd6b1605\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_9d76f3ffc463689f\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_743657316ff62d54\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null}],\"unmet_needs\":[],\"rejections\":[]},{\"date\":\"2026-09-02\",\"items\":[{\"poi_id\":\"pl_d5fa265a967d17de\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_cf91e8eaf5fa16d7\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_ca9babea05f53d5d\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_c4dc00b3bff7bb79\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_978b07b640177f8e\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_816f9420119acd43\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_75b5737d48eabd13\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_56a3212d00222464\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null}],\"unmet_needs\":[],\"rejections\":[]},{\"date\":\"2026-09-03\",\"items\":[{\"poi_id\":\"pl_fa2d9a4ddd4f79d2\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_f8db87e9d3c2792f\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_f4a7c36bffc4ede6\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_f0aac9a79fd9f76a\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_ddbbd8a659e138e6\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_a3a6af50a8a09514\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_dc40d16ec415edf3\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_d6791065447d2db8\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null}],\"unmet_needs\":[],\"rejections\":[]}],\"notes\":[\"OR-Tools TSP optimized route\"],\"itinerary_quality\":\"fallback\",\"unverified_suggestions\":[]}\nCostedTrip:\n{\"id\":\"DEL-BOM-2026-09-01\",\"origin\":\"DEL\",\"destination\":\"BOM\",\"home_currency\":\"INR\",\"booking_date\":\"2026-08-01\",\"trip_start_date\":\"2026-09-01\",\"lines\":[{\"id\":\"poi:pl_be3b4e92a88d9e4c\",\"label\":\"Maharaja Bhog-Oberoi Mall\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_b8a2fd703e2b189f\",\"label\":\"Chennai Cafe\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_3c5a7fe9af3ddcb6\",\"label\":\"Third Wave Coffee\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_ae16b52d520ac327\",\"label\":\"Baby Casba Restaurant\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_a58ea4b4e931ba82\",\"label\":\"Mumbai Imejika Water Park\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_2f80f4b5bd6b1605\",\"label\":\"Urban Tadka\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_9d76f3ffc463689f\",\"label\":\"Pizza Hut\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_743657316ff62d54\",\"label\":\"Penthouzz\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_d5fa265a967d17de\",\"label\":\"Orchid Springs\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_cf91e8eaf5fa16d7\",\"label\":\"Delhi Zaika\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_ca9babea05f53d5d\",\"label\":\"Marhaba\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_c4dc00b3bff7bb79\",\"label\":\"St.joseph Church, Airoli\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_978b07b640177f8e\",\"label\":\"Falafel\u2019s\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_816f9420119acd43\",\"label\":\"Gate of India\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_75b5737d48eabd13\",\"label\":\"Deliciae - the Dessert Cafe\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_56a3212d00222464\",\"label\":\"Punjab Grill Kalaghoda\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_fa2d9a4ddd4f79d2\",\"label\":\"Cafe Mezbaan\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_f8db87e9d3c2792f\",\"label\":\"Butter Chicken Factory Mumbai, Kurla Phoenix Mall\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_f4a7c36bffc4ede6\",\"label\":\"Mumbai - MB Infinity Mall Malad\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_f0aac9a79fd9f76a\",\"label\":\"5th Avenue Burgers\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_ddbbd8a659e138e6\",\"label\":\"Sarvoday Bakery\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_a3a6af50a8a09514\",\"label\":\"Classic Comfort\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_dc40d16ec415edf3\",\"label\":\"Baskin Robbins\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_d6791065447d2db8\",\"label\":\"Janata Tawa and Grill\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false}]}\nPOI reference rows:\n[]",
+  "response": {
+    "passed": false,
+    "issues": [
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Maharaja Bhog-Oberoi Mall on 2026-09-01",
+        "poi_id": "pl_be3b4e92a88d9e4c"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Chennai Cafe on 2026-09-01",
+        "poi_id": "pl_b8a2fd703e2b189f"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Third Wave Coffee on 2026-09-01",
+        "poi_id": "pl_3c5a7fe9af3ddcb6"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Baby Casba Restaurant on 2026-09-01",
+        "poi_id": "pl_ae16b52d520ac327"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Mumbai Imejika Water Park on 2026-09-01",
+        "poi_id": "pl_a58ea4b4e931ba82"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Urban Tadka on 2026-09-01",
+        "poi_id": "pl_2f80f4b5bd6b1605"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Pizza Hut on 2026-09-01",
+        "poi_id": "pl_9d76f3ffc463689f"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Penthouzz on 2026-09-01",
+        "poi_id": "pl_743657316ff62d54"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Orchid Springs on 2026-09-02",
+        "poi_id": "pl_d5fa265a967d17de"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Delhi Zaika on 2026-09-02",
+        "poi_id": "pl_cf91e8eaf5fa16d7"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Marhaba on 2026-09-02",
+        "poi_id": "pl_ca9babea05f53d5d"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for St.joseph Church, Airoli on 2026-09-02",
+        "poi_id": "pl_c4dc00b3bff7bb79"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Falafel\u2019s on 2026-09-02",
+        "poi_id": "pl_978b07b640177f8e"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Gate of India on 2026-09-02",
+        "poi_id": "pl_816f9420119acd43"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Deliciae - the Dessert Cafe on 2026-09-02",
+        "poi_id": "pl_75b5737d48eabd13"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "No hours of operation found for Punjab Grill Kalaghoda on 2026-09-02",
+        "poi_id": "pl_56a3212d00222464"
+      }
+    ]
+  }
+}

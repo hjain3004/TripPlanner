@@ -39,7 +39,7 @@ def _preferred_cabin(style: str) -> Literal["economy", "premium", "business"]:
 
 
 def _price_in_home(amount_minor: int, currency: str, home_currency: str, kb: KnowledgeBase) -> int:
-    if currency == home_currency:
+    if amount_minor == 0 or currency == home_currency:
         return amount_minor
     fx = kb.fx_rate(currency, home_currency)
     if fx is None:
@@ -108,33 +108,45 @@ def _poi_category(poi: POI) -> SpendCategory:
     return SpendCategory.ATTRACTIONS
 
 
-def _poi_lines(spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase) -> list[SpendLineItem]:
+def _poi_lines(
+    spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase
+) -> tuple[list[SpendLineItem], list[str]]:
     home_currency = _home_currency(spec)
     seen: set[str] = set()
     lines: list[SpendLineItem] = []
-    
+    assumptions: list[str] = []
+
     # Pre-fetch kb pois for fast lookup
     kb_pois = {poi.id: poi for poi in kb.pois(_destination_city(spec))}
-    
+
     for day in itinerary.days:
         for item in day.items:
             if item.poi_id in seen:
                 continue
             seen.add(item.poi_id)
-            
+
             poi = kb_pois.get(item.poi_id)
             if not poi:
                 from agents.retrieval import get_catalog_poi
+
                 poi = get_catalog_poi(item.poi_id, spec.destination_city)
-                
+
             if not poi:
                 # If a POI is genuinely hallucinated, skip costing it for now
                 continue
-                
-            amount = (
-                _price_in_home(poi.price_minor, poi.currency, home_currency, kb)
-                * spec.travelers
-            )
+
+            try:
+                amount = (
+                    _price_in_home(poi.price_minor, poi.currency, home_currency, kb)
+                    * spec.travelers
+                )
+            except ValueError:
+                assumptions.append(
+                    f"No verified FX rate for {poi.currency}->{home_currency}; "
+                    f"omitted cash pricing for {poi.name} from budget estimation."
+                )
+                continue
+
             lines.append(
                 SpendLineItem(
                     id=f"poi:{poi.id}",
@@ -146,11 +158,12 @@ def _poi_lines(spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase) -> 
                     merchant_hint=poi.merchant_hint,
                 )
             )
-    return lines
+    return lines, assumptions
 
 
 def _per_diem_lines(spec: TripSpec, kb: KnowledgeBase) -> tuple[list[SpendLineItem], list[str]]:
     from gateway.catalog.regions import get_region
+
     region = get_region(spec.destination_city)
     home_currency = _home_currency(spec)
 
@@ -250,7 +263,8 @@ def estimate_costed_trip(
             )
         )
 
-    lines.extend(_poi_lines(spec, itinerary, kb))
+    poi_lines, poi_assumptions = _poi_lines(spec, itinerary, kb)
+    lines.extend(poi_lines)
     per_diem_lines, per_diem_assumptions = _per_diem_lines(spec, kb)
     lines.extend(per_diem_lines)
 
@@ -269,6 +283,7 @@ def estimate_costed_trip(
         assumptions=[
             *flight_assumptions,
             *hotel_assumptions,
+            *poi_assumptions,
             *per_diem_assumptions,
         ],
     )

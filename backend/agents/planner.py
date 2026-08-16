@@ -107,8 +107,10 @@ def run_planner(
     revision_notes: list[str] | None = None,
 ) -> PlannerResult:
     system = (
-        "Create DraftItinerary JSON using only listed poi_id and hotel_area_id values. "
-        "Do not invent attractions."
+        "Create DraftItinerary JSON with top-level properties `hotel_area_id` (string) "
+        "and `days` (list of ItineraryDay with `date` in YYYY-MM-DD and `items` with `poi_id`). "
+        "Use only listed poi_id and hotel_area_id values. "
+        "Do not invent attractions or area IDs."
     )
     user = (
         f"Trip: {spec.model_dump_json()}\n"

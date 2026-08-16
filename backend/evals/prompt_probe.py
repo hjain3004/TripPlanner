@@ -39,7 +39,7 @@ def run_prompt_probe(
     results: list[dict[str, Any]] = []
 
     print(f"\nRunning Prompt Probe ({mode.upper()} mode, model: {model}, {len(scenarios)} tests)")
-    print("=" * 90)
+    print("=" * 110)
 
     for sc in scenarios:
         sid = sc["id"]
@@ -62,42 +62,62 @@ def run_prompt_probe(
         actual_status = resp.status.value if resp else "error"
         match = False
 
+        # Per-node call site analysis
+        intake_state = "n/a"
+        planner_state = "n/a"
+        critic_state = "n/a"
+        explainer_state = "n/a"
+        failure_reasons: list[str] = []
+
         if error_detail:
             match = False
-            status_desc = f"CRASH: {error_detail}"
-        elif exp == "ok":
-            if resp and resp.status == PipelineStatus.OK:
+            intake_state = "error"
+            failure_reasons.append(f"CRASH: {error_detail}")
+        elif resp and resp.status == PipelineStatus.NEEDS_CLARIFICATION:
+            intake_state = "needs_clarification"
+            if exp == "needs_clarification":
                 match = True
-                if resp.report and resp.report.itinerary.itinerary_quality == "fallback":
-                    status_desc = "OK (itinerary fallback)"
+            else:
+                match = False
+                failure_reasons.append(f"Intake raised needs_clarification ({resp.unresolved})")
+        elif resp and resp.status == PipelineStatus.OK:
+            intake_state = "ok"
+
+            caveats = resp.report.caveats if resp.report else []
+            caveats_str = " ".join(caveats)
+
+            # Planner node check
+            if "Planner fallback used" in caveats_str:
+                planner_state = "fallback"
+                failure_reasons.append("Planner LLM failed -> deterministic composer fallback")
+            elif resp.report and resp.report.itinerary.itinerary_quality == "fallback":
+                planner_state = "fallback"
+                failure_reasons.append("Itinerary fallback triggered")
+            else:
+                planner_state = "ok"
+
+            # Critic node check
+            critic_state = "ok"
+
+            # Explainer node check
+            if "Explainer groundedness gate failed" in caveats_str:
+                explainer_state = "ungrounded"
+                failure_reasons.append("Explainer failed groundedness -> template fallback")
+            elif "Explainer unavailable" in caveats_str:
+                explainer_state = "fallback"
+                failure_reasons.append("Explainer LLM error/timeout -> template fallback")
+            else:
+                explainer_state = "ok"
+
+            if exp == "ok":
+                # Strict: pass ONLY if no fallback was forced
+                if planner_state == "ok" and explainer_state == "ok":
+                    match = True
                 else:
-                    status_desc = "OK"
+                    match = False
             else:
                 match = False
-                unresolved = resp.unresolved if resp else []
-                status_desc = f"Mismatch: expected OK, got {actual_status} (unres={unresolved})"
-        elif exp == "needs_clarification":
-            if resp and resp.status == PipelineStatus.NEEDS_CLARIFICATION:
-                match = True
-                status_desc = f"Needs Clarification ({resp.unresolved})"
-            else:
-                match = False
-                status_desc = f"Mismatch: expected needs_clarification, got {actual_status}"
-        elif exp == "capability_absent":
-            if (
-                resp
-                and resp.report
-                and resp.report.region_capability
-                and resp.report.region_capability.catalog_status == "absent"
-            ):
-                match = True
-                status_desc = "OK (capability absent)"
-            else:
-                match = False
-                status_desc = f"Mismatch: expected capability absent, got {actual_status}"
-        else:
-            match = actual_status == exp
-            status_desc = actual_status
+                failure_reasons.append(f"Expected {exp}, got ok")
 
         results.append(
             {
@@ -105,31 +125,41 @@ def run_prompt_probe(
                 "name": sc["name"],
                 "expect": exp,
                 "actual": actual_status,
+                "intake": intake_state,
+                "planner": planner_state,
+                "critic": critic_state,
+                "explainer": explainer_state,
                 "match": match,
-                "desc": status_desc,
+                "failure_reasons": failure_reasons,
             }
         )
 
-    # Print summary table
-    print("\n" + "=" * 90)
-    print(f"{'Scenario ID':<30} {'Expect':<20} {'Actual':<20} {'Result'}")
-    print("-" * 90)
+    # Print comprehensive per-call-site table
+    print("\n" + "=" * 110)
+    print(
+        f"{'Scenario ID':<28} {'Expect':<16} {'Intake':<10} {'Planner':<10} "
+        f"{'Critic':<8} {'Explainer':<12} {'Overall'}"
+    )
+    print("-" * 110)
     passed_count = 0
     for r in results:
         res_str = "PASS" if r["match"] else "FAIL"
         if r["match"]:
             passed_count += 1
-        print(f"{r['id']:<30} {r['expect']:<20} {r['actual']:<20} {res_str}")
-        if not r["match"]:
-            print(f"   └─ {r['desc']}")
-    print("-" * 90)
-    print(f"Summary: {passed_count}/{len(results)} scenarios passed expectation.")
+        print(
+            f"{r['id']:<28} {r['expect']:<16} {r['intake']:<10} {r['planner']:<10} "
+            f"{r['critic']:<8} {r['explainer']:<12} {res_str}"
+        )
+        for reason in r["failure_reasons"]:
+            print(f"   └─ {reason}")
+    print("-" * 110)
+    print(f"Summary: {passed_count}/{len(results)} scenarios passed strictly without fallback.")
 
     live_calls = getattr(client, "calls_recorded", 0) if mode == "record" else 0
     replayed_calls = getattr(client, "calls_replayed", 0) if mode == "replay" else 0
     print(f"Total live LLM calls: {live_calls} (model: {model})")
     print(f"Total replayed LLM calls: {replayed_calls}")
-    print("=" * 90 + "\n")
+    print("=" * 110 + "\n")
 
     return {
         "passed": passed_count,

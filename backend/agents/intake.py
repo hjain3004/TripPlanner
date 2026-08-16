@@ -16,6 +16,21 @@ ORIGIN_CITIES = {"DEL", "BOM"}
 _REGIONS_PATH = Path(__file__).parent.parent / "gateway" / "catalog" / "fixtures" / "regions.yaml"
 
 
+IATA_ALIASES: dict[str, str] = {
+    "CDG": "PAR",
+    "ORY": "PAR",
+    "LHR": "LON",
+    "LGW": "LON",
+    "STN": "LON",
+    "LCY": "LON",
+    "LTN": "LON",
+    "JFK": "NYC",
+    "EWR": "NYC",
+    "LGA": "NYC",
+    "DWC": "DXB",
+}
+
+
 def _supported_destinations() -> set[str]:
     """A destination is supported when it has a registered Region entry.
 
@@ -38,6 +53,8 @@ def _card_catalog(kb: KnowledgeBase) -> str:
 
 
 def _validate_intake(spec: TripSpec, kb: KnowledgeBase) -> list[str]:
+    spec.destination_city = IATA_ALIASES.get(spec.destination_city, spec.destination_city)
+    spec.origin_city = IATA_ALIASES.get(spec.origin_city, spec.origin_city)
     unresolved = list(spec.unresolved)
     for card_id in spec.wallet.card_ids:
         if not kb.has_card(card_id):
@@ -51,14 +68,15 @@ def _validate_intake(spec: TripSpec, kb: KnowledgeBase) -> list[str]:
 
 def run_intake(raw_request: str, kb: KnowledgeBase, llm: LLMClient) -> IntakeResult:
     system = (
-        "You convert a travel request into strict JSON. "
+        "You convert a travel request into strict JSON conforming to TripSpec. "
+        "Convert origin_city and destination_city to 3-letter uppercase IATA codes "
+        "(e.g. DEL, BOM, SIN, DXB, LON, PAR, NYC). "
         "Use only card IDs from the catalog. "
-        # "Put ambiguity in unresolved" alone was far too loose against a real
-        # model: llama-3.3-70b filed "ambiguity in food and nature interests"
-        # for a perfectly clear request, so every trip returned
-        # needs_clarification. unresolved is for genuinely unanswerable
-        # REQUIRED fields, not for preferences it could simply record.
-        "Leave `unresolved` empty unless a REQUIRED field genuinely cannot be "
+        "If the user explicitly specifies a card not present in the card catalog, "
+        "add 'unknown card: <name>' to `unresolved`. "
+        "If required travel dates or origin city are completely omitted from the request, "
+        "add 'missing travel dates' or 'missing origin' to `unresolved`. "
+        "Otherwise, leave `unresolved` empty unless a REQUIRED field genuinely cannot be "
         "determined from the request. Vague-but-usable preferences such as "
         "interests or style are not unresolved - record your best reading."
     )

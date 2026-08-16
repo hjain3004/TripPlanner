@@ -178,16 +178,20 @@ def _is_grounded(output: ExplainerOutput, estimate: EstimatorResult, kernel: Ker
     haystack = "\n".join(
         [output.summary, output.itinerary_overview, output.payment_overview, *output.caveats]
     )
-    mentioned = {match.group(0).replace("₹ ", "₹") for match in RUPEE_RE.finditer(haystack)}
+    mentioned = {
+        match.group(0).replace("₹ ", "₹").rstrip(".,")
+        for match in RUPEE_RE.finditer(haystack)
+    }
     return mentioned.issubset(_allowed_currency_strings(estimate, kernel))
 
 
 def _explainer_system() -> str:
     return (
         "You write concise TripPlanner report prose as ExplainerOutput JSON only. "
-        "Every number must be copied verbatim from the supplied structured artifacts; "
-        "never compute or invent amounts. Never mention cards, offers, providers, or facts "
-        "absent from the supplied artifacts."
+        "Every rupee amount mentioned in your prose MUST be copied verbatim from the "
+        "allowed currency values provided in the prompt (e.g. ₹194,032). "
+        "Never compute, re-format, or invent currency amounts. "
+        "Never mention cards, offers, providers, or facts absent from the supplied artifacts."
     )
 
 
@@ -198,17 +202,37 @@ def _explainer_user(
     kernel: KernelResult,
     critic_caveats: list[str],
 ) -> str:
+    import json
+
+    allowed_rupees = sorted(_allowed_currency_strings(estimate, kernel))
+    opt = kernel.optimizer_result
+
+    trip_summary = {
+        "origin": spec.origin_city,
+        "destination": spec.destination_city,
+        "nights": spec.nights,
+        "travelers": spec.travelers,
+        "style": spec.style,
+        "interests": spec.interests,
+        "hotel_area": itinerary.hotel_area_id,
+        "days_count": len(itinerary.days),
+    }
+
+    budget_summary = {
+        "gross_cost": _rupees(opt.gross_minor),
+        "discounts": _rupees(opt.discounts_minor),
+        "rewards_value": _rupees(opt.rewards_value_minor),
+        "forex_fees": _rupees(opt.forex_fees_minor),
+        "effective_cost": _rupees(opt.effective_cost_minor),
+        "savings_bp": opt.savings_pct_bp,
+    }
+
     return (
-        "TripSpec:\n"
-        f"{spec.model_dump_json()}\n"
-        "DraftItinerary:\n"
-        f"{itinerary.model_dump_json()}\n"
-        "EstimatorResult:\n"
-        f"{estimate.model_dump_json()}\n"
-        "KernelResult:\n"
-        f"{kernel.model_dump_json()}\n"
-        "Critic caveats:\n"
-        f"{critic_caveats}"
+        "Allowed currency values (any rupee figure in prose MUST match one of these verbatim):\n"
+        f"{', '.join(allowed_rupees)}\n\n"
+        f"Trip Summary:\n{json.dumps(trip_summary, indent=2)}\n\n"
+        f"Budget Summary:\n{json.dumps(budget_summary, indent=2)}\n\n"
+        f"Critic Caveats:\n{critic_caveats}"
     )
 
 

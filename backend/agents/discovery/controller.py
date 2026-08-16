@@ -34,14 +34,27 @@ def run_discovery(
             
             import json
 
+            from pydantic import ValidationError
+
             from agents.discovery.tool import execute_search_places, project_for_model
-            
+
             prompt = base_prompt
             if state.retained:
                 safe_cands = project_for_model(state.retained)
                 prompt += f"\n\nDiscovered Candidates:\n{json.dumps(safe_cands, indent=2)}"
-                
-            response = execute_planner_call(prompt)
+
+            state.record_call()
+            try:
+                response = execute_planner_call(prompt)
+            except ValidationError as val_err:
+                state.record_call()
+                repair_prompt = (
+                    f"{prompt}\n\nSchema validation error, return corrected JSON only:\n{val_err}"
+                )
+                try:
+                    response = execute_planner_call(repair_prompt)
+                except ValidationError:
+                    break
             
             if isinstance(response, DraftItinerary):
                 proposed_ids = [
@@ -74,7 +87,6 @@ def run_discovery(
             
             # Must be a tool call intent
             if hasattr(response, "query_text"):
-                state.record_call()
                 candidates, _ = execute_search_places(response, registry, state)
                 state.retain(candidates)
             else:
