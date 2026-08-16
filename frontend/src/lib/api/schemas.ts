@@ -11,6 +11,17 @@ const stageEnum = z.enum([
   "explaining",
 ]);
 
+const sectionStateEnum = z.enum(["fresh", "stale", "recomputed"]);
+
+export const sectionFreshnessSchema = z.object({
+  budget: sectionStateEnum.optional(),
+  payment_strategy: sectionStateEnum.optional(),
+  itinerary: sectionStateEnum.optional(),
+  prose: sectionStateEnum.optional(),
+  critic_verdict: sectionStateEnum.optional(),
+  edit_count: z.number().int().optional(),
+});
+
 const jobErrorSchema = z.object({
   code: z.string(),
   message: z.string(),
@@ -38,6 +49,7 @@ const finalReportSchema = z.object({
   confidence: z.number(),
   status: z.enum(["needs_clarification", "ok", "error"]).optional(),
   region_capability: regionCapabilitySchema.nullable().optional(),
+  freshness: sectionFreshnessSchema.optional(),
 }).passthrough();
 
 export const planJobStatusSchema = z.object({

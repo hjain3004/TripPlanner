@@ -111,6 +111,21 @@ class ExplainerOutput(BaseModel):
     caveats: list[str] = Field(default_factory=list)
 
 
+class SectionState(str, Enum):
+    FRESH = "fresh"
+    STALE = "stale"
+    RECOMPUTED = "recomputed"
+
+
+class SectionFreshness(BaseModel):
+    budget: SectionState = SectionState.FRESH
+    payment_strategy: SectionState = SectionState.FRESH
+    itinerary: SectionState = SectionState.FRESH
+    prose: SectionState = SectionState.FRESH
+    critic_verdict: SectionState = SectionState.FRESH
+    edit_count: int = 0
+
+
 class FinalReport(BaseModel):
     trip_spec: TripSpec
     itinerary: DraftItinerary
@@ -134,6 +149,7 @@ class FinalReport(BaseModel):
     trace_id: str
     status: PipelineStatus = PipelineStatus.OK
     region_capability: RegionCapability | None = None
+    freshness: SectionFreshness = Field(default_factory=SectionFreshness)
 
 
 class TripIntakeRequest(BaseModel):
@@ -145,6 +161,14 @@ class RecomputeRequest(BaseModel):
     trip_spec: TripSpec
     itinerary: DraftItinerary
     edit: ItineraryEdit
+    previous_freshness: SectionFreshness | None = None
+
+
+class RefreshProseRequest(BaseModel):
+    trip_spec: TripSpec
+    itinerary: DraftItinerary
+    kernel_result: KernelResult
+    previous_freshness: SectionFreshness | None = None
 
 
 class PlanResponse(BaseModel):

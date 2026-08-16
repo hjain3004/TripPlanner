@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map as MaplibreMap } from "maplibre-gl";
-import type { DraftItinerary } from "@/lib/api/types.gen";
+import type { DraftItineraryOutput as DraftItinerary, ItineraryDayOutput } from "@/lib/api/types.gen";
 
 interface TripMapProps {
   mapData: {
@@ -39,7 +39,7 @@ export function TripMap({ mapData, itinerary }: TripMapProps) {
         // Calculate total items
         let totalItems = 0;
         if (itinerary?.days) {
-          itinerary.days.forEach(day => {
+          itinerary.days.forEach((day: ItineraryDayOutput) => {
             if (day.items) {
               totalItems += day.items.length;
             }

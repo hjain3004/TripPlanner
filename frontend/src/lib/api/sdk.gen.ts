@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetJobStatusPlanJobIdGetData, GetJobStatusPlanJobIdGetErrors, GetJobStatusPlanJobIdGetResponses, HealthHealthGetData, HealthHealthGetResponses, PlanPlanPostData, PlanPlanPostErrors, PlanPlanPostResponses } from './types.gen';
+import type { GetJobStatusPlanJobIdGetData, GetJobStatusPlanJobIdGetErrors, GetJobStatusPlanJobIdGetResponses, HealthHealthGetData, HealthHealthGetResponses, PlanPlanPostData, PlanPlanPostErrors, PlanPlanPostResponses, RecomputePlanPlanRecomputePostData, RecomputePlanPlanRecomputePostErrors, RecomputePlanPlanRecomputePostResponses, RefreshProsePlanPlanRefreshProsePostData, RefreshProsePlanPlanRefreshProsePostErrors, RefreshProsePlanPlanRefreshProsePostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -39,3 +39,27 @@ export const planPlanPost = <ThrowOnError extends boolean = false>(options: Opti
  * Get Job Status
  */
 export const getJobStatusPlanJobIdGet = <ThrowOnError extends boolean = false>(options: Options<GetJobStatusPlanJobIdGetData, ThrowOnError>): RequestResult<GetJobStatusPlanJobIdGetResponses, GetJobStatusPlanJobIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetJobStatusPlanJobIdGetResponses, GetJobStatusPlanJobIdGetErrors, ThrowOnError>({ url: '/plan/{job_id}', ...options });
+
+/**
+ * Recompute Plan
+ */
+export const recomputePlanPlanRecomputePost = <ThrowOnError extends boolean = false>(options: Options<RecomputePlanPlanRecomputePostData, ThrowOnError>): RequestResult<RecomputePlanPlanRecomputePostResponses, RecomputePlanPlanRecomputePostErrors, ThrowOnError> => (options.client ?? client).post<RecomputePlanPlanRecomputePostResponses, RecomputePlanPlanRecomputePostErrors, ThrowOnError>({
+    url: '/plan/recompute',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Refresh Prose Plan
+ */
+export const refreshProsePlanPlanRefreshProsePost = <ThrowOnError extends boolean = false>(options: Options<RefreshProsePlanPlanRefreshProsePostData, ThrowOnError>): RequestResult<RefreshProsePlanPlanRefreshProsePostResponses, RefreshProsePlanPlanRefreshProsePostErrors, ThrowOnError> => (options.client ?? client).post<RefreshProsePlanPlanRefreshProsePostResponses, RefreshProsePlanPlanRefreshProsePostErrors, ThrowOnError>({
+    url: '/plan/refresh-prose',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});

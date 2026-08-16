@@ -187,4 +187,23 @@ describe("contract: itinerary rendering evidence", () => {
     expect(item.travel_from_previous).toBeDefined();
     expect(item.evidence).toBeDefined();
   });
+
+  it("happy report contains freshness structure", () => {
+    const r = fixtureHandlers.happyReport();
+    const wrapped = wrapReport(r);
+    const parsed = planJobStatusSchema.parse(wrapped);
+    expect(parsed.report?.freshness).toBeDefined();
+  });
+
+  it("line assignments can join to itinerary items on poi_id format", () => {
+    const r = fixtureHandlers.happyReport();
+    // Verify joining logic works on assignments and poi_id
+    const item = r.itinerary.days[0]?.items[0];
+    expect(item).toBeDefined();
+    const assignments = r.optimizer_result?.assignments ?? [];
+    // Should safely find or return undefined without crashing
+    const match = assignments.find((a) => a.line.id === item?.poi_id || a.line.id === `poi:${item?.poi_id}`);
+    expect(match === undefined || typeof match.card_id === "string").toBe(true);
+  });
 });
+

@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { PlanJobStatus, FinalReport } from "@/lib/api/types.gen";
+import type { PlanJobStatus, FinalReport, RecomputeRequest, RefreshProseRequest } from "@/lib/api/types.gen";
 
 const SPEED_MULTIPLIER = 1;
 
@@ -60,6 +60,14 @@ function baseReport(): Omit<FinalReport, "summary" | "itinerary_overview" | "pay
     assumptions: ["Sample data used — verify before booking"],
     flights_pick: null,
     hotel_pick: null,
+    freshness: {
+      budget: "fresh",
+      payment_strategy: "fresh",
+      itinerary: "fresh",
+      prose: "fresh",
+      critic_verdict: "fresh",
+      edit_count: 0,
+    },
   };
 }
 
@@ -339,6 +347,38 @@ export const handlers = [
       );
     }
     return HttpResponse.json(entry.status);
+  }),
+
+  http.post("*/plan/recompute", async ({ request }) => {
+    const body = (await request.json()) as RecomputeRequest;
+    const rep = createHappyReport();
+    rep.itinerary = body.itinerary || rep.itinerary;
+    const prevCount = body.previous_freshness?.edit_count ?? 0;
+    rep.freshness = {
+      budget: "recomputed",
+      payment_strategy: "recomputed",
+      itinerary: "recomputed",
+      prose: "stale",
+      critic_verdict: "stale",
+      edit_count: prevCount + 1,
+    };
+    return HttpResponse.json(rep);
+  }),
+
+  http.post("*/plan/refresh-prose", async ({ request }) => {
+    const body = (await request.json()) as RefreshProseRequest;
+    const rep = createHappyReport();
+    rep.itinerary = body.itinerary || rep.itinerary;
+    const prev = body.previous_freshness;
+    rep.freshness = {
+      budget: prev?.budget ?? "recomputed",
+      payment_strategy: prev?.payment_strategy ?? "recomputed",
+      itinerary: prev?.itinerary ?? "recomputed",
+      prose: "fresh",
+      critic_verdict: prev?.critic_verdict ?? "stale",
+      edit_count: prev?.edit_count ?? 1,
+    };
+    return HttpResponse.json(rep);
   }),
 ];
 
