@@ -45,7 +45,8 @@ Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (front
 
 ## Current checkpoint (2026-08-16)
 
-- **Backend regression baseline is 493 tests.** Strict mypy clean across 81 source files.
+- **Backend regression baseline is 508 tests.** Strict mypy clean across 83 source files.
+- **F5 is formally complete:** `reports/f5_editable_itinerary.md` records editable timeline (drag-and-drop & keyboard parity), stateless sub-second deterministic recomputation (`POST /plan/recompute`), single-explainer prose refresh (`POST /plan/refresh-prose`), attached card payment guidance on items, and per-section staleness indicators (`SectionFreshness`).
 - **I7 is formally complete:** `reports/itinerary_i7_regional_rollout.md` records rollout across 6 regional catalog corridors (Singapore, Mumbai, Dubai, New York, London, Paris). Fixed Overture category mapping (restaurants, cafes, cultural landmarks retained while housing/condos filtered out), reducing unpopulated categories.
 - **Gate F4 repair is formally complete:** Resolved accessibility and test contrast findings (TrustChip small-text AA contrast, MapLibre container accessibility isolation via `inert`, lazy dynamic chunk loading).
 - **G0 is formally complete:** `reports/g0_bounded_lazy_catalogs.md` records spatial bounding box tiling (0.1°x0.1°), LRU tile cache with disk budget limits, lazy provisioning state machine, and offline provisioning CLI without runtime network access.
@@ -56,7 +57,7 @@ Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (front
   - Explainer output on 70B (`llama-3.3-70b-versatile`) remains unverified across the full scenario suite due to the daily 100k free-tier token ceiling.
   - Tiled spatial format is implemented and tested in gateway cache, but active static catalogs currently remain single-file compacted artifacts.
   - End-to-end multi-round agentic discovery latency on hosted free-tier rate limits averages ~8 minutes under live execution without local caching.
-- **Git status:** Branch is `feat/p1-prompt-hardening`. Clean working tree.
+- **Git status:** Branch is `feat/f5-editable-itinerary`. Clean working tree.
 
 ## Repo boundaries
 
