@@ -5,6 +5,28 @@ export type ClientOptions = {
 };
 
 /**
+ * AddItem
+ */
+export type AddItem = {
+    /**
+     * Op
+     */
+    op?: 'add_item';
+    /**
+     * Poi Id
+     */
+    poi_id: string;
+    /**
+     * Day Index
+     */
+    day_index: number;
+    /**
+     * Position
+     */
+    position: number;
+};
+
+/**
  * AppliedOffer
  */
 export type AppliedOffer = {
@@ -380,6 +402,14 @@ export type ItineraryItemInput = {
      * Category
      */
     category?: string | null;
+    /**
+     * Lat
+     */
+    lat?: number | null;
+    /**
+     * Lon
+     */
+    lon?: number | null;
     travel_from_previous?: TransitSegment | null;
     evidence?: PoiEvidence | null;
 };
@@ -408,6 +438,14 @@ export type ItineraryItemOutput = {
      * Category
      */
     category?: string | null;
+    /**
+     * Lat
+     */
+    lat?: number | null;
+    /**
+     * Lon
+     */
+    lon?: number | null;
     travel_from_previous?: TransitSegment | null;
     evidence?: PoiEvidence | null;
 };
@@ -638,6 +676,107 @@ export type PaymentStrategyRow = {
 export type PipelineStatus = 'needs_clarification' | 'ok' | 'error';
 
 /**
+ * PlaceProviderDiagnostic
+ */
+export type PlaceProviderDiagnostic = {
+    /**
+     * Provider Id
+     */
+    provider_id: string;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Fallback Used
+     */
+    fallback_used?: boolean;
+    /**
+     * Stop Reason
+     */
+    stop_reason?: string | null;
+};
+
+/**
+ * PlaceSearchRequest
+ */
+export type PlaceSearchRequest = {
+    /**
+     * Destination
+     */
+    destination: string;
+    /**
+     * Query
+     */
+    query?: string;
+    /**
+     * Category
+     */
+    category?: string | null;
+    /**
+     * Limit
+     */
+    limit?: number;
+};
+
+/**
+ * PlaceSearchResponse
+ */
+export type PlaceSearchResponse = {
+    /**
+     * Results
+     */
+    results: Array<PlaceSearchResult>;
+    /**
+     * Diagnostics
+     */
+    diagnostics?: Array<PlaceProviderDiagnostic>;
+};
+
+/**
+ * PlaceSearchResult
+ */
+export type PlaceSearchResult = {
+    /**
+     * Poi Id
+     */
+    poi_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Area
+     */
+    area: string;
+    /**
+     * Lat
+     */
+    lat?: number | null;
+    /**
+     * Lon
+     */
+    lon?: number | null;
+    /**
+     * Price Minor
+     */
+    price_minor?: number;
+    /**
+     * Currency
+     */
+    currency?: string;
+    evidence: PoiEvidence;
+};
+
+/**
  * PlanJobStatus
  */
 export type PlanJobStatus = {
@@ -740,7 +879,11 @@ export type RecomputeRequest = {
         op: 'remove_item';
     } & RemoveItem) | ({
         op: 'reorder_day';
-    } & ReorderDay);
+    } & ReorderDay) | ({
+        op: 'add_item';
+    } & AddItem) | ({
+        op: 'replace_item';
+    } & ReplaceItem);
     previous_freshness?: SectionFreshness | null;
 };
 
@@ -837,6 +980,28 @@ export type ReorderDay = {
      * Poi Ids
      */
     poi_ids: Array<string>;
+};
+
+/**
+ * ReplaceItem
+ */
+export type ReplaceItem = {
+    /**
+     * Op
+     */
+    op?: 'replace_item';
+    /**
+     * Old Poi Id
+     */
+    old_poi_id: string;
+    /**
+     * New Poi Id
+     */
+    new_poi_id: string;
+    /**
+     * Day Index
+     */
+    day_index: number;
 };
 
 /**
@@ -1308,7 +1473,12 @@ export type HealthHealthGetResponse = HealthHealthGetResponses[keyof HealthHealt
 export type PlanPlanPostData = {
     body: TripIntakeRequest;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Ledger
+         */
+        ledger?: unknown | null;
+    };
     url: '/plan';
 };
 
@@ -1413,3 +1583,28 @@ export type RefreshProsePlanPlanRefreshProsePostResponses = {
 };
 
 export type RefreshProsePlanPlanRefreshProsePostResponse = RefreshProsePlanPlanRefreshProsePostResponses[keyof RefreshProsePlanPlanRefreshProsePostResponses];
+
+export type SearchPlacesPlacesSearchPostData = {
+    body: PlaceSearchRequest;
+    path?: never;
+    query?: never;
+    url: '/places/search';
+};
+
+export type SearchPlacesPlacesSearchPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchPlacesPlacesSearchPostError = SearchPlacesPlacesSearchPostErrors[keyof SearchPlacesPlacesSearchPostErrors];
+
+export type SearchPlacesPlacesSearchPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlaceSearchResponse;
+};
+
+export type SearchPlacesPlacesSearchPostResponse = SearchPlacesPlacesSearchPostResponses[keyof SearchPlacesPlacesSearchPostResponses];

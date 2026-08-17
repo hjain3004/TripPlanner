@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PlanJobStatus } from "./types.gen";
+import type { PlanJobStatus } from "./generated/types.gen";
 
 const stageEnum = z.enum([
   "intake",

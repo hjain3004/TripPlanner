@@ -13,8 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
-  // Generated API client — do not edit by hand or lint
-  { ignores: ["src/lib/api/client/**", "src/lib/api/core/**", "src/lib/api/*.gen.ts", "src/lib/api/index.ts"] },
+  // Generated API client — do not edit by hand or lint.
+  { ignores: ["src/lib/api/generated/**"] },
 ]);
 
 export default eslintConfig;

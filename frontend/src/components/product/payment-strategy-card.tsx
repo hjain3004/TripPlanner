@@ -1,6 +1,6 @@
 "use client";
 
-import type { LineAssignment } from "@/lib/api/types.gen";
+import type { LineAssignment } from "@/lib/api";
 import { MoneyText } from "./money-text";
 import { WhyThis } from "./why-this";
 import { TrustChip } from "./trust-chip";

@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetJobStatusPlanJobIdGetData, GetJobStatusPlanJobIdGetErrors, GetJobStatusPlanJobIdGetResponses, HealthHealthGetData, HealthHealthGetResponses, PlanPlanPostData, PlanPlanPostErrors, PlanPlanPostResponses, RecomputePlanPlanRecomputePostData, RecomputePlanPlanRecomputePostErrors, RecomputePlanPlanRecomputePostResponses, RefreshProsePlanPlanRefreshProsePostData, RefreshProsePlanPlanRefreshProsePostErrors, RefreshProsePlanPlanRefreshProsePostResponses } from './types.gen';
+import type { GetJobStatusPlanJobIdGetData, GetJobStatusPlanJobIdGetErrors, GetJobStatusPlanJobIdGetResponses, HealthHealthGetData, HealthHealthGetResponses, PlanPlanPostData, PlanPlanPostErrors, PlanPlanPostResponses, RecomputePlanPlanRecomputePostData, RecomputePlanPlanRecomputePostErrors, RecomputePlanPlanRecomputePostResponses, RefreshProsePlanPlanRefreshProsePostData, RefreshProsePlanPlanRefreshProsePostErrors, RefreshProsePlanPlanRefreshProsePostResponses, SearchPlacesPlacesSearchPostData, SearchPlacesPlacesSearchPostErrors, SearchPlacesPlacesSearchPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -57,6 +57,18 @@ export const recomputePlanPlanRecomputePost = <ThrowOnError extends boolean = fa
  */
 export const refreshProsePlanPlanRefreshProsePost = <ThrowOnError extends boolean = false>(options: Options<RefreshProsePlanPlanRefreshProsePostData, ThrowOnError>): RequestResult<RefreshProsePlanPlanRefreshProsePostResponses, RefreshProsePlanPlanRefreshProsePostErrors, ThrowOnError> => (options.client ?? client).post<RefreshProsePlanPlanRefreshProsePostResponses, RefreshProsePlanPlanRefreshProsePostErrors, ThrowOnError>({
     url: '/plan/refresh-prose',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Search Places
+ */
+export const searchPlacesPlacesSearchPost = <ThrowOnError extends boolean = false>(options: Options<SearchPlacesPlacesSearchPostData, ThrowOnError>): RequestResult<SearchPlacesPlacesSearchPostResponses, SearchPlacesPlacesSearchPostErrors, ThrowOnError> => (options.client ?? client).post<SearchPlacesPlacesSearchPostResponses, SearchPlacesPlacesSearchPostErrors, ThrowOnError>({
+    url: '/places/search',
     ...options,
     headers: {
         'Content-Type': 'application/json',

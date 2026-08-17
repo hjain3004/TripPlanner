@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "gen:api": "npx @hey-api/openapi-ts -i ../contract/openapi.json -o src/lib/api -c @hey-api/client-fetch",
+    "gen:api": "npx @hey-api/openapi-ts -i ../contract/openapi.json -o src/lib/api/generated -c @hey-api/client-fetch",
     "gen:api:pull": "curl -so ../contract/openapi.json http://localhost:8000/openapi.json"
   },
   "dependencies": {
