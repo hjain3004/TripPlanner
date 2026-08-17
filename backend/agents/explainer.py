@@ -263,6 +263,8 @@ def build_final_report(
             if poi:
                 item.name = poi.name
                 item.category = next(iter(poi.tags), "other")
+                item.lat = poi.lat
+                item.lon = poi.lon
             ev = ev_map.get(item.poi_id)
             if ev:
                 item.evidence = ev

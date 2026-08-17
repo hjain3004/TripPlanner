@@ -1,0 +1,48 @@
+{
+  "id": 2148529,
+  "geo": "Singapore",
+  "geo_id": 294265,
+  "names": [
+    {
+      "language": "en",
+      "primary": true,
+      "value": "Gardens by the Bay"
+    }
+  ],
+  "descriptions": [
+    {
+      "language": "en",
+      "text": "Gardens by the Bay is a sanctuary for nature lovers with waterfront gardens."
+    }
+  ],
+  "addresses": [
+    {
+      "city": "Singapore",
+      "country_code": "SG",
+      "country_name": "Singapore",
+      "formatted": "18 Marina Gardens Dr, Singapore 018953",
+      "postal_code": "018953",
+      "street_address": "18 Marina Gardens Dr"
+    }
+  ],
+  "coordinates": {
+    "latitude": 1.2816,
+    "longitude": 103.8636
+  },
+  "overall_rating": {
+    "count": 68000,
+    "rating": 4.8,
+    "icon_url": "https://terra.tripadvisor.com/static/img/bubble_50.svg"
+  },
+  "urls": {
+    "official": "https://www.gardensbythebay.com.sg",
+    "tripadvisor": "https://www.tripadvisor.com/Attraction_Review-g294265-d2148529-Reviews-Gardens_by_the_Bay-Singapore.html"
+  },
+  "categories": [
+    {
+      "id": "attraction",
+      "display_name": "Nature & Parks",
+      "top_level_category": "Attraction"
+    }
+  ]
+}

@@ -16,6 +16,9 @@ from core.models import (
     UserWallet,
 )
 from core.trip_models import (
+    AddItem as AddItem,
+)
+from core.trip_models import (
     DraftItinerary as DraftItinerary,
 )
 from core.trip_models import (
@@ -31,10 +34,16 @@ from core.trip_models import (
     MoveItem as MoveItem,
 )
 from core.trip_models import (
+    POIEvidence as POIEvidence,
+)
+from core.trip_models import (
     RemoveItem as RemoveItem,
 )
 from core.trip_models import (
     ReorderDay as ReorderDay,
+)
+from core.trip_models import (
+    ReplaceItem as ReplaceItem,
 )
 from core.trip_models import (
     RetrievalContext as RetrievalContext,
@@ -275,3 +284,35 @@ class RegionCapability(BaseModel):
     place_count: int = 0
     budget_supported: bool = False
     known_gaps: list[str] = Field(default_factory=list)
+
+
+class PlaceSearchRequest(BaseModel):
+    destination: str
+    query: str = ""
+    category: str | None = None
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class PlaceSearchResult(BaseModel):
+    poi_id: str
+    name: str
+    category: str
+    area: str
+    lat: float | None = None
+    lon: float | None = None
+    price_minor: int = 0
+    currency: str = "INR"
+    evidence: POIEvidence
+
+
+class PlaceProviderDiagnostic(BaseModel):
+    provider_id: str
+    code: str
+    message: str
+    fallback_used: bool = True
+    stop_reason: str | None = None
+
+
+class PlaceSearchResponse(BaseModel):
+    results: list[PlaceSearchResult]
+    diagnostics: list[PlaceProviderDiagnostic] = Field(default_factory=list)

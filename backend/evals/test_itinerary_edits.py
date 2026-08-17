@@ -6,12 +6,14 @@ import pytest
 
 from core.itinerary.edits import apply_edit
 from core.trip_models import (
+    AddItem,
     DraftItinerary,
     ItineraryDay,
     ItineraryItem,
     MoveItem,
     RemoveItem,
     ReorderDay,
+    ReplaceItem,
 )
 
 
@@ -143,3 +145,40 @@ def test_apply_edit_does_not_mutate_original() -> None:
     edit = RemoveItem(poi_id="poi:cloud-forest", day_index=0)
     apply_edit(itin, edit)
     assert len(itin.days[0].items) == orig_day0_len
+
+
+def test_add_item_to_day() -> None:
+    itin = _sample_itinerary()
+    edit = AddItem(poi_id="poi:jewel-changi", day_index=0, position=1)
+    result = apply_edit(itin, edit)
+    day0_ids = [item.poi_id for item in result.days[0].items]
+    assert day0_ids == [
+        "poi:gardens-by-the-bay",
+        "poi:jewel-changi",
+        "poi:cloud-forest",
+        "poi:satay-by-the-bay",
+    ]
+
+
+def test_add_item_duplicate_raises_value_error() -> None:
+    itin = _sample_itinerary()
+    edit = AddItem(poi_id="poi:cloud-forest", day_index=0, position=0)
+    with pytest.raises(ValueError, match="already present"):
+        apply_edit(itin, edit)
+
+
+def test_replace_item_in_day() -> None:
+    itin = _sample_itinerary()
+    edit = ReplaceItem(old_poi_id="poi:cloud-forest", new_poi_id="poi:jewel-changi", day_index=0)
+    result = apply_edit(itin, edit)
+    day0_ids = [item.poi_id for item in result.days[0].items]
+    assert day0_ids == ["poi:gardens-by-the-bay", "poi:jewel-changi", "poi:satay-by-the-bay"]
+
+
+def test_replace_item_duplicate_raises_value_error() -> None:
+    itin = _sample_itinerary()
+    edit = ReplaceItem(
+        old_poi_id="poi:cloud-forest", new_poi_id="poi:satay-by-the-bay", day_index=0
+    )
+    with pytest.raises(ValueError, match="already present"):
+        apply_edit(itin, edit)

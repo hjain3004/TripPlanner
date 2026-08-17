@@ -1,0 +1,8 @@
+{
+  "type": "https://terra.tripadvisor.com/errors/forbidden",
+  "title": "Forbidden Access",
+  "status": 403,
+  "detail": "API Key does not have access to endpoint",
+  "instance": "/api/catalog/locations/search",
+  "trace_id": "tr-mock-403"
+}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -69,6 +69,8 @@ class ItineraryItem(BaseModel):
     end_time: str | None = Field(default=None, exclude=True)
     name: str | None = None
     category: str | None = None
+    lat: float | None = None
+    lon: float | None = None
     travel_from_previous: TransitSegment | None = None
     evidence: POIEvidence | None = None
 
@@ -125,7 +127,21 @@ class ReorderDay(BaseModel):
     poi_ids: list[str]
 
 
+class AddItem(BaseModel):
+    op: Literal["add_item"] = "add_item"
+    poi_id: str
+    day_index: int = Field(ge=0)
+    position: int = Field(ge=0)
+
+
+class ReplaceItem(BaseModel):
+    op: Literal["replace_item"] = "replace_item"
+    old_poi_id: str
+    new_poi_id: str
+    day_index: int = Field(ge=0)
+
+
 ItineraryEdit = Annotated[
-    Union[MoveItem, RemoveItem, ReorderDay],
+    MoveItem | RemoveItem | ReorderDay | AddItem | ReplaceItem,
     Field(discriminator="op"),
 ]

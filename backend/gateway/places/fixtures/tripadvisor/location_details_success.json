@@ -1,0 +1,49 @@
+{
+  "id": 1471398,
+  "geo": "Singapore",
+  "geo_id": 294265,
+  "names": [
+    {
+      "language": "en",
+      "primary": true,
+      "value": "Marina Bay Sands"
+    }
+  ],
+  "descriptions": [
+    {
+      "language": "en",
+      "text": "Iconic luxury integrated resort with infinity pool, observation deck, and world-class dining."
+    }
+  ],
+  "addresses": [
+    {
+      "city": "Singapore",
+      "country_code": "SG",
+      "country_name": "Singapore",
+      "formatted": "10 Bayfront Avenue, Singapore 018956",
+      "postal_code": "018956",
+      "street_address": "10 Bayfront Avenue"
+    }
+  ],
+  "coordinates": {
+    "latitude": 1.2834,
+    "longitude": 103.8607
+  },
+  "overall_rating": {
+    "count": 45000,
+    "rating": 4.5,
+    "icon_url": "https://terra.tripadvisor.com/static/img/bubble_45.svg"
+  },
+  "urls": {
+    "official": "https://www.marinabaysands.com",
+    "tripadvisor": "https://www.tripadvisor.com/Hotel_Review-g294265-d1471398-Reviews-Marina_Bay_Sands-Singapore.html"
+  },
+  "categories": [
+    {
+      "id": "hotel",
+      "display_name": "Hotel",
+      "top_level_category": "Accommodation"
+    }
+  ],
+  "price_level": "$$$$"
+}

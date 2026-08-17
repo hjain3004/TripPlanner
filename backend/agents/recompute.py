@@ -31,8 +31,13 @@ def recompute_itinerary(
 
     after a user itinerary edit without making any LLM calls.
     """
-    edited_draft = apply_edit(itinerary, edit)
     retrieval = retrieve_candidates(spec, kb)
+    edited_draft = apply_edit(
+        itinerary,
+        edit,
+        candidate_pois=retrieval.pois,
+        poi_evidence=retrieval.poi_provenance,
+    )
     scheduled = build_final_schedule(edited_draft, spec, retrieval)
 
     estimate = estimate_costed_trip(

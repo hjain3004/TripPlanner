@@ -32,15 +32,31 @@
       "post": {
         "summary": "Plan",
         "operationId": "plan_plan_post",
+        "parameters": [
+          {
+            "name": "ledger",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {},
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ledger"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TripIntakeRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "202": {
@@ -48,10 +64,10 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "additionalProperties": {
                     "type": "string"
                   },
-                  "type": "object",
                   "title": "Response Plan Plan Post"
                 }
               }
@@ -184,10 +200,79 @@
           }
         }
       }
+    },
+    "/places/search": {
+      "post": {
+        "summary": "Search Places",
+        "operationId": "search_places_places_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceSearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AddItem": {
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "add_item",
+            "title": "Op",
+            "default": "add_item"
+          },
+          "poi_id": {
+            "type": "string",
+            "title": "Poi Id"
+          },
+          "day_index": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Day Index"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "poi_id",
+          "day_index",
+          "position"
+        ],
+        "title": "AddItem"
+      },
       "AppliedOffer": {
         "properties": {
           "offer_id": {
@@ -846,6 +931,28 @@
             ],
             "title": "Category"
           },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          },
           "travel_from_previous": {
             "anyOf": [
               {
@@ -918,6 +1025,28 @@
               }
             ],
             "title": "Category"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
           },
           "travel_from_previous": {
             "anyOf": [
@@ -1304,6 +1433,168 @@
         ],
         "title": "PipelineStatus"
       },
+      "PlaceProviderDiagnostic": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "fallback_used": {
+            "type": "boolean",
+            "title": "Fallback Used",
+            "default": true
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_id",
+          "code",
+          "message"
+        ],
+        "title": "PlaceProviderDiagnostic"
+      },
+      "PlaceSearchRequest": {
+        "properties": {
+          "destination": {
+            "type": "string",
+            "title": "Destination"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query",
+            "default": ""
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 10
+          }
+        },
+        "type": "object",
+        "required": [
+          "destination"
+        ],
+        "title": "PlaceSearchRequest"
+      },
+      "PlaceSearchResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceSearchResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceProviderDiagnostic"
+            },
+            "type": "array",
+            "title": "Diagnostics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "title": "PlaceSearchResponse"
+      },
+      "PlaceSearchResult": {
+        "properties": {
+          "poi_id": {
+            "type": "string",
+            "title": "Poi Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "area": {
+            "type": "string",
+            "title": "Area"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          },
+          "price_minor": {
+            "type": "integer",
+            "title": "Price Minor",
+            "default": 0
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "INR"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/POIEvidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "poi_id",
+          "name",
+          "category",
+          "area",
+          "evidence"
+        ],
+        "title": "PlaceSearchResult"
+      },
       "PlanJobStatus": {
         "properties": {
           "job_id": {
@@ -1517,15 +1808,23 @@
               },
               {
                 "$ref": "#/components/schemas/ReorderDay"
+              },
+              {
+                "$ref": "#/components/schemas/AddItem"
+              },
+              {
+                "$ref": "#/components/schemas/ReplaceItem"
               }
             ],
             "title": "Edit",
             "discriminator": {
               "propertyName": "op",
               "mapping": {
+                "add_item": "#/components/schemas/AddItem",
                 "move_item": "#/components/schemas/MoveItem",
                 "remove_item": "#/components/schemas/RemoveItem",
-                "reorder_day": "#/components/schemas/ReorderDay"
+                "reorder_day": "#/components/schemas/ReorderDay",
+                "replace_item": "#/components/schemas/ReplaceItem"
               }
             }
           },
@@ -1706,6 +2005,36 @@
           "poi_ids"
         ],
         "title": "ReorderDay"
+      },
+      "ReplaceItem": {
+        "properties": {
+          "op": {
+            "type": "string",
+            "const": "replace_item",
+            "title": "Op",
+            "default": "replace_item"
+          },
+          "old_poi_id": {
+            "type": "string",
+            "title": "Old Poi Id"
+          },
+          "new_poi_id": {
+            "type": "string",
+            "title": "New Poi Id"
+          },
+          "day_index": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Day Index"
+          }
+        },
+        "type": "object",
+        "required": [
+          "old_poi_id",
+          "new_poi_id",
+          "day_index"
+        ],
+        "title": "ReplaceItem"
       },
       "RunnerUp": {
         "properties": {

@@ -128,7 +128,15 @@ def day_travel_minutes(pois_in_order: list[POI]) -> int:
     total = 0
     for i in range(len(pois_in_order) - 1):
         a, b = pois_in_order[i], pois_in_order[i + 1]
-        total += estimate_travel_min(a.lat, a.lon, b.lat, b.lon)
+        if (
+            a.lat is not None
+            and a.lon is not None
+            and b.lat is not None
+            and b.lon is not None
+        ):
+            total += estimate_travel_min(a.lat, a.lon, b.lat, b.lon)
+        else:
+            total += _BASE_OVERHEAD_MIN
     return total
 
 
@@ -352,9 +360,17 @@ def build_final_schedule(
             if i < len(day.items) - 1:
                 next_poi = poi_by_id.get(day.items[i + 1].poi_id)
                 if next_poi:
-                    current_time_min += estimate_travel_min(
-                        poi.lat, poi.lon, next_poi.lat, next_poi.lon
-                    )
+                    if (
+                        poi.lat is not None
+                        and poi.lon is not None
+                        and next_poi.lat is not None
+                        and next_poi.lon is not None
+                    ):
+                        current_time_min += estimate_travel_min(
+                            poi.lat, poi.lon, next_poi.lat, next_poi.lon
+                        )
+                    else:
+                        current_time_min += _BASE_OVERHEAD_MIN
 
         if len(day_pois) > 1:
             travel_warnings = validate_day_travel_budget(day_pois, travel_budget)

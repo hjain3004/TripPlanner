@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, Field
 
-IdentifierNamespace = Literal["overture", "osm", "wikidata", "tomtom", "internal"]
+IdentifierNamespace = Literal["overture", "osm", "wikidata", "tomtom", "tripadvisor", "internal"]
 
 
 class ExternalId(BaseModel):
@@ -72,6 +72,7 @@ class PlaceCandidate(BaseModel):
 
 
 class PlaceSearchRequest(BaseModel):
+    query: str | None = None
     destination_area_id: str
     category_filters: list[str] = Field(default_factory=list)
     max_results: int = Field(le=50)

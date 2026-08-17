@@ -26,11 +26,13 @@ def _map_candidate_to_poi(
     name = next((cl.value for cl in c.claims if cl.field == "name"), "Unknown")
     cat = next((cl.value for cl in c.claims if cl.field == "category"), "other")
     coords = next(
-        (cl.value for cl in c.claims if cl.field == "coordinates"), {"lat": 0.0, "lon": 0.0}
+        (cl.value for cl in c.claims if cl.field == "coordinates"), None
     )
 
-    lat = coords["lat"] if isinstance(coords, dict) and "lat" in coords else 0.0
-    lon = coords["lon"] if isinstance(coords, dict) and "lon" in coords else 0.0
+    lat = coords["lat"] if isinstance(coords, dict) and "lat" in coords else None
+    lon = coords["lon"] if isinstance(coords, dict) and "lon" in coords else None
+
+    desc = next((cl.value for cl in c.claims if cl.field == "description"), "")
 
     hours_str = next((cl.value for cl in c.claims if cl.field == "opening_hours"), None)
     # Unknown hours never become open. A venue whose hours cannot be parsed is verify_required
@@ -43,8 +45,27 @@ def _map_candidate_to_poi(
     else:
         needs_verification_override = True
 
+    from datetime import datetime
+
     from core.models import Provenance, TimezoneAwareHours
-    
+
+    claim_dt = next((cl.last_verified for cl in c.claims if cl.last_verified), None)
+    if isinstance(claim_dt, datetime):
+        last_ver_date = claim_dt.date()
+    elif isinstance(claim_dt, date):
+        last_ver_date = claim_dt
+    else:
+        last_ver_date = date(2026, 8, 17)
+
+    src_url = next((cl.source_url for cl in c.claims if cl.source_url), "")
+    verified_by = next((cl.verified_by for cl in c.claims if cl.verified_by), "UNVERIFIED")
+    claim_needs_ver = any(cl.needs_verification for cl in c.claims)
+    needs_ver = (
+        (c.status in ("verify_required", "cached", "estimated"))
+        or needs_verification_override
+        or claim_needs_ver
+    )
+
     poi = POI(
         id=c.place_id,
         city=city,
@@ -62,19 +83,16 @@ def _map_candidate_to_poi(
             closed_dates=[],
         ),
         booking_channel="pos_abroad",
-        description="",
+        description=str(desc),
         provenance=Provenance(
-            source_type="crawl_draft",
-            last_verified=date(2026, 1, 1),
-            verified_by="UNVERIFIED",
-            needs_verification=(
-                True if needs_verification_override else c.status == "verify_required"
-            ),
-            confidence=0.5,
+            source_url=src_url,
+            source_type="manual_curation" if c.status == "live" else "crawl_draft",
+            last_verified=last_ver_date,
+            verified_by=verified_by,
+            needs_verification=needs_ver,
+            confidence=0.85 if c.status == "live" else 0.5,
         ),
     )
-    if c.status == "verify_required" or needs_verification_override:
-        poi.provenance.needs_verification = True
     return poi
 
 def get_catalog_poi(poi_id: str, destination_iata: str) -> POI | None:

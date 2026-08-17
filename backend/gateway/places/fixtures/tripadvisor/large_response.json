@@ -1,0 +1,45 @@
+{
+  "data": [
+    {
+      "location": {
+        "id": 10001,
+        "names": [{"primary": true, "value": "Place 1"}],
+        "categories": [{"id": "attraction", "top_level_category": "Attraction"}]
+      }
+    },
+    {
+      "location": {
+        "id": 10002,
+        "names": [{"primary": true, "value": "Place 2"}],
+        "categories": [{"id": "attraction", "top_level_category": "Attraction"}]
+      }
+    },
+    {
+      "location": {
+        "id": 10003,
+        "names": [{"primary": true, "value": "Place 3"}],
+        "categories": [{"id": "attraction", "top_level_category": "Attraction"}]
+      }
+    },
+    {
+      "location": {
+        "id": 10004,
+        "names": [{"primary": true, "value": "Place 4"}],
+        "categories": [{"id": "attraction", "top_level_category": "Attraction"}]
+      }
+    },
+    {
+      "location": {
+        "id": 10005,
+        "names": [{"primary": true, "value": "Place 5"}],
+        "categories": [{"id": "attraction", "top_level_category": "Attraction"}]
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "size": 50,
+    "total_elements": 1500,
+    "total_pages": 30
+  }
+}

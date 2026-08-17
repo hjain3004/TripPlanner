@@ -1,0 +1,8 @@
+{
+  "type": "https://terra.tripadvisor.com/errors/internal",
+  "title": "Internal Server Error",
+  "status": 500,
+  "detail": "An unexpected server error occurred",
+  "instance": "/api/catalog/locations/search",
+  "trace_id": "tr-mock-500"
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import threading
+from collections.abc import Callable, Mapping
 from datetime import date
 from pathlib import Path
 from typing import Annotated
@@ -13,6 +14,8 @@ from agents.llm import HostedFreeTier, LLMClient
 from agents.models import (
     FinalReport,
     PipelineStatus,
+    PlaceSearchRequest,
+    PlaceSearchResponse,
     PlanJobStatus,
     RecomputeRequest,
     RefreshProseRequest,
@@ -20,8 +23,11 @@ from agents.models import (
 )
 from agents.pipeline import run_pipeline
 from agents.recompute import recompute_itinerary, refresh_prose
+from agents.search import search_catalog_places
 from api.job_manager import job_manager
 from core.db import DB_PATH, KnowledgeBase, load_kb, seed_database
+from gateway.catalog.regions import get_region
+from gateway.places.protocol import PlaceProviderAdapter
 from gateway.places.registry import ProviderRegistry, get_default_place_registry
 
 TRACE_DIR = Path(__file__).resolve().parents[1] / ".traces"
@@ -72,6 +78,55 @@ def get_trace_dir() -> Path:
     return TRACE_DIR
 
 
+def get_place_registry() -> ProviderRegistry:
+    return get_default_place_registry()
+
+
+PlaceProviderResolver = Callable[[PlaceSearchRequest], PlaceProviderAdapter | None]
+
+
+def build_place_provider_resolver(
+    registry: ProviderRegistry,
+    adapters: Mapping[str, PlaceProviderAdapter],
+    *,
+    active_profile: str = "student_noncommercial",
+) -> PlaceProviderResolver:
+    """Resolve an optional place provider through registry eligibility.
+
+    The production adapter map is empty until live provider activation is approved.
+    Tests may supply fixture adapters explicitly, but still pass through registry
+    profile/domain/country/quota eligibility.
+    """
+
+    def _resolve(request: PlaceSearchRequest) -> PlaceProviderAdapter | None:
+        dest_iata = request.destination.strip().upper()
+        region = get_region(dest_iata)
+        if region is None:
+            return None
+
+        for entry in registry.select_providers(
+            active_profile=active_profile,
+            domain="poi",
+            country=region.country_code,
+        ):
+            adapter = adapters.get(entry.provider_id)
+            if adapter is not None:
+                return adapter
+        return None
+
+    return _resolve
+
+
+def get_place_provider_resolver(
+    registry: Annotated[ProviderRegistry, Depends(get_place_registry)],
+) -> PlaceProviderResolver:
+    return build_place_provider_resolver(
+        registry=registry,
+        adapters={},
+        active_profile="student_noncommercial",
+    )
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -82,7 +137,7 @@ def plan(
     request: TripIntakeRequest,
     kb: Annotated[KnowledgeBase, Depends(get_kb)],
     llm: Annotated[LLMClient, Depends(get_llm)],
-    registry: Annotated[ProviderRegistry, Depends(get_default_place_registry)],
+    registry: Annotated[ProviderRegistry, Depends(get_place_registry)],
     booking_date: Annotated[date, Depends(get_booking_date)],
     trace_dir: Annotated[Path, Depends(get_trace_dir)],
 ) -> dict[str, str]:
@@ -142,6 +197,20 @@ def refresh_prose_plan(
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/places/search", response_model=PlaceSearchResponse)
+def search_places(
+    request: PlaceSearchRequest,
+    kb: Annotated[KnowledgeBase, Depends(get_kb)],
+    provider_resolver: Annotated[PlaceProviderResolver, Depends(get_place_provider_resolver)],
+) -> PlaceSearchResponse:
+    try:
+        provider_adapter = provider_resolver(request)
+        return search_catalog_places(request, kb, provider_adapter=provider_adapter)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
 
 
 def _run_job(
