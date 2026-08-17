@@ -43,9 +43,11 @@ Accounts & acquisition: spec **17** (accounts + persistence) is authoritative de
 
 Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (frontend). A milestone is not done because the code exists; it is done when its gate passes.
 
-## Current checkpoint (2026-08-16)
+## Current checkpoint (2026-08-17)
 
-- **Backend regression baseline is 508 tests.** Strict mypy clean across 83 source files.
+- **Backend regression baseline is 592 tests.** Strict mypy clean across 92 source files.
+- **Phase I8A, I8A.1, I8A.2 & I8A.2.1 are formally complete:** `reports/itinerary_i8a_tripadvisor_offline_adapter.md` records hardened offline-first Tripadvisor Terra adapter (`TripadvisorTerraAdapter`), persistent multi-connection call-reservation safety ledger (`TripadvisorEntityLedger` enforcing 900 lifetime ceiling with atomic `BEGIN IMMEDIATE` transaction locking), transport-derived evidence status (`FixtureTripadvisorTransport` strictly non-live with `needs_verification=True`), venue query isolation, honest coordinate and provenance preservation (`lat`/`lon` as `None` when absent, no `0.0, 0.0`), injected client security envelope with 512KB payload bounds and secret scrubbing, 16 exercised fixtures, and fail-soft orchestration fallback. I8A.2.1 final acceptance closure: fixture metadata cannot claim `live`, non-live transports cannot emit live evidence, fixture claims use honest `fixture:tripadvisor_synthetic` verification identity, registry quota refreshes from a real persistent billable ledger only, fake/non-billable/in-memory quota sources report zero, `/places/search` has a disabled-by-default provider resolver with explicit test injection, and generated frontend API output is isolated under `frontend/src/lib/api/generated/`. Exact milestone status `OFFLINE DEVELOPMENT COMPLETE — LIVE ACTIVATION PENDING`.
+- **F5.1 is formally complete:** `reports/f5_1_itinerary_interaction_hardening.md` records single-flight optimistic concurrency protection (`requestSeqRef`, busy locking), pure functional `AddItem`/`ReplaceItem` operations, local catalog place search endpoint (`POST /places/search`), genuine POI coordinates on `ItineraryItem` with honest fallback, attached card payment guidance on payable lines meeting WCAG AA contrast, and 20/20 passing Playwright tests.
 - **F5 is formally complete:** `reports/f5_editable_itinerary.md` records editable timeline (drag-and-drop & keyboard parity), stateless sub-second deterministic recomputation (`POST /plan/recompute`), single-explainer prose refresh (`POST /plan/refresh-prose`), attached card payment guidance on items, and per-section staleness indicators (`SectionFreshness`).
 - **I7 is formally complete:** `reports/itinerary_i7_regional_rollout.md` records rollout across 6 regional catalog corridors (Singapore, Mumbai, Dubai, New York, London, Paris). Fixed Overture category mapping (restaurants, cafes, cultural landmarks retained while housing/condos filtered out), reducing unpopulated categories.
 - **Gate F4 repair is formally complete:** Resolved accessibility and test contrast findings (TrustChip small-text AA contrast, MapLibre container accessibility isolation via `inert`, lazy dynamic chunk loading).
@@ -53,11 +55,12 @@ Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (front
 - **P1 is formally complete:** `reports/p1_prompt_hardening.md` records prompt hardening across intake, planner, critic, and explainer. Built recording/replay harness (`RecordingLLMClient`, `ReplayLLMClient`) and replay-backed offline regression suite (`evals/test_scenario_regression.py`). Enforced 6-call ceiling on discovery at provider invocation level.
 - **Real LLM Integration:** `HostedFreeTier` provides OpenAI-compatible HTTP integration (default model `llama-3.3-70b-versatile` on Groq, fallback `llama-3.1-8b-instant`). Zero network calls in test suite via replay fixtures.
 - **Open Findings / Work Remaining:**
+  - Tripadvisor live transport remains disabled pending billing/account activation; all development and tests run offline via fixture replay.
   - On small 8B models (`llama-3.1-8b-instant`), planner discovery tool-calling frequently yields empty candidate sets, triggering deterministic routing fallback.
   - Explainer output on 70B (`llama-3.3-70b-versatile`) remains unverified across the full scenario suite due to the daily 100k free-tier token ceiling.
   - Tiled spatial format is implemented and tested in gateway cache, but active static catalogs currently remain single-file compacted artifacts.
   - End-to-end multi-round agentic discovery latency on hosted free-tier rate limits averages ~8 minutes under live execution without local caching.
-- **Git status:** Branch is `feat/f5-editable-itinerary`. Clean working tree.
+- **Git status:** Branch is `feat/i8a-tripadvisor-offline-adapter`. Working tree contains uncommitted F5.1, I8A, I8A.1, I8A.2, and I8A.2.1 work.
 
 ## Repo boundaries
 
