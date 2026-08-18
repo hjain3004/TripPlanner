@@ -76,6 +76,12 @@ def run_pipeline(
         on_stage(1, "intake")
     intake = run_intake(raw_request, kb, llm)
     trace.record("intake", intake, model="llm:intake")
+    if intake.runtime_error is not None:
+        return PlanResponse(
+            status=PipelineStatus.ERROR,
+            trace_id=trace_id,
+            error=intake.runtime_error,
+        )
     if intake.needs_clarification or intake.trip_spec is None:
         return PlanResponse(
             status=PipelineStatus.NEEDS_CLARIFICATION,

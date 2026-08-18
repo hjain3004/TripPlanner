@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
@@ -145,6 +146,23 @@ class HostedFreeTier:
     def __init__(self) -> None:
         self.base_url = os.getenv("TRIPWISE_LLM_BASE_URL")
         self.model = os.getenv("TRIPWISE_LLM_MODEL")
+        fallback_models = [
+            value.strip()
+            for value in os.getenv("TRIPWISE_LLM_FALLBACK_MODELS", "").split(",")
+            if value.strip()
+        ]
+        ordered_models = [
+            value.strip()
+            for value in os.getenv("TRIPWISE_LLM_MODELS", "").split(",")
+            if value.strip()
+        ]
+        if ordered_models:
+            self.models = ordered_models
+            self.model = ordered_models[0]
+        elif self.model:
+            self.models = [self.model, *fallback_models]
+        else:
+            self.models = []
         self.api_key = os.getenv("TRIPWISE_LLM_API_KEY")
         self.json_mode = os.getenv("TRIPWISE_LLM_JSON_MODE", "1") != "0"
         self.max_calls = int(os.getenv("TRIPWISE_LLM_MAX_CALLS", str(self.DEFAULT_MAX_CALLS)))
@@ -155,7 +173,7 @@ class HostedFreeTier:
             name
             for name, value in (
                 ("TRIPWISE_LLM_BASE_URL", self.base_url),
-                ("TRIPWISE_LLM_MODEL", self.model),
+                ("TRIPWISE_LLM_MODEL", self.models[0] if self.models else None),
                 ("TRIPWISE_LLM_API_KEY", self.api_key),
             )
             if not value
@@ -164,6 +182,22 @@ class HostedFreeTier:
             raise LLMCallError("HostedFreeTier is not configured; set " + ", ".join(missing))
         assert self.base_url is not None
         return self.base_url.rstrip("/") + "/chat/completions"
+
+    def _reserve_provider_call(self) -> None:
+        if self.calls_made >= self.max_calls:
+            raise LLMCallError(
+                f"HostedFreeTier call ceiling reached ({self.max_calls}); "
+                "refusing further provider calls to protect the free-tier quota"
+            )
+        self.calls_made += 1
+
+    def _redact_provider_detail(self, detail: str) -> str:
+        redacted = detail
+        if self.api_key:
+            redacted = redacted.replace(self.api_key, "[REDACTED]")
+        redacted = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", redacted)
+        redacted = re.sub(r"sk-[A-Za-z0-9._~+/=-]+", "[REDACTED]", redacted)
+        return redacted[:500]
 
     def complete_json(
         self,
@@ -181,13 +215,6 @@ class HostedFreeTier:
         import urllib.request
 
         endpoint = self._endpoint()
-
-        if self.calls_made >= self.max_calls:
-            raise LLMCallError(
-                f"HostedFreeTier call ceiling reached ({self.max_calls}); "
-                "refusing further provider calls to protect the free-tier quota"
-            )
-        self.calls_made += 1
 
         system_prompt = system
         if self.json_mode:
@@ -213,7 +240,7 @@ class HostedFreeTier:
             )
 
         body: dict[str, Any] = {
-            "model": self.model,
+            "model": self.models[0],
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user},
@@ -224,56 +251,76 @@ class HostedFreeTier:
         if self.json_mode:
             body["response_format"] = {"type": "json_object"}
 
-        request = urllib.request.Request(
-            endpoint,
-            data=json.dumps(body).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-                # Identify honestly (spec 05's Fetcher rule), and because
-                # urllib's default "Python-urllib/x.y" is blocked outright by
-                # some providers' edge protection - Groq returns HTTP 403
-                # Cloudflare error 1010 for it, while the identical request
-                # with a real UA succeeds.
-                "User-Agent": _USER_AGENT,
-            },
-            method="POST",
-        )
-
         import time
 
         max_retries = 3
         raw = ""
-        for attempt in range(max_retries + 1):
-            try:
-                with urllib.request.urlopen(request, timeout=timeout_s) as response:
-                    raw = response.read().decode("utf-8")
-                break
-            except TimeoutError as exc:
-                if attempt == max_retries:
-                    raise LLMTimeoutError(f"{node} timed out after {timeout_s}s") from exc
-                time.sleep(2)
-            except urllib.error.HTTPError as exc:
-                if exc.code == 429 and attempt < max_retries:
-                    retry_after = exc.headers.get("Retry-After") if exc.headers else None
-                    delay = float(retry_after) if retry_after else float(2**attempt * 3)
-                    time.sleep(min(60.0, delay))
-                    continue
-                detail = (
-                    exc.read().decode("utf-8", errors="replace")[:500]
-                    if getattr(exc, "fp", None)
-                    else str(exc)
-                )
-                raise LLMCallError(
-                    f"{node} provider returned HTTP {exc.code}: {detail}"
-                ) from exc
-            except urllib.error.URLError as exc:
-                if isinstance(exc.reason, TimeoutError):
+        last_model_error: LLMCallError | None = None
+        for model_index, model in enumerate(self.models):
+            body["model"] = model
+            request = urllib.request.Request(
+                endpoint,
+                data=json.dumps(body).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                    # Identify honestly (spec 05's Fetcher rule), and because
+                    # urllib's default "Python-urllib/x.y" is blocked outright by
+                    # some providers' edge protection - Groq returns HTTP 403
+                    # Cloudflare error 1010 for it, while the identical request
+                    # with a real UA succeeds.
+                    "User-Agent": _USER_AGENT,
+                },
+                method="POST",
+            )
+
+            for attempt in range(max_retries + 1):
+                try:
+                    self._reserve_provider_call()
+                    with urllib.request.urlopen(request, timeout=timeout_s) as response:
+                        raw = response.read().decode("utf-8")
+                    last_model_error = None
+                    break
+                except TimeoutError as exc:
                     if attempt == max_retries:
                         raise LLMTimeoutError(f"{node} timed out after {timeout_s}s") from exc
                     time.sleep(2)
-                    continue
-                raise LLMCallError(f"{node} provider unreachable: {exc.reason}") from exc
+                except urllib.error.HTTPError as exc:
+                    detail = (
+                        exc.read().decode("utf-8", errors="replace")
+                        if getattr(exc, "fp", None)
+                        else str(exc)
+                    )
+                    safe_detail = self._redact_provider_detail(detail)
+                    if exc.code == 429 and attempt < max_retries:
+                        retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                        delay = float(retry_after) if retry_after else float(2**attempt * 3)
+                        time.sleep(min(60.0, delay))
+                        continue
+                    if exc.code == 404 and model_index < len(self.models) - 1:
+                        last_model_error = LLMCallError(
+                            f"{node} provider rejected configured model {model}: "
+                            f"HTTP {exc.code}: {safe_detail}"
+                        )
+                        break
+                    raise LLMCallError(
+                        f"{node} provider returned HTTP {exc.code}: {safe_detail}"
+                    ) from exc
+                except urllib.error.URLError as exc:
+                    if isinstance(exc.reason, TimeoutError):
+                        if attempt == max_retries:
+                            raise LLMTimeoutError(
+                                f"{node} timed out after {timeout_s}s"
+                            ) from exc
+                        time.sleep(2)
+                        continue
+                    raise LLMCallError(f"{node} provider unreachable: {exc.reason}") from exc
+            if raw and last_model_error is None:
+                break
+        if not raw and last_model_error is not None:
+            raise LLMCallError(f"{node} no configured hosted free-tier model succeeded") from (
+                last_model_error
+            )
 
         envelope = json.loads(raw)
         try:
@@ -465,4 +512,3 @@ class ReplayLLMClient:
         payload = data.get("response")
         self.calls_replayed += 1
         return _validate_or_intent(payload, schema, tools)
-
