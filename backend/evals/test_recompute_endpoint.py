@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import time
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -20,6 +22,8 @@ from api.main import app, get_kb
 from core.db import load_kb
 from core.models import UserWallet
 from core.trip_models import DraftItinerary, ItineraryDay, ItineraryItem, TripSpec
+
+pytestmark = pytest.mark.allow_real_catalog
 
 
 class RaisingLLMClient:
@@ -75,6 +79,92 @@ def _fixture_itinerary() -> DraftItinerary:
             ),
         ],
     )
+
+
+def _catalog_place_ids(catalog_id: str, count: int = 3) -> list[str]:
+    path = Path("catalogs") / f"active_{catalog_id}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    ids: list[str] = []
+    claims_by_place: dict[str, dict[str, object]] = {}
+    for claim in data["claims"]:
+        claims_by_place.setdefault(claim["place_id"], {})[claim["field"]] = claim["value"]
+    for place in data["places"]:
+        pid = str(place["place_id"])
+        row = claims_by_place.get(pid, {})
+        if row.get("category") in {"restaurant", "museum", "park", "attraction", "cafe"}:
+            ids.append(pid)
+        if len(ids) == count:
+            break
+    assert len(ids) == count
+    return ids
+
+
+def test_catalog_poi_lookup_reuses_active_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agents.retrieval import get_catalog_poi
+    from gateway.places.adapters.snapshot import clear_snapshot_catalog_cache
+
+    ids = _catalog_place_ids("lon-core")
+    clear_snapshot_catalog_cache()
+
+    original_read_text = Path.read_text
+    read_count = 0
+
+    def counting_read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+        nonlocal read_count
+        if path.name == "active_lon-core.json":
+            read_count += 1
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", counting_read_text)
+
+    resolved = [get_catalog_poi(pid, "LON") for pid in ids]
+
+    assert all(poi is not None for poi in resolved)
+    assert read_count == 1
+
+
+def test_recompute_with_real_catalog_items_stays_fast() -> None:
+    from agents.retrieval import get_catalog_poi
+    from gateway.places.adapters.snapshot import clear_snapshot_catalog_cache
+
+    clear_snapshot_catalog_cache()
+    ids = _catalog_place_ids("lon-core")
+    assert get_catalog_poi(ids[0], "LON") is not None
+    kb = load_kb()
+    spec = TripSpec(
+        home_country="IN",
+        origin_city="DEL",
+        destination_city="LON",
+        start_date=date(2026, 9, 1),
+        end_date=date(2026, 9, 4),
+        travelers=2,
+        style="balanced",
+        interests=["food", "culture"],
+        wallet=UserWallet(card_ids=["hdfc-infinia"]),
+    )
+    itin = DraftItinerary(
+        hotel_area_id="geo-cell:london",
+        days=[
+            ItineraryDay(date=date(2026, 9, 1), items=[ItineraryItem(poi_id=ids[0])]),
+            ItineraryDay(date=date(2026, 9, 2), items=[ItineraryItem(poi_id=ids[1])]),
+            ItineraryDay(date=date(2026, 9, 3), items=[ItineraryItem(poi_id=ids[2])]),
+        ],
+    )
+
+    t0 = time.perf_counter()
+    report = recompute_itinerary(
+        spec,
+        itin,
+        RemoveItem(poi_id=ids[2], day_index=2),
+        kb,
+        booking_date=date(2026, 8, 1),
+    )
+    duration_ms = (time.perf_counter() - t0) * 1000
+
+    assert isinstance(report, FinalReport)
+    assert duration_ms < 500.0, f"Warm real-catalog recompute took {duration_ms:.2f}ms"
 
 
 def test_recompute_makes_no_llm_call(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -175,6 +265,26 @@ def test_recompute_fastapi_endpoint() -> None:
     assert data["freshness"]["edit_count"] == 1
 
 
+def test_recompute_empty_wallet_returns_cash_only_report() -> None:
+    kb = load_kb()
+    spec = _fixture_spec()
+    spec.wallet = UserWallet(card_ids=[])
+    itin = _fixture_itinerary()
+
+    report = recompute_itinerary(
+        spec,
+        itin,
+        RemoveItem(poi_id="poi:cloud-forest", day_index=0),
+        kb,
+        booking_date=date(2026, 8, 1),
+    )
+
+    assert report.status.value == "ok"
+    assert report.optimizer_result.assignments
+    assert {a.card_id for a in report.optimizer_result.assignments} == {"cash_only"}
+    assert report.budget_totals.rewards_value_minor == 0
+
+
 def test_freshness_states_after_recompute() -> None:
     """Initial report has fresh state; recompute marks budget recomputed and prose stale."""
     kb = load_kb()
@@ -246,4 +356,3 @@ def test_refresh_prose_endpoint() -> None:
     assert data2["freshness"]["prose"] == "fresh"
     assert data2["freshness"]["budget"] == "recomputed"
     assert data2["freshness"]["edit_count"] == 1
-

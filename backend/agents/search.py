@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import re
 from pathlib import Path
 
 from agents.models import (
@@ -10,6 +12,12 @@ from agents.models import (
 )
 from core.db import KnowledgeBase
 from core.models import POI
+from core.travel_taxonomy import (
+    TravelCategory,
+    canonical_travel_category,
+    category_matches_filter,
+    provider_categories_for_filter,
+)
 from core.trip_models import POIEvidence
 from gateway.catalog.activate import active_catalog_path
 from gateway.catalog.regions import Region, get_region
@@ -64,6 +72,40 @@ def _map_candidate_to_poi_and_evidence(
     return poi, ev
 
 
+def _normalized_query_text(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", value.casefold()).strip()
+
+
+def _query_category_hint(query: str) -> TravelCategory | None:
+    tokens = set(_normalized_query_text(query).split())
+    if tokens.intersection({"restaurant", "cafe", "coffee", "food", "dining"}):
+        return TravelCategory.DINING
+    if tokens.intersection({"park", "garden", "gardens"}):
+        return TravelCategory.NATURE
+    if tokens.intersection({"museum", "gallery", "galleries"}):
+        return TravelCategory.CULTURE
+    if tokens.intersection({"palace", "tower", "monument", "temple", "landmark"}):
+        return TravelCategory.LANDMARK
+    return None
+
+
+def _distance_km(region: Region | None, poi: POI) -> float:
+    if region is None or poi.lat is None or poi.lon is None:
+        return float("inf")
+    radius_km = 6371.0
+    lat1 = math.radians(region.centroid_lat)
+    lon1 = math.radians(region.centroid_lon)
+    lat2 = math.radians(poi.lat)
+    lon2 = math.radians(poi.lon)
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    )
+    return radius_km * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
+
+
 def search_catalog_places(
     request: PlaceSearchRequest,
     kb: KnowledgeBase,
@@ -81,7 +123,12 @@ def search_catalog_places(
     # 1. Load active snapshot catalog if present
     if region is not None:
         try:
-            catalog_path = active_catalog_path(catalogs_root, catalog_id=region.catalog_id)
+            from agents.retrieval import default_catalog_root
+
+            resolved_catalogs_root = (
+                catalogs_root if catalogs_root.exists() else default_catalog_root()
+            )
+            catalog_path = active_catalog_path(resolved_catalogs_root, catalog_id=region.catalog_id)
             if catalog_path and catalog_path.exists():
                 adapter = SnapshotPlaceAdapter(catalog_path)
                 candidates = adapter._load()
@@ -103,7 +150,7 @@ def search_catalog_places(
                 query=request.query,
                 destination_area_id=city_name,
                 max_results=request.limit,
-                category_filters=[request.category] if request.category else [],
+                category_filters=sorted(provider_categories_for_filter(request.category)),
             )
             extra_candidates, partial = provider_adapter.search_places(gw_req)
             if partial is not None:
@@ -160,11 +207,10 @@ def search_catalog_places(
 
     # 3. Filter by category
     if request.category:
-        cat_lower = request.category.strip().casefold()
         items = [
             (poi, ev)
             for poi, ev in items
-            if any(t.casefold() == cat_lower for t in poi.tags)
+            if any(category_matches_filter(t, request.category) for t in poi.tags)
         ]
 
     # 4. Filter by query
@@ -179,12 +225,33 @@ def search_catalog_places(
         ]
 
     # 5. Deterministic sorting
-    def _sort_key(entry: tuple[POI, POIEvidence]) -> tuple[int, int, str, str]:
+    def _sort_key(entry: tuple[POI, POIEvidence]) -> tuple[int, int, int, int, float, str, str]:
         poi, _ = entry
-        name_lower = poi.name.casefold()
-        starts = -1 if q and name_lower.startswith(q) else 0
-        contains = -1 if q and q in name_lower else 0
-        return (starts, contains, name_lower, poi.id)
+        name_norm = _normalized_query_text(poi.name)
+        q_norm = _normalized_query_text(q)
+        hint = _query_category_hint(q)
+        poi_categories = {canonical_travel_category(tag) for tag in poi.tags}
+        category_penalty = 0 if hint is None or hint in poi_categories else 1
+        source_penalty = 0 if poi.provenance.source_type == "manual_curation" else 1
+        distance = _distance_km(region, poi)
+        plausible_bucket = 0 if not q_norm or distance <= 6.0 else 1
+        if q_norm and name_norm == q_norm:
+            name_score = 0
+        elif q_norm and name_norm.startswith(q_norm):
+            name_score = 1
+        elif q_norm and q_norm in name_norm:
+            name_score = 2
+        else:
+            name_score = 3
+        return (
+            category_penalty,
+            source_penalty,
+            plausible_bucket,
+            name_score,
+            distance,
+            name_norm,
+            poi.id,
+        )
 
     items.sort(key=_sort_key)
     sliced = items[: request.limit]

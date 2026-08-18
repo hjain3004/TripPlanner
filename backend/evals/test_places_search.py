@@ -62,8 +62,9 @@ def test_search_places_category_filter() -> None:
     kb = _get_test_kb()
     req = PlaceSearchRequest(destination="SIN", category="food", limit=10)
     resp = search_catalog_places(req, kb)
+    assert resp.results
     for r in resp.results:
-        assert r.category == "food"
+        assert r.category in {"food", "restaurant", "cafe", "food_court"}
 
 
 def test_search_places_api_endpoint() -> None:

@@ -17,7 +17,13 @@ interface ActivityPickerDialogProps {
   currentPoiId?: string;
 }
 
-const CATEGORIES = ["all", "attractions", "nature", "landmark", "food", "culture", "other"];
+const CATEGORIES = [
+  { value: "all", label: "All" },
+  { value: "food", label: "Food" },
+  { value: "culture", label: "Culture" },
+  { value: "nature", label: "Nature" },
+  { value: "attractions", label: "Attractions" },
+];
 
 export function ActivityPickerDialog({
   isOpen,
@@ -97,17 +103,17 @@ export function ActivityPickerDialog({
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by category">
             {CATEGORIES.map((cat) => (
               <button
-                key={cat}
+                key={cat.value}
                 type="button"
-                onClick={() => setSelectedCategory(cat)}
+                onClick={() => setSelectedCategory(cat.value)}
                 className={`px-3 py-1.5 rounded text-xs font-medium capitalize transition-colors min-h-[36px] cursor-pointer ${
-                  selectedCategory === cat
+                  selectedCategory === cat.value
                     ? "bg-accent-1 text-text-on-primary"
                     : "bg-surface-raised text-text-muted hover:text-text border border-border"
                 }`}
-                aria-pressed={selectedCategory === cat}
+                aria-pressed={selectedCategory === cat.value}
               >
-                {cat}
+                {cat.label}
               </button>
             ))}
           </div>
