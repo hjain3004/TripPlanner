@@ -120,7 +120,7 @@ Scope:
 
 - One bounded live product smoke through the real FastAPI app and `/plan` endpoint.
 - Existing ignored `backend/.env` free-tier LLM credentials were sourced locally; no credential values, bearer tokens, request headers, raw provider responses, or prompts were written to this report.
-- No Tripadvisor live transport, paid travel provider, booking action, runtime crawling, consumer-page scraping, MCP runtime activation, or provider credential activation was used.
+- No Tripadvisor live transport, paid travel provider, booking action, runtime crawling, consumer-page scraping, MCP runtime activation, or new provider credential/account activation was used.
 
 Sanitized configuration:
 
@@ -164,13 +164,13 @@ Trace metadata:
 - Trace file: `00a176a0d2534e739f4b6b22c9abdb63.json`.
 - Stage count: `7` (`intake`, `retrieval`, `planner`, `estimator`, `optimizer`, `critic`, `explainer`).
 - Planner metadata: `repair_attempted=True`, `used_fallback=True`.
-- Interpretation: the real LLM path completed, but planner tool-calling quality still required the deterministic planner fallback. This is accepted product behavior for the current free-tier smoke; it is not evidence that hosted weak models satisfy the full discovery-quality target.
+- Interpretation: the real LLM path completed and produced a report payload, but planner tool-calling quality still required the deterministic planner fallback. This is accepted product behavior for the current free-tier smoke; it is not evidence that hosted weak models satisfy the full discovery-quality target.
 
 Safety findings:
 
 - Secret handling: server logs and command output did not include API keys, bearer headers, or raw provider bodies.
 - Provider/model failure classification: the retired configured primary was detected during model-list preflight and avoided with command-local model selection; no runtime provider error occurred during the product smoke.
-- Fallback behavior: deterministic planner fallback was used after repair, and the pipeline still completed with a schema-valid report.
+- Fallback behavior: deterministic planner fallback was used after repair, and the pipeline still completed with `has_report=true`.
 - Zero paid provider activation: preserved. The smoke used only existing free-tier LLM credentials and local/offline travel data.
 
 ## Verification
