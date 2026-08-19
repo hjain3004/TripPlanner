@@ -110,7 +110,68 @@ Empty-wallet probe:
 
 Live LLM smoke:
 
-- Not run. `TRIPWISE_LLM_BASE_URL` and `TRIPWISE_LLM_API_KEY` were absent in the local environment.
+- Previous checkpoint: not run because the existing ignored `backend/.env` free-tier LLM credentials had not been sourced in that session.
+
+## Post-remediation live LLM smoke
+
+Date: 2026-08-19.
+
+Scope:
+
+- One bounded live product smoke through the real FastAPI app and `/plan` endpoint.
+- Existing ignored `backend/.env` free-tier LLM credentials were sourced locally; no credential values, bearer tokens, request headers, raw provider responses, or prompts were written to this report.
+- No Tripadvisor live transport, paid travel provider, booking action, runtime crawling, consumer-page scraping, MCP runtime activation, or provider credential activation was used.
+
+Sanitized configuration:
+
+- Provider host: `api.groq.com`.
+- `.env` configured primary model: `llama-3.3-70b-versatile`.
+- Model preflight result: configured primary was not listed by the provider.
+- Command-local smoke model: `openai/gpt-oss-20b`.
+- Command-local fallback model: `qwen/qwen3.6-27b`.
+- Provider-call ceiling: `TRIPWISE_LLM_MAX_CALLS=6`.
+
+Bounded command shape:
+
+```bash
+cd backend
+set -a
+source .env
+set +a
+export TRIPWISE_LLM_MODEL='openai/gpt-oss-20b'
+export TRIPWISE_LLM_FALLBACK_MODELS='qwen/qwen3.6-27b'
+export TRIPWISE_LLM_MAX_CALLS=6
+.venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+
+Request shape:
+
+- Endpoint: `POST /plan`.
+- Scenario: four-night Delhi to Singapore trip, 2026-09-01 to 2026-09-05, two travelers, HDFC Infinia card, balanced food/nature focus.
+- Job ID: `5e6b2b54bdde435db838dd20a54298a8`.
+
+Terminal result:
+
+- Status: `complete`.
+- Final stage: `explaining`.
+- Elapsed wall time reported by poller: `70.1s`.
+- `has_report`: `true`.
+- `unresolved`: `null`.
+- `error`: `null`.
+
+Trace metadata:
+
+- Trace file: `00a176a0d2534e739f4b6b22c9abdb63.json`.
+- Stage count: `7` (`intake`, `retrieval`, `planner`, `estimator`, `optimizer`, `critic`, `explainer`).
+- Planner metadata: `repair_attempted=True`, `used_fallback=True`.
+- Interpretation: the real LLM path completed, but planner tool-calling quality still required the deterministic planner fallback. This is accepted product behavior for the current free-tier smoke; it is not evidence that hosted weak models satisfy the full discovery-quality target.
+
+Safety findings:
+
+- Secret handling: server logs and command output did not include API keys, bearer headers, or raw provider bodies.
+- Provider/model failure classification: the retired configured primary was detected during model-list preflight and avoided with command-local model selection; no runtime provider error occurred during the product smoke.
+- Fallback behavior: deterministic planner fallback was used after repair, and the pipeline still completed with a schema-valid report.
+- Zero paid provider activation: preserved. The smoke used only existing free-tier LLM credentials and local/offline travel data.
 
 ## Verification
 
@@ -146,5 +207,5 @@ Final clean-tree gate:
 ## Remaining limitations
 
 - Tripadvisor live transport remains disabled pending billing/account activation.
-- No live LLM smoke could be run without free-tier credentials in the environment.
+- The bounded live LLM smoke completed, but planner tool-calling still fell back deterministically under the tested free-tier model.
 - Active static catalogs remain single-file compacted artifacts even though tiled spatial format exists.
