@@ -1,7 +1,7 @@
 # Independent discrepancy audit — Codex
 
-**Date:** 2026-08-17  
-**Scope:** Runtime behavior versus claims. No implementation work was performed.  
+**Date:** 2026-08-17
+**Scope:** Runtime behavior versus claims. No implementation work was performed.
 **Branch observed:** `feat/i8a-tripadvisor-offline-adapter`
 
 ## Method and independence note

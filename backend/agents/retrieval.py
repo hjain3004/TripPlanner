@@ -258,7 +258,12 @@ def retrieve_candidates(
             pois.append(poi)
 
             status = c.status
-            if status == "verify_required":
+            candidate_needs_verification = status in (
+                "verify_required",
+                "cached",
+                "estimated",
+            )
+            if candidate_needs_verification:
                 poi.provenance.needs_verification = True
 
             lic = next((cl.licence_id for cl in c.claims if cl.licence_id), None)
@@ -273,7 +278,7 @@ def retrieve_candidates(
                 last_verified=date(2026, 1, 1),
                 licence_id=lic,
                 attribution=attr,
-                needs_verification=(status == "verify_required"),
+                needs_verification=candidate_needs_verification,
             )
             poi_provenance.append(ev)
 

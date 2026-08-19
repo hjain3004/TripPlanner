@@ -1,7 +1,7 @@
 # Audit reconciliation — Codex and Claude
 
-**Date reconciled:** 2026-08-17  
-**Inputs:** `reports/audit_findings_codex.md` (written first) and `reports/audit_findings_claude.md` (read afterward)  
+**Date reconciled:** 2026-08-17
+**Inputs:** `reports/audit_findings_codex.md` (written first) and `reports/audit_findings_claude.md` (read afterward)
 **Scope:** Evidence reconciliation only. No plan was executed and no production code was changed.
 
 ## Executive conclusion
