@@ -1,0 +1,3 @@
+id,ident,type,name,latitude_deg,longitude_deg,elevation_ft,continent,iso_country,iso_region,municipality,scheduled_service,gps_code,icao_code,iata_code,local_code,home_link,wikipedia_link,keywords
+6000001,VIDP,large_airport,Indira Gandhi International Airport (active),28.5665,77.1031,777,AS,IN,IN-DL,New Delhi,yes,VIDP,VIDP,DEL,,,,
+6000002,VOLD,closed_airport,Old Delhi Airfield (closed),28.60,77.10,700,AS,IN,IN-DL,New Delhi,no,,VOLD,DEL,,,,

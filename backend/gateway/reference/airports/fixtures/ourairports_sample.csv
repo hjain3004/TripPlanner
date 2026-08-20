@@ -1,0 +1,8 @@
+id,ident,type,name,latitude_deg,longitude_deg,elevation_ft,continent,iso_country,iso_region,municipality,scheduled_service,gps_code,icao_code,iata_code,local_code,home_link,wikipedia_link,keywords
+3000001,VIDP,large_airport,Indira Gandhi International Airport,28.5665,77.1031,777,AS,IN,IN-DL,New Delhi,yes,VIDP,VIDP,DEL,,,https://en.wikipedia.org/wiki/Indira_Gandhi_International_Airport,
+3000002,VABB,large_airport,Chhatrapati Shivaji Maharaj International Airport,19.0887,72.8679,39,AS,IN,IN-MH,Mumbai,yes,VABB,VABB,BOM,,,https://en.wikipedia.org/wiki/Chhatrapati_Shivaji_Maharaj_International_Airport,
+3000003,WSSS,large_airport,Singapore Changi Airport,1.3644,103.9915,22,AS,SG,SG-04,Singapore,yes,WSSS,WSSS,SIN,,,https://en.wikipedia.org/wiki/Singapore_Changi_Airport,
+3000004,OMDB,large_airport,Dubai International Airport,25.2532,55.3657,62,AS,AE,AE-DU,Dubai,yes,OMDB,OMDB,DXB,,,https://en.wikipedia.org/wiki/Dubai_International_Airport,
+3000005,EGLL,large_airport,London Heathrow Airport,51.4700,-0.4543,83,EU,GB,GB-ENG,London,yes,EGLL,EGLL,LHR,,,https://en.wikipedia.org/wiki/Heathrow_Airport,
+3000006,LFPG,large_airport,Charles de Gaulle Airport,49.0097,2.5479,392,EU,FR,FR-IDF,Paris,yes,LFPG,LFPG,CDG,,,https://en.wikipedia.org/wiki/Charles_de_Gaulle_Airport,
+3000007,KJFK,large_airport,John F Kennedy International Airport,40.6413,-73.7781,13,NA,US,US-NY,New York,yes,KJFK,KJFK,JFK,,,https://en.wikipedia.org/wiki/John_F._Kennedy_International_Airport,
