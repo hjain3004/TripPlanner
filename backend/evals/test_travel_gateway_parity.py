@@ -137,3 +137,117 @@ def test_gateway_records_same_assumptions_shape_as_legacy(tmp_path) -> None:  # 
     assert gateway.assumptions
     assert any("per-diem" in a.casefold() for a in legacy.assumptions)
     assert any("per-diem" in a.casefold() for a in gateway.assumptions)
+
+
+def _synthetic_currency_mismatch_kb(tmp_path):  # type: ignore[no-untyped-def]
+    """Isolated temp seed set (not the committed core/seeds/) with a hotel
+    priced in a currency other than home currency, and an FX rate chosen so
+    that converting the pre-multiplied stay total gives a DIFFERENT floor
+    result than converting the per-night price and multiplying by nights:
+    333 minor/night x 3 nights = 999 total; rate_micro=3000 (0.003) gives
+    floor(999*3000/1e6)=2 but floor(333*3000/1e6)*3 = 0*3 = 0. This proves
+    the gateway path's per-night-recovery-before-conversion order (see
+    agents/gateway_estimator.py and the matching DEVIATIONS.md entry) is
+    load-bearing, not merely plausible.
+    """
+    seeds_dir = tmp_path / "seeds"
+    seeds_dir.mkdir()
+    (seeds_dir / "sample_hotels.yaml").write_text(
+        """
+- id: test-hotel-usd
+  city: Singapore
+  name: Test Hotel
+  area: test_area
+  stars: 3
+  price_per_night_minor: 333
+  currency: USD
+  style: balanced
+  purchasable_channels: [ota_generic]
+  provenance:
+    source_type: manual_curation
+    last_verified: "2026-07-07"
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+"""
+    )
+    (seeds_dir / "fx_rates.yaml").write_text(
+        """
+- base: USD
+  quote: INR
+  rate_micro: 3000
+  as_of: "2026-07-07"
+  provenance:
+    source_type: manual_curation
+    last_verified: "2026-07-07"
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+- base: SGD
+  quote: INR
+  rate_micro: 63200000
+  as_of: "2026-07-07"
+  provenance:
+    source_type: manual_curation
+    last_verified: "2026-07-07"
+    verified_by: UNVERIFIED
+    needs_verification: true
+    confidence: 0.5
+"""
+    )
+    db_path = tmp_path / "synthetic.sqlite"
+    seed_database(seeds_dir, db_path)
+    return load_kb(db_path)
+
+
+def test_gateway_hotel_currency_conversion_matches_legacy_when_currency_differs_from_home(
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    kb = _synthetic_currency_mismatch_kb(tmp_path)
+    spec = TripSpec(
+        home_country="IN",
+        origin_city="DEL",
+        destination_city="SIN",
+        start_date=date(2026, 8, 1),
+        end_date=date(2026, 8, 4),
+        travelers=1,
+        style="balanced",
+        wallet=UserWallet(card_ids=[]),
+    )
+    itinerary = DraftItinerary(
+        hotel_area_id="test_area",
+        days=[ItineraryDay(date=date(2026, 8, 1), items=[])],
+    )
+    booking_date = date(2026, 7, 25)
+
+    legacy = estimate_costed_trip(spec, itinerary, kb, booking_date=booking_date)
+    gateway = estimate_costed_trip_via_gateway(spec, itinerary, kb, booking_date=booking_date)
+
+    legacy_hotel_line = next(
+        line for line in legacy.costed_trip.lines if line.id == "hotel:test-hotel-usd"
+    )
+    gateway_hotel_line = next(
+        line for line in gateway.costed_trip.lines if line.id == "hotel:test-hotel-usd"
+    )
+
+    # floor(333*3000/1e6)*3 = 0*3 = 0 -- the per-night-then-multiply order.
+    # A buggy total-first order would instead yield floor(999*3000/1e6) = 2,
+    # which this test would catch.
+    assert legacy_hotel_line.amount_minor == 0
+    assert gateway_hotel_line.amount_minor == legacy_hotel_line.amount_minor
+
+
+def test_gateway_hotel_area_match_is_case_insensitive_like_legacy(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    kb = _kb(tmp_path)
+    itinerary = _itinerary().model_copy(update={"hotel_area_id": "MARINA_BAY"})
+    booking_date = date(2026, 7, 25)
+
+    legacy = estimate_costed_trip(_spec(), itinerary, kb, booking_date=booking_date)
+    gateway = estimate_costed_trip_via_gateway(_spec(), itinerary, kb, booking_date=booking_date)
+
+    assert legacy.hotel is not None and gateway.hotel is not None
+    assert legacy.hotel.id == gateway.hotel.id == "sg-hotel-marina-balanced"
+    # Case-insensitive exact match should NOT trigger the centrality-fallback
+    # assumption on either path.
+    assert not any("fallback" in a.casefold() for a in legacy.assumptions)
+    assert not any("fallback" in a.casefold() for a in gateway.assumptions)

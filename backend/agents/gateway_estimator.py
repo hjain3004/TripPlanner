@@ -80,7 +80,12 @@ def _select_hotel_winner(
 ) -> tuple[HotelQuote | None, list[str]]:
     if not quotes:
         return None, [f"No sample hotel exists for {city}."]
-    exact = [q for q in quotes if q.area_id == itinerary.hotel_area_id]
+    # Casefold to match legacy KnowledgeBase.sample_hotels(city, style, area)'s
+    # own casefold comparison (core/db.py) -- SampleAdapter does not filter by
+    # area itself, so area matching happens here and must use the same
+    # case-insensitive semantics as the direct-sample path.
+    wanted_area = itinerary.hotel_area_id.casefold()
+    exact = [q for q in quotes if (q.area_id or "").casefold() == wanted_area]
     if exact:
         return min(exact, key=lambda q: (q.total_minor, q.property_id)), []
 

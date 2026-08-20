@@ -170,6 +170,12 @@ class SampleAdapter:
         )
 
     async def search_hotels(self, request: HotelSearchRequest) -> list[HotelQuote]:
+        # request.area_ids/property_kinds are deliberately NOT filtered here:
+        # the sample seed data has no property_kind other than "hotel", and
+        # area filtering happens deterministically downstream in the
+        # orchestration boundary (agents/gateway_estimator.py), matching how
+        # the legacy direct-sample path structures the same two-step lookup
+        # (broad style match, then area selection with centrality fallback).
         rows = self.kb.sample_hotels(request.city, request.style)
         return [self._map_hotel(row, request) for row in rows]
 

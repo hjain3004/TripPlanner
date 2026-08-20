@@ -13,6 +13,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from gateway.travel.errors import TravelGatewayError
+
 Domain = Literal["flight", "flight_trend", "hotel", "award", "fx", "poi"]
 SourceMethod = Literal[
     "sample", "official_api", "provider_mcp", "community_mcp", "scraper_wrapper", "open_data"
@@ -55,8 +57,6 @@ class TravelProviderRegistry(BaseModel):
         for entry in self.entries:
             if entry.provider_id == provider_id:
                 return entry
-        from gateway.travel.errors import TravelGatewayError
-
         raise TravelGatewayError("provider_unavailable", f"Unknown provider_id: {provider_id}")
 
 
