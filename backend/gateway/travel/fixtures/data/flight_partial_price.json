@@ -1,0 +1,11 @@
+{
+  "_fixture_meta": {
+    "source_method": "sample",
+    "status": "estimated",
+    "captured_at": "2026-08-01T00:00:00Z",
+    "known_limitations": ["price is partial; taxes and fees unknown"]
+  },
+  "results": [
+    {"id": "fx-2", "origin": "DEL", "destination": "SIN", "total_minor": 3900000, "currency": "INR", "completeness": "partial"}
+  ]
+}

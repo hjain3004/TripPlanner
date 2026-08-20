@@ -1,0 +1,11 @@
+{
+  "_fixture_meta": {
+    "source_method": "sample",
+    "status": "estimated",
+    "captured_at": "2026-08-01T00:00:00Z",
+    "known_limitations": ["synthetic fixture; not a live provider capture"]
+  },
+  "results": [
+    {"id": "fx-1", "origin": "DEL", "destination": "SIN", "total_minor": 4100000, "currency": "INR", "completeness": "taxes_uncertain"}
+  ]
+}

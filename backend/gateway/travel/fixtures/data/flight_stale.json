@@ -1,0 +1,11 @@
+{
+  "_fixture_meta": {
+    "source_method": "sample",
+    "status": "stale",
+    "captured_at": "2026-01-01T00:00:00Z",
+    "known_limitations": ["fixture intentionally expired for stale-status contract tests"]
+  },
+  "results": [
+    {"id": "fx-3", "origin": "DEL", "destination": "SIN", "total_minor": 4050000, "currency": "INR", "completeness": "taxes_uncertain"}
+  ]
+}
