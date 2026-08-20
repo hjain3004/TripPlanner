@@ -8,7 +8,7 @@ interface RouteNodeProps {
   state: RouteNodeState;
   label: string;
   subtitle?: string;
-  icon?: any;
+  icon?: React.ElementType;
   children?: ReactNode;
 }
 

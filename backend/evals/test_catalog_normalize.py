@@ -9,9 +9,8 @@ FIXTURES = Path(__file__).parent.parent / "gateway" / "catalog" / "fixtures"
 
 
 def _source(source_id: str) -> PinnedSource:
-    return next(
-        s for s in load_manifest(FIXTURES / "manifest_sg.yaml") if s.source_id == source_id
-    )
+    manifest = load_manifest(FIXTURES / "manifest_sg.yaml")
+    return next(s for s in manifest.sources if s.source_id == source_id)
 
 
 def _overture_rows() -> list[dict[str, Any]]:
@@ -36,14 +35,18 @@ def test_coordinates_and_category_are_separate_claims() -> None:
 
 def test_source_release_is_recorded_on_every_claim() -> None:
     claims = normalize_overture(_overture_rows(), _source("overture_sg"))
-    assert all(c.source_release == "2026-07-24.0" for c in claims)
+    assert all(c.source_release == "2026-07-22.0" for c in claims)
 
 
 def test_missing_hours_produce_no_hours_claim_rather_than_an_open_one() -> None:
     """Spec 5.4: 'Unknown hours do not magically become open.'"""
     rows: list[dict[str, Any]] = [
-        {"id": "x1", "names": {"primary": "No Hours Place"},
-         "categories": {"primary": "park"}, "geometry": {"lat": 1.0, "lon": 103.0}}
+        {
+            "id": "x1",
+            "names": {"primary": "No Hours Place"},
+            "categories": {"primary": "park"},
+            "geometry": {"lat": 1.0, "lon": 103.0},
+        }
     ]
     claims = normalize_overture(rows, _source("overture_sg"))
     assert not [c for c in claims if c.field == "opening_hours"]

@@ -60,11 +60,15 @@ def _report(tmp_path):
     itinerary = _itinerary()
     estimate = estimate_costed_trip(spec, itinerary, kb, booking_date=date(2026, 7, 25))
     kernel = run_kernel(spec, estimate, kb, booking_date=date(2026, 7, 25))
+    from agents.models import RetrievalContext
+    retrieval = RetrievalContext(pois=[], areas=[], poi_rows=[], area_rows=[], poi_provenance=[])
+
     return build_final_report(
         spec,
         itinerary,
         estimate,
         kernel,
+        retrieval,
         critic_caveats=[],
         explainer=ExplainerOutput(
             summary="Grounded summary.",

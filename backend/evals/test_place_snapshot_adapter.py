@@ -18,16 +18,12 @@ def test_snapshot_adapter_returns_candidates_from_the_active_catalog(
         PlaceSearchRequest(destination_area_id="sg", category_filters=["park"], max_results=10)
     )
     assert results and partial is None
-    assert all(
-        any(c.field == "category" and c.value == "park" for c in r.claims) for r in results
-    )
+    assert all(any(c.field == "category" and c.value == "park" for c in r.claims) for r in results)
 
 
 def test_results_carry_licence_and_attribution_on_every_claim(active_catalog: Path) -> None:
     adapter = SnapshotPlaceAdapter(active_catalog)
-    results, _ = adapter.search_places(
-        PlaceSearchRequest(destination_area_id="sg", max_results=50)
-    )
+    results, _ = adapter.search_places(PlaceSearchRequest(destination_area_id="sg", max_results=50))
     for candidate in results:
         for claim in candidate.claims:
             assert claim.licence_id
@@ -37,9 +33,7 @@ def test_results_carry_licence_and_attribution_on_every_claim(active_catalog: Pa
 def test_place_with_unknown_hours_is_verify_required_not_live(active_catalog: Path) -> None:
     """Spec 5.4 — the whole point of the phase."""
     adapter = SnapshotPlaceAdapter(active_catalog)
-    results, _ = adapter.search_places(
-        PlaceSearchRequest(destination_area_id="sg", max_results=50)
-    )
+    results, _ = adapter.search_places(PlaceSearchRequest(destination_area_id="sg", max_results=50))
     no_hours = [r for r in results if not any(c.field == "opening_hours" for c in r.claims)]
     assert no_hours
     assert all(r.status == "verify_required" for r in no_hours)

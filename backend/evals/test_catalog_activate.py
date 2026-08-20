@@ -6,16 +6,19 @@ from gateway.catalog.activate import (
     ActivationRefused,
     activate,
     active_catalog_path,
+    active_catalog_summary,
+    list_active_catalogs,
 )
 from gateway.catalog.build import build_catalog
 from gateway.catalog.quarantine import QuarantineRejected
 
 FIXTURES = Path("raw")
 
+
 @pytest.fixture
 def test_manifests(tmp_path: Path):
     manifest_yaml = """
-catalog_id: sg_test
+catalog_id: overture_sg
 catalog_release: "2026-08-01"
 sources:
   - source_id: overture_sg
@@ -23,47 +26,66 @@ sources:
     licence_id: "L"
     source_release: "1"
     checksum: "abc"
-    max_bytes: 100
+    max_bytes: 5000
     geographic_scope: "SG"
     allowed_purpose: "non-commercial"
     attribution_text: "Overture"
 """
     m = tmp_path / "manifest.yaml"
     m.write_text(manifest_yaml)
-    
+
     bad = tmp_path / "bad.yaml"
     bad.write_text(manifest_yaml.replace("abc", "000"))
-    
+
     thin = tmp_path / "thin.yaml"
     thin.write_text(manifest_yaml)
-    
+
     raw = tmp_path / "raw"
     raw.mkdir()
+
+    # Create a valid zip with one valid claim (not enough for quality gate)
+    import json
+    import zipfile
     
-    payload = b'{"id":"a"}\n'
+    zip_path = tmp_path / "dummy.zip"
+    with zipfile.ZipFile(zip_path, "w") as z:
+        from gateway.catalog.quality import _MIN_PER_CATEGORY
+        places = []
+        idx = 1
+        for cat, min_count in _MIN_PER_CATEGORY.items():
+            for _ in range(min_count):
+                places.append({
+                    "id": f"ext_{idx}",
+                    "names": {"primary": f"Place {idx}"},
+                    "categories": {"primary": "zoo" if cat == "attraction" else cat},
+                    "geometry": {"lat": 1.3, "lon": 103.8}
+                })
+                idx += 1
+        z.writestr("data.json", json.dumps(places))
+        
+    payload = zip_path.read_bytes()
+
     # Update checksum in manifest to match this payload
     import hashlib
+
     true_checksum = hashlib.sha256(payload).hexdigest()
     bad_checksum = "0" * 64
     m.write_text(manifest_yaml.replace("abc", true_checksum))
     thin.write_text(manifest_yaml.replace("abc", true_checksum))
     bad.write_text(manifest_yaml.replace("abc", bad_checksum))
-    
+
     # write raw payload
-    raw_file = raw / "overture_sg_1.zip" 
-    # wait, the source is not a zip here? no, verify_and_stage takes raw_path
-    # verify_and_stage in test_catalog_quarantine expects just the file payload 
-    # (it doesn't have to be a zip if max_bytes check passes, but wait, the plan 
-    # said "uncompressed size over budget...").
+    raw_file = raw / "overture_sg_1.zip"
     raw_file.write_bytes(payload)
-    
+
     return m, bad, thin, raw
+
 
 def test_successful_build_becomes_the_active_catalog(tmp_path: Path, test_manifests) -> None:
     MANIFEST, BAD, THIN, RAW = test_manifests
     artifact = build_catalog(MANIFEST, RAW, tmp_path / "work")
     activate(artifact, tmp_path / "catalogs")
-    active = active_catalog_path(tmp_path / "catalogs")
+    active = active_catalog_path(tmp_path / "catalogs", catalog_id="overture_sg")
     assert active is not None and active.exists()
 
 
@@ -72,21 +94,51 @@ def test_a_failed_build_leaves_the_previous_catalog_active(tmp_path: Path, test_
     MANIFEST, BAD, THIN, RAW = test_manifests
     good = build_catalog(MANIFEST, RAW, tmp_path / "w1")
     activate(good, tmp_path / "catalogs")
-    active = active_catalog_path(tmp_path / "catalogs")
+    active = active_catalog_path(tmp_path / "catalogs", catalog_id="overture_sg")
     assert active is not None
     before = active.read_bytes()
 
     with pytest.raises(QuarantineRejected):
         build_catalog(BAD, RAW, tmp_path / "w2")
 
-    after_path = active_catalog_path(tmp_path / "catalogs")
+    after_path = active_catalog_path(tmp_path / "catalogs", catalog_id="overture_sg")
     assert after_path is not None
     assert after_path.read_bytes() == before
 
 
 def test_a_quality_failure_refuses_activation(tmp_path: Path, test_manifests) -> None:
     MANIFEST, BAD, THIN, RAW = test_manifests
-    artifact = build_catalog(THIN, RAW, tmp_path / "work", fail_quality=True)
+    
+    # Create a new RAW directory that fails quality
+    import json
+    import zipfile
+    
+    fail_raw = tmp_path / "fail_raw"
+    fail_raw.mkdir()
+    
+    zip_path = tmp_path / "fail_dummy.zip"
+    with zipfile.ZipFile(zip_path, "w") as z:
+        places = [{
+            "id": "ext_1",
+            "names": {"primary": "Single Place"},
+            "categories": {"primary": "park"},
+            "geometry": {"lat": 1.3, "lon": 103.8}
+        }]
+        z.writestr("data.json", json.dumps(places))
+        
+    payload = zip_path.read_bytes()
+    
+    import hashlib
+    true_checksum = hashlib.sha256(payload).hexdigest()
+    
+    thin2 = tmp_path / "thin2.yaml"
+    old_chk = THIN.read_text().split('checksum: "')[1].split('"')[0]
+    thin2.write_text(THIN.read_text().replace(old_chk, true_checksum))
+    
+    raw_file = fail_raw / "overture_sg_1.zip"
+    raw_file.write_bytes(payload)
+
+    artifact = build_catalog(thin2, fail_raw, tmp_path / "work2")
     assert artifact.quality.passed is False
     with pytest.raises(ActivationRefused, match="quality"):
         activate(artifact, tmp_path / "catalogs")
@@ -107,3 +159,44 @@ def test_the_artifact_embeds_the_full_source_manifest(tmp_path: Path, test_manif
     assert len(artifact.sources) == 1
     for s in artifact.sources:
         assert s.attribution_text and s.licence_id and s.checksum
+
+
+def test_activation_writes_a_readable_summary_sidecar(tmp_path: Path, test_manifests) -> None:
+    """RegionCapability reads place counts from this instead of parsing the
+    full (potentially tens-of-MB) catalog on every plan request."""
+    MANIFEST, BAD, THIN, RAW = test_manifests
+    artifact = build_catalog(MANIFEST, RAW, tmp_path / "work")
+    activate(artifact, tmp_path / "catalogs")
+
+    summary = active_catalog_summary(tmp_path / "catalogs", catalog_id="overture_sg")
+    assert summary is not None
+    assert summary.catalog_id == "overture_sg"
+    assert summary.place_count == len(artifact.places)
+    assert summary.place_count > 0
+    assert summary.quality_passed is True
+
+
+def test_two_catalogs_activate_independently(tmp_path: Path, test_manifests) -> None:
+    """Task 4: activating a second catalog must not disturb the first - neither
+    its data file nor its summary sidecar."""
+    MANIFEST, BAD, THIN, RAW = test_manifests
+    first = build_catalog(MANIFEST, RAW, tmp_path / "work1")
+    activate(first, tmp_path / "catalogs")
+
+    second_manifest = MANIFEST.read_text().replace("catalog_id: overture_sg", "catalog_id: other")
+    m2 = tmp_path / "manifest2.yaml"
+    m2.write_text(second_manifest)
+    second = build_catalog(m2, RAW, tmp_path / "work2")
+    activate(second, tmp_path / "catalogs")
+
+    first_path = active_catalog_path(tmp_path / "catalogs", catalog_id="overture_sg")
+    second_path = active_catalog_path(tmp_path / "catalogs", catalog_id="other")
+    assert first_path is not None and second_path is not None
+    assert first_path != second_path
+    assert first_path.read_bytes() != b""
+    assert second_path.read_bytes() != b""
+
+    summaries = {s.catalog_id: s for s in list_active_catalogs(tmp_path / "catalogs")}
+    assert set(summaries) == {"overture_sg", "other"}
+    assert summaries["overture_sg"].place_count == len(first.places)
+    assert summaries["other"].place_count == len(second.places)

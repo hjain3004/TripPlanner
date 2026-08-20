@@ -12,7 +12,6 @@ from core.models import (
     LineAssignment,
     OptimizationPrefs,
     OptimizerResult,
-    RedemptionPath,
     RunnerUp,
     SpendLineItem,
     UserWallet,

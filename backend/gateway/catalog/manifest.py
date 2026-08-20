@@ -18,13 +18,23 @@ class PinnedSource(BaseModel):
     attribution_text: str
 
 
+class BoundingBox(BaseModel):
+    min_lon: float
+    min_lat: float
+    max_lon: float
+    max_lat: float
+
 class CatalogManifest(BaseModel):
     catalog_id: str
     catalog_release: str
     sources: list[PinnedSource] = Field(min_length=1)
+    bbox: BoundingBox | None = None
+    max_places: int | None = None
+    centroid_lat: float | None = None
+    centroid_lon: float | None = None
 
 
-def load_manifest(path: Path) -> list[PinnedSource]:
+def load_manifest(path: Path) -> CatalogManifest:
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
-    return CatalogManifest.model_validate(raw).sources
+    return CatalogManifest.model_validate(raw)

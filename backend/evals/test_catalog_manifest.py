@@ -37,7 +37,13 @@ def test_accessibility_is_a_claimable_field() -> None:
 
 def test_source_licence_manifest_records_the_full_spec_11_record() -> None:
     required = {
-        "source_url", "licence_id", "source_release", "checksum",
-        "retrieved_at", "geographic_scope", "allowed_purpose", "attribution_text",
+        "source_url",
+        "licence_id",
+        "source_release",
+        "checksum",
+        "retrieved_at",
+        "geographic_scope",
+        "allowed_purpose",
+        "attribution_text",
     }
     assert required <= set(SourceLicenceManifest.model_fields)

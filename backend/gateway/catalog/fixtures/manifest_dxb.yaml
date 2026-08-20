@@ -1,0 +1,20 @@
+catalog_id: dxb-core
+catalog_release: 2026-08-15.0
+max_places: 25000
+bbox:
+  min_lon: 55.02
+  min_lat: 24.75
+  max_lon: 55.55
+  max_lat: 25.35
+centroid_lat: 25.2048
+centroid_lon: 55.2708
+sources:
+- source_id: overture_dxb
+  source_url: s3://overturemaps-us-west-2/release/2026-07-22.0/
+  licence_id: CDLA-Permissive-2.0
+  source_release: 2026-07-22.0
+  checksum: e97cba7b7ff31972b290850544a4849a904e70889a90c0873c3fd2c86a07c161
+  max_bytes: 50000000
+  geographic_scope: AE-DU
+  allowed_purpose: non-commercial student prototype
+  attribution_text: (c) Overture Maps Foundation

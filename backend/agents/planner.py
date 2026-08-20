@@ -1,23 +1,24 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
+from typing import Any
 
-from agents.llm import LLMCallError, LLMClient
+from agents.discovery.contracts import SearchIntent
+from agents.llm import LLMClient
 from agents.models import (
     DraftItinerary,
-    ItineraryDay,
-    ItineraryItem,
     PlannerResult,
     RetrievalContext,
     TripSpec,
 )
-
 from core.itinerary.compose import (
     ComposerResult,
     ScheduleWarning,
     build_final_schedule,
-    fallback_itinerary,
 )
+
+logger = logging.getLogger(__name__)
 
 class PlannerValidationError(ValueError):
     pass
@@ -28,9 +29,14 @@ def _trip_dates(spec: TripSpec) -> set[date]:
 
 
 def validate_itinerary(
-    itinerary: DraftItinerary, spec: TripSpec, retrieval: RetrievalContext
+    itinerary: DraftItinerary,
+    spec: TripSpec,
+    retrieval: RetrievalContext,
+    discovered_poi_ids: set[str] | None = None,
 ) -> None:
     poi_ids = {poi.id for poi in retrieval.pois}
+    if discovered_poi_ids:
+        poi_ids.update(discovered_poi_ids)
     area_ids = {area.id for area in retrieval.areas}
     if itinerary.hotel_area_id not in area_ids:
         raise PlannerValidationError(f"unknown hotel area: {itinerary.hotel_area_id}")
@@ -51,13 +57,32 @@ def _call_planner(
     *,
     system: str,
     user: str,
-) -> DraftItinerary:
-    return llm.complete_json(
-        node="planner",
-        system=system,
-        user=user,
-        schema=DraftItinerary,
-        temperature=0.0,
+    spec: TripSpec,
+    registry: Any = None,
+) -> tuple[DraftItinerary, set[str]]:
+    from agents.discovery.controller import run_discovery
+    from agents.discovery.tool import MODEL_TOOLS
+    from core.trip_models import DraftItinerary
+    from gateway.places.registry import get_default_place_registry
+    
+    def _execute(prompt: str) -> DraftItinerary | SearchIntent:
+        return llm.complete_json(
+            node="planner",
+            system=system,
+            user=prompt,
+            schema=DraftItinerary,
+            tools=MODEL_TOOLS,
+        )
+    
+    reg = registry or get_default_place_registry()
+    discovery_result = run_discovery(spec, reg, _execute, base_prompt=user)
+    
+    if discovery_result.itinerary is not None:
+        discovered = {c.place_id for c in discovery_result.committed_candidates}
+        return discovery_result.itinerary, discovered
+        
+    raise PlannerValidationError(
+        "Discovery loop exhausted without producing a plan: " + discovery_result.stop_reason
     )
 
 
@@ -82,8 +107,10 @@ def run_planner(
     revision_notes: list[str] | None = None,
 ) -> PlannerResult:
     system = (
-        "Create DraftItinerary JSON using only listed poi_id and hotel_area_id values. "
-        "Do not invent attractions."
+        "Create DraftItinerary JSON with top-level properties `hotel_area_id` (string) "
+        "and `days` (list of ItineraryDay with `date` in YYYY-MM-DD and `items` with `poi_id`). "
+        "Use only listed poi_id and hotel_area_id values. "
+        "Do not invent attractions or area IDs."
     )
     user = (
         f"Trip: {spec.model_dump_json()}\n"
@@ -92,9 +119,9 @@ def run_planner(
         f"Revision notes: {revision_notes or []}"
     )
     try:
-        itinerary = _call_planner(llm, system=system, user=user)
+        itinerary, discovered = _call_planner(llm, system=system, user=user, spec=spec)
         try:
-            validate_itinerary(itinerary, spec, retrieval)
+            validate_itinerary(itinerary, spec, retrieval, discovered)
             result = build_final_schedule(itinerary, spec, retrieval)
             unsafe = _unsafe_warnings(result)
             if unsafe:
@@ -105,24 +132,39 @@ def run_planner(
             )
         except PlannerValidationError as exc:
             repair_user = f"{user}\nValidation error: {exc}. Return corrected JSON only."
-            repaired = _call_planner(llm, system=system, user=repair_user)
-            validate_itinerary(repaired, spec, retrieval)
+            repaired, repaired_discovered = _call_planner(
+                llm, system=system, user=repair_user, spec=spec
+            )
+            validate_itinerary(repaired, spec, retrieval, repaired_discovered)
             result = build_final_schedule(repaired, spec, retrieval)
             unsafe = _unsafe_warnings(result)
             if unsafe:
                 raise PlannerValidationError(
                     f"Repaired schedule still unsafe: {_unsafe_warning_message(unsafe)}"
-                )
+                ) from None
             return PlannerResult(
                 itinerary=result.itinerary,
                 repair_attempted=True,
                 caveats=[w.message for w in result.warnings]
             )
     except Exception as exc:
-        fallback = fallback_itinerary(spec, retrieval)
+
+        from core.itinerary.compose import DAILY_TRAVEL_BUDGET_MIN
+        from core.itinerary.contracts import ItineraryConstraints
+        from core.itinerary.fallback import ComposeStrategy
+        from core.itinerary.routing import build_geodesic_matrix_with_gaps
+        
+        matrix, _ = build_geodesic_matrix_with_gaps(retrieval.pois, "transit")
+        constraints = ItineraryConstraints(max_daily_travel_min=DAILY_TRAVEL_BUDGET_MIN[spec.pace])
+        
+        logger.debug("Routing matrix: %s, constraints: %s", matrix, constraints)
+        
+        strategy = ComposeStrategy()
+        result = strategy.compose(spec, retrieval, matrix, constraints)
+        
         return PlannerResult(
-            itinerary=fallback,
+            itinerary=result.itinerary,
             used_fallback=True,
             repair_attempted=True,
-            caveats=[f"Planner fallback used: {exc}"],
+            caveats=[f"Planner fallback used: {exc}"] + [w.message for w in result.warnings],
         )

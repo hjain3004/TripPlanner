@@ -31,7 +31,7 @@ def _source(tmp_path: Path, payload: bytes, **over: Any) -> tuple[PinnedSource, 
 
 
 def test_manifest_loads_every_spec_11_field() -> None:
-    sources = load_manifest(FIXTURES / "manifest_sg.yaml")
+    sources = load_manifest(FIXTURES / "manifest_sg.yaml").sources
     assert sources, "fixture manifest must not be empty"
     for s in sources:
         assert s.source_url and s.licence_id and s.checksum

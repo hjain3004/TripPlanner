@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from agents.llm import LLMClient, complete_with_repair
 from agents.models import CriticResult, CriticVerdict, DraftItinerary, EstimatorResult, TripSpec
-from agents.retrieval import CITY_BY_IATA
+from agents.retrieval import resolve_destination_city
 from core.db import KnowledgeBase
 
 
@@ -18,7 +18,7 @@ def _critic_system() -> str:
 def _critic_user(
     spec: TripSpec, itinerary: DraftItinerary, estimate: EstimatorResult, kb: KnowledgeBase
 ) -> str:
-    city = CITY_BY_IATA.get(spec.destination_city, spec.destination_city)
+    city = resolve_destination_city(spec.destination_city)
     pois = [
         {
             "id": poi.id,

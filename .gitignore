@@ -69,3 +69,4 @@ frontend/design/probes/*.svg
 # Figma Make export archives — redundant with the extracted bundle under
 # design/, which IS tracked as the frozen visual template.
 design/*.zip
+backend/data/

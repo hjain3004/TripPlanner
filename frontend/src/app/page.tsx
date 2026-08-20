@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/product/site-header";
-import { TrustChip } from "@/components/product/trust-chip";
 
 export default function Home() {
   return (

@@ -9,10 +9,10 @@ residual sub-optimality. Deterministic tie-breaking throughout.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date
 from itertools import combinations
-from typing import Callable
 
 from core.db import KnowledgeBase
 from core.models import (
@@ -239,7 +239,9 @@ def _pool_sizes(kb: KnowledgeBase, wallet: UserWallet) -> dict[str, int]:
     return sizes
 
 
-def _commit(opt: Option, pool_balances: dict[str, int], uses_map: dict[tuple[str, str], int]) -> None:
+def _commit(
+    opt: Option, pool_balances: dict[str, int], uses_map: dict[tuple[str, str], int]
+) -> None:
     for key, pts in opt.pool_draws.items():
         pool_balances[key] = pool_balances.get(key, 0) - pts
     for offer_id, limit in opt.uses_offers:
@@ -247,7 +249,9 @@ def _commit(opt: Option, pool_balances: dict[str, int], uses_map: dict[tuple[str
         uses_map[k] = uses_map.get(k, limit) - 1
 
 
-def _rollback(opt: Option, pool_balances: dict[str, int], uses_map: dict[tuple[str, str], int]) -> None:
+def _rollback(
+    opt: Option, pool_balances: dict[str, int], uses_map: dict[tuple[str, str], int]
+) -> None:
     for key, pts in opt.pool_draws.items():
         pool_balances[key] = pool_balances.get(key, 0) + pts
     for offer_id, limit in opt.uses_offers:
@@ -322,8 +326,16 @@ def _improvement_sweep(
         for i in range(len(lines)):
             for j in range(i + 1, len(lines)):
                 if _try_pair_swap(
-                    kb, trip, wallet, prefs, on_date_fn, lines[i], lines[j],
-                    chosen, pool_balances, uses_map,
+                    kb,
+                    trip,
+                    wallet,
+                    prefs,
+                    on_date_fn,
+                    lines[i],
+                    lines[j],
+                    chosen,
+                    pool_balances,
+                    uses_map,
                 ):
                     improved = True
         if not improved:

@@ -2,7 +2,7 @@
 "use client";
 import React from "react";
 import { motion } from "motion/react";
-import { PlaneTakeoff, Hotel, Train } from "lucide-react";
+import { PlaneTakeoff, Hotel } from "lucide-react";
 import { NotchLabel } from "@/components/product/notch-label";
 import { ProvenanceBand } from "@/components/product/provenance-band";
 import { WhyThis } from "@/components/product/why-this";

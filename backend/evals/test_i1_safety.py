@@ -8,18 +8,19 @@ from __future__ import annotations
 
 from datetime import date
 
-from agents.models import DraftItinerary, RetrievalContext, TripSpec
-from core.models import POI, Area, Channel, Provenance, TimezoneAwareHours, UserWallet
+from agents.models import DraftItinerary, ItineraryDay, ItineraryItem, RetrievalContext, TripSpec
 from core.itinerary.compose import (
     ComposerResult,
+    build_final_schedule,
+    check_poi_hours,
     compose_itinerary,
     day_travel_minutes,
     estimate_travel_min,
     fallback_itinerary,
     haversine_km,
-    check_poi_hours,
     validate_day_travel_budget,
 )
+from core.models import POI, Area, Channel, Provenance, TimezoneAwareHours, UserWallet
 
 PROV = Provenance(
     source_type="manual_curation",
@@ -305,8 +306,8 @@ def test_compose_determinism() -> None:
     assert len(r1.warnings) == len(r2.warnings)
 
 # N1/N3/N4 Tests
-from agents.models import ItineraryDay, ItineraryItem, DraftItinerary
-from core.itinerary.compose import build_final_schedule
+# (imports moved to top or within functions if needed)
+
 
 def test_build_final_schedule_overlap_rejection():
     """A schedule with two overlapping items emits a warning."""
@@ -324,7 +325,8 @@ def test_build_final_schedule_overlap_rejection():
                 date=spec.start_date,
                 items=[
                     ItineraryItem(poi_id="poi1", start_hint="09:00"),
-                    ItineraryItem(poi_id="poi2", start_hint="09:30") # Overlaps since poi1 is 2 hours!
+                    # Overlaps: poi1 runs 2 hours.
+                    ItineraryItem(poi_id="poi2", start_hint="09:30"),
                 ]
             )
         ]
@@ -356,7 +358,7 @@ def test_build_final_schedule_happy_path_retimes():
     items = result.itinerary.days[0].items
     assert items[0].start_time == "09:00"
     assert items[0].end_time == "10:00"
-    assert items[1].start_time != None
+    assert items[1].start_time is not None
 
 def test_build_final_schedule_unknown_hours_emits_verification_task():
     """Unknown hours produce a verification task."""
@@ -438,3 +440,63 @@ def test_build_final_schedule_overlap_does_not_adopt_bad_hint():
     # poi3 must in turn be timed forward from poi2's corrected placement.
     assert items[2].start_time is not None
     assert items[2].start_time > items[1].start_time
+
+
+def test_greedy_composer_matches_compose_itinerary_exactly() -> None:
+    """The protocol wrapper must be behavior-identical to the I1 function."""
+    from core.itinerary.compose import compose_itinerary
+    from core.itinerary.greedy import GreedyComposer
+    s = _spec()
+    ctx = _retrieval([_poi("a"), _poi("b")])
+    legacy = compose_itinerary(s, ctx)
+    wrapped = GreedyComposer().compose(s, ctx)
+    assert wrapped.model_dump_json() == legacy.model_dump_json()
+
+def test_planner_fallback_uses_compose_strategy(monkeypatch) -> None:
+
+    from agents.llm import LLMCallError
+    from agents.planner import run_planner
+    
+    s = _spec()
+    ctx = _retrieval([_poi("p1")])
+    
+    # Mock LLM to fail
+    class FailingLLM:
+        def complete_json(self, *args, **kwargs):
+            raise LLMCallError("Simulated LLM failure")
+            
+    matrix_called = []
+    def mock_build_matrix(*args, **kwargs):
+        matrix_called.append(True)
+        from core.itinerary.contracts import RouteMatrix
+        return RouteMatrix(cells=[]), []
+    monkeypatch.setattr("core.itinerary.routing.build_geodesic_matrix_with_gaps", mock_build_matrix)
+    
+    strategy_called = []
+    def mock_compose(*args, **kwargs):
+        strategy_called.append(True)
+        from agents.models import DraftItinerary
+        from core.itinerary.compose import ComposerResult
+        dummy = DraftItinerary(
+            hotel_area_id="a",
+            days=[ItineraryDay(date=date(2026, 8, 3), items=[])],
+            notes=["Dummy"],
+        )
+        return ComposerResult(itinerary=dummy, warnings=[], excluded_items=[])
+    monkeypatch.setattr("core.itinerary.fallback.ComposeStrategy.compose", mock_compose)
+    
+    debug_calls = []
+    class MockLogger:
+        def debug(self, msg, *args):
+            debug_calls.append(msg)
+        def warning(self, msg, *args): pass
+        def info(self, msg, *args): pass
+    monkeypatch.setattr("agents.planner.logger", MockLogger())
+    
+    result = run_planner(s, ctx, FailingLLM())
+    
+    assert result.used_fallback is True
+    assert result.itinerary.notes == ["Dummy"]
+    assert matrix_called
+    assert strategy_called
+    assert any("Routing matrix:" in call for call in debug_calls)

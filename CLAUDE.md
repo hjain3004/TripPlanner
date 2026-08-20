@@ -43,20 +43,20 @@ Accounts & acquisition: spec **17** (accounts + persistence) is authoritative de
 
 Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (frontend). A milestone is not done because the code exists; it is done when its gate passes.
 
-## Current checkpoint (2026-07-28)
+## Current checkpoint (2026-08-16)
 
-- **M1 is formally complete:** `reports/milestone_1.md` records a fresh Gate M1 pass. The latest combined Gate M1 run has 12 optimizer golden cases passing, 5 determinism-selection tests passing, strict type checking clean for 16 source files, and the canonical demo byte-identical.
-- **M1b is formally complete:** `backend/core/transfer/` now implements the deterministic transfer pathfinder. `reports/milestone_1b.md` records Gate M1b with 20 transfer tests passing, strict type checking clean for 16 source files, and the full backend regression suite at 40 passing tests.
-- **M2 is formally complete:** `backend/agents/` now implements the fixed spec-03 Kernel MVP pipeline, deterministic retrieval/estimation/reporting/trace layers, bounded critic replanning, explainer groundedness fallback, and `ScriptedLLMClient` tests. `backend/api/main.py` exposes `GET /health` and `POST /plan`. `reports/milestone_2.md` records Gate M2 with 38 M2 tests passing, strict type checking clean for 31 source files, full backend regression at 78 passing tests, and an injected `POST /plan` demo returning HTTP 200 in 0.007s.
-- **M3 is formally complete:** `backend/evals/` now implements evaluation-only judge contracts, offline scripted judging, anchor/golden itinerary fixtures, aggregate scoring, Gate M3 assertions, and `backend/evals/report.md`. Runtime reports now carry a deterministic footer/disclaimer with last-verified provenance coverage, while evaluation code remains outside `POST /plan`. `reports/milestone_3.md` records Gate M3 with 19 M3 tests passing, strict type checking clean for 35 source files, full backend regression at 133 passing tests, anchor order `anchor_good > anchor_scattered > anchor_overpacked`, golden overall mean 4.20, and groundedness mean 5.00.
-- **Frontend F1-F4 have landed.** Display font is **Bodoni Moda** for the shell and **Poiret One** for the issue register. UI font is **Schibsted Grotesk**, metadata font is **Roboto Mono**. Palette is **celadon/mangrove-forward**.
-- **Backend gateway exists.** `backend/gateway/evidence/` exists with 8 tested modules.
-- **Do not connect travel-provider MCPs yet.** Developer MCPs are added just-in-time during F1–F4; runtime providers begin only after G1 creates normalized contracts, the provider registry, and `SampleAdapter`. Gondola is the first planned read-only live spike; installation never activates an adapter.
-- **Backend regression baseline is 133 tests.**
-- **Spec pass of 2026-07-28 is complete (specs only, nothing implemented):** spec 05 gained a Stage 0 discovery step (aggregators are leads, never sources; `DiscoveryCandidate` deliberately carries no `Provenance` block); spec 01 gained `Card.network_tier`, `NetworkBenefit` (§3.1) and `Offer.network_tiers`, all optional and all **report-only**, so the Tier-F stacking order is untouched and no golden value moved; spec 17 and spec 18 are new. All judgment calls are in `DEVIATIONS.md`.
-- **I0 is formally complete:** `reports/itinerary_i0_evidence_hardening.md` records a fresh Gate I0 pass. The evidence graph now supports typed exact identities, contradiction detection, and idempotent SQLite persistence. Total passing tests: 196.
-- **I3 is formally complete:** `reports/itinerary_i3_open_data_catalog.md` records a fresh Gate I3 pass. The open data catalog pipeline is implemented with quarantine, normalization, determinism, and atomic activation. Total passing tests: 330.
-- **Git is initialized:** baseline commit `b3790e8` is on `main`; remote `origin` is `https://github.com/hjain3004/TripPlanner.git`; current work is on `feat/f1-frontend-foundation`, which now carries both the F1.5 frontend commits and the 2026-07-28 spec/plan docs. Never claim a push or PR until it actually succeeds. Untracked by choice: `frontend/design/probes/` (6.4 MB of design-probe binaries; Wikimedia sources are CC BY-SA and need attribution before committing) and `frontend/design/pipeline/`.
+- **Backend regression baseline is 493 tests.** Strict mypy clean across 81 source files.
+- **I7 is formally complete:** `reports/itinerary_i7_regional_rollout.md` records rollout across 6 regional catalog corridors (Singapore, Mumbai, Dubai, New York, London, Paris). Fixed Overture category mapping (restaurants, cafes, cultural landmarks retained while housing/condos filtered out), reducing unpopulated categories.
+- **Gate F4 repair is formally complete:** Resolved accessibility and test contrast findings (TrustChip small-text AA contrast, MapLibre container accessibility isolation via `inert`, lazy dynamic chunk loading).
+- **G0 is formally complete:** `reports/g0_bounded_lazy_catalogs.md` records spatial bounding box tiling (0.1°x0.1°), LRU tile cache with disk budget limits, lazy provisioning state machine, and offline provisioning CLI without runtime network access.
+- **P1 is formally complete:** `reports/p1_prompt_hardening.md` records prompt hardening across intake, planner, critic, and explainer. Built recording/replay harness (`RecordingLLMClient`, `ReplayLLMClient`) and replay-backed offline regression suite (`evals/test_scenario_regression.py`). Enforced 6-call ceiling on discovery at provider invocation level.
+- **Real LLM Integration:** `HostedFreeTier` provides OpenAI-compatible HTTP integration (default model `llama-3.3-70b-versatile` on Groq, fallback `llama-3.1-8b-instant`). Zero network calls in test suite via replay fixtures.
+- **Open Findings / Work Remaining:**
+  - On small 8B models (`llama-3.1-8b-instant`), planner discovery tool-calling frequently yields empty candidate sets, triggering deterministic routing fallback.
+  - Explainer output on 70B (`llama-3.3-70b-versatile`) remains unverified across the full scenario suite due to the daily 100k free-tier token ceiling.
+  - Tiled spatial format is implemented and tested in gateway cache, but active static catalogs currently remain single-file compacted artifacts.
+  - End-to-end multi-round agentic discovery latency on hosted free-tier rate limits averages ~8 minutes under live execution without local caching.
+- **Git status:** Branch is `feat/p1-prompt-hardening`. Clean working tree.
 
 ## Repo boundaries
 

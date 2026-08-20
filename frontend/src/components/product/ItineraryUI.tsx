@@ -1,5 +1,5 @@
 import React from 'react';
-import { CreditCard, PlaneTakeoff } from 'lucide-react';
+import { PlaneTakeoff } from 'lucide-react';
 
 import { OffsetPlate } from "./offset-plate";
 

@@ -10,9 +10,10 @@ import { ItineraryView } from './views/ItineraryView';
 import { WalletView } from './views/WalletView';
 import { ProfileView } from './views/ProfileView';
 import { RegisterSpecimenView } from './views/RegisterSpecimenView';
+import { UiComponentsView } from './views/UiComponentsView';
 
 export default function KitchenSinkPage() {
-  const [activeTab, setActiveTab] = useState<'explore' | 'deals' | 'proof' | 'itinerary' | 'wallet' | 'profile' | 'register'>('proof');
+  const [activeTab, setActiveTab] = useState<'explore' | 'deals' | 'proof' | 'itinerary' | 'wallet' | 'profile' | 'register' | 'ui'>('proof');
 
   return (
     <div className="min-h-screen bg-bg text-text font-ui selection:bg-primary/20 relative z-0 theme-singapore">
@@ -26,7 +27,7 @@ export default function KitchenSinkPage() {
             <span className="font-display font-bold text-2xl tracking-tight hidden sm:block">Atlas</span>
           </div>
           
-          <div className="flex items-center gap-4 sm:gap-6 text-xs sm:text-sm font-bold uppercase tracking-wider">
+          <div className="flex items-center gap-4 sm:gap-6 text-xs sm:text-sm font-bold uppercase tracking-wider overflow-x-auto no-scrollbar pb-1">
             <button 
               onClick={() => setActiveTab('explore')}
               className={`flex items-center gap-1.5 transition-colors pb-1 border-b-2 ${activeTab === 'explore' ? 'text-accent-4 border-accent-4' : 'text-text-muted border-transparent hover:text-text hover:border-border'}`}
@@ -61,11 +62,15 @@ export default function KitchenSinkPage() {
             >
               JS
             </button>
+            <button 
+              onClick={() => setActiveTab('ui')}
+              className={`flex items-center gap-1.5 transition-colors pb-1 border-b-2 ${activeTab === 'ui' ? 'text-primary border-primary' : 'text-text-muted border-transparent hover:text-text hover:border-border'}`}
+            >UI</button>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-6 py-12">
+      <div className="max-w-6xl mx-auto px-6 py-12">
         <AnimatePresence mode="wait">
           {activeTab === 'explore' && <ExploreView key="explore" />}
           {activeTab === 'deals' && <DealsView key="deals" />}
@@ -74,8 +79,9 @@ export default function KitchenSinkPage() {
           {activeTab === 'register' && <RegisterSpecimenView key="register" />}
           {activeTab === 'wallet' && <WalletView key="wallet" />}
           {activeTab === 'profile' && <ProfileView key="profile" />}
+          {activeTab === 'ui' && <UiComponentsView key="ui" />}
         </AnimatePresence>
-      </main>
+      </div>
     </div>
   );
 }

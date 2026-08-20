@@ -46,6 +46,24 @@ class PlaceClaim(BaseModel):
     lifecycle_state: Literal["active", "stale", "superseded"] = "active"
 
 
+class CompactClaim(BaseModel):
+    place_id: str = Field(min_length=1)
+    field: Literal[
+        "coordinates",
+        "category",
+        "name",
+        "description",
+        "opening_hours",
+        "accessibility",
+        "admission",
+    ]
+    value: Any
+    source_id: str
+    confidence: float = Field(default=0.9, ge=0.0, le=1.0)
+    needs_verification: bool = False
+    lifecycle_state: Literal["active", "stale", "superseded"] = "active"
+
+
 class PlaceCandidate(BaseModel):
     place_id: str
     claims: list[PlaceClaim]
@@ -58,6 +76,9 @@ class PlaceSearchRequest(BaseModel):
     category_filters: list[str] = Field(default_factory=list)
     max_results: int = Field(le=50)
     budget_context_id: str | None = None
+    origin_lat: float | None = None
+    origin_lon: float | None = None
+    timeout_ms: int | None = None
 
 
 class PartialPlaceResult(BaseModel):

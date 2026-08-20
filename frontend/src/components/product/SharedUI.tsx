@@ -12,7 +12,7 @@ interface HighlightBoxProps {
 
 export const HighlightBox = ({ title, subtitle, value, actionLabel, accent = 'accent-4' }: HighlightBoxProps) => {
   const isPrimary = accent === 'primary';
-  const colorVar = isPrimary ? 'theme(colors.primary.DEFAULT)' : 'theme(colors.accent.4)';
+  
   const bgClass = isPrimary ? 'bg-primary/20' : 'bg-accent-4/20';
   const textClass = isPrimary ? 'text-primary' : 'text-accent-4';
   const hoverClass = isPrimary ? 'hover:bg-primary/10' : 'hover:bg-accent-4/10';

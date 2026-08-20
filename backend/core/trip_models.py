@@ -49,17 +49,35 @@ class TripSpec(BaseModel):
         return self
 
 
+class TransitSegment(BaseModel):
+    duration_min: int
+    status: Literal["routed", "estimated"]
+    source: str
+
+
+class Rejection(BaseModel):
+    code: str
+    place_id: str
+    detail: str
+
+
 class ItineraryItem(BaseModel):
     poi_id: str
     start_hint: str | None = None
     meal_slots: list[str] = Field(default_factory=list)
     start_time: str | None = Field(default=None, exclude=True)
     end_time: str | None = Field(default=None, exclude=True)
+    name: str | None = None
+    category: str | None = None
+    travel_from_previous: TransitSegment | None = None
+    evidence: POIEvidence | None = None
 
 
 class ItineraryDay(BaseModel):
     date: date
     items: list[ItineraryItem] = Field(default_factory=list)
+    unmet_needs: list[str] = Field(default_factory=list)
+    rejections: list[Rejection] = Field(default_factory=list)
 
 
 class DraftItinerary(BaseModel):
@@ -67,6 +85,16 @@ class DraftItinerary(BaseModel):
     days: list[ItineraryDay] = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
     itinerary_quality: Literal["llm", "fallback"] = "llm"
+    unverified_suggestions: list[str] = Field(default_factory=list)
+
+
+class POIEvidence(BaseModel):
+    poi_id: str
+    status: Literal["live", "cached", "estimated", "stale", "verify_required"]
+    last_verified: date
+    licence_id: str | None = None
+    attribution: str | None = None
+    needs_verification: bool
 
 
 class RetrievalContext(BaseModel):
@@ -74,3 +102,4 @@ class RetrievalContext(BaseModel):
     areas: list[Area]
     poi_rows: list[str]
     area_rows: list[str]
+    poi_provenance: list[POIEvidence] = Field(default_factory=list)

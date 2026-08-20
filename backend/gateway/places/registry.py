@@ -126,9 +126,7 @@ def get_default_place_registry() -> ProviderRegistry:
         provider_id="snapshot_adapter",
         enabled=True,
         allowed_profiles=["student_noncommercial"],
-        capabilities=AdapterCapabilities(
-            domains=["poi"], supported_countries=["SG"]
-        ),
+        capabilities=AdapterCapabilities(domains=["poi"], supported_countries=["SG"]),
         priority=100,
         remaining_quota=999999,
     )

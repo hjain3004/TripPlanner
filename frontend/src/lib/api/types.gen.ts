@@ -174,6 +174,10 @@ export type DraftItinerary = {
      * Itinerary Quality
      */
     itinerary_quality?: 'llm' | 'fallback';
+    /**
+     * Unverified Suggestions
+     */
+    unverified_suggestions?: Array<string>;
 };
 
 /**
@@ -234,6 +238,7 @@ export type FinalReport = {
      */
     trace_id: string;
     status?: PipelineStatus;
+    region_capability?: RegionCapability | null;
 };
 
 /**
@@ -284,6 +289,14 @@ export type ItineraryDay = {
      * Items
      */
     items?: Array<ItineraryItem>;
+    /**
+     * Unmet Needs
+     */
+    unmet_needs?: Array<string>;
+    /**
+     * Rejections
+     */
+    rejections?: Array<Rejection>;
 };
 
 /**
@@ -302,6 +315,16 @@ export type ItineraryItem = {
      * Meal Slots
      */
     meal_slots?: Array<string>;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Category
+     */
+    category?: string | null;
+    travel_from_previous?: TransitSegment | null;
+    evidence?: PoiEvidence | null;
 };
 
 /**
@@ -431,6 +454,36 @@ export type OptimizerResult = {
 };
 
 /**
+ * POIEvidence
+ */
+export type PoiEvidence = {
+    /**
+     * Poi Id
+     */
+    poi_id: string;
+    /**
+     * Status
+     */
+    status: 'live' | 'cached' | 'estimated' | 'stale' | 'verify_required';
+    /**
+     * Last Verified
+     */
+    last_verified: string;
+    /**
+     * Licence Id
+     */
+    licence_id?: string | null;
+    /**
+     * Attribution
+     */
+    attribution?: string | null;
+    /**
+     * Needs Verification
+     */
+    needs_verification: boolean;
+};
+
+/**
  * PaymentStrategyRow
  */
 export type PaymentStrategyRow = {
@@ -557,6 +610,50 @@ export type RecommendationKind = 'REDEEM' | 'PAY_CASH' | 'NO_DATA';
  * RedemptionPath
  */
 export type RedemptionPath = 'cashback' | 'portal_flights' | 'portal_hotels' | 'transfer_airline' | 'transfer_hotel' | 'voucher';
+
+/**
+ * RegionCapability
+ */
+export type RegionCapability = {
+    /**
+     * Region
+     */
+    region: string;
+    /**
+     * Catalog Status
+     */
+    catalog_status: 'active' | 'absent' | 'provisioning' | 'stale';
+    /**
+     * Place Count
+     */
+    place_count?: number;
+    /**
+     * Budget Supported
+     */
+    budget_supported?: boolean;
+    /**
+     * Known Gaps
+     */
+    known_gaps?: Array<string>;
+};
+
+/**
+ * Rejection
+ */
+export type Rejection = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Place Id
+     */
+    place_id: string;
+    /**
+     * Detail
+     */
+    detail: string;
+};
 
 /**
  * RunnerUp
@@ -847,6 +944,24 @@ export type TransferStep = {
      * Transfer Time Hours Max
      */
     transfer_time_hours_max: number;
+};
+
+/**
+ * TransitSegment
+ */
+export type TransitSegment = {
+    /**
+     * Duration Min
+     */
+    duration_min: number;
+    /**
+     * Status
+     */
+    status: 'routed' | 'estimated';
+    /**
+     * Source
+     */
+    source: string;
 };
 
 /**
