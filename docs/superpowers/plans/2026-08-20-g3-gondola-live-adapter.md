@@ -318,9 +318,20 @@ project's actual corridors. Neither of these can be satisfied by code.
 **Once both preconditions are met**, this phase is:
 
 - A single, separate, manually-triggered script (not part of `pytest`, not part of `make
-  gate`), e.g. `backend/gateway/travel/adapters/gondola/scripts/live_acceptance_check.py`,
-  requiring an explicit `--i-have-read-the-preflight-report` flag to run, refusing to run
-  without it.
+  gate`), e.g. `backend/gateway/travel/adapters/gondola/scripts/live_acceptance_check.py`.
+  **The gate must not be a self-attestation CLI flag** — a flag like
+  `--i-have-read-the-preflight-report` can be typed by any future agent session and provides
+  no actual evidence the two preconditions above were met (this was flagged as a Critical
+  gap by this milestone's own required code review: "a self-attestation flag ... nothing
+  checks that Gondola's written clarification or corridor-coverage confirmation actually
+  happened"). Instead, the script must require a **human-supplied artifact an agent cannot
+  self-generate**: e.g. refuse to run unless a file
+  `backend/gateway/travel/adapters/gondola/G3_5_APPROVED.txt` exists, is committed by a human
+  (not written by an agent session), and contains a sha256 hash of a value only communicated
+  out-of-band by the human at approval time (e.g. a short passphrase the human chooses and
+  states directly in chat when granting approval, never generated or guessed by the agent).
+  The script verifies the hash before proceeding and refuses to run — or to accept an
+  agent-authored version of that file — otherwise.
 - Read-only: calls only `search_hotels` for one hardcoded, low-stakes query (e.g. a single
   well-known hotel in the corridor confirmed viable by the human precondition above), once.
 - Enforces the `max_cost_minor=0` ceiling from Task 2.2's ledger — the script itself
