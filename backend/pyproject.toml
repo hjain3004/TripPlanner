@@ -12,6 +12,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "pyyaml>=6.0",
     "fastapi>=0.116",
+    "argon2-cffi>=23.1",
     "ortools>=9.10",
 ]
 
@@ -27,7 +28,7 @@ dev = [
 
 [tool.setuptools]
 # Flat-layout packages that live directly under backend/ (gate commands run from backend/).
-packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "agents", "api", "evals",
+packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "accounts", "agents", "api", "evals",
             "gateway", "gateway.evidence", "gateway.places", "gateway.places.adapters",
             "gateway.catalog"]
 

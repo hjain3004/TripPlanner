@@ -2,10 +2,14 @@
 export {
   getJobStatusPlanJobIdGet,
   healthHealthGet,
+  loginAuthLoginPost,
+  logoutAuthLogoutPost,
+  meAuthMeGet,
   type Options,
   planPlanPost,
   recomputePlanPlanRecomputePost,
   refreshProsePlanPlanRefreshProsePost,
+  registerAuthRegisterPost,
   searchPlacesPlacesSearchPost,
 } from "./generated/sdk.gen";
 export type {
@@ -16,6 +20,7 @@ export type {
   Channel,
   ClientOptions,
   CostedTrip,
+  CredentialsIn,
   DraftItineraryInput,
   DraftItineraryOutput,
   FinalReport,
@@ -92,6 +97,7 @@ export type {
   TransitSegment,
   TripIntakeRequest,
   TripSpec,
+  UserOut,
   UserWallet,
   ValidationError,
 } from "./generated/types.gen";

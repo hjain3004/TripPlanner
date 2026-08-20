@@ -177,6 +177,20 @@ export type CostedTrip = {
 };
 
 /**
+ * CredentialsIn
+ */
+export type CredentialsIn = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Password
+     */
+    password: string;
+};
+
+/**
  * DraftItinerary
  */
 export type DraftItineraryInput = {
@@ -1405,6 +1419,24 @@ export type TripSpec = {
 };
 
 /**
+ * UserOut
+ */
+export type UserOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
  * UserWallet
  *
  * The user's owned cards + optional points balances (from TripSpec, spec 01 §8).
@@ -1473,12 +1505,7 @@ export type HealthHealthGetResponse = HealthHealthGetResponses[keyof HealthHealt
 export type PlanPlanPostData = {
     body: TripIntakeRequest;
     path?: never;
-    query?: {
-        /**
-         * Ledger
-         */
-        ledger?: unknown | null;
-    };
+    query?: never;
     url: '/plan';
 };
 
@@ -1608,3 +1635,85 @@ export type SearchPlacesPlacesSearchPostResponses = {
 };
 
 export type SearchPlacesPlacesSearchPostResponse = SearchPlacesPlacesSearchPostResponses[keyof SearchPlacesPlacesSearchPostResponses];
+
+export type RegisterAuthRegisterPostData = {
+    body: CredentialsIn;
+    path?: never;
+    query?: never;
+    url: '/auth/register';
+};
+
+export type RegisterAuthRegisterPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RegisterAuthRegisterPostError = RegisterAuthRegisterPostErrors[keyof RegisterAuthRegisterPostErrors];
+
+export type RegisterAuthRegisterPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: UserOut;
+};
+
+export type RegisterAuthRegisterPostResponse = RegisterAuthRegisterPostResponses[keyof RegisterAuthRegisterPostResponses];
+
+export type LoginAuthLoginPostData = {
+    body: CredentialsIn;
+    path?: never;
+    query?: never;
+    url: '/auth/login';
+};
+
+export type LoginAuthLoginPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LoginAuthLoginPostError = LoginAuthLoginPostErrors[keyof LoginAuthLoginPostErrors];
+
+export type LoginAuthLoginPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type LoginAuthLoginPostResponse = LoginAuthLoginPostResponses[keyof LoginAuthLoginPostResponses];
+
+export type LogoutAuthLogoutPostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/logout';
+};
+
+export type LogoutAuthLogoutPostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type LogoutAuthLogoutPostResponse = LogoutAuthLogoutPostResponses[keyof LogoutAuthLogoutPostResponses];
+
+export type MeAuthMeGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/me';
+};
+
+export type MeAuthMeGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type MeAuthMeGetResponse = MeAuthMeGetResponses[keyof MeAuthMeGetResponses];

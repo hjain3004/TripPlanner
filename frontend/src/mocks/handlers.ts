@@ -1,9 +1,11 @@
 import { http, HttpResponse } from "msw";
 import type {
+  CredentialsIn,
   FinalReport,
   PlanJobStatus,
   RecomputeRequest,
   RefreshProseRequest,
+  UserOut,
 } from "@/lib/api";
 
 const SPEED_MULTIPLIER = 1;
@@ -349,6 +351,37 @@ function createFailedStatus(jobId: string): PlanJobStatus {
 }
 
 export const handlers = [
+  http.post("*/auth/register", async ({ request }) => {
+    const body = (await request.json()) as CredentialsIn;
+    const user: UserOut = {
+      id: "msw-user-001",
+      email: body.email.trim().toLowerCase(),
+      status: "active",
+    };
+    return HttpResponse.json(user, { status: 201 });
+  }),
+
+  http.post("*/auth/login", async ({ request }) => {
+    const body = (await request.json()) as CredentialsIn;
+    const user: UserOut = {
+      id: "msw-user-001",
+      email: body.email.trim().toLowerCase(),
+      status: "active",
+    };
+    return HttpResponse.json(user);
+  }),
+
+  http.post("*/auth/logout", () => new HttpResponse(null, { status: 204 })),
+
+  http.get("*/auth/me", () => {
+    const user: UserOut = {
+      id: "msw-user-001",
+      email: "student@example.com",
+      status: "active",
+    };
+    return HttpResponse.json(user);
+  }),
+
   http.post("*/plan", async ({ request }) => {
     const body = (await request.json()) as { raw_request?: string };
     if (!body?.raw_request) {

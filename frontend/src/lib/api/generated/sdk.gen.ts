@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetJobStatusPlanJobIdGetData, GetJobStatusPlanJobIdGetErrors, GetJobStatusPlanJobIdGetResponses, HealthHealthGetData, HealthHealthGetResponses, PlanPlanPostData, PlanPlanPostErrors, PlanPlanPostResponses, RecomputePlanPlanRecomputePostData, RecomputePlanPlanRecomputePostErrors, RecomputePlanPlanRecomputePostResponses, RefreshProsePlanPlanRefreshProsePostData, RefreshProsePlanPlanRefreshProsePostErrors, RefreshProsePlanPlanRefreshProsePostResponses, SearchPlacesPlacesSearchPostData, SearchPlacesPlacesSearchPostErrors, SearchPlacesPlacesSearchPostResponses } from './types.gen';
+import type { GetJobStatusPlanJobIdGetData, GetJobStatusPlanJobIdGetErrors, GetJobStatusPlanJobIdGetResponses, HealthHealthGetData, HealthHealthGetResponses, LoginAuthLoginPostData, LoginAuthLoginPostErrors, LoginAuthLoginPostResponses, LogoutAuthLogoutPostData, LogoutAuthLogoutPostResponses, MeAuthMeGetData, MeAuthMeGetResponses, PlanPlanPostData, PlanPlanPostErrors, PlanPlanPostResponses, RecomputePlanPlanRecomputePostData, RecomputePlanPlanRecomputePostErrors, RecomputePlanPlanRecomputePostResponses, RefreshProsePlanPlanRefreshProsePostData, RefreshProsePlanPlanRefreshProsePostErrors, RefreshProsePlanPlanRefreshProsePostResponses, RegisterAuthRegisterPostData, RegisterAuthRegisterPostErrors, RegisterAuthRegisterPostResponses, SearchPlacesPlacesSearchPostData, SearchPlacesPlacesSearchPostErrors, SearchPlacesPlacesSearchPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -75,3 +75,37 @@ export const searchPlacesPlacesSearchPost = <ThrowOnError extends boolean = fals
         ...options.headers
     }
 });
+
+/**
+ * Register
+ */
+export const registerAuthRegisterPost = <ThrowOnError extends boolean = false>(options: Options<RegisterAuthRegisterPostData, ThrowOnError>): RequestResult<RegisterAuthRegisterPostResponses, RegisterAuthRegisterPostErrors, ThrowOnError> => (options.client ?? client).post<RegisterAuthRegisterPostResponses, RegisterAuthRegisterPostErrors, ThrowOnError>({
+    url: '/auth/register',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Login
+ */
+export const loginAuthLoginPost = <ThrowOnError extends boolean = false>(options: Options<LoginAuthLoginPostData, ThrowOnError>): RequestResult<LoginAuthLoginPostResponses, LoginAuthLoginPostErrors, ThrowOnError> => (options.client ?? client).post<LoginAuthLoginPostResponses, LoginAuthLoginPostErrors, ThrowOnError>({
+    url: '/auth/login',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Logout
+ */
+export const logoutAuthLogoutPost = <ThrowOnError extends boolean = false>(options?: Options<LogoutAuthLogoutPostData, ThrowOnError>): RequestResult<LogoutAuthLogoutPostResponses, unknown, ThrowOnError> => (options?.client ?? client).post<LogoutAuthLogoutPostResponses, unknown, ThrowOnError>({ url: '/auth/logout', ...options });
+
+/**
+ * Me
+ */
+export const meAuthMeGet = <ThrowOnError extends boolean = false>(options?: Options<MeAuthMeGetData, ThrowOnError>): RequestResult<MeAuthMeGetResponses, unknown, ThrowOnError> => (options?.client ?? client).get<MeAuthMeGetResponses, unknown, ThrowOnError>({ url: '/auth/me', ...options });

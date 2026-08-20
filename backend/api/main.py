@@ -7,9 +7,23 @@ from datetime import date
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
+from accounts.models import User
+from accounts.store import AccountStore, DuplicateEmailError
+from api.auth import (
+    CSRF_HEADER,
+    SESSION_COOKIE,
+    clear_session_cookies,
+    current_user,
+    get_store,
+    new_csrf_token,
+    now_utc,
+    require_csrf,
+    set_session_cookies,
+)
 from agents.llm import HostedFreeTier, LLMClient
 from agents.models import (
     FinalReport,
@@ -56,7 +70,7 @@ app.add_middleware(
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", CSRF_HEADER],
 )
 
 
@@ -260,6 +274,69 @@ def _run_job(
                 "trace_id": "",
             },
         )
+
+
+class CredentialsIn(BaseModel):
+    email: str
+    password: str = Field(min_length=12)
+
+
+class UserOut(BaseModel):
+    id: str
+    email: str
+    status: str
+
+
+@app.post("/auth/register", status_code=201, response_model=UserOut)
+def register(
+    body: CredentialsIn, store: AccountStore = Depends(get_store)
+) -> UserOut:
+    now = now_utc()
+    try:
+        user = store.create_user(email=body.email, now=now)
+    except DuplicateEmailError:
+        # Deliberately uninformative: registration must not confirm which
+        # emails already exist.
+        raise HTTPException(status_code=409, detail="Registration failed")
+    store.set_password(user.id, body.password, now=now)
+    return UserOut(id=user.id, email=user.email, status=user.status)
+
+
+@app.post("/auth/login", response_model=UserOut)
+def login(
+    body: CredentialsIn,
+    response: Response,
+    store: AccountStore = Depends(get_store),
+) -> UserOut:
+    now = now_utc()
+    user = store.authenticate(body.email, body.password, now=now)
+    if user is None:
+        # One message for absent-user, wrong-password and locked-out alike.
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    session, raw_token = store.create_session(user.id, now=now)
+    set_session_cookies(response, raw_token, new_csrf_token(), session.expires_at)
+    return UserOut(id=user.id, email=user.email, status=user.status)
+
+
+@app.post("/auth/logout", status_code=204)
+def logout(
+    request: Request, store: AccountStore = Depends(get_store)
+) -> Response:
+    require_csrf(request)
+    now = now_utc()
+    token = request.cookies.get(SESSION_COOKIE)
+    if token:
+        session = store.session_for_token(token, now=now)
+        if session is not None:
+            store.revoke_session(session.id, now=now)
+    response = Response(status_code=204)
+    clear_session_cookies(response)
+    return response
+
+
+@app.get("/auth/me", response_model=UserOut)
+def me(user: User = Depends(current_user)) -> UserOut:
+    return UserOut(id=user.id, email=user.email, status=user.status)
 
 
 if __name__ == "__main__":

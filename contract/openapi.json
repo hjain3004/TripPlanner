@@ -32,31 +32,15 @@
       "post": {
         "summary": "Plan",
         "operationId": "plan_plan_post",
-        "parameters": [
-          {
-            "name": "ledger",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {},
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ledger"
-            }
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TripIntakeRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "202": {
@@ -64,10 +48,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
                   "additionalProperties": {
                     "type": "string"
                   },
+                  "type": "object",
                   "title": "Response Plan Plan Post"
                 }
               }
@@ -232,6 +216,111 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "summary": "Register",
+        "operationId": "register_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Login",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Logout",
+        "operationId": "logout_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "summary": "Me",
+        "operationId": "me_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
                 }
               }
             }
@@ -507,6 +596,25 @@
         ],
         "title": "CostedTrip",
         "description": "Estimator output consumed by the optimizer (spec 02 \u00a73, minimal for M1).\n\nIn M1 the golden harness supplies ``lines`` directly (bypassing the estimator)."
+      },
+      "CredentialsIn": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "CredentialsIn"
       },
       "DraftItinerary-Input": {
         "properties": {
@@ -2691,6 +2799,29 @@
           "wallet"
         ],
         "title": "TripSpec"
+      },
+      "UserOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "status"
+        ],
+        "title": "UserOut"
       },
       "UserWallet": {
         "properties": {
