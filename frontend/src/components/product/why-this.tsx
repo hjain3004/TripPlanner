@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { Info, ChevronDown } from "lucide-react";
 
 interface WhyThisProps {
   summary: string;
@@ -9,35 +10,27 @@ interface WhyThisProps {
 }
 
 export function WhyThis({ summary, children }: WhyThisProps) {
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="border-b border-border">
-      <button
+    <div className="mt-4">
+      <button 
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between py-2 px-0 text-left text-sm text-text-muted hover:text-text transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 text-sm font-medium text-primary hover:opacity-80 transition-opacity bg-primary/5 px-3 py-2 rounded-lg w-full"
       >
-        <span>{summary}</span>
-        <motion.span
-          animate={{ rotate: open ? 180 : 0 }}
-          transition={{ duration: 0.18 }}
-          className="text-xs"
-        >
-          ▾
-        </motion.span>
+        <Info className="w-4 h-4" />
+        {summary}
+        <motion.div animate={{ rotate: isOpen ? 180 : 0 }} className="ml-auto">
+          <ChevronDown className="w-4 h-4" />
+        </motion.div>
       </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            key="content"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="pb-3 text-sm text-text">{children}</div>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div animate={{ height: "auto", opacity: 1 }} initial={{ height: 0, opacity: 0 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <div className="p-3 text-sm text-text-muted leading-relaxed bg-primary/5 rounded-b-lg border-t border-primary/10 text-left">
+              {children}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

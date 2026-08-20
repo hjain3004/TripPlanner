@@ -1,0 +1,47 @@
+{
+  "deals": {
+  },
+  "itinerary": {
+    "outbound": {
+      "originCode": "DEL",
+      "originName": "New Delhi",
+      "destCode": "SIN",
+      "destName": "Singapore Changi",
+      "airline": "Singapore Airlines First Class",
+      "flightNumber": "SQ403",
+      "duration": "5h 50m",
+      "costPoints": 75000,
+      "costCash": 11200,
+      "provenance": {
+        "sourceUrl": "KrisFlyer",
+        "lastVerified": "Oct 1",
+        "verifiedBy": "AwardHacker API",
+        "confidence": 98
+      }
+    },
+    "hotel": {
+      "title": "Marina Bay Sands",
+      "subtitle": "4 Nights • Oct 13 - Oct 17",
+      "ledger": [
+        { "id": "1", "label": "Amex Fine Hotels & Resorts", "value": "45,000 pts", "cost": 240000, "dominant": true, "notch": "Recommended" },
+        { "id": "2", "label": "HDFC Infinia RewardZ", "value": "36,000 pts", "cost": 240000 },
+        { "id": "3", "label": "Direct Booking (Cash)", "value": "0 pts", "cost": 285000 }
+      ],
+      "whyThis": "While HDFC offers a flat redemption, Marina Bay Sands is part of Amex's Fine Hotels & Resorts program. Booking through FHR triggers your platinum $200 hotel credit, plus provides daily breakfast for two and a $100 property credit, resulting in significantly higher net value.",
+      "provenance": {
+        "sourceUrl": "Amex Travel Portal",
+        "lastVerified": "Today, 09:41 AM",
+        "confidence": 95
+      }
+    },
+    "return": {
+      "originCode": "SIN",
+      "originName": "Singapore Changi",
+      "destCode": "DEL",
+      "destName": "New Delhi",
+      "airline": "Singapore Airlines First Class",
+      "flightNumber": "SQ406",
+      "duration": "5h 55m"
+    }
+  }
+}

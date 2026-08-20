@@ -1,8 +1,23 @@
 /* Singapore theme pack */
 .theme-singapore {
-  --th-font-display: var(--font-bodoni-moda);
+  --th-font-display: var(--font-poiret-one);
+
+  /* Poiret One is single-weight (400 only). font-weight cannot thicken it and a bold
+     request yields faux-bold that smears the hairline deco joins. Weight comes from an
+     outward stroke instead: one ratio, floored so small headings do not go weedy.
+     Approved on a rendered ladder 2026-08-08 (Framer project "Courteous Jargon"). */
+  --th-display-stroke-hero: 3px;
+  --th-display-stroke-mark: 1.5px;
+  --th-display-stroke-max:  5.5px;    /* Increased from 4.5px */
   --th-font-ui: var(--font-schibsted-grotesk);
   --th-font-mono: var(--font-roboto-mono);
+
+  --th-radius-s: 6px;
+  --th-radius-m: 12px;
+  --th-radius-l: 20px;
+  --th-shadow-1: var(--shadow-1-shell);
+  --th-shadow-2: var(--shadow-2-shell);
+  --th-shadow-3: var(--shadow-3-shell);
 
   --th-bg:             oklch(0.947 0.013 87);   /* limestone #F1EDE4 */
   --th-surface:        oklch(0.979 0.008 91);   /* paper #FAF8F2 */

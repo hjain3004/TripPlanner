@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import date
 
-from agents.llm import ScriptedLLMClient
+from agents.llm import LLMCallError, LLMTimeoutError, ScriptedLLMClient
 from agents.models import (
     CriticIssue,
     CriticVerdict,
@@ -125,7 +125,7 @@ def test_pipeline_returns_clarification_without_downstream_calls(tmp_path) -> No
 
 
 def test_pipeline_fails_soft_when_intake_llm_errors(tmp_path) -> None:
-    llm = ScriptedLLMClient({"intake": [RuntimeError("intake down")]})
+    llm = ScriptedLLMClient({"intake": [LLMCallError("intake provider HTTP 404")]})
 
     response = run_pipeline(
         "Singapore sometime",
@@ -135,9 +135,29 @@ def test_pipeline_fails_soft_when_intake_llm_errors(tmp_path) -> None:
         trace_dir=tmp_path,
     )
 
-    assert response.status == PipelineStatus.NEEDS_CLARIFICATION
+    assert response.status == PipelineStatus.ERROR
     assert response.report is None
-    assert response.unresolved[0].startswith("intake failed:")
+    assert response.unresolved == []
+    assert response.error is not None
+    assert "intake provider HTTP 404" in response.error
+
+
+def test_pipeline_reports_intake_timeout_as_runtime_error(tmp_path) -> None:
+    llm = ScriptedLLMClient({"intake": [LLMTimeoutError("intake timed out after 20s")]})
+
+    response = run_pipeline(
+        "Singapore sometime",
+        _kb(tmp_path),
+        llm,
+        booking_date=date(2026, 7, 25),
+        trace_dir=tmp_path,
+    )
+
+    assert response.status == PipelineStatus.ERROR
+    assert response.report is None
+    assert response.unresolved == []
+    assert response.error is not None
+    assert "intake timed out" in response.error
 
 
 def test_pipeline_uses_planner_fallback_when_planner_llm_errors(tmp_path) -> None:

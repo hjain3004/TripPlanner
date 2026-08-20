@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -9,7 +9,7 @@ from accounts.store import AccountStore
 from api.auth import CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE, get_store
 from api.main import app
 
-NOW = datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
 PASSWORD = "correct horse battery"
 
 
@@ -114,6 +114,24 @@ def test_logout_with_csrf_header_revokes_the_session(tmp_path: Path) -> None:
     app.dependency_overrides.clear()
 
 
+def test_logout_preflight_allows_the_csrf_header(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    response = client.options(
+        "/auth/logout",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": CSRF_HEADER,
+        },
+    )
+
+    assert response.status_code == 200
+    allowed_headers = response.headers["access-control-allow-headers"].lower()
+    assert CSRF_HEADER.lower() in allowed_headers
+    app.dependency_overrides.clear()
+
+
 def test_wrong_password_and_unknown_email_are_indistinguishable(
     tmp_path: Path,
 ) -> None:
@@ -139,7 +157,6 @@ def test_password_change_revokes_other_sessions(tmp_path: Path) -> None:
     _, old_token = store.create_session("u1", now=NOW, session_id="s1")
 
     store.set_password("u1", "a brand new passphrase", now=NOW)
-    store.revoke_all_sessions("u1", now=NOW)
 
     assert store.session_for_token(old_token, now=NOW) is None
 

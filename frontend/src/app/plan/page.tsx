@@ -15,8 +15,16 @@ import {
 } from "@/components/ui/select";
 import { parsePlanJobStatus } from "@/lib/api/schemas";
 import { apiClient } from "@/lib/api/client-config";
-import { planPlanPost, getJobStatusPlanJobIdGet } from "@/lib/api/sdk.gen";
-import type { PlanJobStatus, TripIntakeRequest } from "@/lib/api/types.gen";
+import { getJobStatusPlanJobIdGet, planPlanPost } from "@/lib/api";
+import type {
+  AddItem,
+  MoveItem,
+  PlanJobStatus,
+  RemoveItem,
+  ReorderDay,
+  ReplaceItem,
+  TripIntakeRequest,
+} from "@/lib/api";
 import { composeRawRequest, parseWallet } from "@/lib/wizard/composeRequest";
 import type { WizardData } from "@/lib/wizard/types";
 import { EMPTY_WIZARD } from "@/lib/wizard/types";
@@ -30,6 +38,7 @@ import { PaymentStrategyCard } from "@/components/product/payment-strategy-card"
 import { TransferPlanPanel } from "@/components/product/transfer-plan-panel";
 import { BookingChecklist } from "@/components/product/booking-checklist";
 import { TrustChip } from "@/components/product/trust-chip";
+import { TripMap } from "@/components/product/trip-map";
 import { AssumptionsFooter } from "@/components/product/assumptions-footer";
 import dynamic from "next/dynamic";
 
@@ -221,7 +230,7 @@ export default function PlanPage() {
             ))}
           </nav>
 
-          <h1 ref={headingRef} tabIndex={-1} className="font-display text-2xl mb-6 outline-none">
+          <h1 ref={headingRef} tabIndex={-1} className="font-display display-hero text-h1 mb-6 outline-none">
             {stepHeading(currentStep, unresolvedList)}
           </h1>
 
@@ -273,7 +282,7 @@ export default function PlanPage() {
     return (
       <div className="min-h-screen bg-bg font-ui text-text">
         <div className="mx-auto max-w-lg px-6 py-16">
-          <h1 ref={headingRef} tabIndex={-1} className="font-display text-2xl mb-4 outline-none" role="alert">A few details needed</h1>
+          <h1 ref={headingRef} tabIndex={-1} className="font-display display-hero text-h1 mb-4 outline-none" role="alert">A few details needed</h1>
           <ul className="space-y-2 text-sm mb-8">
             {unresolvedList.map((q, i) => (
               <li key={i} className="flex items-start gap-2"><span className="text-savings-text shrink-0 mt-0.5">&rarr;</span><span>{q}</span></li>
@@ -464,7 +473,7 @@ function StepSubmit({ wizard, composeRawRequest: compose }: { wizard: WizardData
   return (
     <div className="space-y-4 text-sm">
       <p>You are about to submit this trip plan request:</p>
-      /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
+      {/* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */}
       <div className="rounded-lg border border-border bg-accent-2/30 p-3">
         <p className="font-mono text-xs">{raw}</p>
         {wizard.cardIds.length > 0 && (
@@ -500,7 +509,7 @@ function PollingView({ jobStatus, headingRef, destination, jobId }: {
   return (
     <div className="min-h-screen bg-bg font-ui text-text">
       <div className="mx-auto max-w-lg px-6 py-16">
-        <h1 ref={headingRef} tabIndex={-1} className="font-display text-2xl mb-8 outline-none" role="alert" aria-live="polite">
+        <h1 ref={headingRef} tabIndex={-1} className="font-display display-hero text-h1 mb-8 outline-none" role="alert" aria-live="polite">
           {indeterminate ? "Working on your plan" : (stage ? STAGE_LABELS[stage] ?? stage : "Working on your plan")}
         </h1>
         <div className="mb-8">
@@ -523,13 +532,100 @@ function PollingView({ jobStatus, headingRef, destination, jobId }: {
 
 // ── Results view ──────────────────────────────────────────────
 
-function ResultsView({ report, onRetry }: {
+function ResultsView({ report: initialReport, onRetry }: {
   report: NonNullable<PlanJobStatus["report"]>;
   onRetry: () => void;
 }) {
+  const [report, setReport] = useState(initialReport);
+  const [isRecomputing, setIsRecomputing] = useState(false);
+  const [isRefreshingProse, setIsRefreshingProse] = useState(false);
+  const [recomputeError, setRecomputeError] = useState<string | null>(null);
+  const [lastFailedEdit, setLastFailedEdit] = useState<
+    (({ op: "move_item" } & MoveItem) | ({ op: "remove_item" } & RemoveItem) | ({ op: "reorder_day" } & ReorderDay) | ({ op: "add_item" } & AddItem) | ({ op: "replace_item" } & ReplaceItem)) | null
+  >(null);
+  const [proseError, setProseError] = useState<string | null>(null);
+
+  const requestSeqRef = useRef(0);
+  const proseSeqRef = useRef(0);
+
   const bt = report.budget_totals;
   const destination = report.trip_spec?.destination_city ?? "destination";
   const numDays = report.itinerary?.days?.length ?? 0;
+
+  const handleEdit = async (
+    edit: ({ op: "move_item" } & MoveItem) | ({ op: "remove_item" } & RemoveItem) | ({ op: "reorder_day" } & ReorderDay) | ({ op: "add_item" } & AddItem) | ({ op: "replace_item" } & ReplaceItem)
+  ) => {
+    if (isRecomputing) return;
+    const currentSeq = ++requestSeqRef.current;
+    setIsRecomputing(true);
+    setRecomputeError(null);
+    setLastFailedEdit(null);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+      const resp = await fetch(`${apiBase}/plan/recompute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trip_spec: report.trip_spec,
+          itinerary: report.itinerary,
+          edit,
+          previous_freshness: report.freshness,
+        }),
+      });
+      if (currentSeq !== requestSeqRef.current) return;
+      if (!resp.ok) {
+        throw new Error(`Recompute failed (${resp.status}): ${resp.statusText}`);
+      }
+      const updated = await resp.json();
+      if (currentSeq !== requestSeqRef.current) return;
+      setReport(updated);
+    } catch (err: unknown) {
+      if (currentSeq !== requestSeqRef.current) return;
+      setLastFailedEdit(edit);
+      setRecomputeError(err instanceof Error ? err.message : "Failed to recompute plan");
+    } finally {
+      if (currentSeq === requestSeqRef.current) {
+        setIsRecomputing(false);
+      }
+    }
+  };
+
+  const handleRefreshProse = async () => {
+    if (isRecomputing || isRefreshingProse) return;
+    const currentSeq = ++proseSeqRef.current;
+    setIsRefreshingProse(true);
+    setProseError(null);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+      const resp = await fetch(`${apiBase}/plan/refresh-prose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trip_spec: report.trip_spec,
+          itinerary: report.itinerary,
+          kernel_result: {
+            optimizer_result: report.optimizer_result,
+            transfer_advice: report.transfer_advice,
+          },
+          previous_freshness: report.freshness,
+        }),
+      });
+      if (currentSeq !== proseSeqRef.current) return;
+      if (!resp.ok) {
+        throw new Error(`Prose refresh failed (${resp.status}): ${resp.statusText}`);
+      }
+      const updated = await resp.json();
+      if (currentSeq !== proseSeqRef.current) return;
+      setReport(updated);
+    } catch (err: unknown) {
+      if (currentSeq !== proseSeqRef.current) return;
+      setProseError(err instanceof Error ? err.message : "Failed to refresh explanation");
+    } finally {
+      if (currentSeq === proseSeqRef.current) {
+        setIsRefreshingProse(false);
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-bg font-ui text-text" data-testid="results-view">
@@ -546,20 +642,109 @@ function ResultsView({ report, onRetry }: {
           <p className="text-sm text-text-muted text-center -mt-4">{report.summary}</p>
         )}
 
+        {report.freshness?.prose === "stale" && (
+          <div className="flex flex-wrap items-center justify-center gap-2 -mt-4" data-testid="stale-prose-marker">
+            <TrustChip variant="needs-verification" label="Written before your last edit" />
+            <button
+              type="button"
+              onClick={handleRefreshProse}
+              disabled={isRefreshingProse || isRecomputing}
+              className="text-xs font-medium text-accent-1 hover:underline cursor-pointer disabled:opacity-50"
+            >
+              {isRefreshingProse ? "Refreshing explanation..." : "Refresh explanation"}
+            </button>
+          </div>
+        )}
+
+        {proseError && (
+          <div className="p-3 rounded bg-accent-2 border border-border text-xs text-danger flex items-center justify-between gap-2" role="alert">
+            <span>{proseError}</span>
+            <button
+              type="button"
+              onClick={handleRefreshProse}
+              className="px-2 py-0.5 bg-danger text-text-on-primary text-xs rounded hover:opacity-90 transition-opacity font-medium cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {recomputeError && (
+          <div className="p-3 rounded bg-accent-2 border border-border text-xs text-danger flex items-center justify-between gap-2" role="alert">
+            <span>{recomputeError}</span>
+            {lastFailedEdit && (
+              <button
+                type="button"
+                onClick={() => handleEdit(lastFailedEdit)}
+                className="px-2 py-0.5 bg-danger text-text-on-primary text-xs rounded hover:opacity-90 transition-opacity font-medium cursor-pointer"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+
+        {report.region_capability && (
+          <div className="flex flex-wrap items-center justify-center gap-2 -mt-4" data-testid="region-capability-note">
+            {report.region_capability.catalog_status === "provisioning" && (
+              <TrustChip
+                variant="needs-verification"
+                label="Places catalog is being prepared offline; using curated highlights for this run"
+              />
+            )}
+            {report.region_capability.catalog_status === "absent" && (
+              <TrustChip
+                variant="needs-verification"
+                label={`Curated highlights only — no open data place catalog active for ${report.region_capability.region}`}
+              />
+            )}
+            {(report.region_capability.known_gaps?.length ?? 0) > 0 &&
+              report.region_capability.known_gaps!.map((gap, i) => (
+                <TrustChip key={i} variant="needs-verification" label={gap} />
+              ))}
+          </div>
+        )}
+
         <GsapEntrance />
 
         {/* Itinerary */}
-        <section className="gsap-section">
-          <h2 className="font-display text-h2 mb-4">Itinerary</h2>
+        <section className="gsap-section" aria-busy={isRecomputing}>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <h2 className="font-ui font-semibold text-h2">Itinerary</h2>
+            {report.freshness?.itinerary === "recomputed" && (
+              <TrustChip variant="verified" label="Recomputed after edit" />
+            )}
+          </div>
           {report.itinerary_overview && <p className="text-sm text-text-muted mb-4">{report.itinerary_overview}</p>}
-          <ItineraryTimeline itinerary={report.itinerary} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <ItineraryTimeline
+              itinerary={report.itinerary}
+              assignments={report.optimizer_result?.assignments}
+              destination={destination}
+              onEdit={handleEdit}
+              isRecomputing={isRecomputing}
+            />
+            <div>
+              <div className="sticky top-24">
+                <TripMap 
+                  itinerary={report.itinerary} 
+                  destination={destination}
+                />
+              </div>
+            </div>
+          </div>
         </section>
 
         <hr className="border-border" />
 
         {/* Budget breakdown */}
         <section className="gsap-section">
-          <h2 className="font-display text-h2 mb-4">Budget</h2>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <h2 className="font-ui font-semibold text-h2">Budget</h2>
+            {report.freshness?.budget === "recomputed" && (
+              <TrustChip variant="verified" label="Recomputed live" />
+            )}
+          </div>
           <div className="border border-border rounded-sm">
             <div className="px-4 py-2 border-b border-border">
               <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Cost breakdown</span>
@@ -591,7 +776,7 @@ function ResultsView({ report, onRetry }: {
         {/* Payment strategy */}
         {report.optimizer_result?.assignments && report.optimizer_result.assignments.length > 0 && (
           <section className="gsap-section">
-            <h2 className="font-display text-h2 mb-4">Payment strategy</h2>
+            <h2 className="font-ui font-semibold text-h2 mb-4">Payment strategy</h2>
             <div className="space-y-3">
               {report.optimizer_result.assignments.map((assignment) => (
                 <PaymentStrategyCard key={assignment.line.id} assignment={assignment} />
@@ -601,7 +786,7 @@ function ResultsView({ report, onRetry }: {
         )}
         {report.payment_strategy && report.payment_strategy.length > 0 && !report.optimizer_result?.assignments?.length && (
           <section className="gsap-section">
-            <h2 className="font-display text-h2 mb-4">Payment strategy</h2>
+            <h2 className="font-ui font-semibold text-h2 mb-4">Payment strategy</h2>
             <div className="space-y-2 text-sm">
               {report.payment_strategy.map((row, i) => (
                 <div key={i} className="flex items-start gap-2">
@@ -618,7 +803,7 @@ function ResultsView({ report, onRetry }: {
           <>
             <hr className="border-border" />
             <section className="gsap-section">
-              <h2 className="font-display text-h2 mb-4">Points & transfers</h2>
+              <h2 className="font-ui font-semibold text-h2 mb-4">Points & transfers</h2>
               <TransferPlanPanel advice={report.transfer_advice} />
             </section>
           </>
@@ -639,7 +824,7 @@ function ResultsView({ report, onRetry }: {
           <>
             <hr className="border-border" />
             <section className="gsap-section">
-              <h2 className="font-display text-h2 mb-4">Data quality</h2>
+              <h2 className="font-ui font-semibold text-h2 mb-4">Data quality</h2>
               <div className="space-y-2">
                 {report.provenance_warnings.map((w, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">

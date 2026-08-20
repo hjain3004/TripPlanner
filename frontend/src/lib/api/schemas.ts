@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PlanJobStatus } from "./types.gen";
+import type { PlanJobStatus } from "./generated/types.gen";
 
 const stageEnum = z.enum([
   "intake",
@@ -11,10 +11,29 @@ const stageEnum = z.enum([
   "explaining",
 ]);
 
+const sectionStateEnum = z.enum(["fresh", "stale", "recomputed"]);
+
+export const sectionFreshnessSchema = z.object({
+  budget: sectionStateEnum.optional(),
+  payment_strategy: sectionStateEnum.optional(),
+  itinerary: sectionStateEnum.optional(),
+  prose: sectionStateEnum.optional(),
+  critic_verdict: sectionStateEnum.optional(),
+  edit_count: z.number().int().optional(),
+});
+
 const jobErrorSchema = z.object({
   code: z.string(),
   message: z.string(),
   trace_id: z.string(),
+});
+
+const regionCapabilitySchema = z.object({
+  region: z.string(),
+  catalog_status: z.enum(["active", "absent", "provisioning", "stale"]),
+  place_count: z.number().int(),
+  budget_supported: z.boolean(),
+  known_gaps: z.array(z.string()),
 });
 
 const finalReportSchema = z.object({
@@ -29,6 +48,8 @@ const finalReportSchema = z.object({
   booking_checklist: z.array(z.string()).optional(),
   confidence: z.number(),
   status: z.enum(["needs_clarification", "ok", "error"]).optional(),
+  region_capability: regionCapabilitySchema.nullable().optional(),
+  freshness: sectionFreshnessSchema.optional(),
 }).passthrough();
 
 export const planJobStatusSchema = z.object({

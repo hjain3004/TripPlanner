@@ -1,0 +1,133 @@
+"""Deterministic, reversible entity resolution."""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from gateway.evidence.edges import Edge, EdgeKind, EvidenceGraph
+from gateway.evidence.nodes import (
+    Claim,
+    FreshnessState,
+    LifecycleState,
+    ResolutionRecord,
+    ResolutionState,
+)
+
+_RESOLUTION_PREFIX = "res:"
+_MEMBER_SEPARATOR = "|"
+
+_FRESHNESS_ORDER = {
+    FreshnessState.LIVE: 0,
+    FreshnessState.CACHED: 1,
+    FreshnessState.ESTIMATED: 2,
+    FreshnessState.VERIFY_REQUIRED: 3,
+    FreshnessState.STALE: 4,
+}
+
+
+class ClaimAlreadyResolved(ValueError):
+    pass
+
+
+def resolve(
+    graph: EvidenceGraph,
+    claim_ids: list[str],
+    *,
+    created_by_run: str,
+    rule: Literal["exact_identity"] = "exact_identity",
+) -> ResolutionRecord:
+    if len(claim_ids) < 2:
+        raise ValueError("a resolution needs at least two members")
+    if len(set(claim_ids)) != len(claim_ids):
+        raise ValueError("duplicate member id")
+
+    for res in graph.resolutions.values():
+        if res.state == ResolutionState.ACTIVE:
+            overlap = set(claim_ids).intersection(res.members)
+            if overlap:
+                raise ClaimAlreadyResolved(f"claims already resolved: {overlap}")
+
+    claims = []
+    for cid in claim_ids:
+        if cid not in graph.claims:
+            raise ValueError(f"missing claim {cid}")
+        c = graph.claims[cid]
+        if c.lifecycle != LifecycleState.ACTIVE:
+            raise ValueError(f"claim {cid} is superseded")
+        claims.append(c)
+
+    base_identity = claims[0].identity
+    base_dump = base_identity.model_dump()
+    for c in claims[1:]:
+        c_dump = c.identity.model_dump()
+        if c_dump != base_dump:
+            raise ValueError("claims do not have exact same identity")
+
+    def rank_key(c: Claim) -> tuple[int, int, float, str]:
+        source_time = (
+            graph.sources[c.source_id].retrieved_at
+            if c.source_id and c.source_id in graph.sources
+            else None
+        )
+        # False before True for needs_verification -> int(False)=0
+        return (
+            int(c.needs_verification),
+            _FRESHNESS_ORDER.get(c.status, 5),
+            # negative timestamp so newest is first
+            -source_time.timestamp() if source_time else 0.0,
+            c.claim_id,
+        )
+
+    claims.sort(key=rank_key)
+    canonical_id = claims[0].claim_id
+    members = sorted(claim_ids)
+
+    res_id = _RESOLUTION_PREFIX + _MEMBER_SEPARATOR.join(members)
+    record = ResolutionRecord(
+        resolution_id=res_id,
+        members=members,
+        canonical_id=canonical_id,
+        rule=rule,
+        confidence=1.0,
+        created_by_run=created_by_run,
+        state=ResolutionState.ACTIVE,
+    )
+    graph.resolutions[res_id] = record
+
+    for member in members:
+        if member != canonical_id:
+            graph.add_edge(
+                Edge(
+                    kind=EdgeKind.RESOLVED_TO,
+                    src=member,
+                    dst=canonical_id,
+                    created_by_run=created_by_run,
+                )
+            )
+    return record
+
+
+def unresolve(graph: EvidenceGraph, resolution_id: str, *, reversed_by_run: str) -> None:
+    if resolution_id not in graph.resolutions:
+        return
+    record = graph.resolutions[resolution_id]
+    record.state = ResolutionState.REVERSED
+    record.reversed_by_run = reversed_by_run
+
+    active_edges_needed = set()
+    for res in graph.resolutions.values():
+        if res.state == ResolutionState.ACTIVE and res.resolution_id != resolution_id:
+            for member in res.members:
+                if member != res.canonical_id:
+                    active_edges_needed.add((member, res.canonical_id))
+
+    graph.edges = [
+        e
+        for e in graph.edges
+        if not (
+            e.kind is EdgeKind.RESOLVED_TO
+            and e.src in record.members
+            and e.dst == record.canonical_id
+            and (e.src, e.dst) not in active_edges_needed
+        )
+    ]

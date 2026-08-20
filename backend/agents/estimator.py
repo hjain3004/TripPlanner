@@ -5,19 +5,20 @@ from typing import Literal
 
 from agents.config import load_agent_config
 from agents.models import DraftItinerary, EstimatorResult, TripSpec
-from agents.retrieval import CITY_BY_IATA
+from agents.retrieval import resolve_destination_city
 from core.db import KnowledgeBase
 from core.models import (
+    POI,
     Area,
     Channel,
     CostedTrip,
-    POI,
     SampleFlight,
     SampleHotel,
     SpendCategory,
     SpendLineItem,
 )
 from core.transfer.arithmetic import convert_minor
+from core.travel_taxonomy import spend_category_for_tags
 
 HOME_CURRENCY_BY_COUNTRY = {"IN": "INR", "AE": "AED", "US": "USD"}
 DESTINATION_CURRENCY_BY_IATA = {"SIN": "SGD"}
@@ -29,7 +30,7 @@ def _home_currency(spec: TripSpec) -> str:
 
 
 def _destination_city(spec: TripSpec) -> str:
-    return CITY_BY_IATA.get(spec.destination_city, spec.destination_city)
+    return resolve_destination_city(spec.destination_city)
 
 
 def _preferred_cabin(style: str) -> Literal["economy", "premium", "business"]:
@@ -39,7 +40,7 @@ def _preferred_cabin(style: str) -> Literal["economy", "premium", "business"]:
 
 
 def _price_in_home(amount_minor: int, currency: str, home_currency: str, kb: KnowledgeBase) -> int:
-    if currency == home_currency:
+    if amount_minor == 0 or currency == home_currency:
         return amount_minor
     fx = kb.fx_rate(currency, home_currency)
     if fx is None:
@@ -99,31 +100,52 @@ def _pick_hotel(
     ), assumptions
 
 
-def _poi_index(kb: KnowledgeBase, spec: TripSpec) -> dict[str, POI]:
-    return {poi.id: poi for poi in kb.pois(_destination_city(spec))}
+
 
 
 def _poi_category(poi: POI) -> SpendCategory:
-    if "food" in poi.tags:
-        return SpendCategory.DINING
-    return SpendCategory.ATTRACTIONS
+    return spend_category_for_tags(poi.tags)
 
 
-def _poi_lines(spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase) -> list[SpendLineItem]:
+def _poi_lines(
+    spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase
+) -> tuple[list[SpendLineItem], list[str]]:
     home_currency = _home_currency(spec)
-    by_id = _poi_index(kb, spec)
     seen: set[str] = set()
     lines: list[SpendLineItem] = []
+    assumptions: list[str] = []
+
+    # Pre-fetch kb pois for fast lookup
+    kb_pois = {poi.id: poi for poi in kb.pois(_destination_city(spec))}
+
     for day in itinerary.days:
         for item in day.items:
             if item.poi_id in seen:
                 continue
             seen.add(item.poi_id)
-            poi = by_id[item.poi_id]
-            amount = (
-                _price_in_home(poi.price_minor, poi.currency, home_currency, kb)
-                * spec.travelers
-            )
+
+            poi = kb_pois.get(item.poi_id)
+            if not poi:
+                from agents.retrieval import get_catalog_poi
+
+                poi = get_catalog_poi(item.poi_id, spec.destination_city)
+
+            if not poi:
+                # If a POI is genuinely hallucinated, skip costing it for now
+                continue
+
+            try:
+                amount = (
+                    _price_in_home(poi.price_minor, poi.currency, home_currency, kb)
+                    * spec.travelers
+                )
+            except ValueError:
+                assumptions.append(
+                    f"No verified FX rate for {poi.currency}->{home_currency}; "
+                    f"omitted cash pricing for {poi.name} from budget estimation."
+                )
+                continue
+
             lines.append(
                 SpendLineItem(
                     id=f"poi:{poi.id}",
@@ -135,18 +157,43 @@ def _poi_lines(spec: TripSpec, itinerary: DraftItinerary, kb: KnowledgeBase) -> 
                     merchant_hint=poi.merchant_hint,
                 )
             )
-    return lines
+    return lines, assumptions
 
 
-def _per_diem_lines(spec: TripSpec, kb: KnowledgeBase) -> list[SpendLineItem]:
+def _per_diem_lines(spec: TripSpec, kb: KnowledgeBase) -> tuple[list[SpendLineItem], list[str]]:
+    from gateway.catalog.regions import get_region
+
+    region = get_region(spec.destination_city)
     home_currency = _home_currency(spec)
-    destination_currency = DESTINATION_CURRENCY_BY_IATA[spec.destination_city]
+
+    # Per-diem constants (PER_DIEM_MINOR_BY_STYLE) are SGD-denominated seed
+    # data - Singapore-specific. A region without verified per-diem/FX data
+    # gets no per-diem line rather than a converted-through-SGD guess (I7
+    # constraint: no currencies or FX rates added speculatively for new
+    # regions). This also fixes a real crash: registering Mumbai without this
+    # gate raised ValueError("Missing FX rate for INR->INR") on every trip,
+    # because _pick_flight/_pick_hotel already degrade gracefully but this
+    # unconditionally required an FX rate. Matches their (value, assumptions)
+    # return shape.
+    if region and not region.budget_supported:
+        city = region.city_name
+        return [], [
+            f"No per-diem cost data for {city} yet; "
+            "dining and local transport are not included in the budget."
+        ]
+
+    if region:
+        destination_currency = region.currency
+    else:
+        destination_currency = DESTINATION_CURRENCY_BY_IATA.get(
+            spec.destination_city, "SGD"
+        )
     fx = kb.fx_rate(destination_currency, home_currency)
     if fx is None:
         raise ValueError(f"Missing FX rate for {destination_currency}->{home_currency}")
     constants = PER_DIEM_MINOR_BY_STYLE[spec.style]
     days = spec.nights
-    return [
+    lines = [
         SpendLineItem(
             id="per_diem:dining",
             label="Dining per-diem estimate",
@@ -164,6 +211,12 @@ def _per_diem_lines(spec: TripSpec, kb: KnowledgeBase) -> list[SpendLineItem]:
             available_channels=[Channel.POS_ABROAD],
         ),
     ]
+    assumptions = [
+        f"Sample per-diem estimate uses {spec.style} Singapore constants: "
+        f"{constants['dining']} SGD cents dining and "
+        f"{constants['misc']} SGD cents misc per person-day."
+    ]
+    return lines, assumptions
 
 
 def estimate_costed_trip(
@@ -209,8 +262,10 @@ def estimate_costed_trip(
             )
         )
 
-    lines.extend(_poi_lines(spec, itinerary, kb))
-    lines.extend(_per_diem_lines(spec, kb))
+    poi_lines, poi_assumptions = _poi_lines(spec, itinerary, kb)
+    lines.extend(poi_lines)
+    per_diem_lines, per_diem_assumptions = _per_diem_lines(spec, kb)
+    lines.extend(per_diem_lines)
 
     return EstimatorResult(
         costed_trip=CostedTrip(
@@ -227,10 +282,7 @@ def estimate_costed_trip(
         assumptions=[
             *flight_assumptions,
             *hotel_assumptions,
-            (
-                f"Sample per-diem estimate uses {spec.style} Singapore constants: "
-                f"{PER_DIEM_MINOR_BY_STYLE[spec.style]['dining']} SGD cents dining and "
-                f"{PER_DIEM_MINOR_BY_STYLE[spec.style]['misc']} SGD cents misc per person-day."
-            ),
+            *poi_assumptions,
+            *per_diem_assumptions,
         ],
     )

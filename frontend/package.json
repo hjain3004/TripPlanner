@@ -7,10 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "gen:api": "npx @hey-api/openapi-ts -i ../contract/openapi.json -o src/lib/api -c @hey-api/client-fetch",
+    "gen:api": "npx @hey-api/openapi-ts -i ../contract/openapi.json -o src/lib/api/generated -c @hey-api/client-fetch",
     "gen:api:pull": "curl -so ../contract/openapi.json http://localhost:8000/openapi.json"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@hey-api/client-fetch": "^0.13.1",
     "@tanstack/react-query": "^5.101.4",
     "canvas-confetti": "^1.9.4",

@@ -58,8 +58,7 @@ def build_kb(kb_spec: dict[str, Any]) -> KnowledgeBase:
     rules = [RewardRule.model_validate(_with_prov(r)) for r in kb_spec.get("reward_rules", [])]
     offers = [Offer.model_validate(_with_prov(o)) for o in kb_spec.get("offers", [])]
     vals = [
-        PointValuation.model_validate(_with_prov(v))
-        for v in kb_spec.get("point_valuations", [])
+        PointValuation.model_validate(_with_prov(v)) for v in kb_spec.get("point_valuations", [])
     ]
     return KnowledgeBase.from_models(
         cards=cards, reward_rules=rules, offers=offers, point_valuations=vals

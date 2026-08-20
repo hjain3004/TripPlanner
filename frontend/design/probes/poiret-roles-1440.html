@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poiret One — role assignment, 1440px</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poiret+One&family=Parisienne&family=Petit+Formal+Script&family=Yellowtail&family=Schibsted+Grotesk:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Palette is the SHIPPED singapore pack, unchanged. Only type roles are under test. */
+:root{
+  --bg:#F1EDE4; --paper:#FAF8F2; --ink:#272A27; --muted:#6E736F;
+  --mangrove:#173A34; --celadon:#BDD3C9; --brass:#B08C48; --lacquer:#AE493B;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;width:1440px;background:var(--bg);color:var(--ink);
+  font-family:"Schibsted Grotesk",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{width:1240px;margin:0 auto;padding:56px 0 72px}
+.kicker{font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--lacquer);margin-bottom:8px}
+.intro{font-size:13px;line-height:1.6;color:#4A4F4B;max-width:82ch;margin:0 0 40px}
+
+/* ---------- ROLE MAP ---------- */
+.roles{border:2px solid var(--mangrove);background:var(--paper);padding:0;margin-bottom:46px}
+.roles .r{display:grid;grid-template-columns:190px 1fr 320px;gap:26px;padding:20px 24px;
+  border-bottom:1px solid rgba(39,42,39,.14);align-items:center}
+.roles .r:last-child{border-bottom:none}
+.roles .rk{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted)}
+.roles .rn{font-size:12px;line-height:1.5;color:#4A4F4B}
+.spec-display{font-family:"Poiret One",cursive;font-size:34px;text-transform:uppercase;letter-spacing:.09em}
+.spec-script{font-family:"Parisienne",cursive;font-size:28px}
+.spec-ui{font-family:"Schibsted Grotesk",sans-serif;font-weight:600;font-size:19px}
+.spec-mono{font-family:"Roboto Mono",monospace;font-size:15px;letter-spacing:.1em}
+
+/* ---------- APPLIED COMPOSITION ---------- */
+.doc{background:var(--paper);border:2px solid var(--mangrove);position:relative;padding:34px 38px 34px}
+.doc::before{content:"";position:absolute;top:12px;left:12px;right:-12px;bottom:-12px;
+  background:var(--celadon);z-index:-1}
+.eyebrow{font-family:"Parisienne",cursive;font-size:30px;color:var(--lacquer);
+  text-align:center;line-height:1;margin:0 0 6px}
+.plate{font-family:"Poiret One",cursive;font-size:74px;text-transform:uppercase;
+  letter-spacing:.10em;text-align:center;line-height:1;margin:0;color:var(--ink)}
+.rule-d{border-top:2px solid var(--mangrove);border-bottom:1px solid var(--mangrove);
+  height:4px;margin:20px 0 0}
+.dateline{display:flex;justify-content:space-between;font-family:"Roboto Mono",monospace;
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;padding:8px 0;
+  border-bottom:1px solid var(--mangrove);color:var(--muted)}
+.deck{display:grid;grid-template-columns:1.3fr 1fr;gap:34px;padding-top:24px}
+.hed{font-family:"Poiret One",cursive;font-size:32px;text-transform:uppercase;
+  letter-spacing:.05em;line-height:1.16;margin:0;color:var(--ink)}
+.body{font-size:14px;line-height:1.6;color:#4A4F4B;margin:14px 0 0}
+.col{border-left:1px solid var(--mangrove);padding-left:24px}
+.lbl{font-family:"Roboto Mono",monospace;font-size:9px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--muted)}
+.fig{font-family:"Schibsted Grotesk",sans-serif;font-weight:700;font-size:44px;line-height:1;
+  letter-spacing:-.025em;font-variant-numeric:tabular-nums;margin-top:6px;color:var(--mangrove)}
+.fig s{text-decoration:none;color:var(--brass);font-size:25px;margin-left:8px}
+.col p{font-size:12px;line-height:1.5;color:#4A4F4B;margin:10px 0 0}
+.rows{margin-top:26px;border-top:2px solid var(--mangrove)}
+.row{display:grid;grid-template-columns:1fr auto;padding:12px 0;
+  border-bottom:1px solid rgba(39,42,39,.12);font-size:14px}
+.row .who{font-family:"Roboto Mono",monospace;font-size:10px;color:var(--muted);
+  display:block;margin-top:3px;letter-spacing:.06em}
+.row .amt{font-family:"Roboto Mono",monospace;font-weight:500;font-variant-numeric:tabular-nums}
+.row.total{border-bottom:none;border-top:2px solid var(--mangrove);font-weight:700;
+  font-size:16px;padding-top:14px;margin-top:4px}
+.row.total .amt{color:var(--brass)}
+
+/* ---------- SCRIPT CANDIDATES ---------- */
+.scripts{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:46px}
+.sc{background:var(--paper);border:2px solid var(--mangrove);padding:24px}
+.sc .st{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:16px}
+.sc .demo{text-align:center;border-bottom:1px solid var(--mangrove);padding-bottom:14px}
+.sc .e{color:var(--lacquer);line-height:1.1;display:block;margin-bottom:6px}
+.sc .t{font-family:"Poiret One",cursive;font-size:29px;text-transform:uppercase;letter-spacing:.09em}
+.sc p{font-size:12px;line-height:1.5;color:#4A4F4B;margin:12px 0 0}
+.s1 .e{font-family:"Parisienne",cursive;font-size:26px}
+.s2 .e{font-family:"Petit Formal Script",cursive;font-size:21px}
+.s3 .e{font-family:"Yellowtail",cursive;font-size:23px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Poiret One · role assignment · shipped palette, unchanged</div>
+  <p class="intro">Colours are the singapore pack exactly as it ships — limestone, paper, mangrove,
+    celadon, brass, lacquer. Nothing here proposes a colour change. Only the type roles are under
+    test: which face does which job, given that Poiret One is single-weight and display-only.</p>
+
+  <div class="roles">
+    <div class="r">
+      <span class="rk">Display · hero, h1, h2</span>
+      <span class="spec-display">One journey</span>
+      <span class="rn"><b>Poiret One.</b> The approved face. Caps, tracked +0.09em. Never below
+        40px — below that the hairlines break up and the structure is lost.</span>
+    </div>
+    <div class="r">
+      <span class="rk">Script · eyebrow only</span>
+      <span class="spec-script">Executive Producer</span>
+      <span class="rn">The "Executive Producer" role from your reference — a small credit label
+        above the title. <b>Eyebrows and section kickers only.</b> Never a heading, never body,
+        never a number. Three candidates below.</span>
+    </div>
+    <div class="r">
+      <span class="rk">UI · h3 down, body, money</span>
+      <span class="spec-ui">Effective cost ₹144,223.00</span>
+      <span class="rn"><b>Schibsted Grotesk, unchanged.</b> Poiret One cannot do this work. All
+        monetary and point values stay here, tabular-nums mandatory.</span>
+    </div>
+    <div class="r">
+      <span class="rk">Mono · data, codes</span>
+      <span class="spec-mono">DEL — SIN · 5H 25M</span>
+      <span class="rn"><b>Roboto Mono, unchanged.</b> Datelines, airport codes, provenance labels,
+        split-flap cells.</span>
+    </div>
+  </div>
+
+  <div class="doc">
+    <p class="eyebrow">Your itinerary, costed</p>
+    <h1 class="plate">The Tripwise Gazette</h1>
+    <div class="rule-d"></div>
+    <div class="dateline"><span>Vol. I · No. 001</span><span>DEL — SIN</span><span>Five nights · Two travellers</span><span>Est. 2026</span></div>
+    <div class="deck">
+      <div>
+        <h2 class="hed">Four cards, five lines, one route through the trade-offs.</h2>
+        <p class="body">Portal booking carries the fare. Dining moves abroad. Two offers stack
+          before the cap is reached, and the runner-up is one rupee behind.</p>
+      </div>
+      <div class="col">
+        <div class="lbl">Total saved · computed</div>
+        <div class="fig">₹8,777<s>5.74%</s></div>
+        <p>Against gross ₹153,000.00. Effective cost ₹144,223.00 after rewards, discounts and forex.</p>
+      </div>
+    </div>
+    <div class="rows">
+      <div class="row"><span>Flights<span class="who">voyager-prime · bank_portal</span></span><span class="amt">₹4,320.00</span></div>
+      <div class="row"><span>Hotel<span class="who">globesaver · ota_generic · O1</span></span><span class="amt">₹3,225.00</span></div>
+      <div class="row"><span>Attractions<span class="who">voyager-prime · ota_generic · O2</span></span><span class="amt">₹770.00</span></div>
+      <div class="row total"><span>Effective cost</span><span class="amt">₹144,223.00</span></div>
+    </div>
+  </div>
+
+  <div class="scripts">
+    <div class="sc s1">
+      <div class="st">Script A — Parisienne</div>
+      <div class="demo"><span class="e">Your itinerary, costed</span><span class="t">One journey</span></div>
+      <p>Closest to the reference. Formal copperplate with a strong flourish. Most elegant, most
+        period — and the most fragile at small size.</p>
+    </div>
+    <div class="sc s2">
+      <div class="st">Script B — Petit Formal Script</div>
+      <div class="demo"><span class="e">Your itinerary, costed</span><span class="t">One journey</span></div>
+      <p>Tighter and more legible. Reads as engraved stationery rather than a film credit — sits
+        closer to the "issued document" idea.</p>
+    </div>
+    <div class="sc s3">
+      <div class="st">Script C — Yellowtail</div>
+      <div class="demo"><span class="e">Your itinerary, costed</span><span class="t">One journey</span></div>
+      <p>Brush script, mid-century sign-painter. Warmer and more American-vernacular; less formal
+        than A or B, and the closest to 1950s travel advertising.</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

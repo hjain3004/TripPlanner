@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -13,7 +13,7 @@ from accounts.store import (
     UnknownUserError,
 )
 
-NOW = datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
 
 
 def _store(tmp_path: Path) -> AccountStore:

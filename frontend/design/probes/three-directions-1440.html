@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Three directions — 1440px probe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400..700&family=Schibsted+Grotesk:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ===========================================================================
+   PROBE — three directions, one content block, 1440px.
+
+   Content is fixed across all three panels and comes from the canonical demo
+   output (backend/evals/golden/demo_expected_output.txt): DEL->SIN, gross
+   Rs153,000.00, effective Rs144,223.00, savings Rs8,777.00 / 5.74%.
+   No number here is invented — that is the point of the exercise.
+
+   Standalone by project probe convention. Nothing is imported from src/,
+   nothing here is shipped. Judge by looking.
+   =========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-font-smoothing: antialiased; }
+body { margin: 0; width: 1440px; }
+
+.band { padding: 72px 0 88px; position: relative; }
+.wrap { width: 1320px; margin: 0 auto; position: relative; z-index: 1; }
+
+/* Probe chrome — deliberately neutral so it never flatters a direction. */
+.probe-label {
+  font-family: "Roboto Mono", monospace; font-size: 11px; letter-spacing: 0.14em;
+  text-transform: uppercase; margin-bottom: 40px; display: flex; gap: 14px; align-items: baseline;
+}
+.probe-label .n { font-weight: 700; }
+.probe-label .thesis { letter-spacing: 0.02em; text-transform: none; font-size: 12px; opacity: 0.72; }
+
+.grid { display: grid; grid-template-columns: 1fr 400px; gap: 64px; align-items: start; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ============================ A — JET AGE ================================= */
+.jet {
+  --stock:  #F1EDE4;   /* limestone, unchanged from singapore */
+  --paper:  #FAF8F2;   /* paper, unchanged */
+  --ink:    #17191A;   /* pushed darker than #272A27 for print weight */
+  --jet:    #C8452F;   /* lacquer, pushed toward jet-age orange */
+  --brass:  #B08C48;   /* unchanged */
+  --deep:   #173A34;   /* mangrove, unchanged */
+  --board:  #16181A;
+  background: var(--stock); color: var(--ink);
+  font-family: "Space Grotesk", sans-serif;
+}
+.jet .probe-label { color: var(--jet); }
+.jet h2 {
+  font-family: "Space Grotesk", sans-serif; font-weight: 700;
+  font-size: 66px; line-height: 0.92; letter-spacing: -0.03em;
+  text-transform: uppercase; margin: 0;
+}
+.jet h2 em { font-style: normal; color: var(--jet); }
+.jet .sub { font-size: 15px; line-height: 1.55; max-width: 46ch; margin: 22px 0 0; color: #45494A; }
+
+/* Ticket — hard geometry, offset plate. */
+.jet .ticket {
+  background: var(--paper); border: 2px solid var(--ink); border-radius: 0;
+  position: relative; margin-top: 44px;
+}
+.jet .ticket::before {
+  content: ""; position: absolute; top: 12px; left: 12px; right: -12px; bottom: -12px;
+  background: var(--brass); z-index: -1;
+}
+.jet .ticket-head {
+  border-bottom: 2px solid var(--ink); padding: 14px 22px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: "Roboto Mono", monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+}
+.jet .ticket-head .stamp {
+  color: var(--paper); background: var(--jet); padding: 4px 10px; font-weight: 700; letter-spacing: 0.1em;
+}
+.jet .ticket-body { padding: 26px 22px 24px; }
+
+/* Split-flap departure board — the signature move. */
+.flap { display: flex; gap: 4px; align-items: stretch; }
+.flap .cell {
+  background: var(--board); color: #F4F2EC; font-family: "Roboto Mono", monospace;
+  font-weight: 700; font-size: 44px; line-height: 1; padding: 12px 9px 13px;
+  position: relative; border-radius: 2px;
+}
+.flap .cell::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%;
+  height: 1px; background: rgba(255,255,255,0.16);
+}
+.flap .cell.sym { background: transparent; color: var(--ink); padding-left: 2px; padding-right: 2px; }
+.flap .cell.pct {
+  background: var(--jet); font-size: 26px; display: flex; align-items: center; padding: 0 12px;
+}
+.flap .cell.pct::after { display: none; }
+.flap-caption {
+  font-family: "Roboto Mono", monospace; font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: #6A6E6F; margin: 12px 0 0;
+}
+
+/* Route — orthographic, mechanical. */
+.jet .route { margin-top: 30px; padding-top: 22px; border-top: 2px solid var(--ink); }
+.jet .route-line { display: flex; align-items: center; gap: 0; }
+.jet .node { width: 11px; height: 11px; border: 2px solid var(--ink); background: var(--paper); border-radius: 50%; flex: none; }
+.jet .node.end { background: var(--jet); border-color: var(--jet); }
+.jet .seg { height: 2px; background: var(--ink); flex: 1; }
+.jet .route-labels {
+  display: flex; justify-content: space-between; margin-top: 9px;
+  font-family: "Roboto Mono", monospace; font-size: 11px; letter-spacing: 0.12em;
+}
+.jet .route-labels .mid { color: #6A6E6F; }
+
+/* Ledger — hairline rows, no card gaps. */
+.jet .ledger { margin-top: 34px; }
+.jet .ledger-head {
+  font-family: "Roboto Mono", monospace; font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: #6A6E6F; padding-bottom: 9px; border-bottom: 2px solid var(--ink);
+}
+.jet .row {
+  display: grid; grid-template-columns: 1fr auto; padding: 13px 0;
+  border-bottom: 1px solid rgba(23,25,26,0.14); font-size: 14px;
+}
+.jet .row .who { font-family: "Roboto Mono", monospace; font-size: 11px; color: #6A6E6F; display: block; margin-top: 3px; letter-spacing: 0.06em; }
+.jet .row.total {
+  border-bottom: none; border-top: 2px solid var(--ink); margin-top: 4px;
+  font-weight: 700; font-size: 17px; padding-top: 15px;
+}
+.jet .row.total .amt { color: var(--jet); }
+.jet .amt { font-family: "Roboto Mono", monospace; font-weight: 500; }
+
+/* ============================ B — CONSOLE ================================= */
+.console {
+  --void:   #0B0B14;
+  --panel:  #14141F;
+  --cyan:   #00E5FF;
+  --mag:    #FF2E88;
+  --amber:  #FFB020;
+  --dim:    #7B7B99;
+  background: var(--void); color: #E8E8F5;
+  font-family: "Roboto Mono", monospace;
+}
+.console::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  background: repeating-linear-gradient(180deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 3px);
+}
+.console .probe-label { color: var(--cyan); }
+.console h2 {
+  font-family: "Roboto Mono", monospace; font-weight: 700; font-size: 54px;
+  line-height: 1.0; letter-spacing: -0.02em; text-transform: uppercase; margin: 0;
+  color: #F2F2FF; text-shadow: 0 0 18px rgba(0,229,255,0.55), 0 0 44px rgba(0,229,255,0.22);
+}
+.console h2 em { font-style: normal; color: var(--mag); text-shadow: 0 0 18px rgba(255,46,136,0.6), 0 0 46px rgba(255,46,136,0.25); }
+.console .sub { font-size: 13px; line-height: 1.7; max-width: 52ch; margin: 24px 0 0; color: var(--dim); }
+
+.console .ticket {
+  background: var(--panel); border: 1px solid rgba(0,229,255,0.32); border-radius: 3px;
+  margin-top: 44px; box-shadow: 0 0 0 1px rgba(0,229,255,0.08), inset 0 0 40px rgba(0,229,255,0.10);
+}
+.console .ticket-head {
+  border-bottom: 1px solid rgba(0,229,255,0.22); padding: 13px 22px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--cyan);
+}
+.console .ticket-head .stamp {
+  color: var(--void); background: var(--amber); padding: 4px 10px; font-weight: 700; letter-spacing: 0.12em; border-radius: 2px;
+}
+.console .ticket-body { padding: 26px 22px 24px; }
+
+.console .bignum {
+  font-size: 60px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; color: var(--cyan);
+  text-shadow: 0 0 22px rgba(0,229,255,0.6), 0 0 60px rgba(0,229,255,0.25);
+}
+.console .bignum .pct { color: var(--mag); text-shadow: 0 0 22px rgba(255,46,136,0.6); font-size: 32px; margin-left: 12px; }
+.console .flap-caption { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim); margin: 14px 0 0; }
+
+.console .route { margin-top: 30px; padding-top: 22px; border-top: 1px solid rgba(0,229,255,0.22); }
+.console .route-line { display: flex; align-items: center; }
+.console .node { width: 9px; height: 9px; background: var(--cyan); border-radius: 50%; flex: none; box-shadow: 0 0 12px var(--cyan); }
+.console .node.end { background: var(--mag); box-shadow: 0 0 12px var(--mag); }
+.console .seg { height: 1px; background: linear-gradient(90deg, var(--cyan), var(--mag)); flex: 1; }
+.console .route-labels { display: flex; justify-content: space-between; margin-top: 10px; font-size: 11px; letter-spacing: 0.14em; color: var(--dim); }
+
+.console .ledger { margin-top: 34px; }
+.console .ledger-head { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim); padding-bottom: 10px; border-bottom: 1px solid rgba(0,229,255,0.22); }
+.console .row { display: grid; grid-template-columns: 1fr auto; padding: 13px 0; border-bottom: 1px solid rgba(255,255,255,0.07); font-size: 13px; }
+.console .row .who { font-size: 10px; color: var(--dim); display: block; margin-top: 3px; letter-spacing: 0.08em; }
+.console .row.total { border-bottom: none; border-top: 1px solid rgba(0,229,255,0.32); margin-top: 4px; font-weight: 700; font-size: 16px; padding-top: 15px; }
+.console .row.total .amt { color: var(--cyan); text-shadow: 0 0 14px rgba(0,229,255,0.5); }
+.console .amt { font-weight: 500; }
+
+/* ============================ C — ZONED =================================== */
+.zoned {
+  --bg:       #F1EDE4;
+  --paper:    #FAF8F2;
+  --ink:      #272A27;
+  --muted:    #6E736F;
+  --mangrove: #173A34;
+  --celadon1: #BDD3C9;
+  --brass:    #B08C48;
+  --lacquer:  #AE493B;
+  background: var(--bg); color: var(--ink);
+  font-family: "Schibsted Grotesk", sans-serif;
+}
+.zoned .probe-label { color: var(--lacquer); }
+/* Shell register — unchanged from the shipped system. */
+.zoned h2 {
+  font-family: "Bodoni Moda", serif; font-weight: 400; font-size: 58px;
+  line-height: 1.04; letter-spacing: -0.02em; margin: 0;
+}
+.zoned h2 em { font-style: normal; color: var(--lacquer); }
+.zoned .sub { font-size: 15px; line-height: 1.62; max-width: 44ch; margin: 22px 0 0; color: var(--muted); }
+.zoned .shell-card {
+  margin-top: 32px; background: var(--paper); border: 1px solid rgba(39,42,39,0.10);
+  border-radius: 12px; padding: 22px 24px;
+  box-shadow: 0 1px 2px rgba(39,42,39,0.06), 0 8px 24px rgba(39,42,39,0.05);
+}
+.zoned .shell-card .k {
+  font-family: "Roboto Mono", monospace; font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted);
+}
+.zoned .shell-card .v { font-size: 15px; margin-top: 7px; line-height: 1.5; }
+.zoned .shell-note {
+  font-family: "Roboto Mono", monospace; font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--muted); margin-top: 18px;
+}
+
+/* Issue register — the hard document, at real intensity. */
+.zoned .ticket {
+  background: var(--paper); border: 2px solid var(--mangrove); border-radius: 0;
+  position: relative; margin-top: 20px;
+}
+.zoned .ticket::before {
+  content: ""; position: absolute; top: 12px; left: 12px; right: -12px; bottom: -12px;
+  background: var(--celadon1); z-index: -1;
+}
+.zoned .ticket-head {
+  border-bottom: 2px solid var(--mangrove); padding: 14px 22px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: "Roboto Mono", monospace; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--mangrove);
+}
+.zoned .ticket-head .stamp {
+  color: var(--paper); background: var(--lacquer); padding: 4px 10px; font-weight: 700; letter-spacing: 0.1em;
+}
+.zoned .ticket-body { padding: 26px 22px 24px; }
+.zoned .bignum {
+  font-family: "Schibsted Grotesk", sans-serif; font-weight: 700; font-size: 56px;
+  line-height: 1; letter-spacing: -0.025em; color: var(--mangrove);
+}
+.zoned .bignum .pct { color: var(--brass); font-size: 30px; margin-left: 12px; }
+.zoned .flap-caption {
+  font-family: "Roboto Mono", monospace; font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--muted); margin: 13px 0 0;
+}
+.zoned .route { margin-top: 30px; padding-top: 22px; border-top: 2px solid var(--mangrove); }
+.zoned .route-line { display: flex; align-items: center; }
+.zoned .node { width: 11px; height: 11px; border: 2px solid var(--mangrove); background: var(--paper); border-radius: 50%; flex: none; }
+.zoned .node.end { background: var(--lacquer); border-color: var(--lacquer); }
+.zoned .seg { height: 2px; background: var(--mangrove); flex: 1; }
+.zoned .route-labels {
+  display: flex; justify-content: space-between; margin-top: 9px;
+  font-family: "Roboto Mono", monospace; font-size: 11px; letter-spacing: 0.12em; color: var(--mangrove);
+}
+.zoned .route-labels .mid { color: var(--muted); }
+.zoned .ledger { margin-top: 34px; }
+.zoned .ledger-head {
+  font-family: "Roboto Mono", monospace; font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--muted); padding-bottom: 9px; border-bottom: 2px solid var(--mangrove);
+}
+.zoned .row { display: grid; grid-template-columns: 1fr auto; padding: 13px 0; border-bottom: 1px solid rgba(39,42,39,0.12); font-size: 14px; }
+.zoned .row .who { font-family: "Roboto Mono", monospace; font-size: 10px; color: var(--muted); display: block; margin-top: 3px; letter-spacing: 0.06em; }
+.zoned .row.total { border-bottom: none; border-top: 2px solid var(--mangrove); margin-top: 4px; font-weight: 700; font-size: 17px; padding-top: 15px; }
+.zoned .row.total .amt { color: var(--brass); }
+.zoned .amt { font-family: "Roboto Mono", monospace; font-weight: 500; }
+
+/* Side rail — shared structure, per-direction colour. */
+.rail-k {
+  font-family: "Roboto Mono", monospace; font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; opacity: 0.6; margin-bottom: 8px;
+}
+.rail-v { font-size: 13.5px; line-height: 1.6; margin-bottom: 24px; }
+.swatches { display: flex; gap: 0; margin-bottom: 8px; }
+.swatches i { display: block; height: 44px; flex: 1; }
+.swatch-k { font-family: "Roboto Mono", monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.55; display: flex; gap: 0; }
+.swatch-k span { flex: 1; }
+</style>
+</head>
+<body>
+
+<!-- ================================ A ================================= -->
+<section class="band jet">
+  <div class="wrap">
+    <div class="probe-label">
+      <span class="n">Direction A</span>
+      <span>Jet age</span>
+      <span class="thesis">Pan Am · split-flap · boarding-pass stock · Swiss-modernist NASA. Your palette, reassigned.</span>
+    </div>
+
+    <div class="grid">
+      <div>
+        <h2>One journey.<br><em>Every advantage.</em></h2>
+        <p class="sub">Flights, stays, points and card offers — resolved into one composed, understandable way to travel.</p>
+
+        <div class="ticket">
+          <div class="ticket-head">
+            <span>Itinerary · Issue 001 · DEL–SIN</span>
+            <span class="stamp">Verify before transfer</span>
+          </div>
+          <div class="ticket-body">
+            <div class="flap tnum">
+              <span class="cell sym">₹</span>
+              <span class="cell">8</span><span class="cell">,</span><span class="cell">7</span><span class="cell">7</span><span class="cell">7</span>
+              <span class="cell pct">5.74% SAVED</span>
+            </div>
+            <p class="flap-caption">Total saved against gross ₹153,000.00 — computed, not estimated</p>
+
+            <div class="route">
+              <div class="route-line">
+                <span class="node end"></span><span class="seg"></span>
+                <span class="node"></span><span class="seg"></span>
+                <span class="node end"></span>
+              </div>
+              <div class="route-labels tnum">
+                <span>DEL · DELHI</span><span class="mid">5H 25M · NONSTOP</span><span>SIN · SINGAPORE</span>
+              </div>
+            </div>
+
+            <div class="ledger">
+              <div class="ledger-head">Card allocation · 5 lines</div>
+              <div class="row"><span>Flights<span class="who">voyager-prime · bank_portal</span></span><span class="amt tnum">₹4,320.00</span></div>
+              <div class="row"><span>Hotel<span class="who">globesaver · ota_generic · O1</span></span><span class="amt tnum">₹3,225.00</span></div>
+              <div class="row"><span>Attractions<span class="who">voyager-prime · ota_generic · O2</span></span><span class="amt tnum">₹770.00</span></div>
+              <div class="row total"><span>Effective cost</span><span class="amt tnum">₹144,223.00</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="rail-k">Thesis</div>
+        <div class="rail-v">A boarding pass is an issued document. Brutalist geometry reads as <em>printed</em>, not aggressive — which is the register a money tool needs.</div>
+        <div class="rail-k">Type</div>
+        <div class="rail-v">Space Grotesk (display, uppercase) · Roboto Mono (all data). Bodoni retires.</div>
+        <div class="rail-k">Geometry</div>
+        <div class="rail-v">0 radius · 2px ink rules · 12px brass offset plate · split-flap cells for the money moment.</div>
+        <div class="rail-k">Palette — 4 of 6 unchanged</div>
+        <div class="swatches">
+          <i style="background:#F1EDE4"></i><i style="background:#17191A"></i><i style="background:#173A34"></i><i style="background:#C8452F"></i><i style="background:#B08C48"></i>
+        </div>
+        <div class="swatch-k"><span>stock</span><span>ink</span><span>deep</span><span>jet</span><span>brass</span></div>
+        <div class="rail-v" style="margin-top:14px">Only <strong>ink</strong> darkens and <strong>lacquer</strong> warms toward orange. Limestone, mangrove and brass are byte-identical to the shipped pack.</div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ================================ B ================================= -->
+<section class="band console">
+  <div class="wrap">
+    <div class="probe-label">
+      <span class="n">Direction B</span>
+      <span>Console</span>
+      <span class="thesis">Synthwave · CRT scanlines · neon glow. What the style database actually returns for "retro-futurism."</span>
+    </div>
+
+    <div class="grid">
+      <div>
+        <h2>One journey.<br><em>Every advantage.</em></h2>
+        <p class="sub">Flights, stays, points and card offers — resolved into one composed, understandable way to travel.</p>
+
+        <div class="ticket">
+          <div class="ticket-head">
+            <span>Itinerary · Issue 001 · DEL–SIN</span>
+            <span class="stamp">Verify before transfer</span>
+          </div>
+          <div class="ticket-body">
+            <div class="bignum tnum">₹8,777<span class="pct">5.74% SAVED</span></div>
+            <p class="flap-caption">Total saved against gross ₹153,000.00 — computed, not estimated</p>
+
+            <div class="route">
+              <div class="route-line">
+                <span class="node end"></span><span class="seg"></span>
+                <span class="node"></span><span class="seg"></span>
+                <span class="node end"></span>
+              </div>
+              <div class="route-labels tnum">
+                <span>DEL · DELHI</span><span>5H 25M · NONSTOP</span><span>SIN · SINGAPORE</span>
+              </div>
+            </div>
+
+            <div class="ledger">
+              <div class="ledger-head">Card allocation · 5 lines</div>
+              <div class="row"><span>Flights<span class="who">voyager-prime · bank_portal</span></span><span class="amt tnum">₹4,320.00</span></div>
+              <div class="row"><span>Hotel<span class="who">globesaver · ota_generic · O1</span></span><span class="amt tnum">₹3,225.00</span></div>
+              <div class="row"><span>Attractions<span class="who">voyager-prime · ota_generic · O2</span></span><span class="amt tnum">₹770.00</span></div>
+              <div class="row total"><span>Effective cost</span><span class="amt tnum">₹144,223.00</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="rail-k">Thesis</div>
+        <div class="rail-v">High impact, instantly legible as "designed." The honest test: does a tool telling you where to put ₹153,000 want to look like an arcade cabinet?</div>
+        <div class="rail-k">Type</div>
+        <div class="rail-v">Roboto Mono throughout. Bodoni, Schibsted and the whole editorial voice retire.</div>
+        <div class="rail-k">Cost</div>
+        <div class="rail-v">Total palette replacement. Limestone, paper, celadon, mangrove, brass and every illustration asset go. Contrast matrix and aXe baselines rebuilt from zero.</div>
+        <div class="rail-k">Palette — 0 of 6 retained</div>
+        <div class="swatches">
+          <i style="background:#0B0B14"></i><i style="background:#14141F"></i><i style="background:#00E5FF"></i><i style="background:#FF2E88"></i><i style="background:#FFB020"></i>
+        </div>
+        <div class="swatch-k"><span>void</span><span>panel</span><span>cyan</span><span>mag</span><span>amber</span></div>
+        <div class="rail-v" style="margin-top:14px">Database flags this style <strong>⚠ high contrast / eye strain</strong> and scopes it to "gaming, entertainment, music platforms."</div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ================================ C ================================= -->
+<section class="band zoned">
+  <div class="wrap">
+    <div class="probe-label">
+      <span class="n">Direction C</span>
+      <span>Zoned</span>
+      <span class="thesis">Calm editorial shell, hard issued documents. Your existing spec — executed at real intensity.</span>
+    </div>
+
+    <div class="grid">
+      <div>
+        <h2>One journey.<br><em>Every advantage.</em></h2>
+        <p class="sub">Flights, stays, points and card offers — resolved into one composed, understandable way to travel.</p>
+
+        <div class="shell-card">
+          <div class="k">Shell register — unchanged</div>
+          <div class="v">Bodoni display, 12px radius, soft layered shadow, 10% hairline. This is the calm environment the documents sit inside.</div>
+        </div>
+        <div class="shell-note">↓ Register change — issued document below</div>
+
+        <div class="ticket">
+          <div class="ticket-head">
+            <span>Itinerary · Issue 001 · DEL–SIN</span>
+            <span class="stamp">Verify before transfer</span>
+          </div>
+          <div class="ticket-body">
+            <div class="bignum tnum">₹8,777<span class="pct">5.74% saved</span></div>
+            <p class="flap-caption">Total saved against gross ₹153,000.00 — computed, not estimated</p>
+
+            <div class="route">
+              <div class="route-line">
+                <span class="node end"></span><span class="seg"></span>
+                <span class="node"></span><span class="seg"></span>
+                <span class="node end"></span>
+              </div>
+              <div class="route-labels tnum">
+                <span>DEL · DELHI</span><span class="mid">5H 25M · NONSTOP</span><span>SIN · SINGAPORE</span>
+              </div>
+            </div>
+
+            <div class="ledger">
+              <div class="ledger-head">Card allocation · 5 lines</div>
+              <div class="row"><span>Flights<span class="who">voyager-prime · bank_portal</span></span><span class="amt tnum">₹4,320.00</span></div>
+              <div class="row"><span>Hotel<span class="who">globesaver · ota_generic · O1</span></span><span class="amt tnum">₹3,225.00</span></div>
+              <div class="row"><span>Attractions<span class="who">voyager-prime · ota_generic · O2</span></span><span class="amt tnum">₹770.00</span></div>
+              <div class="row total"><span>Effective cost</span><span class="amt tnum">₹144,223.00</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="rail-k">Thesis</div>
+        <div class="rail-v">Two registers in one frame. The shell stays calm and editorial; only computed artifacts go hard. This is what your spec already claims — rev 1 just executed the plate at 6px celadon, where it read as a drop shadow.</div>
+        <div class="rail-k">Type</div>
+        <div class="rail-v">Bodoni Moda survives in the shell. Schibsted for money, Roboto Mono for metadata. Nothing retires.</div>
+        <div class="rail-k">The fix under test</div>
+        <div class="rail-v">Plate raised 6px → <strong>12px</strong>, so it registers as a second impression rather than a shadow. This is defect D1 from your rev-2 handoff.</div>
+        <div class="rail-k">Palette — 6 of 6 unchanged</div>
+        <div class="swatches">
+          <i style="background:#F1EDE4"></i><i style="background:#272A27"></i><i style="background:#173A34"></i><i style="background:#BDD3C9"></i><i style="background:#B08C48"></i><i style="background:#AE493B"></i>
+        </div>
+        <div class="swatch-k"><span>lime</span><span>ink</span><span>mang</span><span>cel</span><span>brass</span><span>lacq</span></div>
+        <div class="rail-v" style="margin-top:14px">Zero token changes. Lowest risk, lowest ceiling — this cannot become neo-brutalist, only <em>partly</em> so.</div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 
 from core.db import SEEDS_DIR, load_kb, seed_database
@@ -74,7 +72,9 @@ def test_golden_gate_requires_mean_at_least_four_min_dimension_three_and_grounde
 
     assert summary.gate.passed is True
     assert summary.overall_mean >= 4.0
-    assert all(aggregate.dimension_means["groundedness"] == 5.0 for aggregate in summary.golden_aggregates)
+    assert all(
+        aggregate.dimension_means["groundedness"] == 5.0 for aggregate in summary.golden_aggregates
+    )
     assert_gate_m3(summary)
 
 
@@ -85,7 +85,10 @@ def test_latency_percentiles_and_token_totals_are_recorded(tmp_path) -> None:
     assert summary.latency.p95_ms >= summary.latency.p50_ms
     assert summary.tokens.prompt_tokens > 0
     assert summary.tokens.completion_tokens > 0
-    assert summary.tokens.total_tokens == summary.tokens.prompt_tokens + summary.tokens.completion_tokens
+    assert (
+        summary.tokens.total_tokens
+        == summary.tokens.prompt_tokens + summary.tokens.completion_tokens
+    )
 
 
 def test_gate_failure_lists_case_and_dimension(tmp_path) -> None:

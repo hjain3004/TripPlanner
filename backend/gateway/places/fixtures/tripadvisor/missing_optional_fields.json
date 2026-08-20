@@ -1,0 +1,21 @@
+{
+  "data": [
+    {
+      "location": {
+        "id": 888222,
+        "names": [
+          {
+            "primary": true,
+            "value": "Unrated Historic Corner"
+          }
+        ],
+        "categories": [
+          {
+            "id": "attraction",
+            "top_level_category": "Attraction"
+          }
+        ]
+      }
+    }
+  ]
+}

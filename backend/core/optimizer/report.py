@@ -12,7 +12,6 @@ from core.models import (
     LineAssignment,
     OptimizationPrefs,
     OptimizerResult,
-    RedemptionPath,
     RunnerUp,
     SpendLineItem,
     UserWallet,
@@ -139,4 +138,9 @@ def _assumptions(assignments: list[LineAssignment]) -> list[str]:
     paths = sorted({a.assumed_redemption.value for a in assignments})
     if paths:
         out.append("Assumed redemption paths in use: " + ", ".join(paths) + ".")
+    if assignments and all(a.card_id == "cash_only" for a in assignments):
+        out.append(
+            "No valid cards were available in the wallet; budget lines use cash-only "
+            "payment with zero card rewards, zero offers, and no inferred card benefits."
+        )
     return out

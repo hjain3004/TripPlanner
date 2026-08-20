@@ -1,0 +1,20 @@
+catalog_id: bom-core
+catalog_release: 2026-08-15.0
+max_places: 25000
+bbox:
+  min_lon: 72.75
+  min_lat: 18.85
+  max_lon: 72.99
+  max_lat: 19.30
+centroid_lat: 19.0760
+centroid_lon: 72.8777
+sources:
+- source_id: overture_bom
+  source_url: s3://overturemaps-us-west-2/release/2026-07-22.0/
+  licence_id: CDLA-Permissive-2.0
+  source_release: 2026-07-22.0
+  checksum: 5e96c4ce870dc52e2b0b9769c10de3fa675455f5beefad20246f70263ac08078
+  max_bytes: 50000000
+  geographic_scope: IN-MH
+  allowed_purpose: non-commercial student prototype
+  attribution_text: (c) Overture Maps Foundation

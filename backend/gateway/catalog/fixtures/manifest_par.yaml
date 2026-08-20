@@ -1,0 +1,20 @@
+catalog_id: par-core
+catalog_release: 2026-08-15.0
+max_places: 80000
+bbox:
+  min_lon: 2.15
+  min_lat: 48.75
+  max_lon: 2.55
+  max_lat: 48.95
+centroid_lat: 48.8566
+centroid_lon: 2.3522
+sources:
+- source_id: overture_par
+  source_url: s3://overturemaps-us-west-2/release/2026-07-22.0/
+  licence_id: CDLA-Permissive-2.0
+  source_release: 2026-07-22.0
+  checksum: 3b8429cabca11174bcb684cdb5515f357c8a42ce3991ccd67b22005c5c64b879
+  max_bytes: 200000000
+  geographic_scope: FR-75
+  allowed_purpose: non-commercial student prototype
+  attribution_text: (c) Overture Maps Foundation

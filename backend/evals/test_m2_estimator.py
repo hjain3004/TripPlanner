@@ -52,7 +52,9 @@ def _itinerary() -> DraftItinerary:
 
 
 def test_estimator_builds_optimizer_lines_from_seeded_facts(tmp_path) -> None:
-    result = estimate_costed_trip(_spec(), _itinerary(), _kb(tmp_path), booking_date=date(2026, 7, 25))
+    result = estimate_costed_trip(
+        _spec(), _itinerary(), _kb(tmp_path), booking_date=date(2026, 7, 25)
+    )
 
     assert result.flight is not None
     assert result.flight.id == "del-sin-6e-eco"

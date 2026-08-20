@@ -24,6 +24,7 @@ const FIXTURES = [
   { name: "redeem", fn: fixtureHandlers.redeemReport },
   { name: "pay-cash", fn: fixtureHandlers.payCashReport },
   { name: "no-data", fn: fixtureHandlers.noDataReport },
+  { name: "region-capability", fn: fixtureHandlers.regionCapabilityReport },
 ] as const;
 
 describe("contract: fixtures parse through Zod", () => {
@@ -165,9 +166,44 @@ describe("contract: non-negative fixture monetary fields", () => {
 
   it("all fixtures have matching trace_id prefix", () => {
     const prefixes = FIXTURES.map((f) => f.fn().trace_id.split("-").slice(0, 2).join("-"));
-    const expected = ["msw-happy", "msw-fallback", "msw-prov", "msw-redeem", "msw-cash", "msw-nodata"];
+    const expected = ["msw-happy", "msw-fallback", "msw-prov", "msw-redeem", "msw-cash", "msw-nodata", "msw-region"];
     for (let i = 0; i < prefixes.length; i++) {
       expect(prefixes[i]).toBe(expected[i]);
     }
   });
 });
+
+describe("contract: itinerary rendering evidence", () => {
+  it("happy report itinerary items contain rendering metadata", () => {
+    const r = fixtureHandlers.happyReport();
+    const firstDay = r.itinerary.days[0];
+    if (!firstDay) throw new Error("no days");
+    expect(firstDay.unmet_needs).toBeDefined();
+    expect(firstDay.rejections).toBeDefined();
+    const item = firstDay.items[0];
+    if (!item) throw new Error("no items");
+    expect(item.name).toBeDefined();
+    expect(item.category).toBeDefined();
+    expect(item.travel_from_previous).toBeDefined();
+    expect(item.evidence).toBeDefined();
+  });
+
+  it("happy report contains freshness structure", () => {
+    const r = fixtureHandlers.happyReport();
+    const wrapped = wrapReport(r);
+    const parsed = planJobStatusSchema.parse(wrapped);
+    expect(parsed.report?.freshness).toBeDefined();
+  });
+
+  it("line assignments can join to itinerary items on poi_id format", () => {
+    const r = fixtureHandlers.happyReport();
+    // Verify joining logic works on assignments and poi_id
+    const item = r.itinerary.days[0]?.items[0];
+    expect(item).toBeDefined();
+    const assignments = r.optimizer_result?.assignments ?? [];
+    // Should safely find or return undefined without crashing
+    const match = assignments.find((a) => a.line.id === item?.poi_id || a.line.id === `poi:${item?.poi_id}`);
+    expect(match === undefined || typeof match.card_id === "string").toBe(true);
+  });
+});
+

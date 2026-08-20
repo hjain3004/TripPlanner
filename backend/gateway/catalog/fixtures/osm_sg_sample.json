@@ -1,0 +1,8 @@
+[
+  {"type": "node", "id": 1, "tags": {"name": "Gardens by the Bay", "opening_hours": "Mo-Su 05:00-02:00", "wheelchair": "yes", "wikidata": "Q1430500"}},
+  {"type": "node", "id": 2, "tags": {"name": "Botanic Gardens", "opening_hours": "Mo-Su 05:00-24:00", "wheelchair": "yes"}},
+  {"type": "node", "id": 3, "tags": {"name": "Lau Pa Sat", "opening_hours": "24/7", "wheelchair": "yes"}},
+  {"type": "node", "id": 4, "tags": {"name": "Maxwell Food Centre", "opening_hours": "Mo-Su 08:00-02:00", "wheelchair": "yes"}},
+  {"type": "node", "id": 5, "tags": {"name": "Conflicting Hours Cafe", "opening_hours": "Mo-Fr 08:00-18:00", "wheelchair": "no"}},
+  {"type": "node", "id": 6, "tags": {"name": "National Gallery", "opening_hours": "10:00-19:00", "wheelchair": "yes", "wikidata": "Q16895694"}}
+]

@@ -28,7 +28,9 @@ def _valid_payload(**updates: object) -> dict[str, object]:
 
 
 def test_intake_returns_trip_spec_for_clean_request() -> None:
-    result = run_intake("Plan DEL to SIN", load_kb(), ScriptedLLMClient({"intake": [_valid_payload()]}))
+    result = run_intake(
+        "Plan DEL to SIN", load_kb(), ScriptedLLMClient({"intake": [_valid_payload()]})
+    )
     assert result.needs_clarification is False
     assert result.trip_spec is not None
     assert result.trip_spec.start_date == date(2026, 8, 1)

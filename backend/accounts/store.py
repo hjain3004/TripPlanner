@@ -20,6 +20,7 @@ from uuid import uuid4
 from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
+from accounts import passwords
 from accounts.db import (
     ACCOUNTS_DB_PATH,
     SavedTripRow,
@@ -33,7 +34,6 @@ from accounts.db import (
 )
 from accounts.models import (
     SavedTrip,
-    Session as SessionRecord,
     TripRevision,
     User,
     UserCredential,
@@ -41,7 +41,9 @@ from accounts.models import (
     UserProfile,
     WalletEntry,
 )
-from accounts import passwords
+from accounts.models import (
+    Session as SessionRecord,
+)
 
 
 class DuplicateEmailError(ValueError):
@@ -362,7 +364,7 @@ class AccountStore:
     # -- credentials -------------------------------------------------------- #
 
     def set_password(self, user_id: str, plaintext: str, *, now: datetime) -> None:
-        """Set or replace a user's password. Resets lockout state."""
+        """Set or replace a password and revoke every existing session."""
         credential = UserCredential(
             user_id=user_id,
             password_hash=passwords.hash_password(plaintext),
@@ -381,6 +383,16 @@ class AccountStore:
                 )
             else:
                 row.payload = credential.model_dump_json()
+
+            session_rows = session.scalars(
+                select(SessionRow).where(SessionRow.user_id == user_id)
+            ).all()
+            for session_row in session_rows:
+                record = SessionRecord.model_validate_json(session_row.payload)
+                if record.revoked_at is None:
+                    session_row.payload = record.model_copy(
+                        update={"revoked_at": now}
+                    ).model_dump_json()
             session.commit()
 
     def get_credential(self, user_id: str) -> UserCredential | None:

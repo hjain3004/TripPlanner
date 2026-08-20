@@ -1,0 +1,140 @@
+{
+  "key": "bca056569f435c70",
+  "node": "planner",
+  "model": "llama-3.1-8b-instant",
+  "system": "Create DraftItinerary JSON with top-level properties `hotel_area_id` (string) and `days` (list of ItineraryDay with `date` in YYYY-MM-DD and `items` with `poi_id`). Use only listed poi_id and hotel_area_id values. Do not invent attractions or area IDs.",
+  "user": "Trip: {\"home_country\":\"IN\",\"origin_city\":\"DEL\",\"destination_city\":\"SIN\",\"start_date\":\"2026-09-01\",\"end_date\":\"2026-09-05\",\"travelers\":2,\"budget_minor\":null,\"budget_currency\":\"INR\",\"style\":\"balanced\",\"interests\":[],\"pace\":\"moderate\",\"dietary\":[],\"wallet\":{\"card_ids\":[\"sbi-cashback\"],\"points_balances\":{}},\"optimization\":{\"objective\":\"max_savings\"},\"unresolved\":[]}\nPOIs:\nsg-hawker-maxwell | Maxwell Food Centre | chinatown | food | 1500 SGD minor | 75 min | timezone='Asia/Singapore' regular_hours={0: [], 1: ['08:00-20:00'], 2: ['08:00-20:00'], 3: ['08:00-20:00'], 4: ['08:00-20:00'], 5: ['08:00-20:00'], 6: ['08:00-20:00']} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-07-07|confidence:0.5\nsg-gardens-by-the-bay | Gardens by the Bay | marina_bay | kids,landmark,nature | 5300 SGD minor | 180 min | timezone='Asia/Singapore' regular_hours={0: ['09:00-21:00'], 1: ['09:00-21:00'], 2: ['09:00-21:00'], 3: ['09:00-21:00'], 4: ['09:00-21:00'], 5: ['09:00-21:00'], 6: ['09:00-21:00']} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-07-07|confidence:0.5\nsg-marina-bay-sands-skypark | Marina Bay Sands SkyPark | marina_bay | landmark,nightlife | 3200 SGD minor | 60 min | timezone='Asia/Singapore' regular_hours={0: ['11:00-21:00'], 1: ['11:00-21:00'], 2: ['11:00-21:00'], 3: ['11:00-21:00'], 4: ['11:00-21:00'], 5: ['11:00-21:00'], 6: ['11:00-21:00']} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-07-07|confidence:0.5\nsg-sentosa-skyline-luge | Skyline Luge Sentosa | sentosa | kids,nature | 2800 SGD minor | 120 min | timezone='Asia/Singapore' regular_hours={0: ['10:00-21:30'], 1: ['10:00-21:30'], 2: ['10:00-21:30'], 3: ['10:00-21:30'], 4: ['10:00-21:30'], 5: ['10:00-21:30'], 6: ['10:00-21:30']} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-07-07|confidence:0.5\npl_0fce0b9d2c79aa84 | Astons Specialties | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_106214ebc59541f7 | Thomson Plaza, Upper Thomson Road | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_1275bb9891633d6e | Harvest Union Market Cafe & Bar (Thomson Plaza) | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_176c64f52113c353 | Pizza Hut | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_18395bcb4c6c489f | Red Bowl | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_21d423605ff41859 | Hokkaido-ya | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_23556fd4aa7f152c | Burger King Thomson Plaza | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_2bbf199e63df0597 | Windsor Park Estate, Singapore | Unknown | park | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_2c8ab4111d2a1f67 | Sicc the Lookout | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_2e677f4bca1618e6 | Singapore Windsor Nature Park | Unknown | park | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_2f7053dfe5c0371d | Sweetness Cakes | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_2f84ffcbc629d4c4 | Rickson's Kitchen | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_3393980586e4de24 | Upper Pierce Reservoir | Unknown | park | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_3470e9f3b6f736a4 | Patisserie G | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_363b8e01fc731dcd | iVegan | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_51f74fccb0ee66c5 | Rocky Master | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_5520cbaf7fb7ac93 | Venus Green | Unknown | park | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_6661aff8b400efc2 | Xi Men Jie \u897f\u95e8\u8857 | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_7432d778cf14f565 | Han's | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_7af3b6429a673026 | Wang Cafe | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_84e88086a0a7aa28 | Burger King | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_8a60e01f277a06dc | Four Leaves | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_8d1387322fb9ff7b | HSBC Treetop Walk | Unknown | park | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_8d33df29e6416dc6 | Sicc ( Island ) - Silk Restaurant | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_8f06f4f28e7a4b01 | Aflame Family Centre | Unknown | attraction | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_9392bfdbed01ae21 | The Coriander Cafe | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_9d75f48b8112f59b | Edith Patisserie Thomson Plaza | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_a5915af88d5e8780 | Carpenter and Cook Jr | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_a7db173a5e229995 | Wonderful Bapsang | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_b1c91ce3a4786dcf | The Good Trio \u4e09\u4eba\u884c | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_b59a0f425d0c1063 | Hsbc Treetop Walk | Unknown | park | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_b974df8cb8d141d8 | Syonan Jinja Site | Unknown | attraction | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_bac1d881ec071dfe | KLARA Charcoal Dining & Bar | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_be1146cee4b11b89 | Duke Bakery | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_cbbebe85904c1db4 | Isp Cafe, Sicc | Unknown | cafe | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\npl_cf8107b5191b2e42 | Sushi Tei | Unknown | restaurant | 0 SGD minor | 90 min | timezone='Asia/Singapore' regular_hours={} closed_dates=[] | status:verify_required|verified:UNVERIFIED|needs_verification:True|last_verified:2026-01-01|confidence:0.5\nAreas:\nchinatown | Chinatown | budget,culture,food | centrality 0.8\nmarina_bay | Marina Bay | landmark,luxury,nightlife | centrality 0.95\norchard | Orchard Road | nightlife,shopping | centrality 0.85\nsentosa | Sentosa | beach,kids,nature | centrality 0.5\nRevision notes: []",
+  "response": {
+    "hotel_area_id": "marina_bay",
+    "days": [
+      {
+        "date": "2026-09-01",
+        "items": [
+          {
+            "poi_id": "sg-hawker-maxwell",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          },
+          {
+            "poi_id": "sg-gardens-by-the-bay",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          }
+        ],
+        "unmet_needs": [],
+        "rejections": []
+      },
+      {
+        "date": "2026-09-02",
+        "items": [
+          {
+            "poi_id": "sg-marina-bay-sands-skypark",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          },
+          {
+            "poi_id": "sg-sentosa-skyline-luge",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          }
+        ],
+        "unmet_needs": [],
+        "rejections": []
+      },
+      {
+        "date": "2026-09-03",
+        "items": [
+          {
+            "poi_id": "pl_0fce0b9d2c79aa84",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          },
+          {
+            "poi_id": "pl_106214ebc59541f7",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          }
+        ],
+        "unmet_needs": [],
+        "rejections": []
+      },
+      {
+        "date": "2026-09-04",
+        "items": [
+          {
+            "poi_id": "pl_176c64f52113c353",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          },
+          {
+            "poi_id": "pl_23556fd4aa7f152c",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          }
+        ],
+        "unmet_needs": [],
+        "rejections": []
+      },
+      {
+        "date": "2026-09-05",
+        "items": [
+          {
+            "poi_id": "pl_363b8e01fc731dcd",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          },
+          {
+            "poi_id": "pl_7432d778cf14f565",
+            "start_hint": null,
+            "meal_slots": [],
+            "name": null,
+            "category": null,
+            "travel_from_previous": null,
+            "evidence": null
+          }
+        ],
+        "unmet_needs": [],
+        "rejections": []
+      }
+    ],
+    "notes": [],
+    "itinerary_quality": "llm",
+    "unverified_suggestions": []
+  }
+}

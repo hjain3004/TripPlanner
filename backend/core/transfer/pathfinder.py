@@ -118,8 +118,8 @@ def _dominates(left: TransferPlan, right: TransferPlan) -> bool:
         -len(right.steps),
         -_max_hours(right),
     )
-    return all(a >= b for a, b in zip(metrics_left, metrics_right)) and any(
-        a > b for a, b in zip(metrics_left, metrics_right)
+    return all(a >= b for a, b in zip(metrics_left, metrics_right, strict=False)) and any(
+        a > b for a, b in zip(metrics_left, metrics_right, strict=False)
     )
 
 
@@ -221,9 +221,7 @@ def find_transfer_plans(
     cash_price_minor: int,
     on_date: date,
 ) -> TransferAdvice:
-    awards = kb.award_entries(
-        target.origin, target.destination, target.cabin, target.trip_type
-    )
+    awards = kb.award_entries(target.origin, target.destination, target.cabin, target.trip_type)
     if not awards:
         return TransferAdvice(
             plans=[],
@@ -285,9 +283,7 @@ def find_transfer_plans(
                     if award.provenance.needs_verification
                     else []
                 ),
-                explanation=[
-                    f"Existing {award.program_id} balance covers {total_miles} miles."
-                ],
+                explanation=[f"Existing {award.program_id} balance covers {total_miles} miles."],
             )
             plans.append(
                 plan.model_copy(update={"checklist_steps": build_checklist(plan, program, {})})
@@ -328,9 +324,7 @@ def find_transfer_plans(
                 continue
             steps = _forward_steps(source_required, path, bonuses)
             destination_received = steps[-1].amount_dest
-            value_per_point = redemption_value_micro(
-                cash_price_minor, total_fees, source_required
-            )
+            value_per_point = redemption_value_micro(cash_price_minor, total_fees, source_required)
             opportunity_cost = opportunity_cost_minor(
                 source_required, baseline_valuations[source_id]
             )
@@ -382,8 +376,7 @@ def find_transfer_plans(
         plan_bonuses = {
             step.bonus_applied: checklist_bonus_rows[step.bonus_applied]
             for step in plan.steps
-            if step.bonus_applied is not None
-            and step.bonus_applied in checklist_bonus_rows
+            if step.bonus_applied is not None and step.bonus_applied in checklist_bonus_rows
         }
         completed.append(
             plan.model_copy(

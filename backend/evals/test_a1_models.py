@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -15,7 +15,7 @@ from accounts.models import (
     WalletEntry,
 )
 
-NOW = datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
 
 
 def test_user_normalizes_email_to_lowercase() -> None:

@@ -29,6 +29,7 @@ Meaning:   --color-success, --color-success-text, --color-warning (staleness/ver
            one permitted on text, per the Gate F1 contrast matrix. Resolves the prior
            `--color-savings-highlight` (this section) vs `--color-savings` (Doc 13
            §4.1) naming split to one name: `--color-savings`.
+Registers: The four-register system enforces strict meaning: structure (mangrove/primary lines), signal (lacquer/accent-4 for one active thing), value (brass/savings), and issue (celadon/accent-1 offset plate for verified documents).
 Depth:     --shadow-1 (rest), --shadow-2 (hover), --shadow-3 (modal/overlay) — layered soft
            low-opacity shadows, never single hard shadows; --blur-overlay (16px)
 Shape:     --radius-s (6px), --radius-m (12px), --radius-l (20px), --radius-full

@@ -1,0 +1,8 @@
+{
+  "type": "https://terra.tripadvisor.com/errors/unauthorized",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "API key is not provided",
+  "instance": "/api/catalog/locations/search",
+  "trace_id": "tr-mock-401"
+}

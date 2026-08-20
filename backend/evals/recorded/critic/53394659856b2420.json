@@ -1,0 +1,126 @@
+{
+  "key": "53394659856b2420",
+  "node": "critic",
+  "model": "llama-3.1-8b-instant",
+  "system": "You are the TripPlanner critic. Return only CriticVerdict JSON. Check hours/closed-day conflicts, same-day geography scatter, pace overload, budget overshoot over 15%, dietary conflicts, and unsupported claims. Do not add facts that are absent from the provided artifacts.",
+  "user": "TripSpec:\n{\"home_country\":\"IN\",\"origin_city\":\"DEL\",\"destination_city\":\"SIN\",\"start_date\":\"2026-09-01\",\"end_date\":\"2026-09-05\",\"travelers\":2,\"budget_minor\":null,\"budget_currency\":\"INR\",\"style\":\"balanced\",\"interests\":[],\"pace\":\"moderate\",\"dietary\":[],\"wallet\":{\"card_ids\":[\"hdfc-infinia\"],\"points_balances\":{}},\"optimization\":{\"objective\":\"max_savings\"},\"unresolved\":[]}\nDraftItinerary:\n{\"hotel_area_id\":\"chinatown\",\"days\":[{\"date\":\"2026-09-01\",\"items\":[{\"poi_id\":\"pl_8d1387322fb9ff7b\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_5520cbaf7fb7ac93\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_2e677f4bca1618e6\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_2bbf199e63df0597\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_8f06f4f28e7a4b01\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_2f84ffcbc629d4c4\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_23556fd4aa7f152c\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_21d423605ff41859\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null}],\"unmet_needs\":[],\"rejections\":[]},{\"date\":\"2026-09-02\",\"items\":[{\"poi_id\":\"pl_3470e9f3b6f736a4\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_8a60e01f277a06dc\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_84e88086a0a7aa28\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_7af3b6429a673026\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_7432d778cf14f565\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_6661aff8b400efc2\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_51f74fccb0ee66c5\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_363b8e01fc731dcd\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null}],\"unmet_needs\":[],\"rejections\":[]},{\"date\":\"2026-09-03\",\"items\":[{\"poi_id\":\"pl_b974df8cb8d141d8\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_b59a0f425d0c1063\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_2c8ab4111d2a1f67\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_8d33df29e6416dc6\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_cbbebe85904c1db4\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_3393980586e4de24\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_2f7053dfe5c0371d\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null}],\"unmet_needs\":[],\"rejections\":[]},{\"date\":\"2026-09-04\",\"items\":[{\"poi_id\":\"pl_cf8107b5191b2e42\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_be1146cee4b11b89\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_bac1d881ec071dfe\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_b1c91ce3a4786dcf\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_a7db173a5e229995\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_a5915af88d5e8780\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_9d75f48b8112f59b\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null},{\"poi_id\":\"pl_9392bfdbed01ae21\",\"start_hint\":null,\"meal_slots\":[],\"name\":null,\"category\":null,\"travel_from_previous\":null,\"evidence\":null}],\"unmet_needs\":[],\"rejections\":[]}],\"notes\":[\"OR-Tools TSP optimized route\"],\"itinerary_quality\":\"fallback\",\"unverified_suggestions\":[]}\nCostedTrip:\n{\"id\":\"DEL-SIN-2026-09-01\",\"origin\":\"DEL\",\"destination\":\"SIN\",\"home_currency\":\"INR\",\"booking_date\":\"2026-08-01\",\"trip_start_date\":\"2026-09-01\",\"lines\":[{\"id\":\"flight:del-sin-6e-eco\",\"label\":\"IndiGo round-trip flight\",\"category\":\"flights\",\"amount_minor\":8200000,\"currency\":\"INR\",\"available_channels\":[\"direct_airline\",\"ota_generic\"],\"merchant_hint\":\"IndiGo\",\"splittable\":false},{\"id\":\"hotel:sg-hotel-marina-balanced\",\"label\":\"Marina Bay Harbourview (4 nights)\",\"category\":\"hotels\",\"amount_minor\":6400000,\"currency\":\"INR\",\"available_channels\":[\"ota_generic\",\"bank_portal\",\"direct_hotel\"],\"merchant_hint\":\"Marina Bay Harbourview\",\"splittable\":false},{\"id\":\"poi:pl_8d1387322fb9ff7b\",\"label\":\"HSBC Treetop Walk\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_5520cbaf7fb7ac93\",\"label\":\"Venus Green\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_2e677f4bca1618e6\",\"label\":\"Singapore Windsor Nature Park\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_2bbf199e63df0597\",\"label\":\"Windsor Park Estate, Singapore\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_8f06f4f28e7a4b01\",\"label\":\"Aflame Family Centre\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_2f84ffcbc629d4c4\",\"label\":\"Rickson's Kitchen\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_23556fd4aa7f152c\",\"label\":\"Burger King Thomson Plaza\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_21d423605ff41859\",\"label\":\"Hokkaido-ya\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_3470e9f3b6f736a4\",\"label\":\"Patisserie G\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_8a60e01f277a06dc\",\"label\":\"Four Leaves\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_84e88086a0a7aa28\",\"label\":\"Burger King\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_7af3b6429a673026\",\"label\":\"Wang Cafe\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_7432d778cf14f565\",\"label\":\"Han's\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_6661aff8b400efc2\",\"label\":\"Xi Men Jie \u897f\u95e8\u8857\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_51f74fccb0ee66c5\",\"label\":\"Rocky Master\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_363b8e01fc731dcd\",\"label\":\"iVegan\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_b974df8cb8d141d8\",\"label\":\"Syonan Jinja Site\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_b59a0f425d0c1063\",\"label\":\"Hsbc Treetop Walk\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_2c8ab4111d2a1f67\",\"label\":\"Sicc the Lookout\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_8d33df29e6416dc6\",\"label\":\"Sicc ( Island ) - Silk Restaurant\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_cbbebe85904c1db4\",\"label\":\"Isp Cafe, Sicc\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_3393980586e4de24\",\"label\":\"Upper Pierce Reservoir\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_2f7053dfe5c0371d\",\"label\":\"Sweetness Cakes\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_cf8107b5191b2e42\",\"label\":\"Sushi Tei\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_be1146cee4b11b89\",\"label\":\"Duke Bakery\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_bac1d881ec071dfe\",\"label\":\"KLARA Charcoal Dining & Bar\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_b1c91ce3a4786dcf\",\"label\":\"The Good Trio \u4e09\u4eba\u884c\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_a7db173a5e229995\",\"label\":\"Wonderful Bapsang\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_a5915af88d5e8780\",\"label\":\"Carpenter and Cook Jr\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_9d75f48b8112f59b\",\"label\":\"Edith Patisserie Thomson Plaza\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"poi:pl_9392bfdbed01ae21\",\"label\":\"The Coriander Cafe\",\"category\":\"attractions\",\"amount_minor\":0,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"per_diem:dining\",\"label\":\"Dining per-diem estimate\",\"category\":\"dining\",\"amount_minor\":3539200,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false},{\"id\":\"per_diem:misc\",\"label\":\"Local transport and misc per-diem estimate\",\"category\":\"other\",\"amount_minor\":1264000,\"currency\":\"INR\",\"available_channels\":[\"pos_abroad\"],\"merchant_hint\":null,\"splittable\":false}]}\nPOI reference rows:\n[{'id': 'sg-gardens-by-the-bay', 'area': 'marina_bay', 'tags': ['nature', 'landmark', 'kids'], 'duration_min': 180, 'open_hours': TimezoneAwareHours(timezone='Asia/Singapore', regular_hours={0: ['09:00-21:00'], 1: ['09:00-21:00'], 2: ['09:00-21:00'], 3: ['09:00-21:00'], 4: ['09:00-21:00'], 5: ['09:00-21:00'], 6: ['09:00-21:00']}, closed_dates=[]), 'description': 'Iconic Supertree Grove and cooled conservatories at Marina Bay.'}, {'id': 'sg-hawker-maxwell', 'area': 'chinatown', 'tags': ['food'], 'duration_min': 75, 'open_hours': TimezoneAwareHours(timezone='Asia/Singapore', regular_hours={0: [], 1: ['08:00-20:00'], 2: ['08:00-20:00'], 3: ['08:00-20:00'], 4: ['08:00-20:00'], 5: ['08:00-20:00'], 6: ['08:00-20:00']}, closed_dates=[]), 'description': 'Classic hawker centre famous for Hainanese chicken rice.'}, {'id': 'sg-marina-bay-sands-skypark', 'area': 'marina_bay', 'tags': ['landmark', 'nightlife'], 'duration_min': 60, 'open_hours': TimezoneAwareHours(timezone='Asia/Singapore', regular_hours={0: ['11:00-21:00'], 1: ['11:00-21:00'], 2: ['11:00-21:00'], 3: ['11:00-21:00'], 4: ['11:00-21:00'], 5: ['11:00-21:00'], 6: ['11:00-21:00']}, closed_dates=[]), 'description': 'Observation deck with panoramic skyline views.'}, {'id': 'sg-sentosa-skyline-luge', 'area': 'sentosa', 'tags': ['kids', 'nature'], 'duration_min': 120, 'open_hours': TimezoneAwareHours(timezone='Asia/Singapore', regular_hours={0: ['10:00-21:30'], 1: ['10:00-21:30'], 2: ['10:00-21:30'], 3: ['10:00-21:30'], 4: ['10:00-21:30'], 5: ['10:00-21:30'], 6: ['10:00-21:30']}, closed_dates=[]), 'description': 'Gravity luge rides with harbour views on Sentosa island.'}]",
+  "response": {
+    "passed": false,
+    "issues": [
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "HSBC Treetop Walk is closed on Sundays",
+        "poi_id": "pl_8d1387322fb9ff7b"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Venus Green is closed on Sundays",
+        "poi_id": "pl_5520cbaf7fb7ac93"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Singapore Windsor Nature Park is closed on Sundays",
+        "poi_id": "pl_2e677f4bca1618e6"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Windsor Park Estate, Singapore is closed on Sundays",
+        "poi_id": "pl_2bbf199e63df0597"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Aflame Family Centre is closed on Sundays",
+        "poi_id": "pl_8f06f4f28e7a4b01"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Rickson's Kitchen is closed on Sundays",
+        "poi_id": "pl_2f84ffcbc629d4c4"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Burger King Thomson Plaza is closed on Sundays",
+        "poi_id": "pl_23556fd4aa7f152c"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Hokkaido-ya is closed on Sundays",
+        "poi_id": "pl_21d423605ff41859"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Patisserie G is closed on Sundays",
+        "poi_id": "pl_3470e9f3b6f736a4"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Four Leaves is closed on Sundays",
+        "poi_id": "pl_8a60e01f277a06dc"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Burger King is closed on Sundays",
+        "poi_id": "pl_84e88086a0a7aa28"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Wang Cafe is closed on Sundays",
+        "poi_id": "pl_7af3b6429a673026"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Han's is closed on Sundays",
+        "poi_id": "pl_7432d778cf14f565"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Xi Men Jie \u897f\u95e8\u8857 is closed on Sundays",
+        "poi_id": "pl_6661aff8b400efc2"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Rocky Master is closed on Sundays",
+        "poi_id": "pl_51f74fccb0ee66c5"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "iVegan is closed on Sundays",
+        "poi_id": "pl_363b8e01fc731dcd"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Syonan Jinja Site is closed on Sundays",
+        "poi_id": "pl_b974df8cb8d141d8"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Hsbc Treetop Walk is closed on Sundays",
+        "poi_id": "pl_b59a0f425d0c1063"
+      },
+      {
+        "severity": "warning",
+        "kind": "hours",
+        "message": "Sicc the Lookout is closed on Sundays",
+        "poi_id": "pl_2c8ab4111d2a1f67"
+      }
+    ]
+  }
+}

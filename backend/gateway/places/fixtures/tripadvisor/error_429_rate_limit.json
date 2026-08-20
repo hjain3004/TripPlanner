@@ -1,0 +1,8 @@
+{
+  "type": "https://terra.tripadvisor.com/errors/rate-limit",
+  "title": "Too Many Requests",
+  "status": 429,
+  "detail": "Account rate limit or daily quota exceeded",
+  "instance": "/api/catalog/locations/search",
+  "trace_id": "tr-mock-429"
+}

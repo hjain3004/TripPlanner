@@ -1,0 +1,15 @@
+{
+  "key": "9c726b45f5f72659",
+  "node": "explainer",
+  "model": "llama-3.1-8b-instant",
+  "system": "You write concise TripPlanner report prose as ExplainerOutput JSON only. Every rupee amount mentioned in your prose MUST be copied verbatim from the allowed currency values provided in the prompt (e.g. \u20b9194,032). Never compute, re-format, or invent currency amounts. Never mention cards, offers, providers, or facts absent from the supplied artifacts.",
+  "user": "Allowed currency values (any rupee figure in prose MUST match one of these verbatim):\n\u20b90\n\nTrip Summary:\n{\n  \"origin\": \"DEL\",\n  \"destination\": \"BOM\",\n  \"nights\": 3,\n  \"travelers\": 2,\n  \"style\": \"balanced\",\n  \"interests\": [\n    \"Food\",\n    \"Culture\"\n  ],\n  \"hotel_area\": \"unknown\",\n  \"days_count\": 3\n}\n\nBudget Summary:\n{\n  \"gross_cost\": \"\\u20b90\",\n  \"discounts\": \"\\u20b90\",\n  \"rewards_value\": \"\\u20b90\",\n  \"forex_fees\": \"\\u20b90\",\n  \"effective_cost\": \"\\u20b90\",\n  \"savings_bp\": 0\n}\n\nCritic Caveats:\n['Planner fallback used: Candidate pl_24ff1010a4b89fbd was not returned by the gateway.']",
+  "response": {
+    "summary": "Your trip from DEL to BOM for 2 travelers, 3 nights, with interests in Food and Culture, will be a balanced experience.",
+    "itinerary_overview": "The 3-day trip will cover the desired interests in the destination.",
+    "payment_overview": "The effective cost of the trip is \u20b90.",
+    "caveats": [
+      "Planner fallback used: Candidate pl_24ff1010a4b89fbd was not returned by the gateway."
+    ]
+  }
+}

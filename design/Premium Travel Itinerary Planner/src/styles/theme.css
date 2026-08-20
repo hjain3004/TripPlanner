@@ -1,0 +1,142 @@
+@theme inline {
+  --font-display: "Bodoni Moda", serif;
+  --font-ui: "Schibsted Grotesk", sans-serif;
+  --font-mono: "Roboto Mono", monospace;
+
+  /* We override these semantic tokens via CSS custom properties injected at the theme level */
+  --color-background: var(--th-bg);
+  --color-foreground: var(--th-text);
+  
+  --color-card: var(--th-surface);
+  --color-card-foreground: var(--th-text);
+  
+  --color-primary: var(--th-primary);
+  --color-primary-foreground: var(--th-on-primary);
+  
+  --color-secondary: var(--th-accent-2);
+  --color-secondary-foreground: var(--th-text);
+  
+  --color-muted: var(--th-accent-1);
+  --color-muted-foreground: var(--th-text-muted);
+  
+  --color-accent: var(--th-accent-1);
+  --color-accent-foreground: var(--th-text);
+  
+  --color-border: var(--th-border);
+  --color-ring: var(--th-primary);
+  
+  --color-lacquer: var(--th-accent-4);
+  --color-savings: var(--th-savings);
+  --color-savings-text: var(--th-savings-text);
+
+  --radius-lg: var(--radius);
+  --radius-md: var(--radius);
+  --radius-sm: var(--radius);
+  --radius: var(--radius);
+}
+
+:root {
+  --radius: 0px;
+}
+
+/* SINGAPORE (Default F1 Build): Limestone & Mangrove */
+.theme-singapore {
+  --th-bg: oklch(0.947 0.013 87);
+  --th-surface: oklch(0.979 0.008 91);
+  --th-surface-raised: oklch(0.990 0.005 91);
+  --th-border: oklch(0.28 0.01 145 / 0.10);
+  
+  --th-text: oklch(0.281 0.007 145);
+  --th-text-muted: oklch(0.525 0.014 157);
+  --th-text-faint: oklch(0.660 0.014 157);
+  --th-on-primary: oklch(0.979 0.008 91);
+  
+  --th-primary: oklch(0.320 0.042 181);
+  --th-primary-hover: oklch(0.270 0.042 181);
+  
+  --th-accent-1: oklch(0.848 0.027 167);
+  --th-accent-2: oklch(0.917 0.016 161);
+  --th-accent-3: oklch(0.660 0.097 82);
+  --th-accent-4: oklch(0.536 0.135 30); /* lacquer */
+  
+  --th-success: oklch(0.580 0.120 155);
+  --th-success-text: oklch(0.450 0.120 155);
+  --th-warning: oklch(0.700 0.130 75);
+  --th-warning-text: oklch(0.450 0.130 75);
+  --th-danger: oklch(0.550 0.180 25);
+  --th-savings: oklch(0.660 0.097 82);
+  --th-savings-text: oklch(0.450 0.097 82);
+  
+  --radius: 0px;
+}
+
+/* JAPAN: Cherry Blossom, Deep Plum, & Zen */
+.theme-japan {
+  /* Washi paper background with pure white cards */
+  --th-bg: oklch(0.985 0.005 350); 
+  --th-surface: oklch(1.000 0.000 0); 
+  --th-surface-raised: oklch(0.990 0.005 350);
+  
+  /* Cool sumi ink hairlines */
+  --th-border: oklch(0.25 0.02 250 / 0.10); 
+  
+  /* Typography: Deep cool charcoal / sumi ink */
+  --th-text: oklch(0.25 0.02 250); 
+  --th-text-muted: oklch(0.55 0.02 250); 
+  --th-text-faint: oklch(0.75 0.02 250);
+  --th-on-primary: oklch(0.985 0.005 350); 
+  
+  /* Primary: Deep Japanese Plum/Cherry wood (grounds the UI, great contrast) */
+  --th-primary: oklch(0.38 0.10 350); 
+  --th-primary-hover: oklch(0.32 0.08 350);
+  
+  /* Accents: Soft airy Sakura Pinks */
+  --th-accent-1: oklch(0.92 0.04 350); 
+  --th-accent-2: oklch(0.96 0.02 350); /* Light sakura for hovered rows */
+  --th-accent-3: oklch(0.88 0.06 350);
+  
+  /* Signal/Notch: Traditional Vermilion (Torii gate red) */
+  --th-accent-4: oklch(0.55 0.18 25); 
+  
+  /* Savings/Success: Matcha Green (moved to purely decorative/savings role) */
+  --th-success: oklch(0.75 0.08 135);
+  --th-success-text: oklch(0.42 0.08 135); /* AA compliant text on light surface */
+  --th-warning: oklch(0.70 0.12 75);
+  --th-warning-text: oklch(0.45 0.12 75);
+  --th-danger: oklch(0.55 0.15 25);
+  --th-savings: oklch(0.75 0.08 135); 
+  --th-savings-text: oklch(0.42 0.08 135);
+
+  --radius: 0px;
+}
+
+/* INDIA: Vibrant, Festive, High-Contrast */
+.theme-india {
+  --th-bg: oklch(0.980 0.020 80); /* Warm Off-White */
+  --th-surface: oklch(1.000 0.000 0);
+  --th-surface-raised: oklch(0.990 0.020 80);
+  --th-border: oklch(0.30 0.15 260 / 0.12); /* Royal Blue hairline */
+  
+  --th-text: oklch(0.30 0.15 260); /* Deep Royal Blue */
+  --th-text-muted: oklch(0.50 0.10 260);
+  --th-text-faint: oklch(0.70 0.05 260);
+  --th-on-primary: oklch(0.30 0.15 260); /* Blue text on Saffron */
+  
+  --th-primary: oklch(0.75 0.15 50); /* Saffron Orange / Marigold */
+  --th-primary-hover: oklch(0.70 0.15 45);
+  
+  --th-accent-1: oklch(0.92 0.05 50);
+  --th-accent-2: oklch(0.96 0.03 50);
+  --th-accent-3: oklch(0.60 0.15 150); /* Peacock Green */
+  --th-accent-4: oklch(0.55 0.20 340); /* Magenta signal */
+  
+  --th-success: oklch(0.60 0.15 150);
+  --th-success-text: oklch(0.40 0.10 150);
+  --th-warning: oklch(0.70 0.12 75);
+  --th-warning-text: oklch(0.45 0.12 75);
+  --th-danger: oklch(0.55 0.15 25);
+  --th-savings: oklch(0.60 0.15 150); /* Peacock Green */
+  --th-savings-text: oklch(0.40 0.10 150);
+
+  --radius: 12px;
+}

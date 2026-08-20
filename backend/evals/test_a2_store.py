@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from accounts.models import FORBIDDEN_FIELD_NAMES, Session, UserCredential
+from accounts.store import AccountStore
 
-NOW = datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
 
 
 def _session(**overrides: object) -> Session:
@@ -74,8 +75,6 @@ def test_revoked_session_is_invalid_even_before_expiry() -> None:
     session = _session(revoked_at=NOW)
 
     assert session.is_valid_at(NOW + timedelta(days=1)) is False
-
-from accounts.store import AccountStore
 
 def _store(tmp_path: Path) -> AccountStore:
     store = AccountStore.open(tmp_path / "accounts.sqlite")

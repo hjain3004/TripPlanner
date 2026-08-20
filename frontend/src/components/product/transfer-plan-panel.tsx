@@ -1,6 +1,6 @@
 "use client";
 
-import type { TransferAdvice } from "@/lib/api/types.gen";
+import type { TransferAdvice } from "@/lib/api";
 import { MoneyText } from "./money-text";
 import { TrustChip } from "./trust-chip";
 import { WhyThis } from "./why-this";
@@ -40,7 +40,7 @@ export function TransferPlanPanel({ advice }: TransferPlanPanelProps) {
       </div>
 
       {advice.plans.map((plan) => (
-        <div key={plan.id} className="border border-border rounded-sm">
+        <div key={plan.id} className="border-2 border-border rounded-none shadow-1 bg-bg">
           <div className="px-4 py-3 border-b border-border">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-text">{plan.source_currency}</span>

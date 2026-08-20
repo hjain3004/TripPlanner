@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gazette masthead — four treatments, 1440px</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Alfa+Slab+One&family=Pirata+One&family=Monoton&family=Oswald:wght@200..700&family=Archivo:wdth,wght@62..125,400..900&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;width:1440px;background:#E9E3D5;color:#141414;
+  font-family:"Archivo",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{width:1240px;margin:0 auto;padding:56px 0 72px}
+.kicker{font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:#B23A22;margin-bottom:8px}
+.intro{font-size:13px;line-height:1.6;color:#4A4A46;max-width:78ch;margin:0 0 40px}
+
+.paper{background:#F2EDE1;border:1px solid #141414;padding:30px 34px 34px;margin-bottom:38px;
+  position:relative}
+.paper::before{content:"";position:absolute;top:9px;left:9px;right:-9px;bottom:-9px;
+  background:#B23A22;z-index:-1}
+.tag{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.18em;
+  text-transform:uppercase;color:#6A6A64;margin-bottom:18px}
+.tag b{color:#141414}
+
+/* --- the gazette system: nameplate / double rule / dateline / deck --- */
+.plate{line-height:.9;margin:0;text-align:center}
+.rule-d{border-top:3px solid #141414;border-bottom:1px solid #141414;height:5px;margin:16px 0 0}
+.dateline{display:flex;justify-content:space-between;font-family:"Roboto Mono",monospace;
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;padding:7px 0;
+  border-bottom:1px solid #141414}
+.deck{display:grid;grid-template-columns:1.35fr 1fr;gap:30px;padding-top:20px}
+.hed{margin:0;line-height:.98;letter-spacing:-.01em}
+.sub{font-family:"Oswald",sans-serif;font-weight:300;font-size:15px;line-height:1.4;
+  text-transform:uppercase;letter-spacing:.02em;color:#3A3A36;margin:12px 0 0}
+.col{border-left:1px solid #141414;padding-left:22px}
+.col .lbl{font-family:"Roboto Mono",monospace;font-size:9px;letter-spacing:.18em;
+  text-transform:uppercase;color:#6A6A64}
+.fig{font-family:"Archivo",sans-serif;font-variation-settings:"wdth" 70;font-weight:900;
+  font-size:50px;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+  margin-top:4px}
+.fig s{text-decoration:none;color:#B23A22}
+.col p{font-size:12.5px;line-height:1.5;color:#3A3A36;margin:10px 0 0}
+.note{font-size:12.5px;line-height:1.55;color:#4A4A46;margin:16px 0 0;
+  border-top:1px solid #141414;padding-top:10px}
+.note b{color:#141414}
+
+/* 01 fat face */
+.t1 .plate{font-family:"Abril Fatface",serif;font-size:94px;letter-spacing:-.015em}
+.t1 .hed{font-family:"Abril Fatface",serif;font-size:37px}
+/* 02 wood type slab */
+.t2 .plate{font-family:"Alfa Slab One",serif;font-size:76px;letter-spacing:-.01em}
+.t2 .hed{font-family:"Alfa Slab One",serif;font-size:30px;line-height:1.12}
+/* 03 blackletter */
+.t3 .plate{font-family:"Pirata One",serif;font-size:100px;letter-spacing:.005em}
+.t3 .hed{font-family:"Archivo",sans-serif;font-variation-settings:"wdth" 68;font-weight:800;
+  font-size:36px;text-transform:uppercase;line-height:1.02}
+/* 04 space-age deco */
+.t4{background:#141414;color:#F2EDE1;border-color:#F2EDE1}
+.t4::before{background:#E8B62C}
+.t4 .plate{font-family:"Monoton",cursive;font-size:76px;color:#E8B62C;letter-spacing:.01em}
+.t4 .rule-d{border-color:#F2EDE1}
+.t4 .dateline{border-color:#F2EDE1}
+.t4 .hed{font-family:"Archivo",sans-serif;font-variation-settings:"wdth" 68;font-weight:800;
+  font-size:36px;text-transform:uppercase;line-height:1.02}
+.t4 .col{border-color:#F2EDE1}
+.t4 .sub,.t4 .col p{color:#C9C4B6}
+.t4 .fig s{color:#E8B62C}
+.t4 .tag{color:#9A958A}.t4 .tag b{color:#F2EDE1}
+.t4 .note{color:#C9C4B6;border-color:#F2EDE1}.t4 .note b{color:#F2EDE1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Gazette · four masthead treatments · newsprint ground</div>
+  <p class="intro">A gazette is a layout system, not a typeface — nameplate, double rule, dateline,
+    condensed deck, ruled columns. Each treatment below is the complete system, so the face is
+    judged inside the structure it has to live in. Geometry is Direction A's, unchanged: hard
+    border, offset plate, mono metadata, tabular figures.</p>
+
+  <section class="paper t1">
+    <div class="tag"><b>01</b> — Fat face · Abril Fatface + Oswald condensed + Archivo narrow figures</div>
+    <h1 class="plate">The Tripwise Gazette</h1>
+    <div class="rule-d"></div>
+    <div class="dateline"><span>Vol. I · No. 001</span><span>Delhi — Singapore</span><span>Five nights · Two travellers</span><span>Est. 2026</span></div>
+    <div class="deck">
+      <div>
+        <h2 class="hed">Four cards, five lines, one route through the trade-offs.</h2>
+        <p class="sub">Portal booking carries the fare · Dining moves abroad · Two offers stack before the cap</p>
+      </div>
+      <div class="col">
+        <div class="lbl">Total saved · computed</div>
+        <div class="fig">₹8,777 <s>5.74%</s></div>
+        <p>Against gross ₹153,000.00. Effective cost ₹144,223.00 after rewards, discounts and forex.</p>
+      </div>
+    </div>
+    <p class="note"><b>The classic newspaper nameplate.</b> Fat-face didone — Victorian press, and
+      still what most mastheads use. Highest legibility of the four, lowest novelty.</p>
+  </section>
+
+  <section class="paper t2">
+    <div class="tag"><b>02</b> — Wood type · Alfa Slab One + Oswald + Archivo narrow figures</div>
+    <h1 class="plate">The Tripwise Gazette</h1>
+    <div class="rule-d"></div>
+    <div class="dateline"><span>Vol. I · No. 001</span><span>Delhi — Singapore</span><span>Five nights · Two travellers</span><span>Est. 2026</span></div>
+    <div class="deck">
+      <div>
+        <h2 class="hed">Four cards, five lines, one route through the trade-offs.</h2>
+        <p class="sub">Portal booking carries the fare · Dining moves abroad · Two offers stack before the cap</p>
+      </div>
+      <div class="col">
+        <div class="lbl">Total saved · computed</div>
+        <div class="fig">₹8,777 <s>5.74%</s></div>
+        <p>Against gross ₹153,000.00. Effective cost ₹144,223.00 after rewards, discounts and forex.</p>
+      </div>
+    </div>
+    <p class="note"><b>Letterpress wood type.</b> Slab serifs at poster weight. Reads as
+      <em>pressed into paper</em> — the closest of the four to the "issued document" thesis.</p>
+  </section>
+
+  <section class="paper t3">
+    <div class="tag"><b>03</b> — Blackletter nameplate · Pirata One + Archivo condensed heds</div>
+    <h1 class="plate">The Tripwise Gazette</h1>
+    <div class="rule-d"></div>
+    <div class="dateline"><span>Vol. I · No. 001</span><span>Delhi — Singapore</span><span>Five nights · Two travellers</span><span>Est. 2026</span></div>
+    <div class="deck">
+      <div>
+        <h2 class="hed">Four cards, five lines, one route through the trade-offs.</h2>
+        <p class="sub">Portal booking carries the fare · Dining moves abroad · Two offers stack before the cap</p>
+      </div>
+      <div class="col">
+        <div class="lbl">Total saved · computed</div>
+        <div class="fig">₹8,777 <s>5.74%</s></div>
+        <p>Against gross ₹153,000.00. Effective cost ₹144,223.00 after rewards, discounts and forex.</p>
+      </div>
+    </div>
+    <p class="note"><b>The most literal "gazette."</b> Blackletter nameplate over modern condensed
+      heds — the Times/Telegraph move. Strongest period signal, but it reads <em>old</em> rather
+      than retro-<em>futurist</em>; nothing in it looks forward.</p>
+  </section>
+
+  <section class="paper t4">
+    <div class="tag"><b>04</b> — Space-age deco · Monoton + Archivo condensed · inverted night press</div>
+    <h1 class="plate">The Tripwise Gazette</h1>
+    <div class="rule-d"></div>
+    <div class="dateline"><span>Vol. I · No. 001</span><span>Delhi — Singapore</span><span>Five nights · Two travellers</span><span>Est. 2026</span></div>
+    <div class="deck">
+      <div>
+        <h2 class="hed">Four cards, five lines, one route through the trade-offs.</h2>
+        <p class="sub">Portal booking carries the fare · Dining moves abroad · Two offers stack before the cap</p>
+      </div>
+      <div class="col">
+        <div class="lbl">Total saved · computed</div>
+        <div class="fig">₹8,777 <s>5.74%</s></div>
+        <p>Against gross ₹153,000.00. Effective cost ₹144,223.00 after rewards, discounts and forex.</p>
+      </div>
+    </div>
+    <p class="note"><b>This is the actual retro-futurism.</b> Monoton is a deco line-inline face —
+      the "world of tomorrow" register. Inverted to night press with brass. Period <em>and</em>
+      forward-looking, which none of 01–03 manage at once.</p>
+  </section>
+</div>
+</body>
+</html>

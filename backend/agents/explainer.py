@@ -12,10 +12,13 @@ from agents.models import (
     FinalReport,
     KernelResult,
     PaymentStrategyRow,
+    RegionCapability,
+    RetrievalContext,
+    SectionFreshness,
     SelectedHotelArea,
     TripSpec,
 )
-from core.models import LineAssignment, OptimizerResult, SpendLineItem, TransferAdvice
+from core.models import LineAssignment, OptimizerResult, TransferAdvice
 
 RUPEE_RE = re.compile(r"₹\s?[0-9][0-9,]*")
 
@@ -64,7 +67,9 @@ def _payment_rows(assignments: list[LineAssignment]) -> list[PaymentStrategyRow]
     ]
 
 
-def _checklist(assignments: list[LineAssignment], transfer_advice: TransferAdvice | None) -> list[str]:
+def _checklist(
+    assignments: list[LineAssignment], transfer_advice: TransferAdvice | None
+) -> list[str]:
     out = ["Verify all sample prices, award availability, and card/offer terms before paying."]
     for assignment in sorted(assignments, key=lambda row: row.line.id):
         out.append(
@@ -174,16 +179,20 @@ def _is_grounded(output: ExplainerOutput, estimate: EstimatorResult, kernel: Ker
     haystack = "\n".join(
         [output.summary, output.itinerary_overview, output.payment_overview, *output.caveats]
     )
-    mentioned = {match.group(0).replace("₹ ", "₹") for match in RUPEE_RE.finditer(haystack)}
+    mentioned = {
+        match.group(0).replace("₹ ", "₹").rstrip(".,")
+        for match in RUPEE_RE.finditer(haystack)
+    }
     return mentioned.issubset(_allowed_currency_strings(estimate, kernel))
 
 
 def _explainer_system() -> str:
     return (
         "You write concise TripPlanner report prose as ExplainerOutput JSON only. "
-        "Every number must be copied verbatim from the supplied structured artifacts; "
-        "never compute or invent amounts. Never mention cards, offers, providers, or facts "
-        "absent from the supplied artifacts."
+        "Every rupee amount mentioned in your prose MUST be copied verbatim from the "
+        "allowed currency values provided in the prompt (e.g. ₹194,032). "
+        "Never compute, re-format, or invent currency amounts. "
+        "Never mention cards, offers, providers, or facts absent from the supplied artifacts."
     )
 
 
@@ -194,17 +203,37 @@ def _explainer_user(
     kernel: KernelResult,
     critic_caveats: list[str],
 ) -> str:
+    import json
+
+    allowed_rupees = sorted(_allowed_currency_strings(estimate, kernel))
+    opt = kernel.optimizer_result
+
+    trip_summary = {
+        "origin": spec.origin_city,
+        "destination": spec.destination_city,
+        "nights": spec.nights,
+        "travelers": spec.travelers,
+        "style": spec.style,
+        "interests": spec.interests,
+        "hotel_area": itinerary.hotel_area_id,
+        "days_count": len(itinerary.days),
+    }
+
+    budget_summary = {
+        "gross_cost": _rupees(opt.gross_minor),
+        "discounts": _rupees(opt.discounts_minor),
+        "rewards_value": _rupees(opt.rewards_value_minor),
+        "forex_fees": _rupees(opt.forex_fees_minor),
+        "effective_cost": _rupees(opt.effective_cost_minor),
+        "savings_bp": opt.savings_pct_bp,
+    }
+
     return (
-        "TripSpec:\n"
-        f"{spec.model_dump_json()}\n"
-        "DraftItinerary:\n"
-        f"{itinerary.model_dump_json()}\n"
-        "EstimatorResult:\n"
-        f"{estimate.model_dump_json()}\n"
-        "KernelResult:\n"
-        f"{kernel.model_dump_json()}\n"
-        "Critic caveats:\n"
-        f"{critic_caveats}"
+        "Allowed currency values (any rupee figure in prose MUST match one of these verbatim):\n"
+        f"{', '.join(allowed_rupees)}\n\n"
+        f"Trip Summary:\n{json.dumps(trip_summary, indent=2)}\n\n"
+        f"Budget Summary:\n{json.dumps(budget_summary, indent=2)}\n\n"
+        f"Critic Caveats:\n{critic_caveats}"
     )
 
 
@@ -213,13 +242,33 @@ def build_final_report(
     itinerary: DraftItinerary,
     estimate: EstimatorResult,
     kernel: KernelResult,
+    retrieval: RetrievalContext,
     *,
     critic_caveats: list[str],
     explainer: ExplainerOutput,
     trace_id: str,
+    region_capability: RegionCapability | None = None,
+    freshness: SectionFreshness | None = None,
 ) -> FinalReport:
     optimizer = kernel.optimizer_result
     caveats = [*critic_caveats, *explainer.caveats]
+    
+    # Enrich itinerary items with rendering data
+    poi_map = {p.id: p for p in retrieval.pois}
+    ev_map = {ev.poi_id: ev for ev in retrieval.poi_provenance}
+    
+    for day in itinerary.days:
+        for item in day.items:
+            poi = poi_map.get(item.poi_id)
+            if poi:
+                item.name = poi.name
+                item.category = next(iter(poi.tags), "other")
+                item.lat = poi.lat
+                item.lon = poi.lon
+            ev = ev_map.get(item.poi_id)
+            if ev:
+                item.evidence = ev
+    
     return FinalReport(
         trip_spec=spec,
         itinerary=itinerary,
@@ -231,9 +280,13 @@ def build_final_report(
         budget_totals=_totals(optimizer),
         payment_strategy=_payment_rows(optimizer.assignments),
         transfer_advice=kernel.transfer_advice,
-        booking_checklist=_checklist(optimizer.assignments, kernel.transfer_advice),
+        booking_checklist=_checklist(
+            optimizer.assignments, kernel.transfer_advice
+        ),
         assumptions=[*estimate.assumptions, *optimizer.assumptions],
-        provenance_warnings=_provenance_warnings(estimate, optimizer, kernel.transfer_advice),
+        provenance_warnings=_provenance_warnings(
+            estimate, optimizer, kernel.transfer_advice
+        ),
         confidence=optimizer.confidence,
         caveats=caveats,
         summary=explainer.summary,
@@ -241,6 +294,8 @@ def build_final_report(
         payment_overview=explainer.payment_overview,
         footer=_footer(estimate, kernel.transfer_advice),
         trace_id=trace_id,
+        region_capability=region_capability,
+        freshness=freshness or SectionFreshness(),
     )
 
 
@@ -249,10 +304,13 @@ def run_explainer(
     itinerary: DraftItinerary,
     estimate: EstimatorResult,
     kernel: KernelResult,
+    retrieval: RetrievalContext,
     *,
     critic_caveats: list[str],
     trace_id: str,
     llm: LLMClient,
+    region_capability: RegionCapability | None = None,
+    freshness: SectionFreshness | None = None,
 ) -> FinalReport:
     caveats = list(critic_caveats)
     try:
@@ -260,24 +318,35 @@ def run_explainer(
             llm,
             node="explainer",
             system=_explainer_system(),
-            user=_explainer_user(spec, itinerary, estimate, kernel, critic_caveats),
+            user=_explainer_user(
+                spec, itinerary, estimate, kernel, critic_caveats
+            ),
             schema=ExplainerOutput,
             temperature=0.3,
             max_tokens=2048,
             timeout_s=20,
         )
         if not _is_grounded(explainer, estimate, kernel):
-            caveats.append("Explainer groundedness gate failed; deterministic prose fallback used.")
+            caveats.append(
+                "Explainer groundedness gate failed;"
+                " deterministic prose fallback used."
+            )
             explainer = _template_explainer(kernel)
     except Exception:
-        caveats.append("Explainer unavailable; deterministic prose fallback used.")
+        caveats.append(
+            "Explainer unavailable;"
+            " deterministic prose fallback used."
+        )
         explainer = _template_explainer(kernel)
     return build_final_report(
         spec,
         itinerary,
         estimate,
         kernel,
+        retrieval,
         critic_caveats=caveats,
         explainer=explainer,
         trace_id=trace_id,
+        region_capability=region_capability,
+        freshness=freshness,
     )

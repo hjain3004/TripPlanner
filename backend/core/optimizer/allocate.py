@@ -9,10 +9,10 @@ residual sub-optimality. Deterministic tie-breaking throughout.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date
 from itertools import combinations
-from typing import Callable
 
 from core.db import KnowledgeBase
 from core.models import (
@@ -194,6 +194,28 @@ def compute_option(
     )
 
 
+def _cash_only_option(line: SpendLineItem) -> Option:
+    channel = line.available_channels[0] if line.available_channels else Channel.POS_DOMESTIC
+    return Option(
+        card_id="cash_only",
+        channel=channel,
+        applied=[],
+        discount_minor=0,
+        post_amount_minor=line.amount_minor,
+        points=0,
+        points_value_minor=0,
+        assumed_redemption=RedemptionPath.CASHBACK,
+        forex_fee_minor=0,
+        benefit_minor=0,
+        pool_draws={},
+        uses_offers=[],
+        segments=[],
+        expired_notes=["No valid cards available; treated as cash-only with no rewards."],
+        provenance_flags=[],
+        min_confidence=1.0,
+    )
+
+
 def _line_options(
     kb: KnowledgeBase,
     line: SpendLineItem,
@@ -217,6 +239,8 @@ def _line_options(
                 opts.append(
                     compute_option(kb, line, card_id, channel, subset, pool_balances, on_date)
                 )
+    if not opts:
+        return [_cash_only_option(line)]
     return opts
 
 
@@ -239,7 +263,9 @@ def _pool_sizes(kb: KnowledgeBase, wallet: UserWallet) -> dict[str, int]:
     return sizes
 
 
-def _commit(opt: Option, pool_balances: dict[str, int], uses_map: dict[tuple[str, str], int]) -> None:
+def _commit(
+    opt: Option, pool_balances: dict[str, int], uses_map: dict[tuple[str, str], int]
+) -> None:
     for key, pts in opt.pool_draws.items():
         pool_balances[key] = pool_balances.get(key, 0) - pts
     for offer_id, limit in opt.uses_offers:
@@ -247,7 +273,9 @@ def _commit(opt: Option, pool_balances: dict[str, int], uses_map: dict[tuple[str
         uses_map[k] = uses_map.get(k, limit) - 1
 
 
-def _rollback(opt: Option, pool_balances: dict[str, int], uses_map: dict[tuple[str, str], int]) -> None:
+def _rollback(
+    opt: Option, pool_balances: dict[str, int], uses_map: dict[tuple[str, str], int]
+) -> None:
     for key, pts in opt.pool_draws.items():
         pool_balances[key] = pool_balances.get(key, 0) + pts
     for offer_id, limit in opt.uses_offers:
@@ -322,8 +350,16 @@ def _improvement_sweep(
         for i in range(len(lines)):
             for j in range(i + 1, len(lines)):
                 if _try_pair_swap(
-                    kb, trip, wallet, prefs, on_date_fn, lines[i], lines[j],
-                    chosen, pool_balances, uses_map,
+                    kb,
+                    trip,
+                    wallet,
+                    prefs,
+                    on_date_fn,
+                    lines[i],
+                    lines[j],
+                    chosen,
+                    pool_balances,
+                    uses_map,
                 ):
                     improved = True
         if not improved:

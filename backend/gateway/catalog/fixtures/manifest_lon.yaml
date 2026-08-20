@@ -1,0 +1,20 @@
+catalog_id: lon-core
+catalog_release: 2026-08-15.0
+max_places: 80000
+bbox:
+  min_lon: -0.35
+  min_lat: 51.30
+  max_lon: 0.15
+  max_lat: 51.65
+centroid_lat: 51.5074
+centroid_lon: -0.1278
+sources:
+- source_id: overture_lon
+  source_url: s3://overturemaps-us-west-2/release/2026-07-22.0/
+  licence_id: CDLA-Permissive-2.0
+  source_release: 2026-07-22.0
+  checksum: d11b87c5317be26d9fdaaeb1f40cd7cbc3ca2c43f1b39aa5a8a26fe2be1368c8
+  max_bytes: 200000000
+  geographic_scope: GB-LND
+  allowed_purpose: non-commercial student prototype
+  attribution_text: (c) Overture Maps Foundation

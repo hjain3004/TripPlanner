@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poiret One — stroke weight tuning, 1440px</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poiret+One&family=Schibsted+Grotesk:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Palette is the SHIPPED singapore pack, unchanged. Only display stroke weight is under test. */
+:root{
+  --bg:#F1EDE4; --paper:#FAF8F2; --ink:#272A27; --muted:#6E736F;
+  --mangrove:#173A34; --celadon:#BDD3C9; --brass:#B08C48; --lacquer:#AE493B;
+
+  /* THE VARIABLE UNDER TEST. Expressed in em so one token holds at every display size. */
+  --deco-stroke-a:0.000em;  /* baseline — Poiret One as drawn */
+  --deco-stroke-b:0.011em;  /* ~0.8px at 74px  → stem +36% */
+  --deco-stroke-c:0.016em;  /* ~1.2px at 74px  → stem +55%  ← matches "thicker by 50%" */
+  --deco-stroke-d:0.022em;  /* ~1.6px at 74px  → stem +73% */
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;width:1440px;background:var(--bg);color:var(--ink);
+  font-family:"Schibsted Grotesk",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{width:1240px;margin:0 auto;padding:56px 0 80px}
+.kicker{font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--lacquer);margin-bottom:8px}
+.intro{font-size:13px;line-height:1.6;color:#4A4F4B;max-width:88ch;margin:0 0 12px}
+.intro b{color:var(--ink)}
+.sechead{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--mangrove);
+  padding-bottom:8px;margin:44px 0 0}
+
+/* The mechanism: stroke is painted BEHIND the fill, so it only grows the glyph
+   outward and never eats into the counters. font-weight is deliberately untouched —
+   Poiret One ships one weight and a bold request would produce faux-bold. */
+.deco{font-family:"Poiret One",cursive;font-weight:400;text-transform:uppercase;
+  paint-order:stroke fill;-webkit-text-stroke-color:currentColor;color:var(--ink)}
+.wA{-webkit-text-stroke-width:var(--deco-stroke-a)}
+.wB{-webkit-text-stroke-width:var(--deco-stroke-b)}
+.wC{-webkit-text-stroke-width:var(--deco-stroke-c)}
+.wD{-webkit-text-stroke-width:var(--deco-stroke-d)}
+
+/* ---------- 1. MASTHEAD LADDER ---------- */
+.ladder{background:var(--paper);border:2px solid var(--mangrove);border-top:none;padding:0}
+.rung{display:grid;grid-template-columns:150px 1fr;gap:28px;align-items:center;
+  padding:26px 30px;border-bottom:1px solid rgba(39,42,39,.14)}
+.rung:last-child{border-bottom:none}
+.rung.pick{background:#F4F1E8;border-left:6px solid var(--brass)}
+.tag{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);line-height:1.6}
+.tag b{display:block;color:var(--ink);font-size:12px;letter-spacing:.12em}
+.tag .pk{display:block;color:var(--brass);margin-top:6px}
+.mast{font-size:74px;letter-spacing:.10em;line-height:1.05;margin:0}
+
+/* ---------- 2. LETTERFORM CLOSE-UP ---------- */
+.joins{display:grid;grid-template-columns:repeat(4,1fr);gap:0;
+  border:2px solid var(--mangrove);border-top:none;background:var(--paper)}
+.jc{padding:22px 18px 26px;border-right:1px solid rgba(39,42,39,.14);text-align:center}
+.jc:last-child{border-right:none}
+.jc .tag{margin-bottom:14px}
+.glyphs{font-size:96px;letter-spacing:.06em;line-height:1.1}
+.jc p{font-size:11px;line-height:1.5;color:#4A4F4B;margin:14px 0 0;text-align:left}
+
+/* ---------- 3. SIZE HOLD ---------- */
+.holds{border:2px solid var(--mangrove);border-top:none;background:var(--paper);padding:0}
+.hrow{display:grid;grid-template-columns:150px 1fr;gap:28px;align-items:baseline;
+  padding:20px 30px;border-bottom:1px solid rgba(39,42,39,.14)}
+.hrow:last-child{border-bottom:none}
+.h74{font-size:74px;letter-spacing:.10em;line-height:1.1;margin:0}
+.h48{font-size:48px;letter-spacing:.08em;line-height:1.1;margin:0}
+.h40{font-size:40px;letter-spacing:.07em;line-height:1.1;margin:0}
+.h32{font-size:32px;letter-spacing:.05em;line-height:1.16;margin:0}
+
+/* ---------- 4. APPLIED, IN THE REAL DOCUMENT ---------- */
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:26px}
+.doc{background:var(--paper);border:2px solid var(--mangrove);position:relative;padding:28px 30px}
+.doc::before{content:"";position:absolute;top:12px;left:12px;right:-12px;bottom:-12px;
+  background:var(--celadon);z-index:-1}
+.eyebrow{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--lacquer);text-align:center;margin:0 0 10px}
+.plate{font-size:46px;letter-spacing:.10em;text-align:center;line-height:1.05;margin:0}
+.rule-d{border-top:2px solid var(--mangrove);border-bottom:1px solid var(--mangrove);
+  height:4px;margin:16px 0 0}
+.dateline{display:flex;justify-content:space-between;font-family:"Roboto Mono",monospace;
+  font-size:9px;letter-spacing:.14em;text-transform:uppercase;padding:8px 0;
+  border-bottom:1px solid var(--mangrove);color:var(--muted)}
+.hed{font-size:26px;letter-spacing:.04em;line-height:1.2;margin:20px 0 0}
+.body{font-size:13px;line-height:1.6;color:#4A4F4B;margin:12px 0 0}
+.figwrap{border-top:2px solid var(--mangrove);margin-top:20px;padding-top:14px}
+.lbl{font-family:"Roboto Mono",monospace;font-size:9px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--muted)}
+.fig{font-family:"Schibsted Grotesk",sans-serif;font-weight:700;font-size:40px;line-height:1;
+  letter-spacing:-.025em;font-variant-numeric:tabular-nums;margin-top:6px;color:var(--mangrove)}
+.fig s{text-decoration:none;color:var(--brass);font-size:22px;margin-left:8px}
+.caption{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin:20px 0 10px}
+
+/* ---------- 5. FALLBACK NOTE ---------- */
+.note{border:2px solid var(--mangrove);background:var(--paper);padding:22px 26px;margin-top:44px}
+.note h4{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.note p{font-size:12.5px;line-height:1.65;color:#4A4F4B;margin:0 0 10px;max-width:100ch}
+.note p:last-child{margin-bottom:0}
+.note code{font-family:"Roboto Mono",monospace;font-size:11.5px;background:#EDE9DE;
+  padding:1px 5px;color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Poiret One · stroke weight · shipped palette, unchanged</div>
+  <p class="intro">Poiret One is a <b>single-weight family</b> — <code style="font-family:'Roboto Mono',monospace;font-size:12px">font-weight:700</code>
+    cannot thicken it, and asking for bold makes the browser synthesise a faux-bold that smears the
+    hairline deco joins. The stroke below is painted <b>behind</b> the fill
+    (<code style="font-family:'Roboto Mono',monospace;font-size:12px">paint-order: stroke fill</code>),
+    so it grows the glyph outward only and leaves the counters open. Widths are in
+    <b>em</b>, not px, so a single token holds its ratio at every display size.</p>
+
+  <h3 class="sechead">1 · Masthead ladder — 74px. Pick one.</h3>
+  <div class="ladder">
+    <div class="rung">
+      <span class="tag"><b>A · none</b>0.000em<br>as drawn</span>
+      <p class="deco wA mast">The Tripwise Gazette</p>
+    </div>
+    <div class="rung">
+      <span class="tag"><b>B · light</b>0.011em<br>≈0.8px · stem +36%</span>
+      <p class="deco wB mast">The Tripwise Gazette</p>
+    </div>
+    <div class="rung pick">
+      <span class="tag"><b>C · target</b>0.016em<br>≈1.2px · stem +55%<span class="pk">▸ matches your ask</span></span>
+      <p class="deco wC mast">The Tripwise Gazette</p>
+    </div>
+    <div class="rung">
+      <span class="tag"><b>D · heavy</b>0.022em<br>≈1.6px · stem +73%</span>
+      <p class="deco wD mast">The Tripwise Gazette</p>
+    </div>
+  </div>
+
+  <h3 class="sechead">2 · Joins at 96px — where faux-bold would have failed</h3>
+  <div class="joins">
+    <div class="jc">
+      <span class="tag"><b>A · none</b>0.000em</span>
+      <div class="deco wA glyphs">RGS</div>
+      <p>The original. Elegant, but at hero scale it reads as a hairline and loses against a 2px
+        border sitting next to it.</p>
+    </div>
+    <div class="jc">
+      <span class="tag"><b>B · light</b>0.011em</span>
+      <div class="deco wB glyphs">RGS</div>
+      <p>Visibly present without changing character. The <b>R</b> leg junction and the <b>G</b> spur
+        are still fully open.</p>
+    </div>
+    <div class="jc">
+      <span class="tag"><b>C · target</b>0.016em</span>
+      <div class="deco wC glyphs">RGS</div>
+      <p>The 50% ask. Holds its own against the 2px rules. Check the <b>G</b> spur and the
+        <b>R</b> bowl — this is where thickening first shows.</p>
+    </div>
+    <div class="jc">
+      <span class="tag"><b>D · heavy</b>0.022em</span>
+      <div class="deco wD glyphs">RGS</div>
+      <p>Where the deco character starts to go: joins fill in, and the thick/thin contrast that
+        makes it Streamline Moderne flattens out.</p>
+    </div>
+  </div>
+
+  <h3 class="sechead">3 · Does the target hold down the size ramp? — all rows at 0.016em</h3>
+  <div class="holds">
+    <div class="hrow"><span class="tag"><b>Hero</b>74px</span><p class="deco wC h74">One Journey</p></div>
+    <div class="hrow"><span class="tag"><b>H1</b>48px</span><p class="deco wC h48">One Journey</p></div>
+    <div class="hrow"><span class="tag"><b>H2</b>40px · floor</span><p class="deco wC h40">One Journey</p></div>
+    <div class="hrow"><span class="tag"><b>Below floor</b>32px</span><p class="deco wC h32">One Journey — contract forbids this size; shown only to prove the floor is real</p></div>
+  </div>
+
+  <h3 class="sechead">4 · In the issue register — A on the left, C on the right</h3>
+  <div class="pair">
+    <div>
+      <div class="caption">A · no stroke</div>
+      <div class="doc">
+        <p class="eyebrow">Your itinerary, costed</p>
+        <h1 class="deco wA plate">Tripwise Gazette</h1>
+        <div class="rule-d"></div>
+        <div class="dateline"><span>Vol. I · No. 001</span><span>DEL — SIN</span><span>Est. 2026</span></div>
+        <h2 class="deco wA hed">Four cards, five lines, one route</h2>
+        <p class="body">Portal booking carries the fare. Dining moves abroad. Two offers stack
+          before the cap is reached.</p>
+        <div class="figwrap">
+          <div class="lbl">Total saved · computed</div>
+          <div class="fig">₹8,777<s>5.74%</s></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="caption">C · 0.016em stroke</div>
+      <div class="doc">
+        <p class="eyebrow">Your itinerary, costed</p>
+        <h1 class="deco wC plate">Tripwise Gazette</h1>
+        <div class="rule-d"></div>
+        <div class="dateline"><span>Vol. I · No. 001</span><span>DEL — SIN</span><span>Est. 2026</span></div>
+        <h2 class="deco wC hed">Four cards, five lines, one route</h2>
+        <p class="body">Portal booking carries the fare. Dining moves abroad. Two offers stack
+          before the cap is reached.</p>
+        <div class="figwrap">
+          <div class="lbl">Total saved · computed</div>
+          <div class="fig">₹8,777<s>5.74%</s></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <h4>If the stroke is rejected — the two remaining options</h4>
+    <p><b>Swap the face.</b> Of the deco candidates already rendered, only Josefin Sans ships real
+      weights, and it was rejected in the previous round. Any other multi-weight deco face means a
+      new probe round.</p>
+    <p><b>Keep it thin, gain presence from scale and tracking.</b> Traditional deco practice: push
+      the hero past 96px and open the tracking to 0.14em rather than thickening the stroke. Costs
+      vertical space at the top of the page.</p>
+    <p><b>Rendering caveat to verify before this ships:</b> <code>-webkit-text-stroke</code> is
+      prefixed but supported in every current engine; <code>paint-order</code> on HTML text is the
+      newer half of the pair. If <code>paint-order</code> is ignored the stroke centres on the
+      outline and eats the counters — the glyphs get muddier, not broken. Worth a Safari and Firefox
+      check at gate time, not now.</p>
+  </div>
+</div>
+</body>
+</html>

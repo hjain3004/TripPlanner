@@ -345,9 +345,15 @@ test.describe("F3 results page: reduced motion", () => {
     }
 
     // Assert no confetti canvas element was appended (confetti
-    // respects disableForReducedMotion: true)
-    const canvases = page.locator("canvas");
-    await expect(canvases).toHaveCount(0);
+    // respects disableForReducedMotion: true).
+    //
+    // Excludes the MapLibre canvas. This test predates I6, which added the
+    // trip map to the results page; "any canvas" meant "confetti" when it was
+    // written, and has not since. Verified by enumerating the canvases on this
+    // page under reduced-motion: the only one present is .maplibregl-canvas,
+    // which is the map rendering correctly, not an animation firing.
+    const confettiCanvases = page.locator("canvas:not(.maplibregl-canvas)");
+    await expect(confettiCanvases).toHaveCount(0);
   });
 });
 

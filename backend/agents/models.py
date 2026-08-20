@@ -1,22 +1,55 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field
 
 from core.models import (
-    Area,
     CostedTrip,
-    OptimizationPrefs,
     OptimizerResult,
-    POI,
     SampleFlight,
     SampleHotel,
     TransferAdvice,
     UserWallet,
+)
+from core.trip_models import (
+    AddItem as AddItem,
+)
+from core.trip_models import (
+    DraftItinerary as DraftItinerary,
+)
+from core.trip_models import (
+    ItineraryDay as ItineraryDay,
+)
+from core.trip_models import (
+    ItineraryEdit as ItineraryEdit,
+)
+from core.trip_models import (
+    ItineraryItem as ItineraryItem,
+)
+from core.trip_models import (
+    MoveItem as MoveItem,
+)
+from core.trip_models import (
+    POIEvidence as POIEvidence,
+)
+from core.trip_models import (
+    RemoveItem as RemoveItem,
+)
+from core.trip_models import (
+    ReorderDay as ReorderDay,
+)
+from core.trip_models import (
+    ReplaceItem as ReplaceItem,
+)
+from core.trip_models import (
+    RetrievalContext as RetrievalContext,
+)
+from core.trip_models import (
+    TripSpec as TripSpec,
 )
 
 
@@ -24,65 +57,6 @@ class PipelineStatus(str, Enum):
     NEEDS_CLARIFICATION = "needs_clarification"
     OK = "ok"
     ERROR = "error"
-
-
-class TripSpec(BaseModel):
-    home_country: Literal["IN", "AE", "US"]
-    origin_city: str
-    destination_city: str
-    start_date: date
-    end_date: date
-    travelers: int = Field(gt=0)
-    budget_minor: int | None = Field(default=None, ge=0)
-    budget_currency: str = "INR"
-    style: Literal["budget", "balanced", "luxury"]
-    interests: list[str] = Field(default_factory=list)
-    pace: Literal["relaxed", "moderate", "packed"] = "moderate"
-    dietary: list[str] = Field(default_factory=list)
-    wallet: UserWallet
-    optimization: OptimizationPrefs = Field(default_factory=OptimizationPrefs)
-    unresolved: list[str] = Field(default_factory=list)
-
-    @property
-    def nights(self) -> int:
-        return (self.end_date - self.start_date).days
-
-    @field_validator("origin_city", "destination_city")
-    @classmethod
-    def normalize_iata(cls, value: str) -> str:
-        normalized = value.strip().upper()
-        if len(normalized) != 3 or not normalized.isalpha():
-            raise ValueError("city must be an IATA code")
-        return normalized
-
-    @field_validator("budget_currency")
-    @classmethod
-    def normalize_currency(cls, value: str) -> str:
-        return value.strip().upper()
-
-    @model_validator(mode="after")
-    def validate_kernel_range(self) -> TripSpec:
-        if not 3 <= self.nights <= 7:
-            raise ValueError("Kernel MVP supports trips of 3 to 7 nights")
-        return self
-
-
-class ItineraryItem(BaseModel):
-    poi_id: str
-    start_hint: str | None = None
-    meal_slots: list[str] = Field(default_factory=list)
-
-
-class ItineraryDay(BaseModel):
-    date: date
-    items: list[ItineraryItem] = Field(default_factory=list)
-
-
-class DraftItinerary(BaseModel):
-    hotel_area_id: str
-    days: list[ItineraryDay] = Field(min_length=1)
-    notes: list[str] = Field(default_factory=list)
-    itinerary_quality: Literal["llm", "fallback"] = "llm"
 
 
 class SelectedHotelArea(BaseModel):
@@ -146,6 +120,21 @@ class ExplainerOutput(BaseModel):
     caveats: list[str] = Field(default_factory=list)
 
 
+class SectionState(str, Enum):
+    FRESH = "fresh"
+    STALE = "stale"
+    RECOMPUTED = "recomputed"
+
+
+class SectionFreshness(BaseModel):
+    budget: SectionState = SectionState.FRESH
+    payment_strategy: SectionState = SectionState.FRESH
+    itinerary: SectionState = SectionState.FRESH
+    prose: SectionState = SectionState.FRESH
+    critic_verdict: SectionState = SectionState.FRESH
+    edit_count: int = 0
+
+
 class FinalReport(BaseModel):
     trip_spec: TripSpec
     itinerary: DraftItinerary
@@ -168,11 +157,27 @@ class FinalReport(BaseModel):
     footer: str = ""
     trace_id: str
     status: PipelineStatus = PipelineStatus.OK
+    region_capability: RegionCapability | None = None
+    freshness: SectionFreshness = Field(default_factory=SectionFreshness)
 
 
 class TripIntakeRequest(BaseModel):
     raw_request: str
     wallet: UserWallet | None = None
+
+
+class RecomputeRequest(BaseModel):
+    trip_spec: TripSpec
+    itinerary: DraftItinerary
+    edit: ItineraryEdit
+    previous_freshness: SectionFreshness | None = None
+
+
+class RefreshProseRequest(BaseModel):
+    trip_spec: TripSpec
+    itinerary: DraftItinerary
+    kernel_result: KernelResult
+    previous_freshness: SectionFreshness | None = None
 
 
 class PlanResponse(BaseModel):
@@ -201,18 +206,19 @@ PIPELINE_STAGES: list[str] = [
 
 class PlanJobStatus(BaseModel):
     job_id: str
-    status: Literal[
-        "queued", "running", "needs_clarification", "complete", "failed"
-    ]
-    stage: Literal[
-        "intake",
-        "itinerary",
-        "costing",
-        "optimizing",
-        "transfer",
-        "critic",
-        "explaining",
-    ] | None = None
+    status: Literal["queued", "running", "needs_clarification", "complete", "failed"]
+    stage: (
+        Literal[
+            "intake",
+            "itinerary",
+            "costing",
+            "optimizing",
+            "transfer",
+            "critic",
+            "explaining",
+        ]
+        | None
+    ) = None
     stage_index: int | None = None
     stages_total: int = len(PIPELINE_STAGES)
     unresolved: list[str] | None = None
@@ -240,7 +246,7 @@ class TraceEvent(BaseModel):
         model: str | None = None,
         attributes: dict[str, Any] | None = None,
     ) -> TraceEvent:
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now(UTC)
         return cls(
             trace_id=trace_id,
             name=name,
@@ -250,13 +256,6 @@ class TraceEvent(BaseModel):
             model=model,
             attributes=attributes or {},
         )
-
-
-class RetrievalContext(BaseModel):
-    pois: list[POI]
-    areas: list[Area]
-    poi_rows: list[str]
-    area_rows: list[str]
 
 
 class PlannerResult(BaseModel):
@@ -277,3 +276,43 @@ class EstimatorResult(BaseModel):
 class KernelResult(BaseModel):
     optimizer_result: OptimizerResult
     transfer_advice: TransferAdvice | None = None
+
+
+class RegionCapability(BaseModel):
+    region: str
+    catalog_status: Literal["active", "absent", "provisioning", "stale"]
+    place_count: int = 0
+    budget_supported: bool = False
+    known_gaps: list[str] = Field(default_factory=list)
+
+
+class PlaceSearchRequest(BaseModel):
+    destination: str
+    query: str = ""
+    category: str | None = None
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class PlaceSearchResult(BaseModel):
+    poi_id: str
+    name: str
+    category: str
+    area: str
+    lat: float | None = None
+    lon: float | None = None
+    price_minor: int = 0
+    currency: str = "INR"
+    evidence: POIEvidence
+
+
+class PlaceProviderDiagnostic(BaseModel):
+    provider_id: str
+    code: str
+    message: str
+    fallback_used: bool = True
+    stop_reason: str | None = None
+
+
+class PlaceSearchResponse(BaseModel):
+    results: list[PlaceSearchResult]
+    diagnostics: list[PlaceProviderDiagnostic] = Field(default_factory=list)

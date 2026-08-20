@@ -1,0 +1,55 @@
+regions:
+  - iata: "SIN"
+    city_name: "Singapore"
+    country_code: "SG"
+    timezone: "Asia/Singapore"
+    catalog_id: "sg-core"
+    centroid_lat: 1.3521
+    centroid_lon: 103.8198
+    currency: "SGD"
+    budget_supported: true
+  - iata: "BOM"
+    city_name: "Mumbai"
+    country_code: "IN"
+    timezone: "Asia/Kolkata"
+    catalog_id: "bom-core"
+    centroid_lat: 19.0760
+    centroid_lon: 72.8777
+    currency: "INR"
+    budget_supported: false
+  - iata: "DXB"
+    city_name: "Dubai"
+    country_code: "AE"
+    timezone: "Asia/Dubai"
+    catalog_id: "dxb-core"
+    centroid_lat: 25.2048
+    centroid_lon: 55.2708
+    currency: "AED"
+    budget_supported: false
+  - iata: "NYC"
+    city_name: "New York City"
+    country_code: "US"
+    timezone: "America/New_York"
+    catalog_id: "nyc-core"
+    centroid_lat: 40.7128
+    centroid_lon: -74.0060
+    currency: "USD"
+    budget_supported: false
+  - iata: "LON"
+    city_name: "London"
+    country_code: "GB"
+    timezone: "Europe/London"
+    catalog_id: "lon-core"
+    centroid_lat: 51.5074
+    centroid_lon: -0.1278
+    currency: "GBP"
+    budget_supported: false
+  - iata: "PAR"
+    city_name: "Paris"
+    country_code: "FR"
+    timezone: "Europe/Paris"
+    catalog_id: "par-core"
+    centroid_lat: 48.8566
+    centroid_lon: 2.3522
+    currency: "EUR"
+    budget_supported: false

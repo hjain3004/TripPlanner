@@ -1,0 +1,38 @@
+{
+  "data": [
+    {
+      "location": {
+        "id": 1471398,
+        "names": [
+          {
+            "primary": true,
+            "value": "Marina Bay Sands Hotel"
+          }
+        ],
+        "categories": [
+          {
+            "id": "hotel",
+            "top_level_category": "Accommodation"
+          }
+        ]
+      }
+    },
+    {
+      "location": {
+        "id": 1471398,
+        "names": [
+          {
+            "primary": true,
+            "value": "Marina Bay Sands Observation Deck"
+          }
+        ],
+        "categories": [
+          {
+            "id": "attraction",
+            "top_level_category": "Attraction"
+          }
+        ]
+      }
+    }
+  ]
+}

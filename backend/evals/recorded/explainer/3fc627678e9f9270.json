@@ -1,0 +1,15 @@
+{
+  "key": "3fc627678e9f9270",
+  "node": "explainer",
+  "model": "llama-3.1-8b-instant",
+  "system": "You write concise TripPlanner report prose as ExplainerOutput JSON only. Every rupee amount mentioned in your prose MUST be copied verbatim from the allowed currency values provided in the prompt (e.g. \u20b9194,032). Never compute, re-format, or invent currency amounts. Never mention cards, offers, providers, or facts absent from the supplied artifacts.",
+  "user": "Allowed currency values (any rupee figure in prose MUST match one of these verbatim):\n\u20b90, \u20b91,675, \u20b912,640, \u20b9194,032, \u20b9194,481, \u20b9196,157, \u20b92,125, \u20b9320, \u20b935,392, \u20b9410, \u20b964,000, \u20b982,000\n\nTrip Summary:\n{\n  \"origin\": \"DEL\",\n  \"destination\": \"SIN\",\n  \"nights\": 4,\n  \"travelers\": 2,\n  \"style\": \"balanced\",\n  \"interests\": [],\n  \"hotel_area\": \"chinatown\",\n  \"days_count\": 4\n}\n\nBudget Summary:\n{\n  \"gross_cost\": \"\\u20b9194,032\",\n  \"discounts\": \"\\u20b90\",\n  \"rewards_value\": \"\\u20b91,675\",\n  \"forex_fees\": \"\\u20b92,125\",\n  \"effective_cost\": \"\\u20b9194,481\",\n  \"savings_bp\": -24\n}\n\nCritic Caveats:\n['Planner fallback used: Candidate pl_0fce0b9d2c79aa84 was not returned by the gateway.']",
+  "response": {
+    "summary": "This trip from DEL to SIN for 2 travelers over 4 nights in a balanced style will be in Chinatown.",
+    "itinerary_overview": "The trip will last 4 days.",
+    "payment_overview": "The total cost of \u20b9194,032 includes \u20b92,125 in forex fees, \u20b91,675 in rewards value, and \u20b990 in discounts, making the effective cost \u20b9194,481.",
+    "caveats": [
+      "Planner fallback used: Candidate pl_0fce0b9d2c79aa84 was not returned by the gateway."
+    ]
+  }
+}

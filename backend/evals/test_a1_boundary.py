@@ -6,8 +6,8 @@ from pathlib import Path
 from sqlalchemy import inspect
 
 from accounts.db import AccountsBase, create_accounts_engine
-from core.db import Base as CoreBase
 from core.db import SEEDS_DIR, seed_database
+from core.db import Base as CoreBase
 
 ACCOUNTS_TABLES = {
     "users",

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dark deco — display candidates, 1440px</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@200;300;400;600&family=Poiret+One&family=Julius+Sans+One&family=Limelight&family=Archivo:wdth,wght@62..125,400..900&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;width:1440px;background:#141613;color:#EDE8DA;
+  font-family:"Archivo",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{width:1240px;margin:0 auto;padding:56px 0 72px}
+.kicker{font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:#E8B62C;margin-bottom:8px}
+.intro{font-size:13px;line-height:1.6;color:#9A9689;max-width:80ch;margin:0 0 40px}
+
+.card{border:1px solid #EDE8DA;padding:30px 34px 30px;margin-bottom:36px;position:relative;
+  background:#1B1E1A}
+.card::before{content:"";position:absolute;top:9px;left:9px;right:-9px;bottom:-9px;
+  background:#3E5C4B;z-index:-1}
+.tag{font-family:"Roboto Mono",monospace;font-size:10px;letter-spacing:.18em;
+  text-transform:uppercase;color:#8E8A7E;margin-bottom:22px}
+.tag b{color:#EDE8DA}
+
+.plate{margin:0;text-align:center;line-height:1;color:#F3EFE2}
+.rule{border-top:1px solid #EDE8DA;margin:20px 0 0}
+.dateline{display:flex;justify-content:space-between;font-family:"Roboto Mono",monospace;
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;padding:8px 0;
+  border-bottom:1px solid #EDE8DA;color:#9A9689}
+.deck{display:grid;grid-template-columns:1.3fr 1fr;gap:30px;padding-top:22px}
+.hed{margin:0;line-height:1.06;color:#F3EFE2}
+.sub{font-family:"Archivo",sans-serif;font-variation-settings:"wdth" 78;font-weight:400;
+  font-size:13px;line-height:1.5;text-transform:uppercase;letter-spacing:.06em;
+  color:#9A9689;margin:14px 0 0}
+.col{border-left:1px solid #EDE8DA;padding-left:22px}
+.lbl{font-family:"Roboto Mono",monospace;font-size:9px;letter-spacing:.18em;
+  text-transform:uppercase;color:#8E8A7E}
+.fig{font-family:"Archivo",sans-serif;font-variation-settings:"wdth" 72;font-weight:800;
+  font-size:46px;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+  margin-top:6px;color:#F3EFE2}
+.fig s{text-decoration:none;color:#E8B62C}
+.col p{font-size:12px;line-height:1.5;color:#9A9689;margin:10px 0 0}
+.note{font-size:12.5px;line-height:1.55;color:#9A9689;margin:18px 0 0;
+  border-top:1px solid #EDE8DA;padding-top:10px}
+.note b{color:#EDE8DA}
+
+/* candidates — all tracked wide, as deco titling requires */
+.c1 .plate{font-family:"Josefin Sans",sans-serif;font-weight:300;font-size:72px;
+  text-transform:uppercase;letter-spacing:.10em}
+.c1 .hed{font-family:"Josefin Sans",sans-serif;font-weight:400;font-size:29px;
+  text-transform:uppercase;letter-spacing:.05em}
+.c2 .plate{font-family:"Poiret One",cursive;font-size:78px;text-transform:uppercase;letter-spacing:.09em}
+.c2 .hed{font-family:"Poiret One",cursive;font-size:31px;text-transform:uppercase;letter-spacing:.04em}
+.c3 .plate{font-family:"Julius Sans One",sans-serif;font-size:68px;
+  text-transform:uppercase;letter-spacing:.11em}
+.c3 .hed{font-family:"Julius Sans One",sans-serif;font-size:27px;
+  text-transform:uppercase;letter-spacing:.05em}
+.c4 .plate{font-family:"Limelight",sans-serif;font-size:60px;
+  text-transform:uppercase;letter-spacing:.06em}
+.c4 .hed{font-family:"Limelight",sans-serif;font-size:25px;
+  text-transform:uppercase;letter-spacing:.03em}
+
+/* light-ground control */
+.light{background:#EDE8DA;border-color:#141613}
+.light::before{background:#B98E22}
+.light .plate,.light .hed,.light .fig{color:#141613}
+.light .rule,.light .dateline,.light .col,.light .note{border-color:#141613}
+.light .dateline,.light .sub,.light .col p,.light .note{color:#4A4A44}
+.light .tag{color:#6A665C}.light .tag b{color:#141613}
+.light .lbl{color:#6A665C}
+.light .fig s{color:#B23A22}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Dark deco · four display candidates · matched to your two references</div>
+  <p class="intro">Both references are Art Deco / Streamline Moderne titling: tall narrow caps,
+    hairline strokes, high waist, pointed A apex, wide tracking — and both are light-on-dark.
+    Ground is dark here for that reason. Row 05 repeats the leading candidate on a light ground
+    so you can see what not inverting costs. Geometry is unchanged from Direction A.</p>
+
+  <section class="card c1">
+    <div class="tag"><b>01</b> — Josefin Sans 300 · closest to the "Matt Reeves" credit</div>
+    <h1 class="plate">The Tripwise Gazette</h1>
+    <div class="rule"></div>
+    <div class="dateline"><span>Vol. I · No. 001</span><span>Delhi — Singapore</span><span>Five nights · Two travellers</span><span>Est. 2026</span></div>
+    <div class="deck">
+      <div><h2 class="hed">Four cards, five lines, one route through the trade-offs.</h2>
+        <p class="sub">Portal booking carries the fare · Dining moves abroad · Two offers stack before the cap</p></div>
+      <div class="col"><div class="lbl">Total saved · computed</div>
+        <div class="fig">₹8,777 <s>5.74%</s></div>
+        <p>Against gross ₹153,000.00. Effective cost ₹144,223.00.</p></div>
+    </div>
+    <p class="note"><b>The practical choice.</b> A real variable family — 100–700, roman and
+      italic — so it works as a wordmark <em>and</em> as headings. The only candidate here that
+      can carry more than the hero.</p>
+  </section>
+
+  <section class="card c2">
+    <div class="tag"><b>02</b> — Poiret One · closest to the "Gotham Diner" sign</div>
+    <h1 class="plate">The Tripwise Gazette</h1>
+    <div class="rule"></div>
+    <div class="dateline"><span>Vol. I · No. 001</span><span>Delhi — Singapore</span><span>Five nights · Two travellers</span><span>Est. 2026</span></div>
+    <div class="deck">
+      <div><h2 class="hed">Four cards, five lines, one route through the trade-offs.</h2>
+        <p class="sub">Portal booking carries the fare · Dining moves abroad · Two offers stack before the cap</p></div>
+      <div class="col"><div class="lbl">Total saved · computed</div>
+        <div class="fig">₹8,777 <s>5.74%</s></div>
+        <p>Against gross ₹153,000.00. Effective cost ₹144,223.00.</p></div>
+    </div>
+    <p class="note"><b>The purest deco.</b> Nearest match to your signage reference. Single weight,
+      display only — it can be the wordmark and hero and nothing else.</p>
+  </section>
+
+  <section class="card c3">
+    <div class="tag"><b>03</b> — Julius Sans One</div>
+    <h1 class="plate">The Tripwise Gazette</h1>
+    <div class="rule"></div>
+    <div class="dateline"><span>Vol. I · No. 001</span><span>Delhi — Singapore</span><span>Five nights · Two travellers</span><span>Est. 2026</span></div>
+    <div class="deck">
+      <div><h2 class="hed">Four cards, five lines, one route through the trade-offs.</h2>
+        <p class="sub">Portal booking carries the fare · Dining moves abroad · Two offers stack before the cap</p></div>
+      <div class="col"><div class="lbl">Total saved · computed</div>
+        <div class="fig">₹8,777 <s>5.74%</s></div>
+        <p>Against gross ₹153,000.00. Effective cost ₹144,223.00.</p></div>
+    </div>
+    <p class="note">Thin classical geometric caps. Quieter and more architectural than 02 — less
+      period costume, but also less character.</p>
+  </section>
+
+  <section class="card c4">
+    <div class="tag"><b>04</b> — Limelight · deco poster</div>
+    <h1 class="plate">The Tripwise Gazette</h1>
+    <div class="rule"></div>
+    <div class="dateline"><span>Vol. I · No. 001</span><span>Delhi — Singapore</span><span>Five nights · Two travellers</span><span>Est. 2026</span></div>
+    <div class="deck">
+      <div><h2 class="hed">Four cards, five lines, one route through the trade-offs.</h2>
+        <p class="sub">Portal booking carries the fare · Dining moves abroad · Two offers stack before the cap</p></div>
+      <div class="col"><div class="lbl">Total saved · computed</div>
+        <div class="fig">₹8,777 <s>5.74%</s></div>
+        <p>Against gross ₹153,000.00. Effective cost ₹144,223.00.</p></div>
+    </div>
+    <p class="note">Heavier deco, theatre-marquee weight. Closer to Monoton's register than to your
+      two references — included as the boundary of the family.</p>
+  </section>
+
+  <section class="card c1 light">
+    <div class="tag"><b>05</b> — Josefin Sans 300 on light ground · what not inverting costs</div>
+    <h1 class="plate">The Tripwise Gazette</h1>
+    <div class="rule"></div>
+    <div class="dateline"><span>Vol. I · No. 001</span><span>Delhi — Singapore</span><span>Five nights · Two travellers</span><span>Est. 2026</span></div>
+    <div class="deck">
+      <div><h2 class="hed">Four cards, five lines, one route through the trade-offs.</h2>
+        <p class="sub">Portal booking carries the fare · Dining moves abroad · Two offers stack before the cap</p></div>
+      <div class="col"><div class="lbl">Total saved · computed</div>
+        <div class="fig">₹8,777 <s>5.74%</s></div>
+        <p>Against gross ₹153,000.00. Effective cost ₹144,223.00.</p></div>
+    </div>
+    <p class="note"><b>The decision this forces.</b> Same face, light ground. Hairline deco loses
+      most of its drama here — which is why both your references are light-on-dark. If you want
+      this register, the system probably has to go dark-first.</p>
+  </section>
+</div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "key": "1fc14ce314c7d9f7",
+  "node": "explainer",
+  "model": "llama-3.1-8b-instant",
+  "system": "You write concise TripPlanner report prose as ExplainerOutput JSON only. Every rupee amount mentioned in your prose MUST be copied verbatim from the allowed currency values provided in the prompt (e.g. \u20b9194,032). Never compute, re-format, or invent currency amounts. Never mention cards, offers, providers, or facts absent from the supplied artifacts.",
+  "user": "Allowed currency values (any rupee figure in prose MUST match one of these verbatim):\n\u20b90, \u20b91,133, \u20b910,725, \u20b912,640, \u20b9121, \u20b9184,440, \u20b9194,032, \u20b9195,165, \u20b92,730, \u20b9339, \u20b935,392, \u20b96,400, \u20b964,000, \u20b982,000\n\nTrip Summary:\n{\n  \"origin\": \"DEL\",\n  \"destination\": \"SIN\",\n  \"nights\": 4,\n  \"travelers\": 2,\n  \"style\": \"balanced\",\n  \"interests\": [\n    \"Atlantis Underwater Pyramid of Jurong\"\n  ],\n  \"hotel_area\": \"chinatown\",\n  \"days_count\": 4\n}\n\nBudget Summary:\n{\n  \"gross_cost\": \"\\u20b9194,032\",\n  \"discounts\": \"\\u20b90\",\n  \"rewards_value\": \"\\u20b910,725\",\n  \"forex_fees\": \"\\u20b91,133\",\n  \"effective_cost\": \"\\u20b9184,440\",\n  \"savings_bp\": 494\n}\n\nCritic Caveats:\n['Planner fallback used: Discovery loop exhausted without producing a plan: no_results']",
+  "response": {
+    "summary": "This trip from DEL to SIN for 4 nights with 2 travelers will be a balanced experience, focusing on the Atlantis Underwater Pyramid of Jurong.",
+    "itinerary_overview": "The 4-day trip will be spent in the Chinatown area of SIN.",
+    "payment_overview": "The total effective cost of the trip is \u20b9184,440, after accounting for \u20b910,725 in rewards value, \u20b91,133 in forex fees, and \u20b90 in discounts.",
+    "caveats": [
+      "Planner fallback used: Discovery loop exhausted without producing a plan: no_results"
+    ]
+  }
+}

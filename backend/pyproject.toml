@@ -13,6 +13,7 @@ dependencies = [
     "pyyaml>=6.0",
     "fastapi>=0.116",
     "argon2-cffi>=23.1",
+    "ortools>=9.10",
 ]
 
 [project.optional-dependencies]
@@ -27,16 +28,23 @@ dev = [
 
 [tool.setuptools]
 # Flat-layout packages that live directly under backend/ (gate commands run from backend/).
-packages = ["core", "core.optimizer", "core.transfer", "accounts", "agents", "api", "evals"]
+packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "accounts", "agents", "api", "evals",
+            "gateway", "gateway.evidence", "gateway.places", "gateway.places.adapters",
+            "gateway.catalog"]
 
 [tool.setuptools.package-data]
 "core" = ["seeds/*.yaml"]
 "agents" = ["config.yaml"]
 "evals" = ["golden/*.yaml", "golden/*.txt"]
+"gateway.places" = ["fixtures/*.json"]
+"gateway.catalog" = ["fixtures/*.json", "fixtures/*.yaml", "fixtures/hostile/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["evals"]
 python_files = ["test_*.py"]
+markers = [
+    "allow_real_catalog: exempts a test from the autouse mock that blocks the real activated catalog",
+]
 
 [tool.mypy]
 python_version = "3.11"
@@ -54,3 +62,16 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# report.py holds the evaluation report as a triple-quoted markdown template.
+# Wrapping those lines inserts newlines into the generated report text, which
+# test_m3_itinerary_eval asserts on, and a `# noqa` inside the literal would
+# itself become report content. Line length is output-significant here.
+"evals/report.py" = ["E501"]
+# UP042 wants `class PipelineStatus(str, Enum)` rewritten as `StrEnum`. That is
+# not cosmetic: str(PipelineStatus.X) yields "PipelineStatus.X" under (str, Enum)
+# and "X" under StrEnum, so the rewrite can change API serialization. This is
+# pre-existing M2 code with a frozen OpenAPI contract — changing it is its own
+# task with its own contract-drift check, not a lint fix.
+"agents/models.py" = ["UP042"]

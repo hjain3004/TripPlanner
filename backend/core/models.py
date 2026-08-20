@@ -9,7 +9,7 @@ floats are non-money curator/geo fields (``confidence``, ``lat``, ``lon``,
 from __future__ import annotations
 
 from datetime import date
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -36,7 +36,7 @@ class Provenance(BaseModel):
 # --------------------------------------------------------------------------- #
 
 
-class SpendCategory(str, Enum):
+class SpendCategory(StrEnum):
     FLIGHTS = "flights"
     HOTELS = "hotels"
     DINING = "dining"
@@ -50,7 +50,7 @@ class SpendCategory(str, Enum):
     OTHER = "other"
 
 
-class Channel(str, Enum):
+class Channel(StrEnum):
     DIRECT_AIRLINE = "direct_airline"
     DIRECT_HOTEL = "direct_hotel"
     OTA_GENERIC = "ota_generic"  # MMT, Cleartrip, Agoda
@@ -59,7 +59,7 @@ class Channel(str, Enum):
     POS_DOMESTIC = "pos_domestic"
 
 
-class RedemptionPath(str, Enum):
+class RedemptionPath(StrEnum):
     CASHBACK = "cashback"
     PORTAL_FLIGHTS = "portal_flights"
     PORTAL_HOTELS = "portal_hotels"
@@ -68,7 +68,7 @@ class RedemptionPath(str, Enum):
     VOUCHER = "voucher"
 
 
-class OfferKind(str, Enum):
+class OfferKind(StrEnum):
     INSTANT_DISCOUNT = "instant_discount"  # reduces amount paid now
     CASHBACK_LATER = "cashback_later"  # statement credit after N days
     BONUS_POINTS = "bonus_points"
@@ -178,6 +178,12 @@ class Offer(BaseModel):
 # --------------------------------------------------------------------------- #
 
 
+class TimezoneAwareHours(BaseModel):
+    timezone: str
+    regular_hours: dict[int, list[str]]
+    closed_dates: list[str]
+
+
 class POI(BaseModel):
     id: str
     city: str
@@ -186,10 +192,10 @@ class POI(BaseModel):
     typical_duration_min: int
     price_minor: int
     currency: str
-    lat: float  # geo (NOT money)
-    lon: float  # geo (NOT money)
+    lat: float | None = None  # geo (NOT money)
+    lon: float | None = None  # geo (NOT money)
     area: str
-    open_hours: str
+    open_hours: TimezoneAwareHours
     booking_channel: Channel
     merchant_hint: str | None = None
     description: str
@@ -342,7 +348,7 @@ class AwardTarget(BaseModel):
     home_currency: str = "INR"
 
 
-class RecommendationKind(str, Enum):
+class RecommendationKind(StrEnum):
     REDEEM = "REDEEM"
     PAY_CASH = "PAY_CASH"
     NO_DATA = "NO_DATA"

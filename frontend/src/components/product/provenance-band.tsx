@@ -1,8 +1,10 @@
+import { TrustChip } from "./trust-chip";
+
 interface ProvenanceBandProps {
   sourceUrl?: string;
   lastVerified?: string;
   verifiedBy?: string;
-  confidence?: string;
+  confidence?: number;
 }
 
 export function ProvenanceBand({
@@ -12,30 +14,25 @@ export function ProvenanceBand({
   confidence,
 }: ProvenanceBandProps) {
   return (
-    <div className="border-t border-b border-border py-1.5 px-4">
-      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] leading-relaxed font-mono text-text-muted">
-        {sourceUrl && (
-          <span>
-            source:{" "}
-            <span className="text-text-muted">{sourceUrl}</span>
-          </span>
-        )}
-        {lastVerified && (
-          <span>
-            verified: <span className="text-text-muted">{lastVerified}</span>
-          </span>
-        )}
-        {verifiedBy && (
-          <span>
-            by: <span className="text-text-muted">{verifiedBy}</span>
-          </span>
-        )}
-        {confidence && (
-          <span>
-            confidence: <span className="text-text-muted">{confidence}</span>
-          </span>
-        )}
-      </div>
+    <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted mt-4 pt-3 border-t border-border/60">
+      <TrustChip variant={confidence && confidence < 90 ? "warning" : "verified"} label={verifiedBy || "Verified"} />
+      {sourceUrl && (
+        <span className="flex items-center gap-1">
+          Source: <span className="font-medium text-text">{sourceUrl}</span>
+        </span>
+      )}
+      {lastVerified && (
+        <>
+          <span>•</span>
+          <span>{lastVerified}</span>
+        </>
+      )}
+      {confidence && (
+        <>
+          <span>•</span>
+          <span>Confidence: {confidence}%</span>
+        </>
+      )}
     </div>
   );
 }

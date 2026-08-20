@@ -213,11 +213,18 @@ class POI(BaseModel):
     price_minor: int; currency: str          # 0 for free
     lat: float; lon: float
     area: str                                # neighborhood key, e.g. "marina_bay"
-    open_hours: str                          # "10:00-19:00; closed Mon" (free text; critic parses leniently)
+    open_hours: "TimezoneAwareHours"         # structured tz-aware intervals + closures
     booking_channel: Channel                 # how it's typically paid (POS_ABROAD vs OTA…)
     merchant_hint: str | None                # "Klook" → enables offer matching on attractions
     description: str                         # 1–2 sentences for the planner LLM
     provenance: Provenance
+
+class TimezoneAwareHours(BaseModel):
+    timezone: str                            # e.g. "Asia/Singapore"
+    # Mapping of weekday (0=Monday, 6=Sunday) to list of "HH:MM-HH:MM" strings
+    regular_hours: dict[int, list[str]]
+    # Explicit dates (YYYY-MM-DD) when the POI is entirely closed
+    closed_dates: list[str]
 
 class SampleFlight(BaseModel):
     id: str; origin: str; destination: str   # IATA

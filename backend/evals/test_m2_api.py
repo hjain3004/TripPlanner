@@ -9,11 +9,11 @@ from fastapi.testclient import TestClient
 
 from agents.llm import ScriptedLLMClient
 from agents.models import (
+    PIPELINE_STAGES,
     CriticVerdict,
     DraftItinerary,
     ExplainerOutput,
     ItineraryDay,
-    PIPELINE_STAGES,
     TripSpec,
 )
 from api.main import app, get_booking_date, get_kb, get_llm, get_trace_dir

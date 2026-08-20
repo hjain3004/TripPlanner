@@ -1,0 +1,16 @@
+{
+  "key": "171716161f6e3468",
+  "node": "explainer",
+  "model": "llama-3.1-8b-instant",
+  "system": "You write concise TripPlanner report prose as ExplainerOutput JSON only. Every rupee amount mentioned in your prose MUST be copied verbatim from the allowed currency values provided in the prompt (e.g. \u20b9194,032). Never compute, re-format, or invent currency amounts. Never mention cards, offers, providers, or facts absent from the supplied artifacts.",
+  "user": "Allowed currency values (any rupee figure in prose MUST match one of these verbatim):\n\u20b90, \u20b91,133, \u20b910,725, \u20b912,640, \u20b9121, \u20b9184,440, \u20b9194,032, \u20b9195,165, \u20b92,730, \u20b9339, \u20b935,392, \u20b96,400, \u20b964,000, \u20b982,000\n\nTrip Summary:\n{\n  \"origin\": \"DEL\",\n  \"destination\": \"SIN\",\n  \"nights\": 4,\n  \"travelers\": 2,\n  \"style\": \"balanced\",\n  \"interests\": [\n    \"food\",\n    \"nature\"\n  ],\n  \"hotel_area\": \"chinatown\",\n  \"days_count\": 4\n}\n\nBudget Summary:\n{\n  \"gross_cost\": \"\\u20b9194,032\",\n  \"discounts\": \"\\u20b90\",\n  \"rewards_value\": \"\\u20b910,725\",\n  \"forex_fees\": \"\\u20b91,133\",\n  \"effective_cost\": \"\\u20b9184,440\",\n  \"savings_bp\": 494\n}\n\nCritic Caveats:\n['Planner fallback used: planner provider returned HTTP 413: {\"error\":{\"message\":\"Request too large for model `llama-3.1-8b-instant` in organization `org_01m03ksyn1em5b008ncqx8fyw3` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6094, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\\n']",
+  "response": {
+    "summary": "This 4-night trip to Singapore for 2 travelers is a balanced mix of food and nature, staying in Chinatown.",
+    "itinerary_overview": "The itinerary includes 4 days in Singapore, with a focus on food and nature.",
+    "payment_overview": "The total effective cost of the trip is \u20b9184,440, after considering discounts of \u20b90, rewards value of \u20b910,725, and forex fees of \u20b91,133.",
+    "caveats": [
+      "Planner fallback used: planner provider returned HTTP 413: {\"error\":{\"message\":\"Request too large for model `llama-3.1-8b-instant` in organization `org_01m03ksyn1em5b008ncqx8fyw3` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6094, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}",
+      "The gross cost of the trip is \u20b9194,032."
+    ]
+  }
+}

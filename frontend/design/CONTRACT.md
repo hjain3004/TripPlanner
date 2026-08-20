@@ -73,6 +73,10 @@ utilities — never `var(--color-*)` or `var(--th-*)` directly in product code.
 
 ### Singapore pack values (`.theme-singapore`)
 
+**Two-Register System:**
+The UI uses two distinct registers (Tier F design change, 2026-08-08):
+- **Shell register (default):** Bodoni Moda display, 12px radii, soft shadow ramp, 10% hairline border.
+- **Issue register (`.register-issue`):** Poiret One display (with `--th-display-stroke-*` tokens for weight instead of `font-weight`), 0 radii, `shadow-none`, 2px full-opacity mangrove rules, 12px brass offset plate (`OffsetPlate`), split-flap styling for money (`SplitFlap`). Applied **if and only if** the surface renders a number computed by the deterministic kernel.
 | Semantic token | OKLCH value | Source role |
 |---|---|---|
 | `--color-bg` | `oklch(0.947 0.013 87)` | limestone `#F1EDE4` |
@@ -109,10 +113,10 @@ token keeps its own amber hue so it stays visually distinct from `--color-danger
 
 | Token | Value |
 |---|---|
-| `--radius-s` | `6px` — shadows Tailwind's logical `rounded-s*` utility; token-lint forbids `rounded-s*`/`rounded-e*` in product code (see `DEVIATIONS.md`) |
+| `--radius-s` | `6px` — shadows Tailwind's logical `rounded-s*` utility; token-lint forbids `rounded-s*`/`rounded-e*` in product code. Note: built-in sizes (`--radius-sm`, `--radius-md`, `--radius-lg` etc.) are also bridged to `--th-radius-*` in `base.css` to allow components to use standard Tailwind classes (like `rounded-sm`) while still responding to register theming. |
 | `--radius-m` | `12px` |
 | `--radius-l` | `20px` |
-| `--radius-full` | `9999px` — reserved for genuine status pills and compact controls, never a default container shape |
+| `--radius-full` | `9999px` — reserved for genuine status pills and compact controls, never a default container shape. Note: the `issue` register explicitly keeps this rounded (does not zero it). |
 | `--shadow-1` | rest state — layered, low-opacity, soft (e.g. `0 1px 2px oklch(0.281 0.007 145 / 0.06), 0 8px 24px oklch(0.281 0.007 145 / 0.05)`) |
 | `--shadow-2` | hover state — one step heavier |
 | `--shadow-3` | modal/overlay — heaviest, paired with `--blur-overlay` |
@@ -122,8 +126,8 @@ token keeps its own amber hue so it stays visually distinct from `--color-danger
 | `--dur-slow` | `650ms` |
 | `--ease-brand` | `cubic-bezier(0.22, 1, 0.36, 1)` — confident settle; components read this token, never hardcode a curve |
 
-**Depth rule (Tier F):** elevation = surface tint + layered shadow + hairline border
-together, never shadow alone. Borders are 1px at ~8–10% text-color opacity (asserted
+**Depth rule (Tier F):** For **shell surfaces only**, elevation = surface tint + layered shadow + hairline border
+together, never shadow alone. (Issued documents in the `issue` register use an offset plate instead.) Borders are 1px at ~8–10% text-color opacity (asserted
 at Gate F1 as a *visibility* threshold — ΔL after alpha compositing — not a 3:1
 contrast ratio, since hairlines compositing at ~10% opacity land near 1.05:1 by
 design). **Focus rings** are the exception: they carry the real 3:1 WCAG obligation
@@ -131,7 +135,7 @@ and are tested against every surface they can appear on.
 
 **Border rule:** every border is `1px solid var(--color-border)` unless a component
 contract explicitly calls for a heavier rule (e.g. the featured-decision box in the
-ledger). No arbitrary border colors or widths in product code.
+ledger, or the `issue` register's 2px document border). No arbitrary border colors or widths in product code.
 
 ---
 

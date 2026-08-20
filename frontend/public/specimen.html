@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Poiret One Size Floor Test</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poiret+One&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            padding: 40px;
+            background-color: #FAF8F2; /* paper */
+            color: #272A27; /* ink */
+        }
+        .display-stroked {
+            font-family: "Poiret One", sans-serif;
+            font-weight: 400;
+            paint-order: stroke fill;
+            -webkit-text-stroke-color: currentColor;
+            -webkit-text-stroke-width: max(1.75px, calc(1em * 0.047));
+            margin-bottom: 24px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #555;
+            margin-bottom: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Poiret One Stroke Floor Test</h1>
+        <p>This tests if the stroked Poiret One font holds up at smaller heading sizes without going "weedy" or having counters close up.</p>
+        <hr style="margin: 40px 0; border: 1px solid #ddd;">
+        
+        <div class="label">40px (Current Floor / h1 minimum)</div>
+        <div class="display-stroked" style="font-size: 40px;">The Anatomy of a Deal</div>
+        
+        <div class="label">36px (h2 maximum)</div>
+        <div class="display-stroked" style="font-size: 36px;">The Anatomy of a Deal</div>
+        
+        <div class="label">32px (h2 midpoint)</div>
+        <div class="display-stroked" style="font-size: 32px;">The Anatomy of a Deal</div>
+        
+        <div class="label">28px (h2 minimum)</div>
+        <div class="display-stroked" style="font-size: 28px;">The Anatomy of a Deal</div>
+        
+        <div class="label">24px (text-2xl breach on /plan)</div>
+        <div class="display-stroked" style="font-size: 24px;">The Anatomy of a Deal</div>
+    </div>
+</body>
+</html>
