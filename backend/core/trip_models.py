@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -69,6 +69,8 @@ class ItineraryItem(BaseModel):
     end_time: str | None = Field(default=None, exclude=True)
     name: str | None = None
     category: str | None = None
+    lat: float | None = None
+    lon: float | None = None
     travel_from_previous: TransitSegment | None = None
     evidence: POIEvidence | None = None
 
@@ -103,3 +105,43 @@ class RetrievalContext(BaseModel):
     poi_rows: list[str]
     area_rows: list[str]
     poi_provenance: list[POIEvidence] = Field(default_factory=list)
+
+
+class MoveItem(BaseModel):
+    op: Literal["move_item"] = "move_item"
+    poi_id: str
+    from_day_index: int = Field(ge=0)
+    to_day_index: int = Field(ge=0)
+    position: int = Field(ge=0)
+
+
+class RemoveItem(BaseModel):
+    op: Literal["remove_item"] = "remove_item"
+    poi_id: str
+    day_index: int = Field(ge=0)
+
+
+class ReorderDay(BaseModel):
+    op: Literal["reorder_day"] = "reorder_day"
+    day_index: int = Field(ge=0)
+    poi_ids: list[str]
+
+
+class AddItem(BaseModel):
+    op: Literal["add_item"] = "add_item"
+    poi_id: str
+    day_index: int = Field(ge=0)
+    position: int = Field(ge=0)
+
+
+class ReplaceItem(BaseModel):
+    op: Literal["replace_item"] = "replace_item"
+    old_poi_id: str
+    new_poi_id: str
+    day_index: int = Field(ge=0)
+
+
+ItineraryEdit = Annotated[
+    MoveItem | RemoveItem | ReorderDay | AddItem | ReplaceItem,
+    Field(discriminator="op"),
+]

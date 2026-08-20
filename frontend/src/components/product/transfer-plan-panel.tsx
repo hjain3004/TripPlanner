@@ -1,6 +1,6 @@
 "use client";
 
-import type { TransferAdvice } from "@/lib/api/types.gen";
+import type { TransferAdvice } from "@/lib/api";
 import { MoneyText } from "./money-text";
 import { TrustChip } from "./trust-chip";
 import { WhyThis } from "./why-this";

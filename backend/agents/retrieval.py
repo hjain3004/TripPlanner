@@ -1,15 +1,32 @@
 from __future__ import annotations
 
+import math
 from datetime import date
 from pathlib import Path
 
 from agents.models import RetrievalContext, TripSpec
 from core.db import KnowledgeBase
-from core.models import POI, Area
+from core.models import POI, Area, Provenance
+from core.travel_taxonomy import canonical_overlap
 from gateway.catalog.regions import Region
 from gateway.places.contracts import PlaceCandidate
 
 CITY_BY_IATA = {"SIN": "Singapore"}
+
+
+def default_catalog_root() -> Path:
+    root = Path("catalogs")
+    if root.exists():
+        return root
+    return Path(__file__).resolve().parent.parent / "catalogs"
+
+
+def geo_cell_area_id(region: Region, lat: float | None, lon: float | None) -> str:
+    if lat is None or lon is None:
+        return "Unknown"
+    lat_cell = math.floor(lat * 10.0) / 10.0
+    lon_cell = math.floor(lon * 10.0) / 10.0
+    return f"geo-cell:{region.iata.casefold()}:{lat_cell:.1f}:{lon_cell:.1f}"
 
 
 def resolve_destination_city(destination_iata: str) -> str:
@@ -26,11 +43,13 @@ def _map_candidate_to_poi(
     name = next((cl.value for cl in c.claims if cl.field == "name"), "Unknown")
     cat = next((cl.value for cl in c.claims if cl.field == "category"), "other")
     coords = next(
-        (cl.value for cl in c.claims if cl.field == "coordinates"), {"lat": 0.0, "lon": 0.0}
+        (cl.value for cl in c.claims if cl.field == "coordinates"), None
     )
 
-    lat = coords["lat"] if isinstance(coords, dict) and "lat" in coords else 0.0
-    lon = coords["lon"] if isinstance(coords, dict) and "lon" in coords else 0.0
+    lat = coords["lat"] if isinstance(coords, dict) and "lat" in coords else None
+    lon = coords["lon"] if isinstance(coords, dict) and "lon" in coords else None
+
+    desc = next((cl.value for cl in c.claims if cl.field == "description"), "")
 
     hours_str = next((cl.value for cl in c.claims if cl.field == "opening_hours"), None)
     # Unknown hours never become open. A venue whose hours cannot be parsed is verify_required
@@ -43,8 +62,29 @@ def _map_candidate_to_poi(
     else:
         needs_verification_override = True
 
+    from datetime import datetime
+
     from core.models import Provenance, TimezoneAwareHours
-    
+
+    claim_dt = next((cl.last_verified for cl in c.claims if cl.last_verified), None)
+    if isinstance(claim_dt, datetime):
+        last_ver_date = claim_dt.date()
+    elif isinstance(claim_dt, date):
+        last_ver_date = claim_dt
+    else:
+        last_ver_date = date(2026, 8, 17)
+
+    src_url = next((cl.source_url for cl in c.claims if cl.source_url), "")
+    verified_by = next((cl.verified_by for cl in c.claims if cl.verified_by), "UNVERIFIED")
+    claim_needs_ver = any(cl.needs_verification for cl in c.claims)
+    needs_ver = (
+        (c.status in ("verify_required", "cached", "estimated"))
+        or needs_verification_override
+        or claim_needs_ver
+    )
+
+    area = geo_cell_area_id(region, lat, lon) if region else "Unknown"
+
     poi = POI(
         id=c.place_id,
         city=city,
@@ -55,30 +95,45 @@ def _map_candidate_to_poi(
         currency=region.currency if region else "INR",
         lat=lat,
         lon=lon,
-        area="Unknown",
+        area=area,
         open_hours=TimezoneAwareHours(
             timezone=region.timezone if region else "UTC",
             regular_hours=regular_hours,
             closed_dates=[],
         ),
         booking_channel="pos_abroad",
-        description="",
+        description=str(desc),
         provenance=Provenance(
-            source_type="crawl_draft",
-            last_verified=date(2026, 1, 1),
-            verified_by="UNVERIFIED",
-            needs_verification=(
-                True if needs_verification_override else c.status == "verify_required"
-            ),
-            confidence=0.5,
+            source_url=src_url,
+            source_type="manual_curation" if c.status == "live" else "crawl_draft",
+            last_verified=last_ver_date,
+            verified_by=verified_by,
+            needs_verification=needs_ver,
+            confidence=0.85 if c.status == "live" else 0.5,
         ),
     )
-    if c.status == "verify_required" or needs_verification_override:
-        poi.provenance.needs_verification = True
     return poi
 
+
+def _geo_cell_area(area_id: str, city: str, tags: list[str]) -> Area:
+    return Area(
+        id=area_id,
+        city=city,
+        name=area_id.replace("geo-cell:", "Geographic cell "),
+        good_for_tags=sorted(set(tags)),
+        centrality_score=0.5,
+        provenance=Provenance(
+            source_url=None,
+            source_type="crawl_draft",
+            last_verified=date(2026, 8, 18),
+            verified_by="deterministic_geo_cell",
+            needs_verification=True,
+            confidence=0.4,
+            notes="Deterministic coordinate bucket, not a verified neighborhood name.",
+        ),
+    )
+
 def get_catalog_poi(poi_id: str, destination_iata: str) -> POI | None:
-    from pathlib import Path
 
     from gateway.catalog.activate import active_catalog_path
     from gateway.catalog.regions import get_region
@@ -87,7 +142,7 @@ def get_catalog_poi(poi_id: str, destination_iata: str) -> POI | None:
     if region is None:
         return None
     try:
-        catalog = active_catalog_path(Path("catalogs"), catalog_id=region.catalog_id)
+        catalog = active_catalog_path(default_catalog_root(), catalog_id=region.catalog_id)
         if catalog and catalog.exists():
             from gateway.places.adapters.snapshot import SnapshotPlaceAdapter
             adapter = SnapshotPlaceAdapter(catalog)
@@ -100,8 +155,7 @@ def get_catalog_poi(poi_id: str, destination_iata: str) -> POI | None:
 
 
 def _overlap(poi: POI, interests: list[str]) -> int:
-    wanted = {tag.casefold() for tag in interests}
-    return len(wanted.intersection({tag.casefold() for tag in poi.tags}))
+    return canonical_overlap(poi.tags, interests)
 
 
 def _poi_row(poi: POI) -> str:
@@ -135,7 +189,7 @@ def retrieve_candidates(
     if catalog is None and region is not None:
         from gateway.catalog.activate import active_catalog_path
         try:
-            catalog = active_catalog_path(Path("catalogs"), catalog_id=region.catalog_id)
+            catalog = active_catalog_path(default_catalog_root(), catalog_id=region.catalog_id)
         except FileNotFoundError:
             catalog = None
 
@@ -148,28 +202,68 @@ def retrieve_candidates(
         from core.trip_models import POIEvidence
         from gateway.catalog.quality import SUPPORTED_CATEGORIES
         from gateway.places.adapters.snapshot import SnapshotPlaceAdapter
-        from gateway.places.contracts import PlaceSearchRequest
         
         origin_lat = region.centroid_lat if region else 0.0
         origin_lon = region.centroid_lon if region else 0.0
 
         adapter = SnapshotPlaceAdapter(catalog)
-        req = PlaceSearchRequest(
-            origin_lat=origin_lat, 
-            origin_lon=origin_lon, 
-            max_results=limit, 
-            timeout_ms=5000, 
-            destination_area_id="",
-            category_filters=list(SUPPORTED_CATEGORIES)
+        supported = set(SUPPORTED_CATEGORIES)
+        candidates = [
+            c
+            for c in adapter._load()
+            if next(
+                (cl.value for cl in c.claims if cl.field == "category"),
+                None,
+            )
+            in supported
+        ]
+
+        def distance_sort(c: PlaceCandidate) -> tuple[float, str]:
+            coords = next(
+                (cl.value for cl in c.claims if cl.field == "coordinates"),
+                None,
+            )
+            if not isinstance(coords, dict):
+                return (float("inf"), c.place_id)
+            lat = coords.get("lat")
+            lon = coords.get("lon")
+            if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+                return (float("inf"), c.place_id)
+            return (
+                (float(lat) - origin_lat) ** 2 + (float(lon) - origin_lon) ** 2,
+                c.place_id,
+            )
+
+        candidates = sorted(
+            candidates,
+            key=lambda c: (
+                -canonical_overlap(
+                    [
+                        str(
+                            next(
+                                (cl.value for cl in c.claims if cl.field == "category"),
+                                "",
+                            )
+                        )
+                    ],
+                    spec.interests,
+                ),
+                distance_sort(c),
+            ),
         )
-        candidates, _ = adapter.search_places(req)
+        candidates = candidates[: max(limit * 4, limit)]
 
         for c in candidates:
             poi = _map_candidate_to_poi(c, city, region)
             pois.append(poi)
 
             status = c.status
-            if status == "verify_required":
+            candidate_needs_verification = status in (
+                "verify_required",
+                "cached",
+                "estimated",
+            )
+            if candidate_needs_verification:
                 poi.provenance.needs_verification = True
 
             lic = next((cl.licence_id for cl in c.claims if cl.licence_id), None)
@@ -184,7 +278,7 @@ def retrieve_candidates(
                 last_verified=date(2026, 1, 1),
                 licence_id=lic,
                 attribution=attr,
-                needs_verification=(status == "verify_required"),
+                needs_verification=candidate_needs_verification,
             )
             poi_provenance.append(ev)
 
@@ -217,6 +311,16 @@ def retrieve_candidates(
     )[:limit]
 
     areas = sorted(kb.areas(city), key=lambda area: area.id)
+    if not areas and sorted_pois:
+        by_area: dict[str, list[str]] = {}
+        for poi in sorted_pois:
+            if poi.area == "Unknown":
+                continue
+            by_area.setdefault(poi.area, []).extend(poi.tags)
+        areas = [
+            _geo_cell_area(area_id, city, tags)
+            for area_id, tags in sorted(by_area.items())
+        ]
     return RetrievalContext(
         pois=sorted_pois,
         areas=areas,

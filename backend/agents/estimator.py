@@ -18,6 +18,7 @@ from core.models import (
     SpendLineItem,
 )
 from core.transfer.arithmetic import convert_minor
+from core.travel_taxonomy import spend_category_for_tags
 
 HOME_CURRENCY_BY_COUNTRY = {"IN": "INR", "AE": "AED", "US": "USD"}
 DESTINATION_CURRENCY_BY_IATA = {"SIN": "SGD"}
@@ -103,9 +104,7 @@ def _pick_hotel(
 
 
 def _poi_category(poi: POI) -> SpendCategory:
-    if "food" in poi.tags:
-        return SpendCategory.DINING
-    return SpendCategory.ATTRACTIONS
+    return spend_category_for_tags(poi.tags)
 
 
 def _poi_lines(

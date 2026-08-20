@@ -5,6 +5,28 @@ export type ClientOptions = {
 };
 
 /**
+ * AddItem
+ */
+export type AddItem = {
+    /**
+     * Op
+     */
+    op?: 'add_item';
+    /**
+     * Poi Id
+     */
+    poi_id: string;
+    /**
+     * Day Index
+     */
+    day_index: number;
+    /**
+     * Position
+     */
+    position: number;
+};
+
+/**
  * AppliedOffer
  */
 export type AppliedOffer = {
@@ -157,7 +179,7 @@ export type CostedTrip = {
 /**
  * DraftItinerary
  */
-export type DraftItinerary = {
+export type DraftItineraryInput = {
     /**
      * Hotel Area Id
      */
@@ -165,7 +187,33 @@ export type DraftItinerary = {
     /**
      * Days
      */
-    days: Array<ItineraryDay>;
+    days: Array<ItineraryDayInput>;
+    /**
+     * Notes
+     */
+    notes?: Array<string>;
+    /**
+     * Itinerary Quality
+     */
+    itinerary_quality?: 'llm' | 'fallback';
+    /**
+     * Unverified Suggestions
+     */
+    unverified_suggestions?: Array<string>;
+};
+
+/**
+ * DraftItinerary
+ */
+export type DraftItineraryOutput = {
+    /**
+     * Hotel Area Id
+     */
+    hotel_area_id: string;
+    /**
+     * Days
+     */
+    days: Array<ItineraryDayOutput>;
     /**
      * Notes
      */
@@ -185,7 +233,7 @@ export type DraftItinerary = {
  */
 export type FinalReport = {
     trip_spec: TripSpec;
-    itinerary: DraftItinerary;
+    itinerary: DraftItineraryOutput;
     hotel_area: SelectedHotelArea;
     flights_pick?: SampleFlight | null;
     hotel_pick?: SampleHotel | null;
@@ -239,6 +287,7 @@ export type FinalReport = {
     trace_id: string;
     status?: PipelineStatus;
     region_capability?: RegionCapability | null;
+    freshness?: SectionFreshness;
 };
 
 /**
@@ -280,7 +329,7 @@ export type InfeasiblePlan = {
 /**
  * ItineraryDay
  */
-export type ItineraryDay = {
+export type ItineraryDayInput = {
     /**
      * Date
      */
@@ -288,7 +337,29 @@ export type ItineraryDay = {
     /**
      * Items
      */
-    items?: Array<ItineraryItem>;
+    items?: Array<ItineraryItemInput>;
+    /**
+     * Unmet Needs
+     */
+    unmet_needs?: Array<string>;
+    /**
+     * Rejections
+     */
+    rejections?: Array<Rejection>;
+};
+
+/**
+ * ItineraryDay
+ */
+export type ItineraryDayOutput = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Items
+     */
+    items?: Array<ItineraryItemOutput>;
     /**
      * Unmet Needs
      */
@@ -302,7 +373,51 @@ export type ItineraryDay = {
 /**
  * ItineraryItem
  */
-export type ItineraryItem = {
+export type ItineraryItemInput = {
+    /**
+     * Poi Id
+     */
+    poi_id: string;
+    /**
+     * Start Hint
+     */
+    start_hint?: string | null;
+    /**
+     * Meal Slots
+     */
+    meal_slots?: Array<string>;
+    /**
+     * Start Time
+     */
+    start_time?: string | null;
+    /**
+     * End Time
+     */
+    end_time?: string | null;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Category
+     */
+    category?: string | null;
+    /**
+     * Lat
+     */
+    lat?: number | null;
+    /**
+     * Lon
+     */
+    lon?: number | null;
+    travel_from_previous?: TransitSegment | null;
+    evidence?: PoiEvidence | null;
+};
+
+/**
+ * ItineraryItem
+ */
+export type ItineraryItemOutput = {
     /**
      * Poi Id
      */
@@ -323,6 +438,14 @@ export type ItineraryItem = {
      * Category
      */
     category?: string | null;
+    /**
+     * Lat
+     */
+    lat?: number | null;
+    /**
+     * Lon
+     */
+    lon?: number | null;
     travel_from_previous?: TransitSegment | null;
     evidence?: PoiEvidence | null;
 };
@@ -343,6 +466,14 @@ export type JobError = {
      * Trace Id
      */
     trace_id: string;
+};
+
+/**
+ * KernelResult
+ */
+export type KernelResult = {
+    optimizer_result: OptimizerResult;
+    transfer_advice?: TransferAdvice | null;
 };
 
 /**
@@ -385,6 +516,32 @@ export type LineAssignment = {
      */
     provenance_flags?: Array<string>;
     runner_up?: RunnerUp | null;
+};
+
+/**
+ * MoveItem
+ */
+export type MoveItem = {
+    /**
+     * Op
+     */
+    op?: 'move_item';
+    /**
+     * Poi Id
+     */
+    poi_id: string;
+    /**
+     * From Day Index
+     */
+    from_day_index: number;
+    /**
+     * To Day Index
+     */
+    to_day_index: number;
+    /**
+     * Position
+     */
+    position: number;
 };
 
 /**
@@ -519,6 +676,107 @@ export type PaymentStrategyRow = {
 export type PipelineStatus = 'needs_clarification' | 'ok' | 'error';
 
 /**
+ * PlaceProviderDiagnostic
+ */
+export type PlaceProviderDiagnostic = {
+    /**
+     * Provider Id
+     */
+    provider_id: string;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Fallback Used
+     */
+    fallback_used?: boolean;
+    /**
+     * Stop Reason
+     */
+    stop_reason?: string | null;
+};
+
+/**
+ * PlaceSearchRequest
+ */
+export type PlaceSearchRequest = {
+    /**
+     * Destination
+     */
+    destination: string;
+    /**
+     * Query
+     */
+    query?: string;
+    /**
+     * Category
+     */
+    category?: string | null;
+    /**
+     * Limit
+     */
+    limit?: number;
+};
+
+/**
+ * PlaceSearchResponse
+ */
+export type PlaceSearchResponse = {
+    /**
+     * Results
+     */
+    results: Array<PlaceSearchResult>;
+    /**
+     * Diagnostics
+     */
+    diagnostics?: Array<PlaceProviderDiagnostic>;
+};
+
+/**
+ * PlaceSearchResult
+ */
+export type PlaceSearchResult = {
+    /**
+     * Poi Id
+     */
+    poi_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Area
+     */
+    area: string;
+    /**
+     * Lat
+     */
+    lat?: number | null;
+    /**
+     * Lon
+     */
+    lon?: number | null;
+    /**
+     * Price Minor
+     */
+    price_minor?: number;
+    /**
+     * Currency
+     */
+    currency?: string;
+    evidence: PoiEvidence;
+};
+
+/**
  * PlanJobStatus
  */
 export type PlanJobStatus = {
@@ -607,9 +865,42 @@ export type Recommendation = {
 export type RecommendationKind = 'REDEEM' | 'PAY_CASH' | 'NO_DATA';
 
 /**
+ * RecomputeRequest
+ */
+export type RecomputeRequest = {
+    trip_spec: TripSpec;
+    itinerary: DraftItineraryInput;
+    /**
+     * Edit
+     */
+    edit: ({
+        op: 'move_item';
+    } & MoveItem) | ({
+        op: 'remove_item';
+    } & RemoveItem) | ({
+        op: 'reorder_day';
+    } & ReorderDay) | ({
+        op: 'add_item';
+    } & AddItem) | ({
+        op: 'replace_item';
+    } & ReplaceItem);
+    previous_freshness?: SectionFreshness | null;
+};
+
+/**
  * RedemptionPath
  */
 export type RedemptionPath = 'cashback' | 'portal_flights' | 'portal_hotels' | 'transfer_airline' | 'transfer_hotel' | 'voucher';
+
+/**
+ * RefreshProseRequest
+ */
+export type RefreshProseRequest = {
+    trip_spec: TripSpec;
+    itinerary: DraftItineraryInput;
+    kernel_result: KernelResult;
+    previous_freshness?: SectionFreshness | null;
+};
 
 /**
  * RegionCapability
@@ -653,6 +944,64 @@ export type Rejection = {
      * Detail
      */
     detail: string;
+};
+
+/**
+ * RemoveItem
+ */
+export type RemoveItem = {
+    /**
+     * Op
+     */
+    op?: 'remove_item';
+    /**
+     * Poi Id
+     */
+    poi_id: string;
+    /**
+     * Day Index
+     */
+    day_index: number;
+};
+
+/**
+ * ReorderDay
+ */
+export type ReorderDay = {
+    /**
+     * Op
+     */
+    op?: 'reorder_day';
+    /**
+     * Day Index
+     */
+    day_index: number;
+    /**
+     * Poi Ids
+     */
+    poi_ids: Array<string>;
+};
+
+/**
+ * ReplaceItem
+ */
+export type ReplaceItem = {
+    /**
+     * Op
+     */
+    op?: 'replace_item';
+    /**
+     * Old Poi Id
+     */
+    old_poi_id: string;
+    /**
+     * New Poi Id
+     */
+    new_poi_id: string;
+    /**
+     * Day Index
+     */
+    day_index: number;
 };
 
 /**
@@ -769,6 +1118,26 @@ export type SampleHotel = {
     purchasable_channels: Array<Channel>;
     provenance: Provenance;
 };
+
+/**
+ * SectionFreshness
+ */
+export type SectionFreshness = {
+    budget?: SectionState;
+    payment_strategy?: SectionState;
+    itinerary?: SectionState;
+    prose?: SectionState;
+    critic_verdict?: SectionState;
+    /**
+     * Edit Count
+     */
+    edit_count?: number;
+};
+
+/**
+ * SectionState
+ */
+export type SectionState = 'fresh' | 'stale' | 'recomputed';
 
 /**
  * SelectedHotelArea
@@ -1104,7 +1473,12 @@ export type HealthHealthGetResponse = HealthHealthGetResponses[keyof HealthHealt
 export type PlanPlanPostData = {
     body: TripIntakeRequest;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Ledger
+         */
+        ledger?: unknown | null;
+    };
     url: '/plan';
 };
 
@@ -1159,3 +1533,78 @@ export type GetJobStatusPlanJobIdGetResponses = {
 };
 
 export type GetJobStatusPlanJobIdGetResponse = GetJobStatusPlanJobIdGetResponses[keyof GetJobStatusPlanJobIdGetResponses];
+
+export type RecomputePlanPlanRecomputePostData = {
+    body: RecomputeRequest;
+    path?: never;
+    query?: never;
+    url: '/plan/recompute';
+};
+
+export type RecomputePlanPlanRecomputePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecomputePlanPlanRecomputePostError = RecomputePlanPlanRecomputePostErrors[keyof RecomputePlanPlanRecomputePostErrors];
+
+export type RecomputePlanPlanRecomputePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FinalReport;
+};
+
+export type RecomputePlanPlanRecomputePostResponse = RecomputePlanPlanRecomputePostResponses[keyof RecomputePlanPlanRecomputePostResponses];
+
+export type RefreshProsePlanPlanRefreshProsePostData = {
+    body: RefreshProseRequest;
+    path?: never;
+    query?: never;
+    url: '/plan/refresh-prose';
+};
+
+export type RefreshProsePlanPlanRefreshProsePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshProsePlanPlanRefreshProsePostError = RefreshProsePlanPlanRefreshProsePostErrors[keyof RefreshProsePlanPlanRefreshProsePostErrors];
+
+export type RefreshProsePlanPlanRefreshProsePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FinalReport;
+};
+
+export type RefreshProsePlanPlanRefreshProsePostResponse = RefreshProsePlanPlanRefreshProsePostResponses[keyof RefreshProsePlanPlanRefreshProsePostResponses];
+
+export type SearchPlacesPlacesSearchPostData = {
+    body: PlaceSearchRequest;
+    path?: never;
+    query?: never;
+    url: '/places/search';
+};
+
+export type SearchPlacesPlacesSearchPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchPlacesPlacesSearchPostError = SearchPlacesPlacesSearchPostErrors[keyof SearchPlacesPlacesSearchPostErrors];
+
+export type SearchPlacesPlacesSearchPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlaceSearchResponse;
+};
+
+export type SearchPlacesPlacesSearchPostResponse = SearchPlacesPlacesSearchPostResponses[keyof SearchPlacesPlacesSearchPostResponses];

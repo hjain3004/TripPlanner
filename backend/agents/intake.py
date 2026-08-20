@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from agents.llm import LLMClient, complete_with_repair
+from agents.llm import LLMCallError, LLMClient, LLMTimeoutError, complete_with_repair
 from agents.models import TripSpec
 from core.db import KnowledgeBase
 from gateway.catalog.regions import load_regions
@@ -46,6 +46,7 @@ class IntakeResult(BaseModel):
     trip_spec: TripSpec | None = None
     unresolved: list[str] = Field(default_factory=list)
     needs_clarification: bool = False
+    runtime_error: str | None = None
 
 
 def _card_catalog(kb: KnowledgeBase) -> str:
@@ -90,10 +91,21 @@ def run_intake(raw_request: str, kb: KnowledgeBase, llm: LLMClient) -> IntakeRes
             schema=TripSpec,
             temperature=0.0,
         )
-    except Exception as exc:
+    except LLMTimeoutError as exc:
         return IntakeResult(
-            unresolved=[f"intake failed: {exc}"],
-            needs_clarification=True,
+            runtime_error=f"intake failed: {exc}",
+            needs_clarification=False,
+        )
+    except LLMCallError as exc:
+        message = str(exc)
+        if "schema repair failed" in message or message.startswith("No recording for"):
+            return IntakeResult(
+                unresolved=[f"intake failed: {message}"],
+                needs_clarification=True,
+            )
+        return IntakeResult(
+            runtime_error=f"intake failed: {message}",
+            needs_clarification=False,
         )
 
     unresolved = _validate_intake(spec, kb)

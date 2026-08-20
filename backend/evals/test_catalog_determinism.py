@@ -1,5 +1,6 @@
 import json
 import random
+import zipfile
 from hashlib import sha256
 from pathlib import Path
 
@@ -23,15 +24,18 @@ sources:
 """
 
 
-def _build(manifest_yaml: str, rows: list[dict], work_dir: Path) -> str:
+def _write_deterministic_zip(zip_path: Path, rows: list[dict]) -> None:
+    info = zipfile.ZipInfo("data.json", date_time=(2026, 1, 1, 0, 0, 0))
+    info.compress_type = zipfile.ZIP_STORED
+    with zipfile.ZipFile(zip_path, "w") as z:
+        z.writestr(info, json.dumps(rows))
 
-    import zipfile
-    
+
+def _build(manifest_yaml: str, rows: list[dict], work_dir: Path) -> str:
     zip_path = work_dir / "overture_sg_1.zip"
     work_dir.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(zip_path, "w") as z:
-        z.writestr("data.json", json.dumps(rows))
-    
+    _write_deterministic_zip(zip_path, rows)
+
     payload = zip_path.read_bytes()
     checksum = sha256(payload).hexdigest()
 
@@ -74,11 +78,9 @@ def test_two_builds_from_the_same_inputs_are_byte_identical(tmp_path: Path) -> N
 def test_the_build_embeds_no_wall_clock_timestamp(tmp_path: Path) -> None:
     """A 'now' anywhere in the artifact would break reproducibility."""
     rows = _get_quality_passing_rows()
-    
-    import zipfile
+
     zip_path = tmp_path / "dummy.zip"
-    with zipfile.ZipFile(zip_path, "w") as z:
-        z.writestr("data.json", json.dumps(rows))
+    _write_deterministic_zip(zip_path, rows)
     payload = zip_path.read_bytes()
     checksum = sha256(payload).hexdigest()
 

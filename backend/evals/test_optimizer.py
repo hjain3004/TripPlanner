@@ -75,3 +75,48 @@ def test_optimizer_golden(path: Path) -> None:
     if "distinct_cards" in expect:
         used = {a.card_id for a in result.assignments}
         assert len(used) == expect["distinct_cards"], "distinct_cards"
+
+
+def test_empty_wallet_uses_cash_only_no_rewards_result() -> None:
+    from datetime import date
+
+    from core.db import load_kb
+    from core.models import (
+        Channel,
+        CostedTrip,
+        OptimizationPrefs,
+        SpendCategory,
+        SpendLineItem,
+        UserWallet,
+    )
+    from core.optimizer import optimize
+
+    trip = CostedTrip(
+        origin="DEL",
+        destination="SIN",
+        home_currency="INR",
+        booking_date=date(2026, 8, 1),
+        trip_start_date=date(2026, 9, 1),
+        lines=[
+            SpendLineItem(
+                id="dining:1",
+                label="Dinner",
+                category=SpendCategory.DINING,
+                amount_minor=500000,
+                currency="INR",
+                available_channels=[Channel.POS_ABROAD],
+            )
+        ],
+    )
+
+    result = optimize(trip, UserWallet(card_ids=[]), load_kb(), OptimizationPrefs())
+
+    assert result.gross_minor == 500000
+    assert result.discounts_minor == 0
+    assert result.rewards_value_minor == 0
+    assert result.forex_fees_minor == 0
+    assert result.effective_cost_minor == 500000
+    assert result.cash_outlay_now_minor == 500000
+    assert result.assignments[0].card_id == "cash_only"
+    assert result.assignments[0].points_earned == 0
+    assert any("no valid cards" in item.casefold() for item in result.assumptions)

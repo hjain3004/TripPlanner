@@ -1,4 +1,5 @@
 import json
+from collections import OrderedDict
 from pathlib import Path
 
 from gateway.places.contracts import (
@@ -8,6 +9,19 @@ from gateway.places.contracts import (
     PlaceSearchRequest,
 )
 from gateway.places.registry import PlaceGatewayError
+
+_CACHE_MAX_ENTRIES = 8
+_SnapshotCacheKey = tuple[str, int, int]
+_SNAPSHOT_CACHE: OrderedDict[_SnapshotCacheKey, list[PlaceCandidate]] = OrderedDict()
+
+
+def clear_snapshot_catalog_cache() -> None:
+    _SNAPSHOT_CACHE.clear()
+
+
+def _cache_key(catalog_path: Path) -> _SnapshotCacheKey:
+    stat = catalog_path.stat()
+    return (str(catalog_path.resolve()), stat.st_mtime_ns, stat.st_size)
 
 
 class SnapshotPlaceAdapter:
@@ -23,6 +37,12 @@ class SnapshotPlaceAdapter:
             raise PlaceGatewayError(code="provider_unavailable", message="Catalog snapshot missing")
 
         try:
+            key = _cache_key(self.catalog_path)
+            if key in _SNAPSHOT_CACHE:
+                _SNAPSHOT_CACHE.move_to_end(key)
+                self._cache = _SNAPSHOT_CACHE[key]
+                return self._cache
+
             content = self.catalog_path.read_text(encoding="utf-8")
             data = json.loads(content)
 
@@ -82,6 +102,10 @@ class SnapshotPlaceAdapter:
 
             candidates.sort(key=lambda c: c.place_id)
             self._cache = candidates
+            _SNAPSHOT_CACHE[key] = candidates
+            _SNAPSHOT_CACHE.move_to_end(key)
+            while len(_SNAPSHOT_CACHE) > _CACHE_MAX_ENTRIES:
+                _SNAPSHOT_CACHE.popitem(last=False)
             return self._cache
 
         except PlaceGatewayError:

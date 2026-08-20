@@ -70,3 +70,4 @@ frontend/design/probes/*.svg
 # design/, which IS tracked as the frozen visual template.
 design/*.zip
 backend/data/
+.firecrawl/

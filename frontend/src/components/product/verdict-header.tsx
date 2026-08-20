@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { BudgetTotals } from "@/lib/api/types.gen";
+import type { BudgetTotals } from "@/lib/api";
 import { CountUp } from "./count-up";
 import { useReducedMotionSafe } from "@/lib/motion/use-reduced-motion-safe";
 import confetti from "canvas-confetti";

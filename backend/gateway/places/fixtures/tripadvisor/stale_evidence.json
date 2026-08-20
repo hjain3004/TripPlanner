@@ -1,0 +1,26 @@
+{
+  "_metadata": {
+    "status": "stale",
+    "captured_at": "2023-05-12T08:30:00Z",
+    "is_stale": true
+  },
+  "data": [
+    {
+      "location": {
+        "id": 666444,
+        "names": [
+          {
+            "primary": true,
+            "value": "Old Heritage House"
+          }
+        ],
+        "categories": [
+          {
+            "id": "attraction",
+            "top_level_category": "Attraction"
+          }
+        ]
+      }
+    }
+  ]
+}

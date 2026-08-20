@@ -1,8 +1,6 @@
 # Tripadvisor Terra Integration (Itinerary Phase I8) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
-## DO NOT EXECUTE — precondition gate
+> **HISTORICAL / SUPERSEDED:** This 2026-08-09 draft has been superseded by `docs/superpowers/plans/2026-08-17-itinerary-i8a-tripadvisor-offline-adapter.md` (Phase I8A). I0–I7 and I2 prerequisites are now formally complete. Preserved for provenance and historical record.
 
 **This plan is not runnable today (2026-08-09).** Tripadvisor Terra is Phase I8 of
 `docs/superpowers/specs/2026-08-02-itinerary-intelligence-design.md` §14. Per that design's

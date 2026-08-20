@@ -15,8 +15,16 @@ import {
 } from "@/components/ui/select";
 import { parsePlanJobStatus } from "@/lib/api/schemas";
 import { apiClient } from "@/lib/api/client-config";
-import { planPlanPost, getJobStatusPlanJobIdGet } from "@/lib/api/sdk.gen";
-import type { PlanJobStatus, TripIntakeRequest } from "@/lib/api/types.gen";
+import { getJobStatusPlanJobIdGet, planPlanPost } from "@/lib/api";
+import type {
+  AddItem,
+  MoveItem,
+  PlanJobStatus,
+  RemoveItem,
+  ReorderDay,
+  ReplaceItem,
+  TripIntakeRequest,
+} from "@/lib/api";
 import { composeRawRequest, parseWallet } from "@/lib/wizard/composeRequest";
 import type { WizardData } from "@/lib/wizard/types";
 import { EMPTY_WIZARD } from "@/lib/wizard/types";
@@ -524,13 +532,100 @@ function PollingView({ jobStatus, headingRef, destination, jobId }: {
 
 // ── Results view ──────────────────────────────────────────────
 
-function ResultsView({ report, onRetry }: {
+function ResultsView({ report: initialReport, onRetry }: {
   report: NonNullable<PlanJobStatus["report"]>;
   onRetry: () => void;
 }) {
+  const [report, setReport] = useState(initialReport);
+  const [isRecomputing, setIsRecomputing] = useState(false);
+  const [isRefreshingProse, setIsRefreshingProse] = useState(false);
+  const [recomputeError, setRecomputeError] = useState<string | null>(null);
+  const [lastFailedEdit, setLastFailedEdit] = useState<
+    (({ op: "move_item" } & MoveItem) | ({ op: "remove_item" } & RemoveItem) | ({ op: "reorder_day" } & ReorderDay) | ({ op: "add_item" } & AddItem) | ({ op: "replace_item" } & ReplaceItem)) | null
+  >(null);
+  const [proseError, setProseError] = useState<string | null>(null);
+
+  const requestSeqRef = useRef(0);
+  const proseSeqRef = useRef(0);
+
   const bt = report.budget_totals;
   const destination = report.trip_spec?.destination_city ?? "destination";
   const numDays = report.itinerary?.days?.length ?? 0;
+
+  const handleEdit = async (
+    edit: ({ op: "move_item" } & MoveItem) | ({ op: "remove_item" } & RemoveItem) | ({ op: "reorder_day" } & ReorderDay) | ({ op: "add_item" } & AddItem) | ({ op: "replace_item" } & ReplaceItem)
+  ) => {
+    if (isRecomputing) return;
+    const currentSeq = ++requestSeqRef.current;
+    setIsRecomputing(true);
+    setRecomputeError(null);
+    setLastFailedEdit(null);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+      const resp = await fetch(`${apiBase}/plan/recompute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trip_spec: report.trip_spec,
+          itinerary: report.itinerary,
+          edit,
+          previous_freshness: report.freshness,
+        }),
+      });
+      if (currentSeq !== requestSeqRef.current) return;
+      if (!resp.ok) {
+        throw new Error(`Recompute failed (${resp.status}): ${resp.statusText}`);
+      }
+      const updated = await resp.json();
+      if (currentSeq !== requestSeqRef.current) return;
+      setReport(updated);
+    } catch (err: unknown) {
+      if (currentSeq !== requestSeqRef.current) return;
+      setLastFailedEdit(edit);
+      setRecomputeError(err instanceof Error ? err.message : "Failed to recompute plan");
+    } finally {
+      if (currentSeq === requestSeqRef.current) {
+        setIsRecomputing(false);
+      }
+    }
+  };
+
+  const handleRefreshProse = async () => {
+    if (isRecomputing || isRefreshingProse) return;
+    const currentSeq = ++proseSeqRef.current;
+    setIsRefreshingProse(true);
+    setProseError(null);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+      const resp = await fetch(`${apiBase}/plan/refresh-prose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trip_spec: report.trip_spec,
+          itinerary: report.itinerary,
+          kernel_result: {
+            optimizer_result: report.optimizer_result,
+            transfer_advice: report.transfer_advice,
+          },
+          previous_freshness: report.freshness,
+        }),
+      });
+      if (currentSeq !== proseSeqRef.current) return;
+      if (!resp.ok) {
+        throw new Error(`Prose refresh failed (${resp.status}): ${resp.statusText}`);
+      }
+      const updated = await resp.json();
+      if (currentSeq !== proseSeqRef.current) return;
+      setReport(updated);
+    } catch (err: unknown) {
+      if (currentSeq !== proseSeqRef.current) return;
+      setProseError(err instanceof Error ? err.message : "Failed to refresh explanation");
+    } finally {
+      if (currentSeq === proseSeqRef.current) {
+        setIsRefreshingProse(false);
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-bg font-ui text-text" data-testid="results-view">
@@ -545,6 +640,48 @@ function ResultsView({ report, onRetry }: {
 
         {report.summary && (
           <p className="text-sm text-text-muted text-center -mt-4">{report.summary}</p>
+        )}
+
+        {report.freshness?.prose === "stale" && (
+          <div className="flex flex-wrap items-center justify-center gap-2 -mt-4" data-testid="stale-prose-marker">
+            <TrustChip variant="needs-verification" label="Written before your last edit" />
+            <button
+              type="button"
+              onClick={handleRefreshProse}
+              disabled={isRefreshingProse || isRecomputing}
+              className="text-xs font-medium text-accent-1 hover:underline cursor-pointer disabled:opacity-50"
+            >
+              {isRefreshingProse ? "Refreshing explanation..." : "Refresh explanation"}
+            </button>
+          </div>
+        )}
+
+        {proseError && (
+          <div className="p-3 rounded bg-accent-2 border border-border text-xs text-danger flex items-center justify-between gap-2" role="alert">
+            <span>{proseError}</span>
+            <button
+              type="button"
+              onClick={handleRefreshProse}
+              className="px-2 py-0.5 bg-danger text-text-on-primary text-xs rounded hover:opacity-90 transition-opacity font-medium cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {recomputeError && (
+          <div className="p-3 rounded bg-accent-2 border border-border text-xs text-danger flex items-center justify-between gap-2" role="alert">
+            <span>{recomputeError}</span>
+            {lastFailedEdit && (
+              <button
+                type="button"
+                onClick={() => handleEdit(lastFailedEdit)}
+                className="px-2 py-0.5 bg-danger text-text-on-primary text-xs rounded hover:opacity-90 transition-opacity font-medium cursor-pointer"
+              >
+                Retry
+              </button>
+            )}
+          </div>
         )}
 
         {report.region_capability && (
@@ -571,16 +708,27 @@ function ResultsView({ report, onRetry }: {
         <GsapEntrance />
 
         {/* Itinerary */}
-        <section className="gsap-section">
-          <h2 className="font-ui font-semibold text-h2 mb-4">Itinerary</h2>
+        <section className="gsap-section" aria-busy={isRecomputing}>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <h2 className="font-ui font-semibold text-h2">Itinerary</h2>
+            {report.freshness?.itinerary === "recomputed" && (
+              <TrustChip variant="verified" label="Recomputed after edit" />
+            )}
+          </div>
           {report.itinerary_overview && <p className="text-sm text-text-muted mb-4">{report.itinerary_overview}</p>}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <ItineraryTimeline itinerary={report.itinerary} />
+            <ItineraryTimeline
+              itinerary={report.itinerary}
+              assignments={report.optimizer_result?.assignments}
+              destination={destination}
+              onEdit={handleEdit}
+              isRecomputing={isRecomputing}
+            />
             <div>
               <div className="sticky top-24">
                 <TripMap 
                   itinerary={report.itinerary} 
-                  mapData={{ origin: { lat: 28.53, lng: 77.39 }, destination: { lat: 1.35, lng: 103.81 } }} 
+                  destination={destination}
                 />
               </div>
             </div>
@@ -591,7 +739,12 @@ function ResultsView({ report, onRetry }: {
 
         {/* Budget breakdown */}
         <section className="gsap-section">
-          <h2 className="font-ui font-semibold text-h2 mb-4">Budget</h2>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <h2 className="font-ui font-semibold text-h2">Budget</h2>
+            {report.freshness?.budget === "recomputed" && (
+              <TrustChip variant="verified" label="Recomputed live" />
+            )}
+          </div>
           <div className="border border-border rounded-sm">
             <div className="px-4 py-2 border-b border-border">
               <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Cost breakdown</span>

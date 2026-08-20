@@ -192,8 +192,8 @@ class POI(BaseModel):
     typical_duration_min: int
     price_minor: int
     currency: str
-    lat: float  # geo (NOT money)
-    lon: float  # geo (NOT money)
+    lat: float | None = None  # geo (NOT money)
+    lon: float | None = None  # geo (NOT money)
     area: str
     open_hours: TimezoneAwareHours
     booking_channel: Channel

@@ -14,6 +14,7 @@ from agents.models import (
     PaymentStrategyRow,
     RegionCapability,
     RetrievalContext,
+    SectionFreshness,
     SelectedHotelArea,
     TripSpec,
 )
@@ -247,6 +248,7 @@ def build_final_report(
     explainer: ExplainerOutput,
     trace_id: str,
     region_capability: RegionCapability | None = None,
+    freshness: SectionFreshness | None = None,
 ) -> FinalReport:
     optimizer = kernel.optimizer_result
     caveats = [*critic_caveats, *explainer.caveats]
@@ -261,6 +263,8 @@ def build_final_report(
             if poi:
                 item.name = poi.name
                 item.category = next(iter(poi.tags), "other")
+                item.lat = poi.lat
+                item.lon = poi.lon
             ev = ev_map.get(item.poi_id)
             if ev:
                 item.evidence = ev
@@ -291,6 +295,7 @@ def build_final_report(
         footer=_footer(estimate, kernel.transfer_advice),
         trace_id=trace_id,
         region_capability=region_capability,
+        freshness=freshness or SectionFreshness(),
     )
 
 
@@ -305,6 +310,7 @@ def run_explainer(
     trace_id: str,
     llm: LLMClient,
     region_capability: RegionCapability | None = None,
+    freshness: SectionFreshness | None = None,
 ) -> FinalReport:
     caveats = list(critic_caveats)
     try:
@@ -342,4 +348,5 @@ def run_explainer(
         explainer=explainer,
         trace_id=trace_id,
         region_capability=region_capability,
+        freshness=freshness,
     )

@@ -1,0 +1,22 @@
+{
+  "data": [
+    {
+      "location": {
+        "id": 777333,
+        "names": [
+          {
+            "primary": true,
+            "value": "Mega Esports Arena"
+          }
+        ],
+        "categories": [
+          {
+            "id": "esports_stadium_custom",
+            "display_name": "Esports Stadium",
+            "top_level_category": "FUTURE_UNKNOWN_ENUM"
+          }
+        ]
+      }
+    }
+  ]
+}

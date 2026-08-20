@@ -1,0 +1,21 @@
+{
+  "data": [
+    {
+      "location": {
+        "id": 999111,
+        "names": [
+          {
+            "value": "Hidden Gem Spot"
+          }
+        ]
+      },
+      "matched_value": "Hidden Gem Spot"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "size": 1,
+    "total_elements": 1,
+    "total_pages": 1
+  }
+}

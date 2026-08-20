@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from io import BytesIO
 from typing import Any
 
 import pytest
@@ -172,6 +173,61 @@ def test_an_http_error_never_leaks_the_api_key(monkeypatch: pytest.MonkeyPatch) 
     assert "429" in message
     assert _SECRET not in message
     assert "Bearer" not in message
+
+
+def test_http_error_response_body_is_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
+    _configure(monkeypatch)
+
+    def _raise(request: Any) -> Any:
+        raise urllib.error.HTTPError(
+            url="https://provider.invalid/v1/chat/completions",
+            code=401,
+            msg="Unauthorized",
+            hdrs=None,  # type: ignore[arg-type]
+            fp=BytesIO(f'{{"error":"bad bearer token {_SECRET}"}}'.encode()),
+        )
+
+    _patch_urlopen(monkeypatch, _raise)
+
+    with pytest.raises(LLMCallError) as exc:
+        HostedFreeTier().complete_json(node="intake", system="s", user="u", schema=Tiny)
+
+    message = str(exc.value)
+    assert "401" in message
+    assert _SECRET not in message
+    assert "bearer token" not in message.casefold()
+
+
+def test_model_not_found_uses_next_configured_free_tier_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure(
+        monkeypatch,
+        TRIPWISE_LLM_MODEL="retired-model",
+        TRIPWISE_LLM_FALLBACK_MODELS="working-model",
+    )
+    models_seen: list[str] = []
+
+    def _handler(request: Any) -> Any:
+        body = json.loads(request.data.decode("utf-8"))
+        models_seen.append(body["model"])
+        if body["model"] == "retired-model":
+            raise urllib.error.HTTPError(
+                url="https://provider.invalid/v1/chat/completions",
+                code=404,
+                msg="Not Found",
+                hdrs=None,  # type: ignore[arg-type]
+                fp=BytesIO(b'{"error":{"message":"model not found"}}'),
+            )
+        return _FakeResponse(_envelope('{"answer": "fallback-ok"}'))
+
+    _patch_urlopen(monkeypatch, _handler)
+
+    result = HostedFreeTier().complete_json(node="intake", system="s", user="u", schema=Tiny)
+
+    assert isinstance(result, Tiny)
+    assert result.answer == "fallback-ok"
+    assert models_seen == ["retired-model", "working-model"]
 
 
 def test_a_timeout_maps_to_llm_timeout_error(monkeypatch: pytest.MonkeyPatch) -> None:
