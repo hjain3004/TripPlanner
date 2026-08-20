@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-ErrorCode = Literal["invalid_response", "unsupported_domain"]
+ErrorCode = Literal["invalid_response"]
 
 
 class FxImportError(Exception):

@@ -33,18 +33,20 @@ def build_fx_snapshot(
     cross_pairs: list[tuple[str, str]],
 ) -> FxSnapshot:
     seen: dict[tuple[str, str], RawFxQuote] = {}
+    source_warnings = source.get("warnings", [])
+    warnings: list[str] = list(source_warnings) if isinstance(source_warnings, list) else []
     for q in raw_quotes:
         key = (q.base, q.quote)
-        if key in seen and seen[key].rate != q.rate:
-            raise FxImportError(
-                "invalid_response",
-                f"duplicate {key} with conflicting rates {seen[key].rate} vs {q.rate}",
-            )
+        if key in seen:
+            if seen[key].rate != q.rate:
+                raise FxImportError(
+                    "invalid_response",
+                    f"duplicate {key} with conflicting rates {seen[key].rate} vs {q.rate}",
+                )
+            warnings.append(f"duplicate {key} row with identical rate {q.rate}; kept one copy")
         seen[key] = q
 
     direct_by_pair = {k: v.rate for k, v in seen.items()}
-    source_warnings = source.get("warnings", [])
-    warnings: list[str] = list(source_warnings) if isinstance(source_warnings, list) else []
 
     records: list[FxRateRecord] = [
         FxRateRecord(

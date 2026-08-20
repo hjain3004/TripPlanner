@@ -187,3 +187,21 @@ def test_existing_kernel_fx_seed_and_goldens_are_unchanged() -> None:
     assert "base: SGD" in seed_text and "rate_micro: 63200000" in seed_text
     assert "base: USD" in seed_text and "rate_micro: 86500000" in seed_text
     assert "quote: USD" in seed_text and "rate_micro: 730000" in seed_text
+
+
+def test_exact_duplicate_row_is_documented_in_warnings() -> None:
+    """A non-conflicting exact duplicate (same base/quote/rate repeated) must
+    still leave a trace in provenance.warnings -- silent deduplication would
+    contradict this importer's own philosophy of recording every anomaly for
+    human review."""
+    row = b'{"date":"2026-08-20","base":"USD","quote":"INR","rate":95.68}'
+    raw = b"[" + row + b"," + row + b"]"
+    quotes = parse_frankfurter_v2(raw)
+    snapshot = build_fx_snapshot(
+        quotes, source=_source(raw, len(quotes)), now=date(2026, 8, 20), cross_pairs=[]
+    )
+    assert len(snapshot.rates) == 1
+    assert any(
+        "USD" in w and "INR" in w and "duplicate" in w.casefold()
+        for w in snapshot.provenance.warnings
+    )
