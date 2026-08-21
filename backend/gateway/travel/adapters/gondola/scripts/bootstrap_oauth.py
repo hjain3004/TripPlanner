@@ -26,7 +26,12 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse
 
 from gateway.travel.adapters.gondola.mcp_client import ALLOWED_HOST
-from gateway.travel.adapters.gondola.oauth import REQUIRED_SCOPE, KeychainTokenStore, OAuthTokens
+from gateway.travel.adapters.gondola.oauth import (
+    REQUIRED_SCOPE,
+    KeychainClientInfoStore,
+    KeychainTokenStore,
+    OAuthTokens,
+)
 
 MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp"
 LOOPBACK_HOST = "127.0.0.1"
@@ -95,7 +100,7 @@ def pin_scope_to_read_only(authorization_url: str) -> str:
     return authorization_url
 
 
-async def _exchange_via_real_mcp_sdk() -> OAuthTokens:
+async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
     """Runs the interactive PKCE/DCR/discovery flow via the official mcp
     SDK's OAuthClientProvider, with our own loopback server supplying the
     redirect_handler/callback_handler pair. Kept as a single, narrow,
@@ -220,20 +225,31 @@ async def _exchange_via_real_mcp_sdk() -> OAuthTokens:
     retrieved_at = datetime.now(UTC)
     expires_in = getattr(storage.tokens, "expires_in", None)
     expires_at = retrieved_at + timedelta(seconds=expires_in) if expires_in else retrieved_at
-    return OAuthTokens(
+    tokens = OAuthTokens(
         access_token=storage.tokens.access_token,  # type: ignore[attr-defined]
         refresh_token=getattr(storage.tokens, "refresh_token", None),
         expires_at=expires_at,
         scope=effective_scope,
     )
 
+    client_info_json = None
+    if storage.client_info is not None:
+        # Persisting this is what makes a later refresh possible without
+        # re-running Dynamic Client Registration (see KeychainClientInfoStore).
+        client_info_json = storage.client_info.model_dump_json()  # type: ignore[attr-defined]
+
+    return tokens, client_info_json
+
 
 def main() -> None:
     print(f"Gondola OAuth bootstrap: requesting scope={REQUIRED_SCOPE!r} only.")
-    tokens = asyncio.run(_exchange_via_real_mcp_sdk())
+    tokens, client_info_json = asyncio.run(_exchange_via_real_mcp_sdk())
     KeychainTokenStore().save(tokens)
+    if client_info_json is not None:
+        KeychainClientInfoStore().save(client_info_json)
     print("Gondola OAuth bootstrap complete. Tokens stored in the OS keychain.")
     print(f"Token expires at: {tokens.expires_at.isoformat()}")
+    print(f"client_info_persisted={client_info_json is not None}")
 
 
 if __name__ == "__main__":
