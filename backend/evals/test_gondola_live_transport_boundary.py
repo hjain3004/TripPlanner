@@ -158,6 +158,44 @@ def test_unwrap_raises_invalid_response_when_is_error_true() -> None:
     assert exc_info.value.code == "invalid_response"
 
 
+def test_error_result_preserves_a_sanitized_bounded_error_summary() -> None:
+    from mcp.types import CallToolResult, TextContent
+
+    result = CallToolResult(
+        content=[TextContent(type="text", text="Invalid parameter: depart_date must be ISO-8601")],
+        structuredContent=None,
+        isError=True,
+    )
+    with pytest.raises(TravelGatewayError) as exc_info:
+        _transport()._unwrap_tool_result(result)
+    assert "Invalid parameter: depart_date must be ISO-8601" in exc_info.value.message
+
+
+def test_error_summary_is_bounded_in_length_even_for_a_huge_error_text() -> None:
+    from mcp.types import CallToolResult, TextContent
+
+    from gateway.travel.adapters.gondola.mcp_client import MAX_ERROR_SUMMARY_CHARS
+
+    huge_text = "x" * 10_000
+    result = CallToolResult(
+        content=[TextContent(type="text", text=huge_text)],
+        structuredContent=None,
+        isError=True,
+    )
+    with pytest.raises(TravelGatewayError) as exc_info:
+        _transport()._unwrap_tool_result(result)
+    assert len(exc_info.value.message) < MAX_ERROR_SUMMARY_CHARS + 200
+
+
+def test_error_result_with_no_text_content_still_raises_cleanly() -> None:
+    from mcp.types import CallToolResult
+
+    result = CallToolResult(content=[], structuredContent=None, isError=True)
+    with pytest.raises(TravelGatewayError) as exc_info:
+        _transport()._unwrap_tool_result(result)
+    assert exc_info.value.code == "invalid_response"
+
+
 def test_unwrap_raises_invalid_response_when_nothing_parsable() -> None:
     from mcp.types import CallToolResult
 

@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 import time
@@ -46,6 +47,9 @@ from gateway.travel.errors import TravelGatewayError
 MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp"
 LIVE_SMOKE_ENV_VAR = "TRIPWISE_GONDOLA_LIVE_SMOKE"
 BUDGET_DB_PATH = Path(__file__).parent / ".gondola_smoke_budget.sqlite"
+GONDOLA_FIXTURES_DIR = (
+    Path(__file__).parent.parent / "gateway" / "travel" / "adapters" / "gondola" / "fixtures"
+)
 HIGH_RISK_TOOL_NAMES = frozenset(
     {"book_hotel", "book_vehicle", "get_payment_methods", "cancel_vehicle_booking"}
 )
@@ -66,6 +70,65 @@ def require_gates(acknowledged: bool) -> None:
             file=sys.stderr,
         )
         sys.exit(2)
+
+
+def sanitize_structural_fixture(value: Any) -> Any:
+    """Recursively replace every leaf value in a real provider response with
+    a synthetic placeholder, preserving key names, container structure, and
+    list lengths. Used to turn a real Gondola response into a fixture that
+    is genuinely useful for schema reconciliation (real field names) without
+    ever persisting a real price, name, identifier, or URL."""
+    if isinstance(value, dict):
+        return {k: sanitize_structural_fixture(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [sanitize_structural_fixture(v) for v in value]
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, int):
+        return 12345
+    if isinstance(value, float):
+        return 1.5
+    if isinstance(value, str):
+        if value.startswith("http://") or value.startswith("https://"):
+            return "https://example.invalid/sanitized-link"
+        return "SANITIZED_STRING"
+    return "SANITIZED_UNKNOWN_TYPE"
+
+
+def write_sanitized_fixture(name: str, real_response: dict[str, Any]) -> Path:
+    """Write a sanitized structural fixture derived from a real live
+    response: real top-level key names and structure, every leaf value
+    replaced with a synthetic placeholder. Never writes the raw response
+    itself. Preserves whatever Gondola's actual top-level keys are, rather
+    than guessing a key name like "results" -- that guess is exactly what
+    caused the G3.2 hotel-search gap this fixture-writing step exists to
+    close."""
+    sanitized = sanitize_structural_fixture(real_response)
+    envelope: dict[str, Any] = {
+        "_fixture_provenance": (
+            f"schema observed from live Gondola MCP on "
+            f"{datetime.now(UTC).date().isoformat()}; content sanitized and synthetic"
+        ),
+        "_fixture_meta": {"status": "estimated", "source_method": "provider_mcp"},
+    }
+    if isinstance(sanitized, dict):
+        envelope.update(sanitized)
+    else:
+        envelope["value"] = sanitized
+    out_path = GONDOLA_FIXTURES_DIR / f"{name}.json"
+    out_path.write_text(json.dumps(envelope, indent=2) + "\n")
+    return out_path
+
+
+def _find_result_list(result: dict[str, Any]) -> tuple[str | None, list[Any]]:
+    """Finds the first top-level key whose value is a list, without
+    assuming the key is named "results" or "hotels" -- Gondola's actual
+    top-level key name is exactly what this function exists to discover,
+    not assume."""
+    for key, value in result.items():
+        if isinstance(value, list):
+            return key, value
+    return None, []
 
 
 def classify_tools(names: list[str]) -> dict[str, list[str]]:
@@ -160,17 +223,19 @@ async def run_anonymous_hotel_search() -> None:
             raise
         elapsed = time.monotonic() - start
         print(f"status=error elapsed_s={elapsed:.2f} error_code={gateway_error.code}")
+        print(f"error_message={gateway_error.message}")
         return
     elapsed = time.monotonic() - start
 
     top_level_keys = sorted(result.keys())
-    results = result.get("results") or result.get("hotels") or []
-    result_count = len(results) if isinstance(results, list) else None
-    first = results[0] if isinstance(results, list) and results else {}
-    first_keys = sorted(first.keys()) if isinstance(first, dict) else []
+    list_key, results = _find_result_list(result)
+    result_count = len(results)
+    first = results[0] if results and isinstance(results[0], dict) else {}
+    first_keys = sorted(first.keys())
 
     print(f"status=success elapsed_s={elapsed:.2f}")
     print(f"top_level_keys={top_level_keys}")
+    print(f"result_list_key={list_key!r}")
     print(f"result_count={result_count}")
     print(f"first_result_field_names={first_keys}")
     has_price = any(k in first_keys for k in ("cash_rate_minor", "price", "rate", "total"))
@@ -178,6 +243,9 @@ async def run_anonymous_hotel_search() -> None:
     has_link = any("link" in k.lower() or "url" in k.lower() for k in first_keys)
     print(f"price_field_present={has_price} currency_field_present={has_currency}")
     print(f"booking_or_verification_link_present={has_link}")
+
+    fixture_path = write_sanitized_fixture("search_hotels_live_g321", result)
+    print(f"sanitized_fixture_written={fixture_path.name}")
 
 
 async def run_authenticated_discovery(access_token: str) -> list[dict[str, Any]]:
@@ -234,26 +302,30 @@ async def run_authenticated_flight_search(access_token: str) -> None:
             raise
         elapsed = time.monotonic() - start
         print(f"status=error elapsed_s={elapsed:.2f} error_code={gateway_error.code}")
+        print(f"error_message={gateway_error.message}")
         print("del_sin_coverage=unknown (call failed; not evidence of no coverage)")
         return
     elapsed = time.monotonic() - start
 
     top_level_keys = sorted(result.keys())
-    results = result.get("results") or result.get("flights") or []
-    result_count = len(results) if isinstance(results, list) else None
-    first = results[0] if isinstance(results, list) and results else {}
-    first_keys = sorted(first.keys()) if isinstance(first, dict) else []
-    segments = first.get("segments") if isinstance(first, dict) else None
+    list_key, results = _find_result_list(result)
+    result_count = len(results)
+    first = results[0] if results and isinstance(results[0], dict) else {}
+    first_keys = sorted(first.keys())
+    segments = first.get("segments")
     segment_count = len(segments) if isinstance(segments, list) else 0
 
     print(f"status=success elapsed_s={elapsed:.2f}")
     print(f"top_level_keys={top_level_keys}")
+    print(f"result_list_key={list_key!r}")
     print(f"result_count={result_count}")
     print(f"first_result_field_names={first_keys}")
     print(f"segment_count={segment_count}")
     has_price = any(k in first_keys for k in ("total_price_minor", "price", "total"))
     has_currency = "currency" in first_keys
     print(f"price_field_present={has_price} currency_field_present={has_currency}")
+    fixture_path = write_sanitized_fixture("search_flights_live_g321", result)
+    print(f"sanitized_fixture_written={fixture_path.name}")
     if result_count == 0:
         print(
             "del_sin_coverage=empty_result (truthful evidence of no coverage found; "

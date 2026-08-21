@@ -134,6 +134,45 @@ def test_extract_travel_gateway_error_returns_none_for_unrelated_exception() -> 
     assert smoke.extract_travel_gateway_error(ValueError("unrelated")) is None
 
 
+def test_sanitize_structural_fixture_preserves_keys_but_replaces_string_leaves() -> None:
+    real = {"hotel_id": "REAL-ID-98765", "name": "The Real Hyatt Marina"}
+    sanitized = smoke.sanitize_structural_fixture(real)
+    assert set(sanitized.keys()) == {"hotel_id", "name"}
+    assert sanitized["hotel_id"] != "REAL-ID-98765"
+    assert sanitized["name"] != "The Real Hyatt Marina"
+    assert isinstance(sanitized["hotel_id"], str)
+
+
+def test_sanitize_structural_fixture_replaces_numeric_leaves() -> None:
+    real = {"cash_rate_minor": 987654, "review_score": 4.7}
+    sanitized = smoke.sanitize_structural_fixture(real)
+    assert sanitized["cash_rate_minor"] != 987654
+    assert isinstance(sanitized["cash_rate_minor"], int)
+    assert isinstance(sanitized["review_score"], float)
+
+
+def test_sanitize_structural_fixture_preserves_none_and_bool() -> None:
+    real = {"cancellation_text": None, "refundable": True}
+    sanitized = smoke.sanitize_structural_fixture(real)
+    assert sanitized["cancellation_text"] is None
+    assert sanitized["refundable"] is True
+
+
+def test_sanitize_structural_fixture_preserves_list_length_and_recurses() -> None:
+    real = {"results": [{"hotel_id": "REAL-1"}, {"hotel_id": "REAL-2"}]}
+    sanitized = smoke.sanitize_structural_fixture(real)
+    assert len(sanitized["results"]) == 2
+    assert sanitized["results"][0]["hotel_id"] != "REAL-1"
+    assert set(sanitized["results"][0].keys()) == {"hotel_id"}
+
+
+def test_sanitize_structural_fixture_replaces_url_looking_strings_with_invalid_domain() -> None:
+    real = {"booking_link": "https://www.gondola.ai/book/real-secret-path-123"}
+    sanitized = smoke.sanitize_structural_fixture(real)
+    assert "gondola.ai" not in sanitized["booking_link"]
+    assert "example.invalid" in sanitized["booking_link"]
+
+
 def test_script_is_not_collected_by_pytest_testpaths() -> None:
     import tomllib
 

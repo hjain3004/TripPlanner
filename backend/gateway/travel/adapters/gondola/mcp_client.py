@@ -24,6 +24,7 @@ ALLOWED_HOST = "mcp.gondola.ai"
 MAX_PAYLOAD_BYTES = 512_000
 CONNECT_TIMEOUT_S = 10.0
 TOTAL_TIMEOUT_S = 20.0
+MAX_ERROR_SUMMARY_CHARS = 300
 
 
 class LiveGondolaTransport:
@@ -40,6 +41,20 @@ class LiveGondolaTransport:
             )
         self._base_url = base_url
         self._get_access_token = get_access_token
+
+    def _summarize_error(self, result: Any) -> str:
+        """Extract a bounded, sanitized summary of a provider error result.
+        Provider error text (e.g. "Invalid parameter: depart_date must be
+        ISO-8601") is diagnostic prose about the *request*, not account
+        data, a token, or a header — safe to retain, truncated, so a
+        request-shape bug can actually be diagnosed and fixed rather than
+        guessed at blindly. ``TravelGatewayError.__init__`` already runs
+        every message through ``redact_secret`` as a second layer."""
+        for block in getattr(result, "content", None) or []:
+            text = getattr(block, "text", None)
+            if isinstance(text, str):
+                return text[:MAX_ERROR_SUMMARY_CHARS]
+        return "(no text content in error result)"
 
     def _build_http_client(self) -> Any:
         import httpx2
@@ -98,7 +113,8 @@ class LiveGondolaTransport:
         fallback for tools that only return unstructured text content."""
         if bool(getattr(result, "is_error", False)):
             raise TravelGatewayError(
-                "invalid_response", "Gondola tool call returned isError=true"
+                "invalid_response",
+                f"Gondola tool call returned isError=true: {self._summarize_error(result)}",
             )
 
         structured = getattr(result, "structured_content", None)
