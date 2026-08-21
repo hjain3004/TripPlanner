@@ -8,10 +8,12 @@ acceptance was "COMPLETE" while §5 below simultaneously documented that the hot
 native schema and Singapore coverage were never actually captured — a direct, unresolved
 self-contradiction, not just a wording issue. All three were caught and corrected by the human
 reviewing this report, not self-detected. §16 records the G3.2.1 follow-up work that closed the
-hotel and flight schema gaps for real. **The numbers and status below this notice, through §15,
-are preserved unedited as originally written — the historical record of the first pass, including
-its errors.** All corrections (numbers, status, and framing) are consolidated in §16, not marked
-inline in §1–15 — see §16 for the current, accurate final state.
+hotel and flight schema gaps for real (§17 records G3.2.2's further follow-up). **The numbers and
+status below this notice, through §15, are preserved unedited as originally written — the
+historical record of the first pass, including its errors.** All corrections (numbers, status, and
+framing) are consolidated in §16 and §17, not marked inline in §1–15 — see the latest numbered
+section for the most recent state (never "final" — see §16's Branch note on why this report does
+not assert one).
 
 **Milestone type:** Bounded, human-supervised live acceptance. **Original G3.2 status (superseded
 by §16): hotel and flight native response schemas were NOT fully captured** — hotel acceptance

@@ -78,19 +78,24 @@ class _RefreshDiagnosticHandler(logging.Handler):
         self.messages.append(record.getMessage()[:200])
 
 
-def _find_oauth_flow_error(exc: BaseException) -> Exception | None:
-    """Unwrap one level of anyio's BaseExceptionGroup (same pattern as
+def _find_oauth_flow_error(exc: BaseException, *, _depth: int = 0) -> Exception | None:
+    """Unwrap anyio's BaseExceptionGroup (same pattern as
     smoke_gondola.py's extract_travel_gateway_error) to find the mcp SDK's
     own OAuthFlowError, raised when a full re-authorization is attempted
     but no callback handler is configured -- the exact, safe outcome this
-    script's refusal-of-interactive-reauth is designed to produce."""
+    script's refusal-of-interactive-reauth is designed to produce. Bounded
+    to a shallow depth (anyio task groups nest 1-2 levels in practice) so a
+    pathologically deep or self-referential exception group can't recurse
+    unboundedly."""
     from mcp.client.auth.exceptions import OAuthFlowError
 
+    if _depth > 10:
+        return None
     if isinstance(exc, OAuthFlowError):
         return exc
     if isinstance(exc, BaseExceptionGroup):
         for sub in exc.exceptions:
-            found = _find_oauth_flow_error(sub)
+            found = _find_oauth_flow_error(sub, _depth=_depth + 1)
             if found is not None:
                 return found
     return None
@@ -136,10 +141,16 @@ async def _refresh_and_call() -> None:
     seeded_oauth_token = OAuthToken(
         access_token=stored_tokens.access_token,
         refresh_token=stored_tokens.refresh_token,
-        # Force the SDK to see this as needing a refresh check by reporting
-        # no explicit expires_in -- combined with our own expiry check below,
-        # this exercises the SDK's real refresh path whenever the token we
-        # already know is expired, without fabricating a false expiry.
+        # NOTE (G3.2.2 root cause): passing expires_in=None here does NOT
+        # make the mcp SDK attempt a refresh, despite earlier intent. The
+        # SDK's OAuthClientProvider.is_token_valid() treats an unset local
+        # token_expiry_time as valid regardless of the real token state --
+        # _initialize() loads tokens from storage but never calls
+        # update_token_expiry() on them. So a seeded token is always
+        # treated as locally valid, is sent as-is, and only a real 401 from
+        # the server (not a local expiry check) triggers any recovery path
+        # -- and that path is full re-authorization, not refresh_token. See
+        # DEVIATIONS.md's G3.2.2 section for the full diagnosis.
         expires_in=None,
         scope=stored_tokens.scope,
     )
