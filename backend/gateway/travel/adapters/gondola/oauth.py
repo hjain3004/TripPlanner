@@ -99,6 +99,39 @@ class KeychainTokenStore:
         keyring.delete_password(self.SERVICE_NAME, self._username)
 
 
+class KeychainClientInfoStore:
+    """OS-backed secure storage for OAuth Dynamic Client Registration
+    info (client_id, token endpoint, etc.) — a distinct keychain entry
+    from :class:`KeychainTokenStore`, so tokens and client registration
+    can be cleared/rotated independently. Stores an opaque JSON string;
+    callers (which already depend on the ``mcp`` SDK's
+    ``OAuthClientInformationFull``) own serialization, keeping this module
+    decoupled from that SDK type. Without this, every bootstrap re-runs
+    DCR and registers a new client — this store is what makes a later
+    token refresh possible without a fresh full re-authorization."""
+
+    SERVICE_NAME = "tripwise-gondola-mcp-client-info"
+
+    def __init__(self, username: str = "gondola-oauth-local-demo") -> None:
+        self._username = username
+
+    def load(self) -> str | None:
+        import keyring
+
+        result: str | None = keyring.get_password(self.SERVICE_NAME, self._username)
+        return result
+
+    def save(self, client_info_json: str) -> None:
+        import keyring
+
+        keyring.set_password(self.SERVICE_NAME, self._username, client_info_json)
+
+    def clear(self) -> None:
+        import keyring
+
+        keyring.delete_password(self.SERVICE_NAME, self._username)
+
+
 class AuthTransport(Protocol):
     def build_authorization_url(self, *, scope: str) -> str: ...
 

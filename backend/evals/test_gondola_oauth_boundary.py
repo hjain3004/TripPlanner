@@ -8,6 +8,7 @@ import pytest
 
 from gateway.travel.adapters.gondola.oauth import (
     InMemoryTokenStore,
+    KeychainClientInfoStore,
     KeychainTokenStore,
     OAuthClientBoundary,
     OAuthTokens,
@@ -172,6 +173,56 @@ def test_keychain_token_store_round_trips_via_keyring(monkeypatch: pytest.Monkey
 
     store.clear()
     assert store.load() is None
+
+
+def test_keychain_client_info_store_round_trips_via_keyring(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_backend: dict[tuple[str, str], str] = {}
+
+    def _fake_set(service: str, username: str, password: str) -> None:
+        fake_backend[(service, username)] = password
+
+    def _fake_get(service: str, username: str) -> str | None:
+        return fake_backend.get((service, username))
+
+    def _fake_delete(service: str, username: str) -> None:
+        fake_backend.pop((service, username), None)
+
+    monkeypatch.setattr("keyring.set_password", _fake_set)
+    monkeypatch.setattr("keyring.get_password", _fake_get)
+    monkeypatch.setattr("keyring.delete_password", _fake_delete)
+
+    store = KeychainClientInfoStore()
+    assert store.load() is None
+
+    store.save('{"client_id": "gond_mcp_abc123", "token_endpoint": "https://example.invalid"}')
+    loaded = store.load()
+    assert loaded == '{"client_id": "gond_mcp_abc123", "token_endpoint": "https://example.invalid"}'
+
+    store.clear()
+    assert store.load() is None
+
+
+def test_keychain_client_info_store_uses_a_distinct_keychain_entry_from_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_backend: dict[tuple[str, str], str] = {}
+
+    def _set(service: str, username: str, password: str) -> None:
+        fake_backend[(service, username)] = password
+
+    def _get(service: str, username: str) -> str | None:
+        return fake_backend.get((service, username))
+
+    monkeypatch.setattr("keyring.set_password", _set)
+    monkeypatch.setattr("keyring.get_password", _get)
+
+    KeychainClientInfoStore().save('{"client_id": "abc"}')
+    KeychainTokenStore().save(
+        OAuthTokens(access_token="t", refresh_token="r", expires_at=_now(), scope="mcp:read")
+    )
+    assert len(fake_backend) == 2  # two independent entries, not overwriting each other
 
 
 def test_keychain_token_store_never_stores_raw_value_in_python_source() -> None:
