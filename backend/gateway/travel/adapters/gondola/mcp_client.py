@@ -27,7 +27,11 @@ TOTAL_TIMEOUT_S = 20.0
 
 
 class LiveGondolaTransport:
-    def __init__(self, *, base_url: str, get_access_token: Callable[[], str]) -> None:
+    def __init__(self, *, base_url: str, get_access_token: Callable[[], str | None]) -> None:
+        """``get_access_token`` may return ``None`` for anonymous-only use
+        (e.g. ``tools/list`` discovery, ``search_hotels``) — no Authorization
+        header is sent in that case. Authenticated tools (``search_flights``)
+        require a callable that returns a real ``mcp:read`` token."""
         parsed = urlparse(base_url)
         if parsed.scheme != "https" or parsed.hostname != ALLOWED_HOST:
             raise TravelGatewayError(
@@ -36,6 +40,15 @@ class LiveGondolaTransport:
             )
         self._base_url = base_url
         self._get_access_token = get_access_token
+
+    def _build_http_client(self) -> Any:
+        import httpx2
+
+        token = self._get_access_token()
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        return httpx2.AsyncClient(
+            headers=headers, timeout=httpx2.Timeout(TOTAL_TIMEOUT_S, connect=CONNECT_TIMEOUT_S)
+        )
 
     def build_tool_call(
         self, tool_name: str, arguments: dict[str, Any]
@@ -56,15 +69,10 @@ class LiveGondolaTransport:
         enabled (Phase 7) — never exercised in the normal test suite."""
         name, validated_arguments = self.build_tool_call(tool_name, arguments)
 
-        import httpx2
         from mcp import ClientSession
         from mcp.client.streamable_http import streamable_http_client
 
-        token = self._get_access_token()
-        http_client = httpx2.AsyncClient(
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=httpx2.Timeout(TOTAL_TIMEOUT_S, connect=CONNECT_TIMEOUT_S),
-        )
+        http_client = self._build_http_client()
         try:
             async with streamable_http_client(self._base_url, http_client=http_client) as (
                 read_stream,
@@ -77,5 +85,31 @@ class LiveGondolaTransport:
                     self.validate_payload_size(payload_bytes)
                     payload: dict[str, Any] = json.loads(payload_bytes)
                     return payload
+        finally:
+            await http_client.aclose()
+
+    async def list_tools(self) -> list[dict[str, Any]]:
+        """Perform one real ``tools/list`` discovery call. Read-only by MCP
+        protocol definition — does not itself require ``assert_tool_allowed``
+        (that gate applies to ``tools/call``), but the caller must never use
+        the result to authorize calling anything outside ``ALLOWED_TOOLS``:
+        tool availability is information, never authorization."""
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamable_http_client
+
+        http_client = self._build_http_client()
+        try:
+            async with streamable_http_client(self._base_url, http_client=http_client) as (
+                read_stream,
+                write_stream,
+            ):
+                async with ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
+                    result = await session.list_tools()
+                    payload_bytes = json.dumps(result.model_dump()).encode("utf-8")
+                    self.validate_payload_size(payload_bytes)
+                    payload: dict[str, Any] = json.loads(payload_bytes)
+                    tools: list[dict[str, Any]] = payload.get("tools", [])
+                    return tools
         finally:
             await http_client.aclose()

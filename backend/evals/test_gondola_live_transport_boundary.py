@@ -97,3 +97,19 @@ def test_no_credentials_are_read_from_environment_by_this_module() -> None:
     source = inspect.getsource(mcp_client_module)
     assert "os.environ" not in source
     assert "getenv" not in source
+
+
+def test_constructor_accepts_no_token_for_anonymous_use() -> None:
+    # Anonymous tools (search_hotels, tools/list discovery) need no OAuth token.
+    transport = LiveGondolaTransport(
+        base_url=f"https://{ALLOWED_HOST}/mcp", get_access_token=lambda: None
+    )
+    assert transport is not None
+
+
+def test_transport_exposes_a_list_tools_method() -> None:
+    transport = LiveGondolaTransport(
+        base_url=f"https://{ALLOWED_HOST}/mcp", get_access_token=lambda: None
+    )
+    assert hasattr(transport, "list_tools")
+    assert inspect.iscoroutinefunction(transport.list_tools)
