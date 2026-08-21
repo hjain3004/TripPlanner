@@ -9,7 +9,7 @@ milestone's own instructions ("A human explicitly triggers this — it is never 
 autonomously by an agent").
 
 **Branch:** `feat/g3-gondola-readonly-mcp`, worktree `.worktrees/feat-g3-gondola-readonly-mcp`,
-branched from `main` @ `43c4191`. **15 commits**, nothing pushed, merged, or force-anything.
+branched from `main` @ `43c4191`. **16 commits** (corrected in `reports/g3_2_gondola_live_acceptance.md` §9 — this report originally said 15), nothing pushed, merged, or force-anything.
 
 ---
 
