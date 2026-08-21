@@ -3,10 +3,11 @@ normalized ``HotelQuote``/``FlightQuote`` (spec 16 §3-§5) so a future real
 schema correction touches only this file and ``normalize_hotel.py`` /
 ``normalize_flight.py``.
 
-These fixtures/contracts are synthetic or sanitized placeholders pending a
-genuine schema capture (see reports/g3_0_gondola_preflight.md §17 item 4,
-and Phase 3 of docs/superpowers/plans/2026-08-21-g3-gondola-readonly-mcp.md)
-— never treated as verified real Gondola wire format.
+This module is fully implemented; the fixtures it parses are synthetic or
+sanitized data pending a genuine schema capture (see
+reports/g3_0_gondola_preflight.md §17 item 4, and Phase 3 of
+docs/superpowers/plans/2026-08-21-g3-gondola-readonly-mcp.md) — never
+treated as verified real Gondola wire format.
 """
 
 from __future__ import annotations
