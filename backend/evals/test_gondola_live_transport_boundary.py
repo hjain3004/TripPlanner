@@ -113,3 +113,68 @@ def test_transport_exposes_a_list_tools_method() -> None:
     )
     assert hasattr(transport, "list_tools")
     assert inspect.iscoroutinefunction(transport.list_tools)
+
+
+def _transport() -> LiveGondolaTransport:
+    return LiveGondolaTransport(
+        base_url=f"https://{ALLOWED_HOST}/mcp", get_access_token=lambda: None
+    )
+
+
+def test_unwrap_prefers_structured_content_when_present() -> None:
+    from mcp.types import CallToolResult, TextContent
+
+    result = CallToolResult(
+        content=[TextContent(type="text", text='{"results": ["fallback"]}')],
+        structuredContent={"results": [{"hotel_id": "h1"}]},
+        isError=False,
+    )
+    unwrapped = _transport()._unwrap_tool_result(result)
+    assert unwrapped == {"results": [{"hotel_id": "h1"}]}
+
+
+def test_unwrap_falls_back_to_first_text_content_block_json() -> None:
+    from mcp.types import CallToolResult, TextContent
+
+    result = CallToolResult(
+        content=[TextContent(type="text", text='{"results": [{"hotel_id": "h2"}]}')],
+        structuredContent=None,
+        isError=False,
+    )
+    unwrapped = _transport()._unwrap_tool_result(result)
+    assert unwrapped == {"results": [{"hotel_id": "h2"}]}
+
+
+def test_unwrap_raises_invalid_response_when_is_error_true() -> None:
+    from mcp.types import CallToolResult, TextContent
+
+    result = CallToolResult(
+        content=[TextContent(type="text", text="rate limited")],
+        structuredContent=None,
+        isError=True,
+    )
+    with pytest.raises(TravelGatewayError) as exc_info:
+        _transport()._unwrap_tool_result(result)
+    assert exc_info.value.code == "invalid_response"
+
+
+def test_unwrap_raises_invalid_response_when_nothing_parsable() -> None:
+    from mcp.types import CallToolResult
+
+    result = CallToolResult(content=[], structuredContent=None, isError=False)
+    with pytest.raises(TravelGatewayError) as exc_info:
+        _transport()._unwrap_tool_result(result)
+    assert exc_info.value.code == "invalid_response"
+
+
+def test_unwrap_raises_invalid_response_on_malformed_text_json() -> None:
+    from mcp.types import CallToolResult, TextContent
+
+    result = CallToolResult(
+        content=[TextContent(type="text", text="not json at all")],
+        structuredContent=None,
+        isError=False,
+    )
+    with pytest.raises(TravelGatewayError) as exc_info:
+        _transport()._unwrap_tool_result(result)
+    assert exc_info.value.code == "invalid_response"

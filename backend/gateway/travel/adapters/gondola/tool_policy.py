@@ -55,6 +55,13 @@ DENIED_TOOLS: frozenset[str] = frozenset(
         "optimize_loyalty_portfolio",
         "get_loyalty_accounts",
         "get_free_night_credits",
+        # Confirmed present in live G3.2 anonymous tools/list discovery
+        # (reports/g3_2_gondola_live_acceptance.md) but never allowlisted:
+        # write-adjacent (rate alert creation is itself a denied mutation
+        # elsewhere) and a low-value discovery-suggestion tool, neither
+        # part of the reviewed G3 tool set.
+        "get_rate_alerts",
+        "get_suggested_searches",
     }
 )
 

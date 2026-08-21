@@ -81,12 +81,51 @@ class LiveGondolaTransport:
                 async with ClientSession(read_stream, write_stream) as session:
                     await session.initialize()
                     result = await session.call_tool(name, validated_arguments)
-                    payload_bytes = json.dumps(result.model_dump()).encode("utf-8")
-                    self.validate_payload_size(payload_bytes)
-                    payload: dict[str, Any] = json.loads(payload_bytes)
-                    return payload
+                    return self._unwrap_tool_result(result)
         finally:
             await http_client.aclose()
+
+    def _unwrap_tool_result(self, result: Any) -> dict[str, Any]:
+        """Unwrap the MCP ``CallToolResult`` envelope into the tool's own
+        native JSON payload. Gondola's actual response (confirmed live,
+        G3.2) is the standard MCP envelope
+        (``content``/``structured_content``/``is_error``/``result_type``),
+        not a flat tool-result dict — every ``call_tool`` caller downstream
+        (``contracts.py``, ``normalize_hotel.py``, ``normalize_flight.py``)
+        expects Gondola's native shape, so unwrapping happens here, once,
+        at the transport boundary. ``structured_content`` (the MCP-native
+        structured result) is preferred; a JSON text content block is the
+        fallback for tools that only return unstructured text content."""
+        if bool(getattr(result, "is_error", False)):
+            raise TravelGatewayError(
+                "invalid_response", "Gondola tool call returned isError=true"
+            )
+
+        structured = getattr(result, "structured_content", None)
+        if structured is not None:
+            payload_bytes = json.dumps(structured).encode("utf-8")
+            self.validate_payload_size(payload_bytes)
+            unwrapped: dict[str, Any] = json.loads(payload_bytes)
+            return unwrapped
+
+        for block in getattr(result, "content", None) or []:
+            text = getattr(block, "text", None)
+            if text is None:
+                continue
+            payload_bytes = text.encode("utf-8")
+            self.validate_payload_size(payload_bytes)
+            try:
+                unwrapped = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise TravelGatewayError(
+                    "invalid_response", f"Gondola tool result text content is not valid JSON: {exc}"
+                ) from exc
+            return unwrapped
+
+        raise TravelGatewayError(
+            "invalid_response",
+            "Gondola tool result has no structured_content and no parsable text content",
+        )
 
     async def list_tools(self) -> list[dict[str, Any]]:
         """Perform one real ``tools/list`` discovery call. Read-only by MCP
