@@ -5,10 +5,13 @@ corrected argument shape, capturing the sanitized error text if it fails
 again. NOT part of pytest/make gate. Never invoked automatically.
 
 Requires the same two gates as smoke_gondola.py. Uses a fresh
-GondolaCallBudget plan id ("g3.2.1-authenticated") for this milestone's
-authenticated calls, independent of G3.2's exhausted "g3.2-authenticated"
-budget. Never falls back to an interactive browser re-authorization if
-refresh fails -- that would silently turn a "refresh exercise" into an
+GondolaCallBudget plan id ("g3.2.1-authenticated-v2") for this milestone's
+network-reaching authenticated calls, independent of both G3.2's exhausted
+"g3.2-authenticated" budget and this script's own "g3.2.1-authenticated"
+budget (exhausted by two local-only failures -- missing client_info, then
+an OAuthClientInformationFull validation error -- neither of which reached
+the network). Never falls back to an interactive browser re-authorization
+if refresh fails -- that would silently turn a "refresh exercise" into an
 unplanned fresh authorization; instead it stops and reports the failure.
 """
 
@@ -27,6 +30,7 @@ from gateway.travel.adapters.gondola.oauth import (
     KeychainClientInfoStore,
     KeychainTokenStore,
 )
+from gateway.travel.adapters.gondola.tool_policy import assert_tool_allowed
 
 MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp"
 LIVE_SMOKE_ENV_VAR = "TRIPWISE_GONDOLA_LIVE_SMOKE"
@@ -41,7 +45,7 @@ def _sanitize(value: object) -> object:
     """Local copy of smoke_gondola.sanitize_structural_fixture -- avoids a
     fragile cross-directory sys.path import for this small, stable
     function. Recursively replaces every leaf value with a synthetic
-    synthetic value, preserving key names, structure, and list length."""
+    value, preserving key names, structure, and list length."""
     if isinstance(value, dict):
         return {k: _sanitize(v) for k, v in value.items()}
     if isinstance(value, list):
@@ -144,24 +148,31 @@ async def _refresh_and_call() -> None:
         redirect_handler=_refuse_interactive_reauth,
     )
 
-    # Corrected argument shape: the original attempt included "currency",
-    # the one field with no clear analogue in the empty/permissive
-    # inputSchema discovery returned -- removed as the primary correction,
-    # keeping the shape that discovery + normalize_flight.py already agree
-    # on (origin/destination/depart_date/adults/cabin).
-    depart_date = (datetime.now(UTC).date() + timedelta(days=90)).isoformat()
+    # Corrected argument shape, confirmed live in G3.2.1 via the provider's
+    # own error text (captured through mcp_client.py's _summarize_error):
+    # the field is "departure_date", not "depart_date", and there is no
+    # "currency" field.
+    departure_date = (datetime.now(UTC).date() + timedelta(days=90)).isoformat()
     arguments = {
         "origin": "DEL",
         "destination": "SIN",
-        "depart_date": depart_date,
+        "departure_date": departure_date,
         "adults": 1,
         "cabin": "economy",
     }
     print("=== Refresh + retry: authenticated search_flights (DEL -> SIN) ===")
     print(
-        "corrected_request_shape=origin,destination,depart_date,adults,cabin "
-        f"depart_date={depart_date}"
+        "corrected_request_shape=origin,destination,departure_date,adults,cabin "
+        f"departure_date={departure_date}"
     )
+
+    # This script builds its own ClientSession (rather than reusing
+    # LiveGondolaTransport) because it must pass an OAuthClientProvider as
+    # httpx2's `auth=` handler to exercise real token refresh --
+    # LiveGondolaTransport only ever sends a static bearer header. Calling
+    # the same static allowlist gate every other Gondola call path uses
+    # keeps that divergence from ever bypassing tool-policy enforcement.
+    assert_tool_allowed("search_flights")
 
     async with httpx2.AsyncClient(auth=provider, timeout=30.0) as client:
         async with streamable_http_client(MCP_ENDPOINT, http_client=client) as (
@@ -245,8 +256,8 @@ def main() -> int:
     require_gates(args.acknowledge)
 
     budget = GondolaCallBudget(BUDGET_DB_PATH)
-    if not budget.reserve_call("g3.2.1-authenticated"):
-        print("SAFETY VIOLATION: g3.2.1-authenticated budget exhausted", file=sys.stderr)
+    if not budget.reserve_call("g3.2.1-authenticated-v2"):
+        print("SAFETY VIOLATION: g3.2.1-authenticated-v2 budget exhausted", file=sys.stderr)
         return 1
 
     asyncio.run(_refresh_and_call())

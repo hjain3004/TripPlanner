@@ -9,9 +9,9 @@ native schema and Singapore coverage were never actually captured — a direct, 
 self-contradiction, not just a wording issue. All three were caught and corrected by the human
 reviewing this report, not self-detected. §16 records the G3.2.1 follow-up work that closed the
 hotel and flight schema gaps for real. **The numbers and status below this notice, through §15,
-are preserved as originally written (the historical record of the first pass) except where a
-`[G3.2.1 CORRECTION: ...]` inline marker updates a specific number** — see §16 for the current,
-accurate final state.
+are preserved unedited as originally written — the historical record of the first pass, including
+its errors.** All corrections (numbers, status, and framing) are consolidated in §16, not marked
+inline in §1–15 — see §16 for the current, accurate final state.
 
 **Milestone type:** Bounded, human-supervised live acceptance. **Original G3.2 status (superseded
 by §16): hotel and flight native response schemas were NOT fully captured** — hotel acceptance
@@ -354,3 +354,23 @@ milestone's call budget. This is recorded as the honest, bounded result it is �
 not full closure. A follow-up bounded call (2 anonymous, 2 authenticated) in a future session,
 now armed with correct argument shapes from the start, would very likely capture both full
 structured shapes on the first attempt.
+
+### 16.7 Code review found the persisted scripts didn't match this section — now fixed
+
+The mandatory post-milestone code review (dispatched per this project's protocol) found that
+§16.2/16.3 above described corrections that were made *ad hoc* during the live session but never
+written back into the committed scripts: `smoke_gondola.py`'s `run_anonymous_hotel_search()` still
+built requests with `city`/`check_in`/`check_out`, and `refresh_and_retry_flight.py` still used
+`depart_date` — both the exact wrong shapes this section says were fixed — and neither script's
+hardcoded budget plan id matched the `g3.2.1-anonymous`/`g3.2.1-authenticated-v2` plan ids cited
+here. A future run of either script, exactly as committed, would have silently repeated the
+mistake this milestone exists to correct.
+
+Both scripts are now updated to match this section exactly (corrected argument fields, corrected
+plan ids), and `refresh_and_retry_flight.py` gained an explicit `assert_tool_allowed("search_flights")`
+call before its hand-rolled dispatch (it cannot reuse `LiveGondolaTransport` — that class only sends
+a static bearer header, not an `OAuthClientProvider` capable of token refresh — but it should not
+lose the same fail-closed tool-policy gate every other Gondola call path gets for that reason
+alone). No new live network call was made or is needed to close this gap — it was a
+code/documentation consistency defect, not an unverified live fact. See `DEVIATIONS.md`'s G3.2.1
+section for the full record.

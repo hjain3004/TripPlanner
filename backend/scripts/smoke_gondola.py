@@ -203,17 +203,21 @@ def _hotel_search_dates() -> tuple[str, str]:
 
 
 async def run_anonymous_hotel_search() -> None:
+    """Real argument shape confirmed live in G3.2.1: ``location``/``checkin``/
+    ``checkout``, not the ``city``/``check_in``/``check_out`` G3.1's synthetic
+    fixtures assumed. Discovered via the provider's own Pydantic validation
+    error text, captured through ``_summarize_error``."""
     transport = LiveGondolaTransport(base_url=MCP_ENDPOINT, get_access_token=lambda: None)
-    check_in, check_out = _hotel_search_dates()
+    checkin, checkout = _hotel_search_dates()
     arguments = {
-        "city": "Singapore",
-        "check_in": check_in,
-        "check_out": check_out,
+        "location": "Singapore",
+        "checkin": checkin,
+        "checkout": checkout,
         "adults": 1,
         "rooms": 1,
     }
     print("=== Anonymous search_hotels ===")
-    print(f"request_shape=city,check_in,check_out,adults,rooms check_in={check_in}")
+    print(f"request_shape=location,checkin,checkout,adults,rooms checkin={checkin}")
     start = time.monotonic()
     try:
         result = await transport.call_tool("search_hotels", arguments)
@@ -349,7 +353,12 @@ def main() -> int:
     budget = GondolaCallBudget(BUDGET_DB_PATH)
 
     if args.phase in ("anon-discover", "anon-hotel-search"):
-        if not budget.reserve_call("g3.2-anonymous"):
+        # anon-discover keeps G3.2's original plan id. anon-hotel-search now
+        # runs the G3.2.1-corrected argument shape (location/checkin/checkout)
+        # and uses a distinct, fresh plan id -- G3.2's "g3.2-anonymous" budget
+        # was already partially spent on the uncorrected G3.2 attempt.
+        plan_id = "g3.2-anonymous" if args.phase == "anon-discover" else "g3.2.1-anonymous"
+        if not budget.reserve_call(plan_id):
             print("SAFETY VIOLATION: anonymous acceptance call budget exhausted", file=sys.stderr)
             return 1
         if args.phase == "anon-discover":
