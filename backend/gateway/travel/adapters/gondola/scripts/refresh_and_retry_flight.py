@@ -41,7 +41,7 @@ def _sanitize(value: object) -> object:
     """Local copy of smoke_gondola.sanitize_structural_fixture -- avoids a
     fragile cross-directory sys.path import for this small, stable
     function. Recursively replaces every leaf value with a synthetic
-    placeholder, preserving key names, structure, and list length."""
+    synthetic value, preserving key names, structure, and list length."""
     if isinstance(value, dict):
         return {k: _sanitize(v) for k, v in value.items()}
     if isinstance(value, list):
