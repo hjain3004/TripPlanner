@@ -111,6 +111,29 @@ def test_script_is_never_imported_by_core_accounts_agents_or_api() -> None:
             assert "smoke_gondola" not in content
 
 
+def test_extract_travel_gateway_error_finds_plain_error() -> None:
+    from gateway.travel.errors import TravelGatewayError
+
+    err = TravelGatewayError("invalid_response", "boom")
+    assert smoke.extract_travel_gateway_error(err) is err
+
+
+def test_extract_travel_gateway_error_unwraps_exception_group() -> None:
+    # Reproduces exactly what anyio's task group raised live (G3.2): a
+    # BaseExceptionGroup wrapping the real TravelGatewayError, which a plain
+    # `except TravelGatewayError` clause does not match.
+    from gateway.travel.errors import TravelGatewayError
+
+    inner = TravelGatewayError("invalid_response", "Gondola tool call returned isError=true")
+    group = BaseExceptionGroup("unhandled errors in a TaskGroup", [inner])
+    found = smoke.extract_travel_gateway_error(group)
+    assert found is inner
+
+
+def test_extract_travel_gateway_error_returns_none_for_unrelated_exception() -> None:
+    assert smoke.extract_travel_gateway_error(ValueError("unrelated")) is None
+
+
 def test_script_is_not_collected_by_pytest_testpaths() -> None:
     import tomllib
 

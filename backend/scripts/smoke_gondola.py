@@ -75,6 +75,21 @@ def classify_tools(names: list[str]) -> dict[str, list[str]]:
     return {"allowlisted": allowed, "denylisted": denied, "unexpected_unknown": unexpected}
 
 
+def extract_travel_gateway_error(exc: BaseException) -> TravelGatewayError | None:
+    """anyio task groups (used internally by the mcp SDK's streamable HTTP
+    transport) wrap raised exceptions in a BaseExceptionGroup, which a plain
+    ``except TravelGatewayError`` clause does not match. Walks one level of
+    grouping to find the underlying TravelGatewayError, if any."""
+    if isinstance(exc, TravelGatewayError):
+        return exc
+    if isinstance(exc, BaseExceptionGroup):
+        for sub in exc.exceptions:
+            found = extract_travel_gateway_error(sub)
+            if found is not None:
+                return found
+    return None
+
+
 def summarize_tool_schema(tool: dict[str, Any]) -> dict[str, Any]:
     """Structural-only summary of one discovered tool: name and the field
     names of its input schema. Never includes example values or free-text
@@ -139,9 +154,12 @@ async def run_anonymous_hotel_search() -> None:
     start = time.monotonic()
     try:
         result = await transport.call_tool("search_hotels", arguments)
-    except TravelGatewayError as exc:
+    except BaseException as exc:  # noqa: BLE001 - task-group-wrapped errors need broad catch
+        gateway_error = extract_travel_gateway_error(exc)
+        if gateway_error is None:
+            raise
         elapsed = time.monotonic() - start
-        print(f"status=error elapsed_s={elapsed:.2f} error_code={exc.code}")
+        print(f"status=error elapsed_s={elapsed:.2f} error_code={gateway_error.code}")
         return
     elapsed = time.monotonic() - start
 
@@ -210,9 +228,12 @@ async def run_authenticated_flight_search(access_token: str) -> None:
     start = time.monotonic()
     try:
         result = await transport.call_tool("search_flights", arguments)
-    except TravelGatewayError as exc:
+    except BaseException as exc:  # noqa: BLE001 - task-group-wrapped errors need broad catch
+        gateway_error = extract_travel_gateway_error(exc)
+        if gateway_error is None:
+            raise
         elapsed = time.monotonic() - start
-        print(f"status=error elapsed_s={elapsed:.2f} error_code={exc.code}")
+        print(f"status=error elapsed_s={elapsed:.2f} error_code={gateway_error.code}")
         print("del_sin_coverage=unknown (call failed; not evidence of no coverage)")
         return
     elapsed = time.monotonic() - start
