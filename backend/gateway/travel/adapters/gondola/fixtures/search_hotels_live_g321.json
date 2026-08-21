@@ -1,0 +1,8 @@
+{
+  "_fixture_provenance": "Schema observed from live Gondola MCP on 2026-08-21 (G3.2.1), content sanitized and synthetic. CONFIRMED search_hotels real argument shape is location/checkin/checkout/adults/rooms -- NOT city/check_in/check_out as G3.1's synthetic fixtures assumed (discovered via the tool's own Pydantic validation error message, captured through the sanitized-error-summary fix). CONFIRMED top-level response key is \"result\" (singular), not \"results\"/\"hotels\". For this specific query (Singapore, 3-night stay ~75 days out, 1 adult, 1 room) the value under \"result\" was a plain string, not a nested object/list -- most likely a natural-language no-match message, though this was not further investigated (call budget exhausted). This fixture does not capture the structured shape of a successful hotel match.",
+  "_fixture_meta": {
+    "status": "estimated",
+    "source_method": "provider_mcp"
+  },
+  "result": "SANITIZED_STRING"
+}

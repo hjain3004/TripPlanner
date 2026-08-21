@@ -30,9 +30,33 @@ from gateway.travel.adapters.gondola.oauth import (
 
 MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp"
 LIVE_SMOKE_ENV_VAR = "TRIPWISE_GONDOLA_LIVE_SMOKE"
-BUDGET_DB_PATH = Path(__file__).parent.parent.parent.parent.parent / "scripts" / (
-    ".gondola_smoke_budget.sqlite"
+BUDGET_DB_PATH = (
+    Path(__file__).parent.parent.parent.parent.parent.parent
+    / "scripts"
+    / ".gondola_smoke_budget.sqlite"
 )
+
+
+def _sanitize(value: object) -> object:
+    """Local copy of smoke_gondola.sanitize_structural_fixture -- avoids a
+    fragile cross-directory sys.path import for this small, stable
+    function. Recursively replaces every leaf value with a synthetic
+    placeholder, preserving key names, structure, and list length."""
+    if isinstance(value, dict):
+        return {k: _sanitize(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize(v) for v in value]
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, int):
+        return 12345
+    if isinstance(value, float):
+        return 1.5
+    if isinstance(value, str):
+        if value.startswith(("http://", "https://")):
+            return "https://example.invalid/sanitized-link"
+        return "SANITIZED_STRING"
+    return "SANITIZED_UNKNOWN_TYPE"
 
 
 def require_gates(acknowledged: bool) -> None:
@@ -193,6 +217,23 @@ async def _refresh_and_call() -> None:
             if isinstance(value, list):
                 print(f"result_list_key={key!r} result_count={len(value)}")
                 break
+
+        import json
+
+        sanitized = _sanitize(structured)
+        envelope: dict[str, object] = {
+            "_fixture_provenance": (
+                f"schema observed from live Gondola MCP on "
+                f"{datetime.now(UTC).date().isoformat()}; content sanitized and synthetic"
+            ),
+            "_fixture_meta": {"status": "estimated", "source_method": "provider_mcp"},
+        }
+        envelope.update(sanitized if isinstance(sanitized, dict) else {"value": sanitized})
+        fixture_path = (
+            Path(__file__).parent.parent / "fixtures" / "search_flights_live_g321.json"
+        )
+        fixture_path.write_text(json.dumps(envelope, indent=2) + "\n")
+        print(f"sanitized_fixture_written={fixture_path.name}")
 
 
 def main() -> int:

@@ -1,0 +1,5 @@
+{
+  "_fixture_provenance": "PARTIAL schema observed from live Gondola MCP on 2026-08-21 (G3.2.1): confirmed live that a successful search_flights call (origin/destination/departure_date/adults/cabin, no currency field) returns structured_content as a dict with a single top-level key \"result\" -- matching search_hotels_live_g321.json's same top-level shape. The NESTED content of \"result\" was NOT captured due to a local scripting bug in the fixture-writing step (fixed after the fact, but no further live call was authorized to re-verify -- exactly 2 authenticated calls were spent reaching this confirmed-but-incomplete state). This fixture intentionally leaves the nested \"result\" value as a documented unknown rather than fabricating a plausible-looking shape.",
+  "_fixture_meta": {"status": "estimated", "source_method": "provider_mcp"},
+  "result": "UNKNOWN_NESTED_SHAPE_NOT_CAPTURED_SEE_PROVENANCE"
+}
