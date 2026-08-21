@@ -167,6 +167,32 @@ def test_unwrap_raises_invalid_response_when_nothing_parsable() -> None:
     assert exc_info.value.code == "invalid_response"
 
 
+def test_unwrap_raises_invalid_response_when_structured_content_is_not_a_dict() -> None:
+    from mcp.types import CallToolResult, TextContent
+
+    result = CallToolResult(
+        content=[TextContent(type="text", text="[]")],
+        structuredContent=["not", "a", "dict"],
+        isError=False,
+    )
+    with pytest.raises(TravelGatewayError) as exc_info:
+        _transport()._unwrap_tool_result(result)
+    assert exc_info.value.code == "invalid_response"
+
+
+def test_unwrap_raises_invalid_response_when_text_content_parses_to_a_non_dict() -> None:
+    from mcp.types import CallToolResult, TextContent
+
+    result = CallToolResult(
+        content=[TextContent(type="text", text="[1, 2, 3]")],
+        structuredContent=None,
+        isError=False,
+    )
+    with pytest.raises(TravelGatewayError) as exc_info:
+        _transport()._unwrap_tool_result(result)
+    assert exc_info.value.code == "invalid_response"
+
+
 def test_unwrap_raises_invalid_response_on_malformed_text_json() -> None:
     from mcp.types import CallToolResult, TextContent
 

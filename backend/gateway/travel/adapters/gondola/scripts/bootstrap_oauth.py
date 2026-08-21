@@ -85,8 +85,13 @@ def pin_scope_to_read_only(authorization_url: str) -> str:
         query["scope"] = REQUIRED_SCOPE
         parsed = parsed._replace(query=urlencode(query))
         authorization_url = urlunparse(parsed)
-        query["scope"] = REQUIRED_SCOPE
-    assert "write" not in query["scope"] and "book" not in query["scope"]
+    # Defense-in-depth, not the primary guarantee (the overwrite above is):
+    # a plain `assert` is stripped under `python -O`, so this is an explicit
+    # raise rather than a security-critical assertion.
+    if "write" in query["scope"] or "book" in query["scope"]:
+        raise RuntimeError(
+            f"SAFETY VIOLATION: pinned scope {query['scope']!r} still contains write/book"
+        )
     return authorization_url
 
 

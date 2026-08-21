@@ -103,9 +103,21 @@ class LiveGondolaTransport:
 
         structured = getattr(result, "structured_content", None)
         if structured is not None:
-            payload_bytes = json.dumps(structured).encode("utf-8")
+            try:
+                payload_bytes = json.dumps(structured).encode("utf-8")
+            except TypeError as exc:
+                raise TravelGatewayError(
+                    "invalid_response",
+                    f"Gondola structured_content is not JSON-serializable: {exc}",
+                ) from exc
             self.validate_payload_size(payload_bytes)
-            unwrapped: dict[str, Any] = json.loads(payload_bytes)
+            unwrapped = json.loads(payload_bytes)
+            if not isinstance(unwrapped, dict):
+                kind = type(unwrapped).__name__
+                raise TravelGatewayError(
+                    "invalid_response",
+                    f"Gondola structured_content parsed to {kind}, not an object",
+                )
             return unwrapped
 
         for block in getattr(result, "content", None) or []:
@@ -120,6 +132,11 @@ class LiveGondolaTransport:
                 raise TravelGatewayError(
                     "invalid_response", f"Gondola tool result text content is not valid JSON: {exc}"
                 ) from exc
+            if not isinstance(unwrapped, dict):
+                raise TravelGatewayError(
+                    "invalid_response",
+                    f"Gondola tool result text parsed to {type(unwrapped).__name__}, not an object",
+                )
             return unwrapped
 
         raise TravelGatewayError(
