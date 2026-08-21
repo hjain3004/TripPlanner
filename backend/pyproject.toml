@@ -14,6 +14,8 @@ dependencies = [
     "fastapi>=0.116",
     "argon2-cffi>=23.1",
     "ortools>=9.10",
+    "mcp>=1.2",
+    "keyring>=25.0",
 ]
 
 [project.optional-dependencies]
@@ -30,7 +32,8 @@ dev = [
 # Flat-layout packages that live directly under backend/ (gate commands run from backend/).
 packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "accounts", "agents", "api", "evals",
             "gateway", "gateway.evidence", "gateway.places", "gateway.places.adapters",
-            "gateway.catalog"]
+            "gateway.catalog", "gateway.travel", "gateway.travel.adapters", "gateway.travel.fixtures",
+            "gateway.travel.adapters.gondola"]
 
 [tool.setuptools.package-data]
 "core" = ["seeds/*.yaml"]
@@ -38,6 +41,8 @@ packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "accoun
 "evals" = ["golden/*.yaml", "golden/*.txt"]
 "gateway.places" = ["fixtures/*.json"]
 "gateway.catalog" = ["fixtures/*.json", "fixtures/*.yaml", "fixtures/hostile/*"]
+"gateway.travel" = ["fixtures/*.json"]
+"gateway.travel.adapters.gondola" = ["fixtures/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["evals"]
