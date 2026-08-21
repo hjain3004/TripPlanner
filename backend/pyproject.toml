@@ -33,7 +33,7 @@ dev = [
 packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "accounts", "agents", "api", "evals",
             "gateway", "gateway.evidence", "gateway.places", "gateway.places.adapters",
             "gateway.catalog", "gateway.travel", "gateway.travel.adapters", "gateway.travel.fixtures",
-            "gateway.travel.adapters.gondola"]
+            "gateway.travel.adapters.gondola", "gateway.travel.adapters.gondola.scripts"]
 
 [tool.setuptools.package-data]
 "core" = ["seeds/*.yaml"]
