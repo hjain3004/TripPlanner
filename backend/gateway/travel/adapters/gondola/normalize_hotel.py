@@ -16,6 +16,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 from gateway.travel.adapters.gondola.contracts import GondolaHotelResult
+from gateway.travel.adapters.gondola.sanitize import sanitize_provider_text
 from gateway.travel.contracts import EvidenceMeta, HotelQuote, HotelSearchRequest
 from gateway.travel.errors import TravelGatewayError
 from gateway.travel.identity import hotel_quote_id
@@ -24,27 +25,6 @@ PROVIDER_ID = "gondola"
 TERMS_VERSION = "gondola-mcp-v1"
 ATTRIBUTION = "Gondola"
 TRUSTED_LINK_HOSTS = ("gondola.ai", "www.gondola.ai")
-
-_INJECTION_MARKERS = (
-    "ignore previous",
-    "ignore all previous",
-    "disregard all prior",
-    "disregard previous",
-    "system:",
-    "new instructions",
-    "you are now",
-    "reveal your system prompt",
-)
-_REDACTED = "[redacted: provider text contained a suspected prompt-injection marker]"
-
-
-def _sanitize(text: str | None) -> str | None:
-    if text is None:
-        return None
-    lowered = text.lower()
-    if any(marker in lowered for marker in _INJECTION_MARKERS):
-        return _REDACTED
-    return text
 
 
 def _trusted_link(url: str | None) -> str | None:
@@ -65,9 +45,12 @@ def normalize_gondola_hotel(
             f"Gondola hotel result {raw.hotel_id} has no cash rate; cannot normalize a price",
         )
 
-    sanitized_name = _sanitize(raw.name) or raw.name
-    sanitized_cancellation = _sanitize(raw.cancellation_text)
-    sanitized_notes = [n for n in (_sanitize(note) for note in raw.raw_notes) if n is not None]
+    sanitized_name = sanitize_provider_text(raw.name)
+    assert sanitized_name is not None  # raw.name is a required (min_length=1) field
+    sanitized_cancellation = sanitize_provider_text(raw.cancellation_text)
+    sanitized_notes = [
+        n for n in (sanitize_provider_text(note) for note in raw.raw_notes) if n is not None
+    ]
 
     notes = list(sanitized_notes)
     if raw.review_score is not None:

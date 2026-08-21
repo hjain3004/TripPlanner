@@ -19,9 +19,12 @@ class GondolaBudgetExhaustedError(Exception):
 
 
 class GondolaCallBudget:
-    def __init__(self, db_path: Path | str | None = None) -> None:
+    def __init__(
+        self, db_path: Path | str | None = None, *, busy_timeout_s: float = 5.0
+    ) -> None:
         self._lock = threading.Lock()
         self._db_path = ":memory:" if db_path is None else str(db_path)
+        self._busy_timeout_s = busy_timeout_s
         self._mem_conn: sqlite3.Connection | None = None
         if self._db_path == ":memory:":
             self._mem_conn = sqlite3.connect(":memory:", check_same_thread=False)
@@ -30,7 +33,9 @@ class GondolaCallBudget:
     def _conn(self) -> sqlite3.Connection:
         if self._mem_conn is not None:
             return self._mem_conn
-        return sqlite3.connect(self._db_path, check_same_thread=False)
+        return sqlite3.connect(
+            self._db_path, timeout=self._busy_timeout_s, check_same_thread=False
+        )
 
     def _close(self, conn: sqlite3.Connection) -> None:
         if self._mem_conn is None:
@@ -57,22 +62,30 @@ class GondolaCallBudget:
         with self._lock:
             conn = self._conn()
             try:
-                with conn:
-                    conn.execute("BEGIN IMMEDIATE")
-                    cur = conn.execute(
-                        "SELECT calls_used FROM gondola_call_counts WHERE plan_id = ?",
-                        (plan_id,),
-                    )
-                    row = cur.fetchone()
-                    used = row[0] if row else 0
-                    if used >= CALLS_PER_PLAN:
-                        return False
-                    conn.execute(
-                        "INSERT INTO gondola_call_counts (plan_id, calls_used) VALUES (?, 1) "
-                        "ON CONFLICT(plan_id) DO UPDATE SET calls_used = calls_used + 1",
-                        (plan_id,),
-                    )
-                    return True
+                try:
+                    with conn:
+                        conn.execute("BEGIN IMMEDIATE")
+                        cur = conn.execute(
+                            "SELECT calls_used FROM gondola_call_counts WHERE plan_id = ?",
+                            (plan_id,),
+                        )
+                        row = cur.fetchone()
+                        used = row[0] if row else 0
+                        if used >= CALLS_PER_PLAN:
+                            return False
+                        conn.execute(
+                            "INSERT INTO gondola_call_counts (plan_id, calls_used) VALUES (?, 1) "
+                            "ON CONFLICT(plan_id) DO UPDATE SET calls_used = calls_used + 1",
+                            (plan_id,),
+                        )
+                        return True
+                except sqlite3.OperationalError as exc:
+                    # Lock contention under a file-backed, multi-connection ledger
+                    # (e.g. "database is locked") must fail cleanly, not crash the
+                    # adapter with a raw sqlite exception.
+                    raise GondolaBudgetExhaustedError(
+                        f"Gondola call budget ledger contention for plan {plan_id!r}: {exc}"
+                    ) from exc
             finally:
                 self._close(conn)
 

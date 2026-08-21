@@ -17,6 +17,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 from gateway.travel.adapters.gondola.contracts import GondolaFlightResult
+from gateway.travel.adapters.gondola.sanitize import sanitize_provider_text
 from gateway.travel.contracts import EvidenceMeta, FlightQuote, FlightSearchRequest, FlightSegment
 from gateway.travel.errors import TravelGatewayError
 from gateway.travel.identity import flight_quote_id
@@ -98,7 +99,9 @@ def normalize_gondola_flight(
         attribution=ATTRIBUTION,
         completeness="taxes_uncertain",
         needs_verification=True,
-        notes=list(raw.raw_notes),
+        notes=[
+            n for n in (sanitize_provider_text(note) for note in raw.raw_notes) if n is not None
+        ],
     )
 
     return FlightQuote(

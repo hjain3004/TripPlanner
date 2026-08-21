@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 
+from gateway.travel.adapters.gondola.budget import GondolaBudgetExhaustedError
 from gateway.travel.adapters.gondola.contracts import GondolaFlightResult, GondolaHotelResult
 from gateway.travel.adapters.gondola.normalize_flight import normalize_gondola_flight
 from gateway.travel.adapters.gondola.normalize_hotel import normalize_gondola_hotel
@@ -111,7 +112,13 @@ class GondolaAdapter:
             raise TravelGatewayError(
                 "provider_unavailable", "Gondola circuit breaker is open; falling back"
             )
-        if not self._budget.reserve_call(self._plan_id):  # type: ignore[attr-defined]
+        try:
+            reserved = self._budget.reserve_call(self._plan_id)  # type: ignore[attr-defined]
+        except GondolaBudgetExhaustedError as exc:
+            # File-backed ledger lock contention surfaces as a clean, typed
+            # fail-soft signal rather than a raw sqlite3 exception.
+            raise TravelGatewayError("provider_unavailable", str(exc)) from exc
+        if not reserved:
             raise TravelGatewayError(
                 "budget_exhausted", "Gondola per-plan call budget exhausted"
             )
