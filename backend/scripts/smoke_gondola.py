@@ -248,7 +248,7 @@ async def run_anonymous_hotel_search() -> None:
     print(f"price_field_present={has_price} currency_field_present={has_currency}")
     print(f"booking_or_verification_link_present={has_link}")
 
-    fixture_path = write_sanitized_fixture("search_hotels_live_g321", result)
+    fixture_path = write_sanitized_fixture("search_hotels_live_g322", result)
     print(f"sanitized_fixture_written={fixture_path.name}")
 
 
@@ -282,20 +282,24 @@ def _flight_search_date() -> str:
 
 
 async def run_authenticated_flight_search(access_token: str) -> None:
+    """Real argument shape confirmed live in G3.2.1: ``departure_date``, not
+    ``depart_date``, and no ``currency`` field. This function does not
+    perform OAuth refresh -- if the loaded token is expired, use
+    ``gateway/travel/adapters/gondola/scripts/refresh_and_retry_flight.py``
+    instead, which refreshes before calling."""
     transport = LiveGondolaTransport(base_url=MCP_ENDPOINT, get_access_token=lambda: access_token)
-    depart_date = _flight_search_date()
+    departure_date = _flight_search_date()
     arguments = {
         "origin": "DEL",
         "destination": "SIN",
-        "depart_date": depart_date,
+        "departure_date": departure_date,
         "adults": 1,
         "cabin": "economy",
-        "currency": "INR",
     }
     print("=== Authenticated search_flights (DEL -> SIN) ===")
     print(
-        "request_shape=origin,destination,depart_date,adults,cabin,currency "
-        f"depart_date={depart_date}"
+        "request_shape=origin,destination,departure_date,adults,cabin "
+        f"departure_date={departure_date}"
     )
     start = time.monotonic()
     try:
@@ -328,7 +332,7 @@ async def run_authenticated_flight_search(access_token: str) -> None:
     has_price = any(k in first_keys for k in ("total_price_minor", "price", "total"))
     has_currency = "currency" in first_keys
     print(f"price_field_present={has_price} currency_field_present={has_currency}")
-    fixture_path = write_sanitized_fixture("search_flights_live_g321", result)
+    fixture_path = write_sanitized_fixture("search_flights_live_authsmoke", result)
     print(f"sanitized_fixture_written={fixture_path.name}")
     if result_count == 0:
         print(
@@ -353,11 +357,13 @@ def main() -> int:
     budget = GondolaCallBudget(BUDGET_DB_PATH)
 
     if args.phase in ("anon-discover", "anon-hotel-search"):
-        # anon-discover keeps G3.2's original plan id. anon-hotel-search now
-        # runs the G3.2.1-corrected argument shape (location/checkin/checkout)
-        # and uses a distinct, fresh plan id -- G3.2's "g3.2-anonymous" budget
-        # was already partially spent on the uncorrected G3.2 attempt.
-        plan_id = "g3.2-anonymous" if args.phase == "anon-discover" else "g3.2.1-anonymous"
+        # anon-discover keeps G3.2's original (now-exhausted) plan id as a
+        # historical record. anon-hotel-search's argument shape was corrected
+        # in G3.2.1 (that attempt's own plan id, "g3.2.1-anonymous", is now
+        # also exhausted at 2/2) and is re-run in G3.2.2 to capture a
+        # successful structured response, so it gets its own fresh plan id
+        # again rather than reusing an exhausted one.
+        plan_id = "g3.2-anonymous" if args.phase == "anon-discover" else "g3.2.2-anonymous"
         if not budget.reserve_call(plan_id):
             print("SAFETY VIOLATION: anonymous acceptance call budget exhausted", file=sys.stderr)
             return 1
@@ -367,7 +373,16 @@ def main() -> int:
             asyncio.run(run_anonymous_hotel_search())
         return 0
 
-    if not budget.reserve_call("g3.2-authenticated"):
+    # auth-discover keeps G3.2's original (now-exhausted) plan id as a
+    # historical record. auth-flight-search gets its own plan id, distinct
+    # from both G3.2's exhausted "g3.2-authenticated" and from
+    # refresh_and_retry_flight.py's separate OAuth-refresh-capable call path
+    # -- this function does not refresh tokens, so it can only ever run
+    # while a still-valid token is already loaded.
+    auth_plan_id = (
+        "g3.2-authenticated" if args.phase == "auth-discover" else "g3.2.2-authenticated-smoke"
+    )
+    if not budget.reserve_call(auth_plan_id):
         print("SAFETY VIOLATION: authenticated acceptance call budget exhausted", file=sys.stderr)
         return 1
 

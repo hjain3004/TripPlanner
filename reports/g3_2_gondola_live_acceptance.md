@@ -21,10 +21,18 @@ verified live, and a sanitized (if incomplete, honestly labeled) fixture exists 
 is still not wired to Gondola — that is G3.3 and was not started.
 
 **Branch:** `feat/g3-gondola-readonly-mcp`. Starting HEAD for G3.2 was `1495eee` (G3.1's final
-commit); **final HEAD after G3.2.1 is `856db97`, 28 commits from `main`** (the original G3.2 pass
-alone reached `b5f5269`, 23 commits — both numbers corrected here from the originally-reported,
-inaccurate 24). Worktree `.worktrees/feat-g3-gondola-readonly-mcp`. Nothing pushed, merged, or
-deployed.
+commit); the original G3.2 pass alone reached `b5f5269` (23 commits from `main`, corrected here
+from the originally-reported, inaccurate 24); G3.2.1's live-verification work concluded at
+`856db97` (28 commits) before its own review-driven fix commit and this document's later
+revisions moved HEAD further still.
+
+**This report does not assert a "final" commit hash.** Every hash above was already stale before
+the sentence naming it was committed — a report can never accurately freeze the HEAD of the commit
+that contains it, and each later commit (including this document's own edits) invalidates the
+previous claim again. Treat the hashes above as historical waypoints only. For the actual current
+state of this branch, run `git log --oneline main..HEAD` and `git rev-parse HEAD` — never a
+number printed in this document. Worktree `.worktrees/feat-g3-gondola-readonly-mcp`. Nothing
+pushed, merged, or deployed.
 
 ---
 
@@ -335,14 +343,17 @@ found still valid, so no refresh HTTP call occurred.** This is a genuine, honest
 outcome — the refresh *decision* path was reached and correctly determined no refresh was
 needed — not a skipped or faked check.
 
-### 16.5 Corrected final numbers
+### 16.5 Corrected numbers as of G3.2.1's conclusion (not "final" — see the Branch note above)
 
-- **Final commit:** `856db97`, **28 commits** from `main`.
-- **Final test count:** **1,078 passed, 0 failed, 0 skipped** (one additional stub-marker lint
-  false positive was found and fixed along the way — a docstring using the word "placeholder" in
-  a legitimate, non-stub context — bringing the count from 1,076 to 1,078 net of that one-line
+- **Commit at which G3.2.1's live-verification work concluded:** `856db97`, **28 commits** from
+  `main` — a waypoint, not a final state; superseded by later commits including this document's
+  own §16.7/§17 edits.
+- **Test count at that point:** **1,078 passed, 0 failed, 0 skipped** (one additional stub-marker
+  lint false positive was found and fixed along the way — a docstring using the word "placeholder"
+  in a legitimate, non-stub context — bringing the count from 1,076 to 1,078 net of that one-line
   fix).
-- `make gate` re-run clean after all G3.2.1 changes (see final response for confirmation).
+- `make gate` re-run clean after all G3.2.1 changes (see final response for confirmation). Run
+  `pytest -q` yourself for the actual current count — this document does not track it live.
 
 ### 16.6 Honest final status
 
@@ -374,3 +385,88 @@ lose the same fail-closed tool-policy gate every other Gondola call path gets fo
 alone). No new live network call was made or is needed to close this gap — it was a
 code/documentation consistency defect, not an unverified live fact. See `DEVIATIONS.md`'s G3.2.1
 section for the full record.
+
+## 17. G3.2.2 — Pre-G3.3 punch list: executable path, report finality, bounded structure capture
+
+Before wiring Gondola into `/plan`, a human reviewer required five things: (1) fix or remove the
+stale executable flight path a second reviewer pass found in `smoke_gondola.py`; (2) stop this
+report from asserting a "final" commit hash; (3) make one bounded hotel and one bounded flight call
+to capture *successful* sanitized structures (not just corrected argument shapes); (4) prove those
+structures normalize into `HotelQuote`/`FlightQuote`; (5) rerun review and the gate.
+
+### 17.1 Stale executable flight path (P1) — fixed
+
+`smoke_gondola.py`'s `run_authenticated_flight_search()` — a second, independently-executable
+authenticated flight-search code path distinct from `refresh_and_retry_flight.py` — still built
+requests with `depart_date`/`currency`, the exact wrong shape §16.7 already fixed once in a
+different file. This is the same defect class recurring in a second file the earlier review pass
+didn't check. Corrected to `departure_date` (no `currency`); given its own fresh budget plan ids
+(`g3.2.2-anonymous` for the hotel phase, `g3.2.2-authenticated-smoke` for the flight phase, since
+every prior plan id for these phases is now at the 2-call ceiling); fixture output renamed to
+`search_flights_live_authsmoke` (deliberately milestone-agnostic, since this reusable code path
+isn't tied to one milestone's capture goal) so it no longer collides with
+`refresh_and_retry_flight.py`'s own fixture file.
+
+### 17.2 Report no longer asserts a "final" commit hash — fixed
+
+The Branch section and §16.5 previously stated `856db97` as the "final HEAD" — a claim already
+false by the next commit (`1b93ba8`) and false again by this section's own commits. Both were
+rewritten to name specific commits as historical waypoints only, with an explicit statement that
+this document cannot durably assert a "final" commit (the commit containing that assertion is
+never actually the last one) and a standing instruction to run `git log`/`git rev-parse HEAD`
+instead of trusting any hash printed here. See `DEVIATIONS.md`'s G3.2.2 section for the full
+reasoning.
+
+### 17.3 Bounded hotel call — succeeded at transport level, still not structured
+
+One authorized anonymous `search_hotels` call was made (plan id `g3.2.2-anonymous`, corrected
+`location`/`checkin`/`checkout` shape, Singapore, ~75 days out, 1 adult/1 room/3 nights — the same
+query pattern as G3.2.1's call). It succeeded at the transport level, and returned the identical
+shape as G3.2.1's call: `top_level_keys=['result']`, and the value under `result` was again a
+**plain natural-language string**, not a list or object (`search_hotels_live_g322.json`). This is
+now two independent live observations of the same behavior for a generic city-level query — no
+longer a single data point. No second call was spent trying a different, more specific query (e.g.
+a named property) without new authorization, since only "one bounded hotel...call" was authorized
+this milestone.
+
+**Honest implication:** a successful, structured (list-of-hotels) `search_hotels` response has
+still not been observed live. Whether that shape exists at all for this kind of broad query, or
+only appears for more specific queries, remains genuinely unknown.
+
+### 17.4 Bounded flight call — could not reach the tool call (root-caused, not a Gondola issue)
+
+`refresh_and_retry_flight.py`'s seeded-storage approach for exercising OAuth refresh has a real
+bug independent of Gondola: it sets the seeded token's `expires_in=None` intending to force the
+`mcp` SDK to treat the token as needing a refresh check, but `OAuthClientProvider.is_token_valid()`
+treats an *unset* local `token_expiry_time` as valid regardless of the actual token — the SDK's
+`_initialize()` loads tokens from storage but never calls `update_token_expiry()` on them. The
+result: the genuinely-expired seeded token was sent as-is, Gondola correctly returned a real 401,
+and the SDK's 401-recovery path goes straight to a full interactive re-authorization (there is no
+refresh_token retry in that branch) — which the script correctly refused, printing a clean
+diagnostic instead of opening a browser (a new `_RefreshDiagnosticHandler` + `_find_oauth_flow_error`
+were added this pass specifically so this failure prints sanitized diagnostics instead of a raw,
+unhandled traceback — the state it was in before this fix). Both calls under the fresh
+`g3.2.2-authenticated` plan id were spent confirming this identical root cause; a third,
+unauthorized call was not made once the cause was understood, since it would not have produced new
+information.
+
+**Honest implication:** the `search_flights` tool itself has still never actually been called with
+the corrected argument shape and a genuinely fresh token in this codebase's own automated tooling.
+G3.2.1's earlier "succeeded" flight call used a *static*, then-still-valid access token loaded
+directly (no refresh path involved) — that result stands as recorded in §16.3/16.5. Reaching the
+tool call again now requires either directly seeding the SDK's private `token_expiry_time`
+attribute (undocumented, not part of the public `TokenStorage` protocol) or a fresh interactive
+OAuth bootstrap; neither was attempted without new, explicit authorization.
+
+### 17.5 Normalization proof (item 4) — not attempted against live data this pass
+
+Given neither live call this pass produced a genuinely new *successful, structured* response (17.3
+returned an unstructured string; 17.4 never reached the tool), there is no new live structured
+payload to prove `HotelQuote`/`FlightQuote` normalization against beyond what already existed
+before this milestone. Fabricating a synthetic "successful" structure to normalize against would
+misrepresent it as live-verified when it is not — this report does not do that. This item is left
+open pending human direction: either accept normalization proof against the pre-existing offline
+contract fixtures (`search_hotels_success.json`, `search_flights_success.json` — synthetic, not
+live-captured) as sufficient, or authorize further bounded live calls (a different, more specific
+hotel query; a fresh OAuth bootstrap or a `token_expiry_time`-seeding fix for the flight path) to
+keep pursuing a genuinely live-captured structured response.

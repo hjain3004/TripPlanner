@@ -5,19 +5,19 @@ corrected argument shape, capturing the sanitized error text if it fails
 again. NOT part of pytest/make gate. Never invoked automatically.
 
 Requires the same two gates as smoke_gondola.py. Uses a fresh
-GondolaCallBudget plan id ("g3.2.1-authenticated-v2") for this milestone's
-network-reaching authenticated calls, independent of both G3.2's exhausted
-"g3.2-authenticated" budget and this script's own "g3.2.1-authenticated"
-budget (exhausted by two local-only failures -- missing client_info, then
-an OAuthClientInformationFull validation error -- neither of which reached
-the network). Never falls back to an interactive browser re-authorization
-if refresh fails -- that would silently turn a "refresh exercise" into an
-unplanned fresh authorization; instead it stops and reports the failure.
+GondolaCallBudget plan id ("g3.2.2-authenticated") for this milestone's
+network-reaching authenticated calls, independent of every exhausted prior
+plan id ("g3.2-authenticated", "g3.2.1-authenticated",
+"g3.2.1-authenticated-v2" are all at the 2-call ceiling). Never falls back
+to an interactive browser re-authorization if refresh fails -- that would
+silently turn a "refresh exercise" into an unplanned fresh authorization;
+instead it stops and reports the failure.
 """
 
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
 from datetime import UTC, datetime, timedelta
@@ -61,6 +61,39 @@ def _sanitize(value: object) -> object:
             return "https://example.invalid/sanitized-link"
         return "SANITIZED_STRING"
     return "SANITIZED_UNKNOWN_TYPE"
+
+
+class _RefreshDiagnosticHandler(logging.Handler):
+    """Captures the mcp SDK's own token-refresh-failure log line, which is
+    just an HTTP status code (e.g. "Token refresh failed: 400") -- never a
+    token, header, or response body -- so a real refresh failure can be
+    diagnosed instead of failing silently into an unexplained fall-through
+    to a full re-authorization attempt."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.WARNING)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage()[:200])
+
+
+def _find_oauth_flow_error(exc: BaseException) -> Exception | None:
+    """Unwrap one level of anyio's BaseExceptionGroup (same pattern as
+    smoke_gondola.py's extract_travel_gateway_error) to find the mcp SDK's
+    own OAuthFlowError, raised when a full re-authorization is attempted
+    but no callback handler is configured -- the exact, safe outcome this
+    script's refusal-of-interactive-reauth is designed to produce."""
+    from mcp.client.auth.exceptions import OAuthFlowError
+
+    if isinstance(exc, OAuthFlowError):
+        return exc
+    if isinstance(exc, BaseExceptionGroup):
+        for sub in exc.exceptions:
+            found = _find_oauth_flow_error(sub)
+            if found is not None:
+                return found
+    return None
 
 
 def require_gates(acknowledged: bool) -> None:
@@ -174,14 +207,36 @@ async def _refresh_and_call() -> None:
     # keeps that divergence from ever bypassing tool-policy enforcement.
     assert_tool_allowed("search_flights")
 
-    async with httpx2.AsyncClient(auth=provider, timeout=30.0) as client:
-        async with streamable_http_client(MCP_ENDPOINT, http_client=client) as (
-            read_stream,
-            write_stream,
-        ):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-                result = await session.call_tool("search_flights", arguments)
+    diagnostic_handler = _RefreshDiagnosticHandler()
+    oauth_logger = logging.getLogger("mcp.client.auth.oauth2")
+    oauth_logger.addHandler(diagnostic_handler)
+    try:
+        async with httpx2.AsyncClient(auth=provider, timeout=30.0) as client:
+            async with streamable_http_client(MCP_ENDPOINT, http_client=client) as (
+                read_stream,
+                write_stream,
+            ):
+                async with ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
+                    result = await session.call_tool("search_flights", arguments)
+    except BaseException as exc:  # noqa: BLE001 - task-group-wrapped errors need broad catch
+        flow_error = _find_oauth_flow_error(exc)
+        if flow_error is None:
+            raise
+        print("status=error")
+        print(f"oauth_flow_error={str(flow_error)[:300]}")
+        for message in diagnostic_handler.messages:
+            print(f"oauth_refresh_diagnostic={message}")
+        print(
+            "del_sin_coverage=unknown (OAuth refresh/re-auth failed before the tool "
+            "call was reached; not evidence of no coverage)"
+        )
+        return
+    finally:
+        oauth_logger.removeHandler(diagnostic_handler)
+
+    for message in diagnostic_handler.messages:
+        print(f"oauth_refresh_diagnostic={message}")
 
     refreshed = storage.tokens is not None and storage.tokens.access_token != original_access_token
     print(f"token_refresh_occurred={refreshed}")
@@ -241,7 +296,7 @@ async def _refresh_and_call() -> None:
         }
         envelope.update(sanitized if isinstance(sanitized, dict) else {"value": sanitized})
         fixture_path = (
-            Path(__file__).parent.parent / "fixtures" / "search_flights_live_g321.json"
+            Path(__file__).parent.parent / "fixtures" / "search_flights_live_g322.json"
         )
         fixture_path.write_text(json.dumps(envelope, indent=2) + "\n")
         print(f"sanitized_fixture_written={fixture_path.name}")
@@ -256,8 +311,8 @@ def main() -> int:
     require_gates(args.acknowledge)
 
     budget = GondolaCallBudget(BUDGET_DB_PATH)
-    if not budget.reserve_call("g3.2.1-authenticated-v2"):
-        print("SAFETY VIOLATION: g3.2.1-authenticated-v2 budget exhausted", file=sys.stderr)
+    if not budget.reserve_call("g3.2.2-authenticated"):
+        print("SAFETY VIOLATION: g3.2.2-authenticated budget exhausted", file=sys.stderr)
         return 1
 
     asyncio.run(_refresh_and_call())

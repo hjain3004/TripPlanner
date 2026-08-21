@@ -1,0 +1,8 @@
+{
+  "_fixture_provenance": "schema observed from live Gondola MCP on 2026-08-21; content sanitized and synthetic",
+  "_fixture_meta": {
+    "status": "estimated",
+    "source_method": "provider_mcp"
+  },
+  "result": "SANITIZED_STRING"
+}
