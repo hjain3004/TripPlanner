@@ -31,6 +31,11 @@ from gateway.travel.protocol import AdapterCapabilities
 
 PROVIDER_ID = "gondola"
 CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3
+# Zero retries on 4xx-shaped failures (auth/validation/rate-limit/permission);
+# at most one bounded retry on a transient failure. rate_limited is treated
+# as a hard stop, not a retry target -- an unpublished rate limit is a
+# reliability concern to defend against, never permission to hammer the API.
+_RETRYABLE_CODES = frozenset({"provider_unavailable", "timeout"})
 
 HotelFetcher = Callable[[HotelSearchRequest], Awaitable[list[GondolaHotelResult]]]
 FlightFetcher = Callable[[FlightSearchRequest], Awaitable[list[GondolaFlightResult]]]
@@ -89,6 +94,14 @@ class GondolaAdapter:
     def consecutive_failures(self) -> int:
         return self._circuit_breaker.consecutive_failures
 
+    async def _call_with_bounded_retry(self, fetch: Callable[[], Awaitable[list]]) -> list:  # type: ignore[type-arg]
+        try:
+            return await fetch()
+        except TravelGatewayError as exc:
+            if exc.code not in _RETRYABLE_CODES:
+                raise
+            return await fetch()  # exactly one bounded retry, no further attempts
+
     def _guard(self) -> None:
         if not self._live_enabled:
             raise TravelGatewayError(
@@ -105,10 +118,11 @@ class GondolaAdapter:
 
     async def search_hotels(self, request: HotelSearchRequest) -> list[HotelQuote]:
         self._guard()
-        if self._fetch_hotels is None:
+        fetch_hotels = self._fetch_hotels
+        if fetch_hotels is None:
             raise TravelGatewayError("unsupported_domain", f"{PROVIDER_ID} does not fetch hotels")
         try:
-            raw_results = await self._fetch_hotels(request)
+            raw_results = await self._call_with_bounded_retry(lambda: fetch_hotels(request))
         except Exception:
             self._circuit_breaker.record_failure()
             raise
@@ -118,12 +132,13 @@ class GondolaAdapter:
 
     async def search_flights(self, request: FlightSearchRequest) -> list[FlightQuote]:
         self._guard()
-        if self._fetch_flights is None:
+        fetch_flights = self._fetch_flights
+        if fetch_flights is None:
             raise TravelGatewayError(
                 "unsupported_domain", f"{PROVIDER_ID} does not fetch flights"
             )
         try:
-            raw_results = await self._fetch_flights(request)
+            raw_results = await self._call_with_bounded_retry(lambda: fetch_flights(request))
         except Exception:
             self._circuit_breaker.record_failure()
             raise
