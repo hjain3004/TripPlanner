@@ -1,0 +1,19 @@
+{
+  "_fixture_provenance": "synthetic, not captured from a live Gondola response",
+  "_fixture_meta": {"status": "estimated", "source_method": "provider_mcp"},
+  "results": [
+    {
+      "hotel_id": "gnd-hotel-0002",
+      "name": "Sample Riverside Inn",
+      "cash_rate_minor": 14000,
+      "cash_currency": "SGD",
+      "points_rate": null,
+      "points_program": null,
+      "cancellation_text": null,
+      "review_score": null,
+      "review_count": null,
+      "booking_link": "https://www.gondola.ai/book/gnd-hotel-0002",
+      "raw_notes": ["Rate shown excludes taxes and fees — not confirmed by provider"]
+    }
+  ]
+}

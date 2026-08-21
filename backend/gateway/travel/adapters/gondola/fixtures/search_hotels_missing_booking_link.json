@@ -1,0 +1,19 @@
+{
+  "_fixture_provenance": "synthetic, not captured from a live Gondola response",
+  "_fixture_meta": {"status": "estimated", "source_method": "provider_mcp"},
+  "results": [
+    {
+      "hotel_id": "gnd-hotel-0005",
+      "name": "Sample Harbourfront Suites",
+      "cash_rate_minor": 21000,
+      "cash_currency": "SGD",
+      "points_rate": 34000,
+      "points_program": "sample_loyalty",
+      "cancellation_text": "Free cancellation until 48 hours before check-in",
+      "review_score": 4.5,
+      "review_count": 1290,
+      "booking_link": null,
+      "raw_notes": []
+    }
+  ]
+}
