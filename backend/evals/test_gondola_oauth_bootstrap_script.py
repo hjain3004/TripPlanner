@@ -65,3 +65,45 @@ def test_script_is_never_imported_by_core_accounts_agents_or_api() -> None:
         for py_file in (BACKEND / package).rglob("*.py"):
             content = py_file.read_text()
             assert "bootstrap_oauth" not in content
+
+
+def test_pin_scope_forces_a_server_escalated_scope_back_to_read_only() -> None:
+    # Reproduces exactly what was observed live against Gondola (G3.2): the
+    # mcp SDK's step-up scope selection (SEP-2350) escalated the authorization
+    # URL's scope to "mcp:read mcp:write" after the 401 challenge, even
+    # though this script only ever configures "mcp:read".
+    import gateway.travel.adapters.gondola.scripts.bootstrap_oauth as module
+
+    escalated_url = (
+        "https://www.gondola.ai/oauth/authorize?response_type=code&client_id=abc"
+        "&redirect_uri=http%3A%2F%2F127.0.0.1%3A8734%2Fgondola-oauth-callback"
+        "&state=xyz&code_challenge=chal&code_challenge_method=S256"
+        "&resource=https%3A%2F%2Fmcp.gondola.ai&scope=mcp%3Aread+mcp%3Awrite"
+    )
+    pinned = module.pin_scope_to_read_only(escalated_url)
+    assert "mcp%3Awrite" not in pinned
+    assert "write" not in pinned
+    assert "scope=mcp%3Aread" in pinned or "scope=mcp:read" in pinned
+
+
+def test_pin_scope_leaves_an_already_correct_scope_unchanged() -> None:
+    import gateway.travel.adapters.gondola.scripts.bootstrap_oauth as module
+
+    correct_url = "https://www.gondola.ai/oauth/authorize?client_id=abc&scope=mcp%3Aread"
+    pinned = module.pin_scope_to_read_only(correct_url)
+    assert pinned == correct_url
+
+
+def test_pin_scope_never_allows_book_scope_through() -> None:
+    import gateway.travel.adapters.gondola.scripts.bootstrap_oauth as module
+
+    booky_url = "https://www.gondola.ai/oauth/authorize?client_id=abc&scope=mcp%3Aread+mcp%3Abook"
+    pinned = module.pin_scope_to_read_only(booky_url)
+    assert "book" not in pinned
+
+
+def test_token_exchange_refuses_to_store_a_token_with_an_unexpected_granted_scope() -> None:
+    source = _source()
+    assert "SAFETY VIOLATION" in source
+    assert "effective_scope != REQUIRED_SCOPE" in source
+    assert "Refusing to store this token" in source

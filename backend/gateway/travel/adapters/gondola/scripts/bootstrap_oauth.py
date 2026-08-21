@@ -23,7 +23,7 @@ import threading
 import webbrowser
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse
 
 from gateway.travel.adapters.gondola.mcp_client import ALLOWED_HOST
 from gateway.travel.adapters.gondola.oauth import REQUIRED_SCOPE, KeychainTokenStore, OAuthTokens
@@ -67,6 +67,29 @@ def _make_handler(result: _CallbackResult) -> type[BaseHTTPRequestHandler]:
     return Handler
 
 
+def pin_scope_to_read_only(authorization_url: str) -> str:
+    """The mcp SDK implements spec-compliant "step-up" scope selection
+    (SEP-2350): after a 401 challenge, it adopts whatever scope the resource
+    server's WWW-Authenticate header or protected-resource metadata
+    declares, overriding the scope this script originally configured.
+    Confirmed live against Gondola (G3.2): the server's challenge caused the
+    SDK to request "mcp:read mcp:write" even though only "mcp:read" was
+    ever configured here. This function is the absolute, non-negotiable
+    backstop — it runs on the URL right before a human ever sees or visits
+    it, so it force-pins the scope query parameter back to exactly
+    REQUIRED_SCOPE regardless of what the server's challenge asked for.
+    mcp:write and mcp:book are never requested under any circumstance."""
+    parsed = urlparse(authorization_url)
+    query = dict(parse_qsl(parsed.query))
+    if query.get("scope") != REQUIRED_SCOPE:
+        query["scope"] = REQUIRED_SCOPE
+        parsed = parsed._replace(query=urlencode(query))
+        authorization_url = urlunparse(parsed)
+        query["scope"] = REQUIRED_SCOPE
+    assert "write" not in query["scope"] and "book" not in query["scope"]
+    return authorization_url
+
+
 async def _exchange_via_real_mcp_sdk() -> OAuthTokens:
     """Runs the interactive PKCE/DCR/discovery flow via the official mcp
     SDK's OAuthClientProvider, with our own loopback server supplying the
@@ -100,6 +123,7 @@ async def _exchange_via_real_mcp_sdk() -> OAuthTokens:
             self.client_info = client_info
 
     async def _redirect_handler(authorization_url: str) -> None:
+        authorization_url = pin_scope_to_read_only(authorization_url)
         print("Opening your browser to Gondola's sign-in page...")
         print(f"If it doesn't open automatically, visit:\n  {authorization_url}")
         webbrowser.open(authorization_url)
@@ -127,6 +151,7 @@ async def _exchange_via_real_mcp_sdk() -> OAuthTokens:
             grant_types=["authorization_code", "refresh_token"],
             response_types=["code"],
             token_endpoint_auth_method="none",
+            client_name="TripPlanner (student project, read-only)",
         ),
         storage=storage,  # type: ignore[arg-type]
         redirect_handler=_redirect_handler,
@@ -134,16 +159,58 @@ async def _exchange_via_real_mcp_sdk() -> OAuthTokens:
     )
 
     try:
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamable_http_client
+
         async with httpx2.AsyncClient(auth=provider, timeout=30.0) as client:
-            # A lightweight request triggers the SDK's internal
-            # 401 -> discovery -> DCR -> PKCE(redirect_handler/callback_handler)
-            # -> token-exchange flow.
-            await client.get(MCP_ENDPOINT)
+            # Neither a bare GET nor session.initialize() triggers Gondola's
+            # 401 challenge (both succeed anonymously -- confirmed live: the
+            # anonymous tools/list and search_hotels smoke calls both
+            # succeeded with no auth). Only an actually sign-in-gated
+            # operation does. search_flights is both the one tool this
+            # milestone needs mcp:read for and the natural trigger: the SDK's
+            # OAuthClientProvider intercepts the resulting 401, runs the
+            # PKCE/DCR flow via redirect_handler/callback_handler, and
+            # automatically retries the original request with the new
+            # token. This call's own result is discarded here (bootstrap's
+            # job is only to obtain and store tokens); Phase 6's dedicated,
+            # budget-tracked authenticated search_flights call happens
+            # separately via scripts/smoke_gondola.py.
+            async with streamable_http_client(MCP_ENDPOINT, http_client=client) as (
+                read_stream,
+                write_stream,
+            ):
+                async with ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
+                    await session.call_tool(
+                        "search_flights",
+                        {
+                            "origin": "DEL",
+                            "destination": "SIN",
+                            "adults": 1,
+                        },
+                    )
     finally:
         server.shutdown()
 
     if storage.tokens is None:
         raise RuntimeError("Gondola OAuth exchange did not produce tokens")
+
+    # Absolute backstop: RFC 6749 §5.1 says a token response that omits
+    # `scope` implies the granted scope equals what the client *requested*
+    # -- and the SDK's internal client_metadata.scope was overridden to
+    # "mcp:read mcp:write" by its step-up scope-selection logic (see
+    # _pin_scope_to_read_only above), independent of what the human's
+    # browser actually visited. Never silently narrow an unexpected grant:
+    # if the recorded scope is anything other than exactly REQUIRED_SCOPE,
+    # refuse to store the token at all and stop.
+    granted_scope = getattr(storage.tokens, "scope", None)
+    effective_scope = granted_scope if granted_scope else REQUIRED_SCOPE
+    if effective_scope != REQUIRED_SCOPE:
+        raise RuntimeError(
+            f"SAFETY VIOLATION: Gondola granted scope {effective_scope!r}, not exactly "
+            f"{REQUIRED_SCOPE!r}. Refusing to store this token. No token was persisted."
+        )
 
     retrieved_at = datetime.now(UTC)
     expires_in = getattr(storage.tokens, "expires_in", None)
@@ -152,7 +219,7 @@ async def _exchange_via_real_mcp_sdk() -> OAuthTokens:
         access_token=storage.tokens.access_token,  # type: ignore[attr-defined]
         refresh_token=getattr(storage.tokens, "refresh_token", None),
         expires_at=expires_at,
-        scope=getattr(storage.tokens, "scope", REQUIRED_SCOPE) or REQUIRED_SCOPE,
+        scope=effective_scope,
     )
 
 
