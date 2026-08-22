@@ -28,7 +28,7 @@ import re
 from pathlib import Path
 
 BACKEND = Path(__file__).parent.parent
-PRODUCTION_PACKAGES = ("core", "agents", "api", "gateway")
+PRODUCTION_PACKAGES = ("core", "accounts", "planning", "agents", "api", "gateway")
 
 # Phrases that mean "this is not really implemented". Matched case-insensitively
 # against source text. Deliberately prose-level: a stub announces itself in a
@@ -110,3 +110,24 @@ def test_the_known_gap_list_is_not_a_dumping_ground() -> None:
     always to implement the thing, not to raise the number.
     """
     assert len(KNOWN_GAPS) <= 1, f"known-gap list grew to {len(KNOWN_GAPS)}: {sorted(KNOWN_GAPS)}"
+
+
+def test_planning_is_in_packaging_and_gates() -> None:
+    """Planning package is included in setuptools, mypy, and ruff gate scopes."""
+    # Check pyproject.toml packages list
+    pyproject_path = BACKEND / "pyproject.toml"
+    pyproject_text = pyproject_path.read_text(encoding="utf-8")
+    msg = "planning not found in backend/pyproject.toml packages list"
+    assert "planning" in pyproject_text, msg
+
+    # Check Makefile mypy --strict command
+    makefile_path = BACKEND.parent / "Makefile"
+    makefile_text = makefile_path.read_text(encoding="utf-8")
+
+    # The gate target should include planning in mypy --strict
+    mypy_cmd = ".venv/bin/mypy --strict core/ accounts/ planning/ agents/ api/ gateway/"
+    assert mypy_cmd in makefile_text, "planning not in mypy --strict scope in Makefile gate"
+
+    # The gate target should include planning in ruff check (zero-tolerance)
+    ruff_cmd = ".venv/bin/ruff check accounts/ planning/ agents/ gateway/ evals/"
+    assert ruff_cmd in makefile_text, "planning not in ruff check scope in Makefile gate"
