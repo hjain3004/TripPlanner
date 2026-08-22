@@ -1,6 +1,8 @@
 # CP1 — Conversational Domain
 
-**Milestone status:** complete (backend domain only — see "Explicit limitations" below)
+**Milestone status:** backend domain implementation complete (backend domain only — see
+"Explicit limitations" below); milestone-level review and final clean-tree `make gate`
+confirmation pending, to be run by the orchestrating process after this report
 **Branch:** `feat/cp1-conversational-domain`
 **Base:** `main` @ `43c4191` (`git merge-base HEAD main` resolves to `43c419198ee596ae5164c9328fffc3c0bbce6d8f`, the same commit as `main`'s tip at merge-base time — this branch has not diverged from `main` other than by being ahead of it)
 **Authoritative design:** `docs/superpowers/plans/2026-08-21-cp1-conversational-domain.md`
