@@ -28,7 +28,7 @@ import re
 from pathlib import Path
 
 BACKEND = Path(__file__).parent.parent
-PRODUCTION_PACKAGES = ("core", "accounts", "planning", "agents", "api", "gateway")
+PRODUCTION_PACKAGES = ("core", "planning", "agents", "api", "gateway")
 
 # Phrases that mean "this is not really implemented". Matched case-insensitively
 # against source text. Deliberately prose-level: a stub announces itself in a
