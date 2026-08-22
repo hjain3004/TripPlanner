@@ -51,6 +51,24 @@ class PlanningSessionRepository:
     def save(
         self, session: PlanningSession, *, expected_version: int
     ) -> PlanningSession:
+        """Persist ``session`` via compare-and-swap, tolerating idempotent replay.
+
+        ``planning.policy.record_answer`` is idempotent on
+        ``client_event_id``: replaying an already-processed event returns the
+        identical, unchanged session (same version) rather than bumping it.
+        ``AccountStore.put_planning_session_snapshot`` hard-requires
+        ``snapshot.version == expected_version + 1`` for every write, so a
+        caller that naively saves that unchanged session at its own current
+        version (``session.version == expected_version``, since nothing
+        changed) would hit that precondition and fail before ever reaching
+        the database. There is nothing to persist in that case -- the
+        session is already exactly what the store has -- so this is a no-op
+        that returns ``session`` as-is. Only an actual state change
+        (``session.version == expected_version + 1``) reaches the store's
+        real compare-and-swap update.
+        """
+        if session.version == expected_version:
+            return session
         self._store.put_planning_session_snapshot(
             _to_snapshot(session), expected_version=expected_version
         )

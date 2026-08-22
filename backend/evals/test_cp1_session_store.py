@@ -9,8 +9,9 @@ expiry (a session attached to a saved trip is retained forever).
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from typing import get_args
 
 import pytest
 from pydantic import ValidationError
@@ -22,11 +23,13 @@ from accounts.store import (
     StalePlanningSessionError,
 )
 from core.models import UserWallet
+from planning.answers import InterviewAnswer, QuestionId, TripEssentialsPayload
 from planning.contracts import (
     PlanningSession,
     PlanningSessionStatus,
     TravelerHomeContext,
 )
+from planning.policy import record_answer, start_interview
 from planning.repository import PlanningSessionRepository
 
 NOW = datetime(2026, 8, 21, 12, 0, tzinfo=UTC)
@@ -308,3 +311,110 @@ def test_delete_user_removes_planning_sessions(tmp_path: Path) -> None:
     store.delete_user("u1")
 
     assert repository.get(user_id="u1", session_id="ps1") is None
+
+
+# --------------------------------------------------------------------------- #
+# Idempotent-replay / compare-and-swap composition (final-review finding 2)     #
+# --------------------------------------------------------------------------- #
+
+
+def _trip_essentials_answer(*, event_id: str) -> InterviewAnswer:
+    return InterviewAnswer(
+        question_id=QuestionId.TRIP_ESSENTIALS,
+        payload=TripEssentialsPayload(
+            origin="DEL",
+            destination="SIN",
+            start_date=date(2026, 10, 1),
+            end_date=date(2026, 10, 5),
+            travelers=2,
+        ),
+        client_event_id=event_id,
+        answered_at=NOW,
+    )
+
+
+def test_save_after_replaying_an_idempotent_record_answer_does_not_raise(
+    tmp_path: Path,
+) -> None:
+    """The natural caller sequence -- record an answer, save it, then
+    legitimately resubmit the same ``client_event_id`` and save again --
+    must not raise.
+
+    ``policy.record_answer`` is deliberately idempotent on
+    ``client_event_id``: a replayed event returns the identical, unchanged
+    session (same version) *before* its own version check even runs. The
+    store's compare-and-swap (``AccountStore.put_planning_session_snapshot``,
+    reached through ``PlanningSessionRepository.save``) hard-requires
+    ``snapshot.version == expected_version + 1`` for every write. Composing
+    the two naively -- calling ``repository.save`` with the *same*
+    ``expected_version`` that was just (correctly) passed to the replayed
+    ``record_answer`` call, i.e. the session's own current version, since
+    nothing changed -- broke before the fix: the store's pre-check saw
+    ``session.version == expected_version`` (not ``expected_version + 1``)
+    and raised a bare, untyped ``ValueError`` before ever reaching the
+    database. The fix makes the repository recognize the no-change case and
+    skip the write entirely, returning the already-current session.
+    """
+    store = _user_store(tmp_path)
+    repository = PlanningSessionRepository(store)
+    session0 = start_interview(
+        user_id="u1",
+        session_id="ps1",
+        home=TravelerHomeContext(
+            home_country="IN", home_currency="INR", default_origin="DEL"
+        ),
+        wallet=UserWallet(card_ids=["hdfc-infinia"]),
+        profile_defaults=None,
+        now=NOW,
+        expires_at=NOW + timedelta(days=30),
+    )
+    repository.create(session0)
+
+    answer = _trip_essentials_answer(event_id="evt-1")
+
+    session1 = record_answer(session0, answer, expected_version=0, now=NOW)
+    assert session1.version == 1
+    saved = repository.save(session1, expected_version=0)
+    assert saved.version == 1
+
+    # A legitimate resubmission of the exact same answer/event, made at the
+    # session's real current version (1). Because `client_event_id` is
+    # already in `processed_event_ids`, `record_answer` takes the
+    # idempotency short-circuit and returns `saved` unchanged rather than
+    # raising `StaleSessionVersionError`.
+    replayed = record_answer(saved, answer, expected_version=1, now=NOW)
+    assert replayed == saved
+    assert replayed.version == 1
+
+    # The caller's natural next step: save at the version the (unchanged)
+    # session now reports. This must succeed as a no-op, not raise.
+    result = repository.save(replayed, expected_version=1)
+
+    assert result.version == 1
+    persisted = repository.get(user_id="u1", session_id="ps1")
+    assert persisted is not None
+    assert persisted.version == 1
+    assert persisted == saved
+
+
+# --------------------------------------------------------------------------- #
+# Status enum / Literal parity lock (final-review finding 3)                    #
+# --------------------------------------------------------------------------- #
+
+
+def test_planning_session_status_enum_and_snapshot_literal_stay_in_sync() -> None:
+    """``accounts/`` cannot import ``planning/`` (package-boundary rule), so
+    ``PlanningSessionSnapshot.status``'s ``Literal[...]`` is a hand-duplicated
+    copy of ``planning.contracts.PlanningSessionStatus``. This cross-package
+    test is the only possible lock between the two: if a future change adds,
+    removes, or renames a status on one side without updating the other,
+    persistence would otherwise break at runtime (a `pydantic.ValidationError`
+    out of `PlanningSessionSnapshot` when `planning/repository.py` passes
+    `session.status.value` through) with nothing catching it beforehand.
+    """
+    enum_values = {member.value for member in PlanningSessionStatus}
+
+    status_field = PlanningSessionSnapshot.model_fields["status"]
+    literal_values = set(get_args(status_field.annotation))
+
+    assert enum_values == literal_values

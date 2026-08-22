@@ -215,8 +215,11 @@ in `planning/` performs the actual write.
   `expires_at` unless `saved_trip_id` is set. Proven by
   `evals/test_cp1_session_store.py:260`
   (`test_delete_expired_removes_an_abandoned_session_past_its_expiry`) and `:273`
-  (`test_delete_expired_retains_a_session_attached_to_a_saved_trip`). The 30-day retention
-  window itself is `planning.policy.SESSION_RETENTION = timedelta(days=30)`.
+  (`test_delete_expired_retains_a_session_attached_to_a_saved_trip`). `expires_at` itself is
+  a required, caller-injected parameter of `start_interview` — CP1 has no caller that
+  derives it from `planning.policy.SESSION_RETENTION = timedelta(days=30)`; that constant
+  is defined for a future caller to use, and the 30-day window seen in tests is a fixture
+  convention, not enforced behavior.
 - **Export/deletion:** `AccountStore.export_user` includes both `travel_preferences` and
   `planning_sessions`; `delete_user` deletes both `TravelPreferenceRow` and
   `PlanningSessionRow` for the user. Proven by
