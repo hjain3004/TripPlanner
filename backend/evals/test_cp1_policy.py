@@ -20,7 +20,6 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from pydantic import ValidationError
 
 from accounts.models import TravelPreferenceProfile
 from core.models import UserWallet
@@ -319,6 +318,86 @@ def test_record_answer_rejects_a_non_interviewing_session() -> None:
             expected_version=session.version,
             now=NOW,
         )
+
+
+def test_recording_an_answer_bumps_version_and_uses_the_injected_timestamp() -> None:
+    session = _start()
+    later = NOW + timedelta(minutes=5)
+
+    result = record_answer(
+        session,
+        _answer(QuestionId.TRIP_ESSENTIALS, _essentials(), event_id="evt-1"),
+        expected_version=0,
+        now=later,
+    )
+
+    assert result.version == session.version + 1 == 1
+    assert result.updated_at == later
+    assert result.created_at == session.created_at  # never rewritten by a mutation
+
+
+def test_a_stale_expected_version_fails_on_the_second_call_of_a_two_call_sequence() -> None:
+    # Proves the first call's version bump actually took effect: if `_bump`
+    # silently failed to increment `version`, this second call would
+    # incorrectly succeed with the same `expected_version=0`.
+    session = _start()
+    first = record_answer(
+        session,
+        _answer(QuestionId.TRIP_ESSENTIALS, _essentials(), event_id="evt-1"),
+        expected_version=0,
+        now=NOW,
+    )
+    assert first.version == 1
+
+    with pytest.raises(StaleSessionVersionError):
+        record_answer(
+            first,
+            _answer(QuestionId.PURPOSE_AND_PARTY, _purpose(), event_id="evt-2"),
+            expected_version=0,
+            now=NOW,
+        )
+
+
+def test_record_answer_does_not_mutate_the_input_session_or_alias_its_lists() -> None:
+    session = _answer_core(_start(), purpose=_purpose(purpose="celebration"))
+    session = record_assistant_suggestions(
+        session,
+        [QuestionId.CELEBRATION_DETAILS],
+        assistance_status="complete",
+        llm_calls=1,
+        expected_version=session.version,
+        now=NOW,
+    )
+    assert session.suggested_question_ids == [QuestionId.CELEBRATION_DETAILS]
+    original_version = session.version
+    original_answers = dict(session.answers)
+    original_status = session.status
+    original_suggested = session.suggested_question_ids
+
+    result = record_answer(
+        session,
+        _answer(
+            QuestionId.CELEBRATION_DETAILS,
+            AdaptiveDetailPayload(detail="milestone"),
+            event_id="evt-adaptive",
+        ),
+        expected_version=session.version,
+        now=NOW,
+    )
+
+    # The input session object itself is untouched by the call.
+    assert session.version == original_version
+    assert session.answers == original_answers
+    assert session.status == original_status
+    assert session.suggested_question_ids is original_suggested
+    assert session.suggested_question_ids == [QuestionId.CELEBRATION_DETAILS]
+
+    # The result is a genuinely new object graph, not an alias of the input's
+    # mutable list -- this is only true because `_bump` round-trips through
+    # `model_copy -> model_dump -> model_validate` rather than a cheaper
+    # `model_copy` alone, which would share the same list object.
+    assert result.suggested_question_ids is not session.suggested_question_ids
+    assert result is not session
 
 
 # --------------------------------------------------------------------------- #
@@ -649,25 +728,44 @@ def test_assistant_suggestions_reject_a_duplicate_question_id() -> None:
 
 
 def test_assistant_suggestions_reject_an_already_answered_question_id() -> None:
-    # Force celebration_details into the answered set by walking one full round.
+    """Exercises the ``question_id in session.answers`` guard in
+    ``record_assistant_suggestions`` directly (``policy.py``'s
+    already-answered check).
+
+    That guard is structurally unreachable through the normal public-API
+    flow: ``awaiting_assistant`` is only ever entered with exactly the 8 core
+    answers present (``_advance_after_answer``'s core branch), so no adaptive
+    question id can already be in ``session.answers`` at that point. This
+    test hand-builds a session that violates that invariant -- an adaptive
+    answer already present while the session is still ``awaiting_assistant``
+    -- to prove the guard actually rejects it if it were ever reached. This
+    is deliberate defense-in-depth coverage for a state the public API
+    cannot produce today, not a reachable-through-the-API regression test.
+    """
     session = _answer_core(_start(), purpose=_purpose(purpose="celebration"))
-    session = record_assistant_suggestions(
-        session,
-        [QuestionId.CELEBRATION_DETAILS],
-        assistance_status="complete",
-        llm_calls=1,
-        expected_version=session.version,
-        now=NOW,
+    assert session.status == PlanningSessionStatus.AWAITING_ASSISTANT
+
+    preexisting_answer = _answer(
+        QuestionId.CELEBRATION_DETAILS,
+        AdaptiveDetailPayload(detail="already answered"),
+        event_id="evt-preexisting",
     )
-    question = next_question(session)
-    assert question is not None
-    session = record_answer(
-        session,
-        _answer(question.id, AdaptiveDetailPayload(detail="milestone"), event_id="evt-adaptive"),
-        expected_version=session.version,
-        now=NOW,
+    tampered = session.model_copy(
+        update={
+            "answers": {**session.answers, QuestionId.CELEBRATION_DETAILS: preexisting_answer},
+            "processed_event_ids": [*session.processed_event_ids, "evt-preexisting"],
+        }
     )
-    assert session.status == PlanningSessionStatus.REVIEWING
+
+    with pytest.raises(InvalidAssistantSuggestionError):
+        record_assistant_suggestions(
+            tampered,
+            [QuestionId.CELEBRATION_DETAILS],
+            assistance_status="complete",
+            llm_calls=1,
+            expected_version=tampered.version,
+            now=NOW,
+        )
 
 
 def test_assistant_suggestions_require_awaiting_assistant_status() -> None:
@@ -728,15 +826,32 @@ def test_degraded_assistance_status_accepts_zero_llm_calls() -> None:
     assert result.interview_llm_calls == 0
 
 
-def test_llm_call_ceiling_is_enforced_by_the_session_field_constraint() -> None:
+def test_llm_call_ceiling_is_enforced_as_a_planning_policy_error() -> None:
+    # The module's own error taxonomy is the rejection boundary: a caller
+    # catching PlanningPolicyError must never see a raw pydantic.ValidationError
+    # escape from the mandated _bump round-trip instead.
     session = _answer_core(_start())
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(PlanningPolicyError):
         record_assistant_suggestions(
             session,
             [],
             assistance_status="complete",
             llm_calls=3,
+            expected_version=session.version,
+            now=NOW,
+        )
+
+
+def test_negative_llm_calls_is_also_rejected_as_a_planning_policy_error() -> None:
+    session = _answer_core(_start())
+
+    with pytest.raises(PlanningPolicyError):
+        record_assistant_suggestions(
+            session,
+            [],
+            assistance_status="degraded",
+            llm_calls=-1,
             expected_version=session.version,
             now=NOW,
         )

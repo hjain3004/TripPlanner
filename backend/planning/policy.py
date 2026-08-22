@@ -342,6 +342,16 @@ def record_assistant_suggestions(
             "record_assistant_suggestions is only valid while awaiting_assistant "
             f"(session is {session.status.value})"
         )
+    if not 0 <= llm_calls <= 2:
+        # Keeps this module's own error taxonomy as the rejection boundary
+        # for out-of-range input. `PlanningSession.interview_llm_calls` also
+        # carries `Field(..., ge=0, le=2)` and the mandated `_bump` round-trip
+        # below re-validates it as a backstop -- this pre-check just ensures a
+        # caller catching `PlanningPolicyError` never sees a raw
+        # `pydantic.ValidationError` escape instead.
+        raise PlanningPolicyError(
+            f"llm_calls={llm_calls} must respect the 0-2 call ceiling"
+        )
     if assistance_status == "complete" and llm_calls < 1:
         raise PlanningPolicyError(
             "a complete assistance result requires at least one llm_call"
@@ -359,6 +369,13 @@ def record_assistant_suggestions(
                 f"{question_id.value} was suggested more than once"
             )
         seen.add(question_id)
+        # Defense-in-depth: through the public API, `awaiting_assistant` is
+        # only ever entered with exactly the 8 core answers present
+        # (`_advance_after_answer`'s core branch), so no adaptive id can
+        # already be in `session.answers` here in normal flow. Kept anyway in
+        # case a future caller hand-constructs or replays a tampered session;
+        # exercised directly by
+        # `test_assistant_suggestions_reject_an_already_answered_question_id`.
         if question_id in session.answers:
             raise InvalidAssistantSuggestionError(
                 f"{question_id.value} has already been answered"
