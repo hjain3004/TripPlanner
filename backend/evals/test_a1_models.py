@@ -8,7 +8,15 @@ from pydantic import ValidationError
 from accounts.models import (
     ACCOUNTS_SCHEMA_VERSION,
     FORBIDDEN_FIELD_NAMES,
+    ConstraintPreferences,
+    ExperiencePreferences,
+    FlightPreferences,
+    OptimizationPreferences,
+    PreferenceValue,
+    RhythmPreferences,
     SavedTrip,
+    StayPreferences,
+    TravelPreferenceProfile,
     TripRevision,
     User,
     UserProfile,
@@ -36,7 +44,21 @@ def test_user_rejects_unknown_fields() -> None:
 
 
 def test_no_account_model_declares_a_forbidden_field() -> None:
-    for model in (User, UserProfile, WalletEntry, SavedTrip, TripRevision):
+    for model in (
+        User,
+        UserProfile,
+        WalletEntry,
+        SavedTrip,
+        TripRevision,
+        PreferenceValue,
+        FlightPreferences,
+        StayPreferences,
+        RhythmPreferences,
+        ExperiencePreferences,
+        ConstraintPreferences,
+        OptimizationPreferences,
+        TravelPreferenceProfile,
+    ):
         for field_name in model.model_fields:
             assert field_name.lower() not in FORBIDDEN_FIELD_NAMES, (
                 f"{model.__name__}.{field_name} is a payment-instrument secret "

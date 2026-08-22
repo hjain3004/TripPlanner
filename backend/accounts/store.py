@@ -25,6 +25,7 @@ from accounts.db import (
     ACCOUNTS_DB_PATH,
     SavedTripRow,
     SessionRow,
+    TravelPreferenceRow,
     TripRevisionRow,
     UserCredentialRow,
     UserProfileRow,
@@ -34,6 +35,7 @@ from accounts.db import (
 )
 from accounts.models import (
     SavedTrip,
+    TravelPreferenceProfile,
     TripRevision,
     User,
     UserCredential,
@@ -136,6 +138,40 @@ class AccountStore:
             row = session.get(UserProfileRow, user_id)
             return (
                 None if row is None else UserProfile.model_validate_json(row.payload)
+            )
+
+    # -- travel preferences (consent-based, CP1) ----------------------------- #
+
+    def put_travel_preferences(
+        self, preferences: TravelPreferenceProfile
+    ) -> TravelPreferenceProfile:
+        """Insert or replace the single travel-preferences row for a user.
+
+        Callers submit a fully validated replacement profile — this store
+        never merges partial updates itself.
+        """
+        with Session(self._engine) as session:
+            self._require_user(session, preferences.user_id)
+            row = session.get(TravelPreferenceRow, preferences.user_id)
+            if row is None:
+                session.add(
+                    TravelPreferenceRow(
+                        user_id=preferences.user_id,
+                        payload=preferences.model_dump_json(),
+                    )
+                )
+            else:
+                row.payload = preferences.model_dump_json()
+            session.commit()
+        return preferences
+
+    def get_travel_preferences(self, user_id: str) -> TravelPreferenceProfile | None:
+        with Session(self._engine) as session:
+            row = session.get(TravelPreferenceRow, user_id)
+            return (
+                None
+                if row is None
+                else TravelPreferenceProfile.model_validate_json(row.payload)
             )
 
     # -- wallet ------------------------------------------------------------- #
@@ -334,6 +370,7 @@ class AccountStore:
             wallet_entries=self.wallet_entries(user_id),
             trips=trips,
             revisions=revisions,
+            travel_preferences=self.get_travel_preferences(user_id),
             exported_at=now,
         )
 
@@ -353,6 +390,11 @@ class AccountStore:
             )
             session.execute(
                 delete(UserProfileRow).where(UserProfileRow.user_id == user_id)
+            )
+            session.execute(
+                delete(TravelPreferenceRow).where(
+                    TravelPreferenceRow.user_id == user_id
+                )
             )
             session.execute(delete(SessionRow).where(SessionRow.user_id == user_id))
             session.execute(
