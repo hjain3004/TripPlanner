@@ -17,6 +17,8 @@ ACCOUNTS_TABLES = {
     "trip_revisions",
     "user_credentials",
     "sessions",
+    "travel_preferences",
+    "planning_sessions",
 }
 
 
