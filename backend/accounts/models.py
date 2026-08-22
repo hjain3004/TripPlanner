@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -113,6 +113,162 @@ class UserProfile(AccountModel):
         if len(normalized) != 3 or not normalized.isalpha():
             raise ValueError("origin_city must be a 3-letter IATA code")
         return normalized
+
+
+# --------------------------------------------------------------------------- #
+# 1b. Travel preferences — consent-based, typed, provenance-carrying (CP1)      #
+# --------------------------------------------------------------------------- #
+
+# The closed set of *human-consent* provenance for a remembered preference.
+# There is deliberately no "llm_inferred" member: a model's guess about what
+# the user wants is never durable state on its own — only an explicit profile
+# edit or an in-trip confirmation earns a place here.
+PreferenceSource = Literal["user_profile_edit", "user_confirmed_from_trip"]
+T = TypeVar("T")
+
+
+class PreferenceValue(AccountModel, Generic[T]):
+    """One remembered preference value plus who put it there and when."""
+
+    value: T
+    source: PreferenceSource
+    updated_at: datetime
+
+
+Cabin = Literal["economy", "premium_economy", "business", "first"]
+SeatPreference = Literal["aisle", "window", "middle", "no_preference"]
+SchedulePreference = Literal[
+    "morning", "afternoon", "evening", "overnight", "no_preference"
+]
+PacePreference = Literal["relaxed", "moderate", "packed"]
+OptimizationObjective = Literal[
+    "lowest_cash", "highest_value", "convenience", "balanced"
+]
+
+
+def _dedupe_preserve_order(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            ordered.append(item)
+    return ordered
+
+
+def _clean_list_preference(
+    pref: PreferenceValue[list[str]] | None, *, casefold: bool
+) -> PreferenceValue[list[str]] | None:
+    """Strip, drop-empty, optionally casefold, and de-dupe a list preference.
+
+    De-duplication preserves first-seen order — the order a user listed
+    things in is itself a (weak) signal of priority, and a stable order keeps
+    this model deterministic to round-trip.
+    """
+    if pref is None:
+        return None
+    cleaned = [entry.strip() for entry in pref.value]
+    cleaned = [entry for entry in cleaned if entry]
+    if casefold:
+        cleaned = [entry.casefold() for entry in cleaned]
+    cleaned = _dedupe_preserve_order(cleaned)
+    return pref.model_copy(update={"value": cleaned})
+
+
+class FlightPreferences(AccountModel):
+    cabin: PreferenceValue[Cabin] | None = None
+    max_stops: PreferenceValue[Annotated[int, Field(ge=0, le=3)]] | None = None
+    schedule: PreferenceValue[SchedulePreference] | None = None
+    checked_baggage: PreferenceValue[bool] | None = None
+    airport_flexible: PreferenceValue[bool] | None = None
+    seat: PreferenceValue[SeatPreference] | None = None
+
+
+class StayPreferences(AccountModel):
+    lodging_styles: PreferenceValue[list[str]] | None = None
+    location_priorities: PreferenceValue[list[str]] | None = None
+    room_needs: PreferenceValue[list[str]] | None = None
+    location_price_tradeoff: (
+        PreferenceValue[Literal["location", "price", "balanced"]] | None
+    ) = None
+    loyalty_programs: PreferenceValue[list[str]] | None = None
+
+    @field_validator(
+        "lodging_styles", "location_priorities", "room_needs", "loyalty_programs"
+    )
+    @classmethod
+    def _clean_lists(
+        cls, value: PreferenceValue[list[str]] | None
+    ) -> PreferenceValue[list[str]] | None:
+        # Display case (venue chains, loyalty program names) is meaningful —
+        # only interests/dietary/accessibility-style taxonomy values casefold.
+        return _clean_list_preference(value, casefold=False)
+
+
+class RhythmPreferences(AccountModel):
+    pace: PreferenceValue[PacePreference] | None = None
+    day_start: PreferenceValue[Literal["early", "normal", "late"]] | None = None
+    evening_style: PreferenceValue[Literal["quiet", "flexible", "late"]] | None = None
+    downtime_minutes: PreferenceValue[Annotated[int, Field(ge=0, le=360)]] | None = None
+    transit_tolerance_minutes: (
+        PreferenceValue[Annotated[int, Field(ge=0, le=240)]] | None
+    ) = None
+    day_trip_appetite: PreferenceValue[Literal["none", "one", "multiple"]] | None = None
+
+
+class ExperiencePreferences(AccountModel):
+    interests: PreferenceValue[list[str]] | None = None
+    food_interests: PreferenceValue[list[str]] | None = None
+    iconic_local_balance: (
+        PreferenceValue[Literal["iconic", "balanced", "local"]] | None
+    ) = None
+    nightlife: PreferenceValue[bool] | None = None
+    shopping: PreferenceValue[bool] | None = None
+
+    @field_validator("interests", "food_interests")
+    @classmethod
+    def _clean_lists(
+        cls, value: PreferenceValue[list[str]] | None
+    ) -> PreferenceValue[list[str]] | None:
+        return _clean_list_preference(value, casefold=True)
+
+
+class ConstraintPreferences(AccountModel):
+    dietary: PreferenceValue[list[str]] | None = None
+    accessibility: PreferenceValue[list[str]] | None = None
+
+    @field_validator("dietary", "accessibility")
+    @classmethod
+    def _clean_lists(
+        cls, value: PreferenceValue[list[str]] | None
+    ) -> PreferenceValue[list[str]] | None:
+        return _clean_list_preference(value, casefold=True)
+
+
+class OptimizationPreferences(AccountModel):
+    objective: PreferenceValue[OptimizationObjective] | None = None
+    points_priority: (
+        PreferenceValue[Literal["save_points", "use_points", "best_value"]] | None
+    ) = None
+
+
+class TravelPreferenceProfile(AccountModel):
+    """One user's remembered travel preferences, grouped by domain.
+
+    Every leaf is an optional ``PreferenceValue`` — absence means "never
+    told us," not a default choice the system silently assumed.
+    """
+
+    user_id: str
+    flight: FlightPreferences = Field(default_factory=FlightPreferences)
+    stay: StayPreferences = Field(default_factory=StayPreferences)
+    rhythm: RhythmPreferences = Field(default_factory=RhythmPreferences)
+    experiences: ExperiencePreferences = Field(default_factory=ExperiencePreferences)
+    constraints: ConstraintPreferences = Field(default_factory=ConstraintPreferences)
+    optimization: OptimizationPreferences = Field(
+        default_factory=OptimizationPreferences
+    )
+    updated_at: datetime
 
 
 # --------------------------------------------------------------------------- #
@@ -239,6 +395,46 @@ class TripRevision(AccountModel):
 
 
 # --------------------------------------------------------------------------- #
+# 3b. Planning sessions — opaque conversational-interview snapshots (CP1)       #
+# --------------------------------------------------------------------------- #
+
+
+class PlanningSessionSnapshot(AccountModel):
+    """The account-side row for one resumable conversational interview.
+
+    Deliberately opaque: ``payload_json`` is the canonical
+    ``planning.contracts.PlanningSession.model_dump_json()`` verbatim, so this
+    layer never has to know the interview domain's shape. The other fields
+    are exactly the columns worth indexing for ownership scoping, optimistic
+    concurrency, and expiry sweeping — see ``planning/repository.py``, the
+    only place that reads/writes ``payload_json`` as a typed session.
+    """
+
+    id: str
+    user_id: str
+    status: Literal[
+        "interviewing",
+        "awaiting_assistant",
+        "reviewing",
+        "confirmed",
+        "planning",
+        "complete",
+        "failed",
+        "abandoned",
+    ]
+    version: int = Field(ge=0)
+    updated_at: datetime
+    expires_at: datetime
+    saved_trip_id: str | None = None
+    payload_json: str
+
+    @field_validator("payload_json")
+    @classmethod
+    def check_payload_json(cls, value: str) -> str:
+        return _require_json_object(value, "payload_json")
+
+
+# --------------------------------------------------------------------------- #
 # 4. Privacy — the full picture of what is held about one user                  #
 # --------------------------------------------------------------------------- #
 
@@ -251,6 +447,8 @@ class UserExport(AccountModel):
     wallet_entries: list[WalletEntry] = Field(default_factory=list)
     trips: list[SavedTrip] = Field(default_factory=list)
     revisions: list[TripRevision] = Field(default_factory=list)
+    travel_preferences: TravelPreferenceProfile | None = None
+    planning_sessions: list[PlanningSessionSnapshot] = Field(default_factory=list)
     exported_at: datetime
 
 

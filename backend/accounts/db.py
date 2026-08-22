@@ -81,3 +81,21 @@ class SessionRow(AccountsBase):
     token_hash: Mapped[str] = mapped_column(unique=True, index=True)
     expires_at: Mapped[str] = mapped_column(index=True)  # ISO datetime, for sweeping
     payload: Mapped[str] = mapped_column(Text)
+
+
+class TravelPreferenceRow(AccountsBase):
+    __tablename__ = "travel_preferences"
+    user_id: Mapped[str] = mapped_column(primary_key=True)
+    payload: Mapped[str] = mapped_column(Text)
+
+
+class PlanningSessionRow(AccountsBase):
+    __tablename__ = "planning_sessions"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(index=True)
+    status: Mapped[str] = mapped_column()
+    version: Mapped[int] = mapped_column()
+    updated_at: Mapped[str] = mapped_column(index=True)  # ISO datetime string
+    expires_at: Mapped[str] = mapped_column(index=True)  # ISO datetime string
+    saved_trip_id: Mapped[str | None] = mapped_column(index=True, nullable=True)
+    payload: Mapped[str] = mapped_column(Text)

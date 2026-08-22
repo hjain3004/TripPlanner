@@ -28,7 +28,7 @@ dev = [
 
 [tool.setuptools]
 # Flat-layout packages that live directly under backend/ (gate commands run from backend/).
-packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "accounts", "agents", "api", "evals",
+packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "accounts", "planning", "agents", "api", "evals",
             "gateway", "gateway.evidence", "gateway.places", "gateway.places.adapters",
             "gateway.catalog"]
 
