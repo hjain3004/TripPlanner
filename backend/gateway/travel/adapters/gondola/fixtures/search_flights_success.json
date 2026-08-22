@@ -1,0 +1,27 @@
+{
+  "_fixture_provenance": "synthetic, not captured from a live Gondola response — see reports/g3_0_gondola_preflight.md §17 item 4",
+  "_fixture_meta": {"status": "estimated", "source_method": "provider_mcp"},
+  "results": [
+    {
+      "quote_id": "gnd-flight-0001",
+      "segments": [
+        {
+          "origin": "DEL",
+          "destination": "SIN",
+          "departure_at": "2026-11-10T09:15:00+05:30",
+          "arrival_at": "2026-11-10T16:40:00+08:00",
+          "marketing_airline": "Sample Airways",
+          "operating_airline": "Sample Airways",
+          "flight_number": "SA-410",
+          "cabin": "economy",
+          "duration_min": 385
+        }
+      ],
+      "trip_type": "one_way",
+      "total_price_minor": 2450000,
+      "currency": "INR",
+      "booking_link": "https://www.gondola.ai/book/gnd-flight-0001",
+      "raw_notes": []
+    }
+  ]
+}

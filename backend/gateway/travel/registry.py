@@ -9,11 +9,24 @@ monthly ceiling cannot construct an enabled entry.
 
 from __future__ import annotations
 
+import os
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from gateway.travel.errors import TravelGatewayError
+
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def _gondola_live_enabled_from_env() -> bool:
+    """Read-once, at registry-construction time only — never inside the
+    adapter's call path. The kill switch overrides the live-enabled flag
+    unconditionally, matching the parent milestone's explicit fail-safe
+    ordering: TRIPWISE_GONDOLA_KILL_SWITCH always wins."""
+    if os.environ.get("TRIPWISE_GONDOLA_KILL_SWITCH", "").strip().lower() in _TRUTHY:
+        return False
+    return os.environ.get("TRIPWISE_GONDOLA_LIVE_ENABLED", "").strip().lower() in _TRUTHY
 
 Domain = Literal["flight", "flight_trend", "hotel", "award", "fx", "poi"]
 SourceMethod = Literal[
@@ -72,4 +85,15 @@ def get_default_travel_registry() -> TravelProviderRegistry:
         monthly_cost_minor=0,
         priority=999,
     )
-    return TravelProviderRegistry(entries=[sample])
+    gondola = TravelProviderRegistryEntry(
+        provider_id="gondola",
+        enabled=_gondola_live_enabled_from_env(),
+        allowed_profiles={"student_noncommercial"},
+        domains={"flight", "hotel"},
+        countries="configured",
+        source_method="provider_mcp",
+        live_data=True,
+        monthly_cost_minor=0,
+        priority=500,
+    )
+    return TravelProviderRegistry(entries=[sample, gondola])

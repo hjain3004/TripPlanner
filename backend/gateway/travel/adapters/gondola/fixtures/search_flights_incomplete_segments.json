@@ -1,0 +1,27 @@
+{
+  "_fixture_provenance": "synthetic, not captured from a live Gondola response",
+  "_fixture_meta": {"status": "estimated", "source_method": "provider_mcp"},
+  "results": [
+    {
+      "quote_id": "gnd-flight-0002",
+      "segments": [
+        {
+          "origin": "DEL",
+          "destination": "SIN",
+          "departure_at": "2026-11-10T09:15:00+05:30",
+          "arrival_at": null,
+          "marketing_airline": "Sample Airways",
+          "operating_airline": null,
+          "flight_number": null,
+          "cabin": "economy",
+          "duration_min": null
+        }
+      ],
+      "trip_type": "one_way",
+      "total_price_minor": null,
+      "currency": "INR",
+      "booking_link": null,
+      "raw_notes": ["Provider returned an incomplete itinerary"]
+    }
+  ]
+}

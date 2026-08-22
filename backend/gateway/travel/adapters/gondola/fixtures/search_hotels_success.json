@@ -1,0 +1,19 @@
+{
+  "_fixture_provenance": "synthetic, not captured from a live Gondola response — see reports/g3_0_gondola_preflight.md §17 item 4",
+  "_fixture_meta": {"status": "estimated", "source_method": "provider_mcp"},
+  "results": [
+    {
+      "hotel_id": "gnd-hotel-0001",
+      "name": "Sample Marina Bay Hotel",
+      "cash_rate_minor": 18500,
+      "cash_currency": "SGD",
+      "points_rate": 32000,
+      "points_program": "sample_loyalty",
+      "cancellation_text": "Free cancellation until 24 hours before check-in",
+      "review_score": 4.3,
+      "review_count": 812,
+      "booking_link": "https://www.gondola.ai/book/gnd-hotel-0001",
+      "raw_notes": ["Rooftop pool", "Near MRT station"]
+    }
+  ]
+}

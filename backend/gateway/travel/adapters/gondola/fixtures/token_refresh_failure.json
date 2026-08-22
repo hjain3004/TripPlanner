@@ -1,0 +1,5 @@
+{
+  "_fixture_provenance": "synthetic, not captured from a live Gondola response",
+  "_fixture_meta": {},
+  "error": {"code": "authentication_failed", "message": "token refresh failed: refresh_token invalid or expired"}
+}

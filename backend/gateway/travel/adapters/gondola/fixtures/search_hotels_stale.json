@@ -1,0 +1,19 @@
+{
+  "_fixture_provenance": "synthetic, not captured from a live Gondola response",
+  "_fixture_meta": {"status": "stale", "source_method": "provider_mcp"},
+  "results": [
+    {
+      "hotel_id": "gnd-hotel-0003",
+      "name": "Sample Old Quarter Hotel",
+      "cash_rate_minor": 12000,
+      "cash_currency": "SGD",
+      "points_rate": 22000,
+      "points_program": "sample_loyalty",
+      "cancellation_text": "Non-refundable",
+      "review_score": 3.9,
+      "review_count": 204,
+      "booking_link": "https://www.gondola.ai/book/gnd-hotel-0003",
+      "raw_notes": ["Quote retrieved outside its documented validity window"]
+    }
+  ]
+}
