@@ -17,12 +17,13 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import Engine, delete, func, select
+from sqlalchemy import Engine, delete, func, select, update
 from sqlalchemy.orm import Session
 
 from accounts import passwords
 from accounts.db import (
     ACCOUNTS_DB_PATH,
+    PlanningSessionRow,
     SavedTripRow,
     SessionRow,
     TravelPreferenceRow,
@@ -34,6 +35,7 @@ from accounts.db import (
     create_accounts_engine,
 )
 from accounts.models import (
+    PlanningSessionSnapshot,
     SavedTrip,
     TravelPreferenceProfile,
     TripRevision,
@@ -58,6 +60,14 @@ class UnknownUserError(ValueError):
 
 class UnknownTripError(ValueError):
     """Raised when an operation names a saved trip id that does not exist."""
+
+
+class PlanningSessionExistsError(ValueError):
+    """Raised when a caller tries to create an existing planning-session ID."""
+
+
+class StalePlanningSessionError(ValueError):
+    """Raised when a compare-and-swap session version no longer matches."""
 
 
 MAX_FAILED_ATTEMPTS = 10
@@ -173,6 +183,119 @@ class AccountStore:
                 if row is None
                 else TravelPreferenceProfile.model_validate_json(row.payload)
             )
+
+    # -- planning sessions (opaque snapshots, CP1) --------------------------- #
+
+    def create_planning_session_snapshot(
+        self, snapshot: PlanningSessionSnapshot
+    ) -> PlanningSessionSnapshot:
+        """Insert a brand-new planning-session snapshot. Never overwrites."""
+        with Session(self._engine) as session:
+            self._require_user(session, snapshot.user_id)
+            if session.get(PlanningSessionRow, snapshot.id) is not None:
+                raise PlanningSessionExistsError(
+                    f"planning session already exists: {snapshot.id}"
+                )
+            session.add(
+                PlanningSessionRow(
+                    id=snapshot.id,
+                    user_id=snapshot.user_id,
+                    status=snapshot.status,
+                    version=snapshot.version,
+                    updated_at=snapshot.updated_at.isoformat(),
+                    expires_at=snapshot.expires_at.isoformat(),
+                    saved_trip_id=snapshot.saved_trip_id,
+                    payload=snapshot.model_dump_json(),
+                )
+            )
+            session.commit()
+        return snapshot
+
+    def get_planning_session_snapshot(
+        self, *, user_id: str, session_id: str
+    ) -> PlanningSessionSnapshot | None:
+        """The snapshot for one session, scoped to its owner. ``None`` otherwise.
+
+        A session id that exists but belongs to a different user is
+        indistinguishable from a session that does not exist — ownership
+        scoping never leaks existence.
+        """
+        with Session(self._engine) as session:
+            row = session.get(PlanningSessionRow, session_id)
+            if row is None or row.user_id != user_id:
+                return None
+            return PlanningSessionSnapshot.model_validate_json(row.payload)
+
+    def put_planning_session_snapshot(
+        self, snapshot: PlanningSessionSnapshot, *, expected_version: int
+    ) -> PlanningSessionSnapshot:
+        """Atomic compare-and-swap update. Raises rather than overwriting stale data.
+
+        Issues exactly one SQLAlchemy ``update`` whose ``WHERE`` matches the
+        session id, the caller-asserted owner, and the expected current
+        version. A mismatch on any of the three (wrong id, wrong owner, or a
+        version someone else already advanced) yields ``rowcount == 0`` and
+        this never retries or falls back to an overwrite — the caller must
+        re-read and resubmit.
+        """
+        if snapshot.version != expected_version + 1:
+            raise ValueError(
+                f"snapshot.version ({snapshot.version}) must equal "
+                f"expected_version + 1 ({expected_version + 1})"
+            )
+        with Session(self._engine) as session:
+            result = session.execute(
+                update(PlanningSessionRow)
+                .where(
+                    PlanningSessionRow.id == snapshot.id,
+                    PlanningSessionRow.user_id == snapshot.user_id,
+                    PlanningSessionRow.version == expected_version,
+                )
+                .values(
+                    status=snapshot.status,
+                    version=snapshot.version,
+                    updated_at=snapshot.updated_at.isoformat(),
+                    expires_at=snapshot.expires_at.isoformat(),
+                    saved_trip_id=snapshot.saved_trip_id,
+                    payload=snapshot.model_dump_json(),
+                )
+            )
+            if result.rowcount != 1:  # type: ignore[attr-defined]
+                session.rollback()
+                raise StalePlanningSessionError(
+                    f"planning session {snapshot.id} was not at version "
+                    f"{expected_version} for user {snapshot.user_id}"
+                )
+            session.commit()
+        return snapshot
+
+    def planning_session_snapshots(self, user_id: str) -> list[PlanningSessionSnapshot]:
+        """Every planning-session snapshot for a user, ordered by ``(updated_at, id)``."""
+        with Session(self._engine) as session:
+            rows = session.scalars(
+                select(PlanningSessionRow).where(PlanningSessionRow.user_id == user_id)
+            ).all()
+            snapshots = [
+                PlanningSessionSnapshot.model_validate_json(r.payload) for r in rows
+            ]
+        return sorted(snapshots, key=lambda s: (s.updated_at, s.id))
+
+    def delete_expired_planning_sessions(self, *, now: datetime) -> int:
+        """Hard-delete abandoned sessions past expiry. Returns how many were removed.
+
+        A session attached to a saved trip (``saved_trip_id`` set) is
+        retained with that trip rather than swept as abandoned, regardless
+        of its own ``expires_at``.
+        """
+        with Session(self._engine) as session:
+            result = session.execute(
+                delete(PlanningSessionRow).where(
+                    PlanningSessionRow.expires_at < now.isoformat(),
+                    PlanningSessionRow.saved_trip_id.is_(None),
+                )
+            )
+            session.commit()
+        return int(result.rowcount or 0)  # type: ignore[attr-defined]
 
     # -- wallet ------------------------------------------------------------- #
 
@@ -371,6 +494,7 @@ class AccountStore:
             trips=trips,
             revisions=revisions,
             travel_preferences=self.get_travel_preferences(user_id),
+            planning_sessions=self.planning_session_snapshots(user_id),
             exported_at=now,
         )
 
@@ -394,6 +518,11 @@ class AccountStore:
             session.execute(
                 delete(TravelPreferenceRow).where(
                     TravelPreferenceRow.user_id == user_id
+                )
+            )
+            session.execute(
+                delete(PlanningSessionRow).where(
+                    PlanningSessionRow.user_id == user_id
                 )
             )
             session.execute(delete(SessionRow).where(SessionRow.user_id == user_id))

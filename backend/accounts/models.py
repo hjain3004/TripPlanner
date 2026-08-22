@@ -395,6 +395,46 @@ class TripRevision(AccountModel):
 
 
 # --------------------------------------------------------------------------- #
+# 3b. Planning sessions — opaque conversational-interview snapshots (CP1)       #
+# --------------------------------------------------------------------------- #
+
+
+class PlanningSessionSnapshot(AccountModel):
+    """The account-side row for one resumable conversational interview.
+
+    Deliberately opaque: ``payload_json`` is the canonical
+    ``planning.contracts.PlanningSession.model_dump_json()`` verbatim, so this
+    layer never has to know the interview domain's shape. The other fields
+    are exactly the columns worth indexing for ownership scoping, optimistic
+    concurrency, and expiry sweeping — see ``planning/repository.py``, the
+    only place that reads/writes ``payload_json`` as a typed session.
+    """
+
+    id: str
+    user_id: str
+    status: Literal[
+        "interviewing",
+        "awaiting_assistant",
+        "reviewing",
+        "confirmed",
+        "planning",
+        "complete",
+        "failed",
+        "abandoned",
+    ]
+    version: int = Field(ge=0)
+    updated_at: datetime
+    expires_at: datetime
+    saved_trip_id: str | None = None
+    payload_json: str
+
+    @field_validator("payload_json")
+    @classmethod
+    def check_payload_json(cls, value: str) -> str:
+        return _require_json_object(value, "payload_json")
+
+
+# --------------------------------------------------------------------------- #
 # 4. Privacy — the full picture of what is held about one user                  #
 # --------------------------------------------------------------------------- #
 
@@ -408,6 +448,7 @@ class UserExport(AccountModel):
     trips: list[SavedTrip] = Field(default_factory=list)
     revisions: list[TripRevision] = Field(default_factory=list)
     travel_preferences: TravelPreferenceProfile | None = None
+    planning_sessions: list[PlanningSessionSnapshot] = Field(default_factory=list)
     exported_at: datetime
 
 
