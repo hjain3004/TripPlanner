@@ -38,6 +38,8 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+from accounts.models import FORBIDDEN_FIELD_NAMES
+from accounts.projection import build_user_wallet
 from accounts.store import AccountStore
 from core.models import UserWallet
 from planning.answers import (
@@ -91,8 +93,20 @@ def test_full_interview_persists_and_reopens_to_a_byte_identical_confirmed_brief
     store.create_user(email="traveler@example.com", now=NOW, user_id=USER_ID)
     repository = PlanningSessionRepository(store)
 
-    # -- 2. Wallet: one card, a positive HDFC points balance -------------------
-    wallet = UserWallet(card_ids=["hdfc-infinia"], points_balances={"hdfc-reward-points": 75_000})
+    # -- 2. Wallet: one real stored card, projected through the actual         --
+    # store -> projection seam (not hand-built) -- one card, a positive HDFC
+    # points balance.
+    store.add_wallet_entry(
+        user_id=USER_ID,
+        card_id="hdfc-infinia",
+        nickname="HDFC Infinia",
+        now=NOW,
+        points_balances={"hdfc-reward-points": 75_000},
+    )
+    wallet = build_user_wallet(store.wallet_entries(USER_ID))
+    assert wallet == UserWallet(
+        card_ids=["hdfc-infinia"], points_balances={"hdfc-reward-points": 75_000}
+    )
     home = TravelerHomeContext(home_country="IN", home_currency="INR", default_origin="DEL")
 
     # -- 3. Start the interview and persist the brand-new session -------------
@@ -256,3 +270,18 @@ def test_full_interview_persists_and_reopens_to_a_byte_identical_confirmed_brief
     assert len(fetched.answers) == 11
     assert fetched.confirmed_briefs[0].revision == 1
     assert fetched.confirmed_briefs[0].brief.model_dump_json() == brief.model_dump_json()
+
+    # -- 9. No forbidden field name anywhere in the FULLY-ANSWERED, confirmed --
+    # session's stored JSON. The brief's own mandated
+    # `test_stored_session_contains_no_forbidden_key_names` (test_cp1_boundaries.py)
+    # only ever persists a brand-new, empty-`answers` session, so it can never
+    # see a forbidden key nested inside an answer payload. This additive check
+    # runs the identical assertion shape against the real 11-decision,
+    # confirmed-brief session this test built, closing that coverage gap.
+    stored_snapshot = reopened_store.get_planning_session_snapshot(
+        user_id=USER_ID, session_id=SESSION_ID
+    )
+    assert stored_snapshot is not None
+    lowered_payload = stored_snapshot.payload_json.casefold()
+    for forbidden in FORBIDDEN_FIELD_NAMES:
+        assert f'"{forbidden.casefold()}"' not in lowered_payload

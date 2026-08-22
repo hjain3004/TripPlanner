@@ -113,14 +113,25 @@ def test_stored_session_contains_no_forbidden_key_names(tmp_path: Path) -> None:
 
 # -- Forbidden non-deterministic clock/id/randomness calls in planning/ ----- #
 
+# Canonical (import-resolved) forms. Covers both the direct-attribute-access
+# spelling (``from datetime import datetime; datetime.now()``) and the
+# module-qualified spelling (``import datetime; datetime.datetime.now()``).
 _FORBIDDEN_CALL_NAMES: frozenset[str] = frozenset(
-    {"datetime.now", "date.today", "uuid4"}
+    {
+        "datetime.now",
+        "date.today",
+        "uuid4",
+        "datetime.datetime.now",
+        "datetime.date.today",
+        "uuid.uuid4",
+    }
 )
 _FORBIDDEN_CALL_PREFIXES: tuple[str, ...] = ("random.", "secrets.")
 
 
 def _dotted_call_name(node: ast.expr) -> str | None:
-    """Resolve a ``Name``/``Attribute`` call target to a dotted string.
+    """Resolve a ``Name``/``Attribute`` call target to a dotted string,
+    exactly as it is written at the call site (no import resolution).
 
     ``datetime.now`` resolves to ``"datetime.now"``; a bare ``uuid4`` name
     resolves to ``"uuid4"``; anything else (a call on an arbitrary
@@ -139,17 +150,64 @@ def _dotted_call_name(node: ast.expr) -> str | None:
     return None
 
 
+def _import_aliases(tree: ast.Module) -> dict[str, str]:
+    """Map every module-scope locally-bound import name to its fully-qualified origin.
+
+    ``import uuid`` binds ``"uuid" -> "uuid"``; ``import random as rnd``
+    binds ``"rnd" -> "random"``; ``from random import choice`` binds
+    ``"choice" -> "random.choice"``; ``from datetime import datetime as dt``
+    binds ``"dt" -> "datetime.datetime"``. This is what lets the guard below
+    see through both the "qualified module import" alias form
+    (``import uuid; uuid.uuid4()``) and the "bare name import" alias form
+    (``from random import choice; choice()``) -- as written, neither call
+    site's raw dotted spelling matches the direct-attribute forms the
+    original check covered.
+    """
+    aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                aliases[alias.asname or alias.name] = alias.name
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            for alias in node.names:
+                aliases[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+    return aliases
+
+
+def _canonical_call_name(raw: str, aliases: dict[str, str]) -> str:
+    """Resolve ``raw``'s leading segment through this file's import aliases.
+
+    ``"uuid.uuid4"`` under ``import uuid`` resolves to itself (``"uuid"``
+    maps to ``"uuid"``, a no-op). A bare ``"choice"`` bound by
+    ``from random import choice`` resolves to ``"random.choice"``. A name
+    with no matching import binding (a local variable, a builtin, ...) is
+    returned unchanged.
+    """
+    head, _, rest = raw.partition(".")
+    resolved_head = aliases.get(head, head)
+    return resolved_head if not rest else f"{resolved_head}.{rest}"
+
+
+def _is_forbidden(name: str) -> bool:
+    return name in _FORBIDDEN_CALL_NAMES or name.startswith(_FORBIDDEN_CALL_PREFIXES)
+
+
 def _nondeterministic_call_offenders(path: Path) -> list[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
+    aliases = _import_aliases(tree)
     offenders: list[str] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        dotted = _dotted_call_name(node.func)
-        if dotted is None:
+        raw = _dotted_call_name(node.func)
+        if raw is None:
             continue
-        if dotted in _FORBIDDEN_CALL_NAMES or dotted.startswith(_FORBIDDEN_CALL_PREFIXES):
-            offenders.append(f"{path.relative_to(BACKEND)}:{node.lineno}: {dotted}(...)")
+        canonical = _canonical_call_name(raw, aliases)
+        if _is_forbidden(raw) or _is_forbidden(canonical):
+            offenders.append(
+                f"{path.relative_to(BACKEND)}:{node.lineno}: {raw}(...) "
+                f"[resolved: {canonical}]"
+            )
     return offenders
 
 
@@ -162,6 +220,14 @@ def test_planning_never_calls_a_nondeterministic_clock_or_id_source() -> None:
     ``planning/policy.py``'s own module docstring narrates these exact
     forbidden call shapes in prose (documenting that they are absent) -- a
     naive substring search would false-positive on that honest docstring.
+
+    Import-alias resolution (``_import_aliases``/``_canonical_call_name``)
+    means this also catches ``import uuid; uuid.uuid4()``,
+    ``import datetime; datetime.datetime.now()``,
+    ``from random import choice; choice()``, and
+    ``from secrets import token_hex; token_hex()`` -- not just the direct
+    ``from X import Y; Y.attr()`` / bare-name forms the raw dotted spelling
+    alone would catch.
     """
     root = BACKEND / "planning"
     offenders: list[str] = []
