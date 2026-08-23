@@ -16,12 +16,12 @@ export const AbstractBackground = () => (
       <path d="M 100 600 A 500 500 0 0 1 600 100" className="stroke-primary" strokeWidth="1" />
       <path d="M 200 600 A 400 400 0 0 1 600 200" className="stroke-accent-4" strokeWidth="1" strokeDasharray="4 8" />
     </svg>
-    <div className="absolute inset-0" style={{ 
+    <div className="absolute inset-0 text-text" style={{
       /* token-lint-disable-next-line no-direct-var -- Inline gradient */
       backgroundImage: 'radial-gradient(var(--color-border) 1px, transparent 1px)', 
       backgroundSize: '40px 40px',
       opacity: 0.3,
-      maskImage: 'linear-gradient(to bottom, black 0%, transparent 100%)'
+      maskImage: 'linear-gradient(to bottom, currentColor 0%, transparent 100%)'
     }} />
   </div>
 );
@@ -119,7 +119,7 @@ export const MonumentIllustration = ({ type }: { type: 'mtFuji' | 'temple' | 'to
           <rect x="180" y="20" width="120" height="80" className="fill-accent-4" opacity="0.8" transform="rotate(15 240 60)" />
         </motion.g>
         <motion.path initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={drawTransition(0.5)} d="M 190 60 L 210 60 M 200 50 L 200 70" className="stroke-bg" strokeWidth="4" strokeLinecap="round" />
-        <motion.circle initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={drawTransition(0.7)} cx="200" cy="60" r="30" className="stroke-border" strokeWidth="2" strokeDasharray="4 4" fill="none" />
+        <motion.circle initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={drawTransition(0.7)} cx="200" cy="60" r="30" className="stroke-border" strokeWidth="2" strokeDasharray="4 4" fill="none" />
       </svg>
     );
   }

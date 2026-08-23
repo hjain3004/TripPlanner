@@ -1,109 +1,56 @@
 "use client";
+
 import React from 'react';
 import { motion } from 'motion/react';
-import { Sparkles, PlaneTakeoff } from 'lucide-react';
-import { HighlightBox } from "@/components/product/SharedUI";
+import { CreditCard, Lock, PlusCircle } from 'lucide-react';
 import { NotchLabel } from "@/components/product/notch-label";
-import { TrustChip } from "@/components/product/trust-chip";
+
+const PLACEHOLDERS = [
+  {
+    title: "Cards",
+    description: "Future account persistence will store held cards after spec 17 lands.",
+    icon: CreditCard,
+  },
+  {
+    title: "Points balances",
+    description: "No loyalty program is connected in this preview. Balances must come from an explicit user/account record later.",
+    icon: PlusCircle,
+  },
+  {
+    title: "Security boundary",
+    description: "This branch does not request card numbers, bank credentials, loyalty logins, or synchronization tokens.",
+    icon: Lock,
+  },
+] as const;
 
 export const WalletView = () => (
   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl">
     <header className="mb-12">
-      <NotchLabel>Your Points Arsenal</NotchLabel>
-      <h1 className="font-display text-4xl md:text-5xl font-bold leading-tight mt-4 mb-4">Digital Wallet</h1>
-      <p className="text-lg text-text-muted max-w-2xl">A real-time overview of your optimized cards and transferable reward balances.</p>
+      <NotchLabel>Preview only</NotchLabel>
+      <h1 className="font-display display-hero text-4xl md:text-5xl leading-tight mt-4 mb-4">Wallet Preview</h1>
+      <p className="text-lg text-text-muted max-w-2xl">
+        Empty-state anatomy for future cards, points, and offers. Specs 17/18 must land before this becomes account behavior.
+      </p>
     </header>
-    
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-      <div className="relative overflow-hidden rounded-2xl border border-border p-6 bg-bg shadow-sm hover:shadow-md transition-shadow">
-        {/* token-lint-disable-next-line no-inline-svg -- Hand-authored SVG */}
-        <svg className="absolute bottom-0 right-0 w-48 h-48 opacity-5" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="40" className="stroke-primary" strokeWidth="10" fill="none" />
-          <circle cx="50" cy="50" r="20" className="stroke-primary" strokeWidth="5" fill="none" />
-        </svg>
-        <div className="flex justify-between items-start mb-8 relative z-10">
-          <div className="w-12 h-8 rounded bg-primary/20 border border-primary/30 flex items-center justify-center">
-            <span className="text-[10px] font-bold text-primary">CHASE</span>
-          </div>
-          <span className="text-sm font-medium tracking-widest text-text-muted">•••• 4092</span>
-        </div>
-        <h3 className="font-display text-2xl font-bold relative z-10">Sapphire Reserve</h3>
-        <div className="mt-6 flex items-end justify-between relative z-10">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-text-muted mb-1">Ultimate Rewards</p>
-            <p className="font-medium text-2xl text-primary">184,200 <span className="text-base text-text-muted">pts</span></p>
-          </div>
-          <TrustChip variant="verified" label="Sync: 1h ago" />
-        </div>
-      </div>
 
-      <div className="relative overflow-hidden rounded-2xl border border-border p-6 bg-bg shadow-sm hover:shadow-md transition-shadow">
-        {/* token-lint-disable-next-line no-inline-svg -- Hand-authored SVG */}
-        <svg className="absolute top-0 right-0 w-48 h-48 opacity-5 transform translate-x-4 -translate-y-4" viewBox="0 0 100 100">
-          <rect x="20" y="20" width="60" height="60" className="stroke-accent-4" strokeWidth="10" fill="none" transform="rotate(45 50 50)" />
-        </svg>
-        <div className="flex justify-between items-start mb-8 relative z-10">
-          <div className="w-12 h-8 rounded bg-accent-4/20 border border-accent-4/30 flex items-center justify-center">
-            <span className="text-[10px] font-bold text-accent-4">AMEX</span>
-          </div>
-          <span className="text-sm font-medium tracking-widest text-text-muted">•••• 9011</span>
-        </div>
-        <h3 className="font-display text-2xl font-bold relative z-10">Platinum Card</h3>
-        <div className="mt-6 flex items-end justify-between relative z-10">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-text-muted mb-1">Membership Rewards</p>
-            <p className="font-medium text-2xl text-accent-4">215,000 <span className="text-base text-text-muted">pts</span></p>
-          </div>
-          <TrustChip variant="verified" label="Sync: 1h ago" />
-        </div>
-      </div>
-    </div>
-    
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="md:col-span-2">
-        <NotchLabel>Active Perks & Credits</NotchLabel>
-        <div className="mt-4 border border-border rounded-xl bg-bg overflow-hidden shadow-sm">
-           <div className="p-5 border-b border-border/40 flex justify-between items-center hover:bg-accent-2/50 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-accent-4/10 flex items-center justify-center text-accent-4">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="font-bold text-text">Amex FHR Hotel Credit</p>
-                  <p className="text-sm text-text-muted">Applied to Aman Tokyo</p>
-                </div>
-              </div>
-              <span className="text-sm font-bold text-text-muted bg-bg px-3 py-1 rounded-full border border-border">$200 / $200</span>
-           </div>
-           <div className="p-5 flex justify-between items-center hover:bg-accent-2/50 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                  <PlaneTakeoff className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="font-bold text-text">Chase Travel Credit</p>
-                  <p className="text-sm text-text-muted">Available to use</p>
-                </div>
-              </div>
-              <span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">$300 / $300</span>
-           </div>
-        </div>
-      </div>
-      
-      <div className="flex flex-col gap-4 pt-10">
-        <HighlightBox 
-          title="Transfer Bonus" 
-          subtitle="Amex to Virgin Atlantic is currently offering a 30% bonus." 
-          value="Ends in 2 days"
-          actionLabel="View" 
-        />
-        <HighlightBox 
-          title="Global Entry" 
-          subtitle="Your Platinum credit for Global Entry is unused this year." 
-          value="$100 Credit"
-          actionLabel="Redeem" 
-        />
-      </div>
+      {PLACEHOLDERS.map((item) => {
+        const Icon = item.icon;
+        return (
+          <article key={item.title} className="border-2 border-border bg-bg p-6 shadow-1">
+            <Icon className="w-6 h-6 text-primary" aria-hidden="true" />
+            <h3 className="font-ui text-2xl font-semibold mt-6">{item.title}</h3>
+            <p className="text-sm text-text-muted mt-3 leading-relaxed">{item.description}</p>
+          </article>
+        );
+      })}
+    </div>
+
+    <div className="mt-8 border-2 border-warning bg-warning/10 p-5">
+      <p className="font-ui font-semibold text-warning-text">Preview only · no accounts connected</p>
+      <p className="text-sm text-text-muted mt-2">
+        The UI intentionally avoids masked digits, fake sync timestamps, fabricated balances, or redemption controls.
+      </p>
     </div>
   </motion.div>
 );

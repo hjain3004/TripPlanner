@@ -35,8 +35,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Default to JP for testing the golden Japan pack globally
-  const resolved = resolveTheme("JP");
+  const resolved = resolveTheme(null);
   const themeClass = `theme-${resolved.globalTheme}`;
 
   return (
@@ -47,7 +46,11 @@ export default function RootLayout({
       <body>
         <TooltipProvider>
           <Providers>
-            <MSWProvider><PageTransition>{children}</PageTransition></MSWProvider>
+            <MSWProvider>
+              <main>
+                <PageTransition>{children}</PageTransition>
+              </main>
+            </MSWProvider>
           </Providers>
         </TooltipProvider>
       </body>

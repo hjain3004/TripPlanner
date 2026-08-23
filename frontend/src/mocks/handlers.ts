@@ -7,6 +7,7 @@ import type {
   RefreshProseRequest,
   UserOut,
 } from "@/lib/api";
+import { createJapanVisualReport } from "./japan-visual-fixture";
 
 const SPEED_MULTIPLIER = 1;
 
@@ -633,4 +634,5 @@ export const fixtureHandlers = {
   payCashReport: () => createPayCashReport(),
   noDataReport: () => createNoDataReport(),
   regionCapabilityReport: () => createRegionCapabilityReport(),
+  japanVisualReport: () => createJapanVisualReport(),
 };
