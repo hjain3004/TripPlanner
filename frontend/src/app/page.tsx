@@ -17,7 +17,7 @@ export default function Home() {
               Travel intelligence · made human
             </span>
 
-            {/* H1 — Display face (Bodoni Moda) */}
+            {/* H1 — Display face (Poiret One) */}
             <h1 className="font-display display-hero text-hero leading-[1.0] tracking-[-0.02em] mt-[31px] max-w-[720px]">
               One journey.
               <br />
