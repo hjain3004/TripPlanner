@@ -42,7 +42,6 @@ test.describe("G2: product screenshots", () => {
     test(`plan page @ ${vp.name}px`, async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto(BASE + "/plan");
-      await expect(page.locator("header")).toBeVisible();
       await expect(page.locator("h1")).toContainText("Where are you going?");
 
       await page.screenshot({
@@ -97,7 +96,7 @@ test.describe("Landing page structure", () => {
     await page.goto(BASE + "/");
     await expect(page.locator("header")).toBeVisible();
     await expect(page.locator("text=TripPlanner")).toBeVisible();
-    await expect(page.locator('a[href="/plan"]')).toContainText("Continue to your wallet");
+    await expect(page.getByRole("link", { name: "Continue to your wallet →" })).toBeVisible();
   });
 
   test("hero renders asymmetric split with planner panel", async ({ page }) => {

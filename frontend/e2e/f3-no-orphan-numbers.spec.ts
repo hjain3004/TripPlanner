@@ -126,18 +126,6 @@ function tracesToFixture(domStr: string, expected: Set<string>): boolean {
     if (expected.has(String(minor))) return true;
   }
 
-  // 3. Computed savings (gross_minor - effective_cost_minor).
-  //    The fixture has gross and effective; their difference is rendered.
-  //    Try adding/subtracting nearby fixture _minor values.
-  //    (This is a best‑effort check — we accept any positive amount that
-  //     is a valid difference between two fixture _minor values.)
-  if (domStr.startsWith("₹")) {
-    const minor = Math.round(num * 100);
-    // We can't compute all pairs here, so accept any non‑zero minor value
-    // that appears in the DOM — it traces to the fixture via the pair.
-    if (minor > 0) return true;
-  }
-
   return false;
 }
 
