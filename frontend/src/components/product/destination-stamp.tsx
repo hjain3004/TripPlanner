@@ -43,6 +43,7 @@ export function DestinationStamp({
         />
 
         {hasOverlay ? (
+          /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
           <figcaption className="absolute left-[18%] right-[22%] bottom-[12%] border border-border bg-surface/95 px-2 py-1 text-center shadow-1">
             {routeLabel ? (
               <span className="block font-mono text-[11px] font-medium leading-tight tracking-[0.08em] text-text">

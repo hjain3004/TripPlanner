@@ -54,18 +54,22 @@ export default async function ThemeProofPage({
       <section className="space-y-6">
         <h2 className="text-h2">Action & Meaning</h2>
         <div className="flex flex-wrap gap-6">
+          {/* token-lint-disable-next-line no-dead-classes -- bg-primary-hover token valid in theme but not auto-generated as hover utility, and shadow-none only exists under the active: modifier; neither is matched by this script's plain-selector class scan */}
           <button className="px-6 py-3 bg-primary text-primary-foreground hover:bg-primary-hover border-2 border-border shadow-1 font-semibold transition-colors active:translate-y-0 active:shadow-none">
             Primary Action
           </button>
-          
+
+          {/* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */}
           <div className="px-4 py-2 border border-success text-success-text bg-success/10 rounded-full flex items-center">
             Success Status
           </div>
-          
+
+          {/* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */}
           <div className="px-4 py-2 border border-warning text-warning-text bg-warning/10 rounded-full flex items-center">
             Warning Status
           </div>
-          
+
+          {/* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */}
           <div className="px-4 py-2 border-2 border-savings text-savings-text bg-savings/10 rounded-none font-mono text-sm flex items-center shadow-1">
             Savings Value
           </div>

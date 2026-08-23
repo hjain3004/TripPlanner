@@ -48,6 +48,7 @@ export const ProfileView = () => (
       })}
     </div>
 
+    {/* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */}
     <div className="mt-8 border-2 border-warning bg-warning/10 p-5">
       <p className="font-ui font-semibold text-warning-text">Preview only · specs 17/18 required</p>
       <p className="text-sm text-text-muted mt-2">

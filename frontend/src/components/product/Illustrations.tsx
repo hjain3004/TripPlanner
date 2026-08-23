@@ -33,7 +33,7 @@ export const MonumentIllustration = ({ type }: { type: 'mtFuji' | 'temple' | 'to
 
   if (type === 'mtFuji') {
     return (
-      /* token-lint-disable-next-line no-inline-svg -- Hand-authored SVG */
+      /* token-lint-disable-next-line no-inline-svg no-dead-classes -- Hand-authored SVG; bg-accent-2/30 opacity compiles to direct CSS, not a class name */
       <svg className="w-full h-56 bg-accent-2/30" viewBox="0 0 400 220" fill="none" xmlns="http://www.w3.org/2000/svg">
         <motion.path initial={{ opacity: 0 }} animate={{ opacity: 0.2 }} transition={drawTransition(0)} d="M -20 180 Q 50 140 120 180 T 260 170 T 420 180 L 420 220 L -20 220 Z" className="fill-primary" />
         <motion.path initial={{ opacity: 0 }} animate={{ opacity: 0.95 }} transition={drawTransition(0.1)} d="M -30 220 L 200 40 L 430 220 Z" className="fill-primary" />
@@ -49,7 +49,7 @@ export const MonumentIllustration = ({ type }: { type: 'mtFuji' | 'temple' | 'to
   }
   if (type === 'temple') {
     return (
-      /* token-lint-disable-next-line no-inline-svg -- Hand-authored SVG */
+      /* token-lint-disable-next-line no-inline-svg no-dead-classes -- Hand-authored SVG; bg-accent-2/30 opacity compiles to direct CSS, not a class name */
       <svg className="w-full h-56 bg-accent-2/30" viewBox="0 0 400 220" fill="none" xmlns="http://www.w3.org/2000/svg">
         <motion.path initial={{ opacity: 0 }} animate={{ opacity: 0.15 }} transition={drawTransition(0)} d="M 0 220 Q 30 160 60 220 M 340 220 Q 370 150 400 220" className="fill-primary" />
         <motion.path initial={{ opacity: 0 }} animate={{ opacity: 0.7 }} transition={drawTransition(0.1)} d="M 90 220 L 110 170 L 290 170 L 310 220 Z" className="fill-primary" />
@@ -76,7 +76,7 @@ export const MonumentIllustration = ({ type }: { type: 'mtFuji' | 'temple' | 'to
   }
   if (type === 'tower') {
     return (
-      /* token-lint-disable-next-line no-inline-svg -- Hand-authored SVG */
+      /* token-lint-disable-next-line no-inline-svg no-dead-classes -- Hand-authored SVG; bg-accent-2/30 opacity compiles to direct CSS, not a class name */
       <svg className="w-full h-56 bg-accent-2/30" viewBox="0 0 400 220" fill="none" xmlns="http://www.w3.org/2000/svg">
         <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={drawTransition(0)}>
           <rect x="30" y="160" width="40" height="60" className="fill-primary" opacity="0.15" />
@@ -110,7 +110,7 @@ export const MonumentIllustration = ({ type }: { type: 'mtFuji' | 'temple' | 'to
   }
   if (type === 'synergy') {
     return (
-      /* token-lint-disable-next-line no-inline-svg -- Hand-authored SVG */
+      /* token-lint-disable-next-line no-inline-svg no-dead-classes -- Hand-authored SVG; bg-accent-2/30 opacity compiles to direct CSS, not a class name */
       <svg className="w-full h-32 bg-accent-2/30" viewBox="0 0 400 120" fill="none" xmlns="http://www.w3.org/2000/svg">
         <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={drawTransition(0)}>
           <rect x="80" y="20" width="120" height="80" className="fill-primary" opacity="0.8" transform="rotate(-15 140 60)" />

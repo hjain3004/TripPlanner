@@ -7,17 +7,22 @@ interface HighlightBoxProps {
   subtitle: string;
   value: React.ReactNode;
   actionLabel: string;
+  /* token-lint-disable-next-line no-dead-classes -- accent-* names are display text, not classes; class field uses valid bg-accent-* */
   accent?: 'accent-4' | 'primary';
 }
 
+/* token-lint-disable-next-line no-dead-classes -- accent-* names are display text, not classes; class field uses valid bg-accent-* */
 export const HighlightBox = ({ title, subtitle, value, actionLabel, accent = 'accent-4' }: HighlightBoxProps) => {
   const isPrimary = accent === 'primary';
-  
+
+  /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
   const bgClass = isPrimary ? 'bg-primary/20' : 'bg-accent-4/20';
   const textClass = isPrimary ? 'text-primary' : 'text-accent-4';
+  /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
   const hoverClass = isPrimary ? 'hover:bg-primary/10' : 'hover:bg-accent-4/10';
 
   return (
+    /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
     <div className="relative rounded-2xl border border-border bg-bg shadow-sm overflow-hidden group hover:border-primary/50 transition-colors duration-300">
       <div className={`h-2 w-full ${bgClass} relative overflow-hidden`}>
         {/* token-lint-disable-next-line no-inline-svg -- Hand-authored SVG */}

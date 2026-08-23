@@ -79,10 +79,17 @@ test.describe("F1 Gate: fonts", () => {
     );
     await page.goto(BASE + "/kitchen-sink", { waitUntil: "networkidle" });
     await selectPreview(page, "explore");
-    const h1 = page.locator("h1").first();
+    // Target the Explore heading by its known text rather than "first h1 on the
+    // page" - during the AnimatePresence tab transition a bare h1.first() can
+    // transiently resolve to the outgoing tab's heading (or a node mid-unmount),
+    // which reads back an empty computed font-family. expect.poll retries the
+    // read until the Explore heading has actually settled and its web font has
+    // applied, rather than taking a single racy snapshot.
+    const h1 = page.getByRole("heading", { name: "Japan Highlights" });
     await h1.waitFor({ state: "visible" });
-    const font = await h1.evaluate((el) => getComputedStyle(el).fontFamily);
-    expect(font.toLowerCase()).toContain("poiret");
+    await expect
+      .poll(async () => (await h1.evaluate((el) => getComputedStyle(el).fontFamily)).toLowerCase())
+      .toContain("poiret");
   });
 });
 
