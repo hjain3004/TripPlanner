@@ -6,7 +6,7 @@ export default function Home() {
     <div className="min-h-screen bg-bg font-ui text-text">
       <SiteHeader />
 
-      <main className="w-full max-w-[1440px] mx-auto bg-surface shadow-3">
+      <div className="w-full max-w-[1440px] mx-auto bg-surface shadow-3">
         {/* ── Hero ── */}
         <section className="grid grid-cols-[53%_47%] min-h-[630px] border-b border-border max-[960px]:grid-cols-1">
           {/* Left: Hero Copy */}
@@ -260,7 +260,7 @@ export default function Home() {
         </section>
 
         {/* Swatch strip is Phase 0 proof scaffolding — do not build */}
-      </main>
+      </div>
     </div>
   );
 }
