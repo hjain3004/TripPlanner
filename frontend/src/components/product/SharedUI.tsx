@@ -18,7 +18,7 @@ export const HighlightBox = ({ title, subtitle, value, actionLabel, accent = 'ac
   const hoverClass = isPrimary ? 'hover:bg-primary/10' : 'hover:bg-accent-4/10';
 
   return (
-    <div className="relative rounded-2xl border border-border bg-bg shadow-sm overflow-hidden group hover:border-primary/50 transition-all duration-300">
+    <div className="relative rounded-2xl border border-border bg-bg shadow-sm overflow-hidden group hover:border-primary/50 transition-colors duration-300">
       <div className={`h-2 w-full ${bgClass} relative overflow-hidden`}>
         {/* token-lint-disable-next-line no-inline-svg -- Hand-authored SVG */}
         <svg className={`absolute w-full h-4 -top-1 ${textClass}`} preserveAspectRatio="none" viewBox="0 0 100 10" fill="none" stroke="currentColor" strokeWidth="2">
