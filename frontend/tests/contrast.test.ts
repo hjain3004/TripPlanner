@@ -54,25 +54,25 @@ function ratioT(a: string, b: string): number {
   return wcagContrast(c(a), c(b));
 }
 
-describe("WCAG contrast pairs (Singapore theme)", () => {
+describe("WCAG contrast pairs (Natural fallback theme)", () => {
   const T: TokenSet = {
-    bg: "oklch(0.947 0.013 87)",
-    surface: "oklch(0.979 0.008 91)",
-    border: "oklch(0.28 0.01 145 / 0.10)",
-    text: "oklch(0.281 0.007 145)",
-    textMuted: "oklch(0.525 0.014 157)",
-    textFaint: "oklch(0.660 0.014 157)",
-    onPrimary: "oklch(0.979 0.008 91)",
-    primary: "oklch(0.320 0.042 181)",
-    primaryHover: "oklch(0.270 0.042 181)",
-    accent4: "oklch(0.536 0.135 30)",
-    success: "oklch(0.580 0.120 155)",
-    successText: "oklch(0.450 0.120 155)",
-    warning: "oklch(0.700 0.130 75)",
-    warningText: "oklch(0.450 0.130 75)",
-    danger: "oklch(0.550 0.180 25)",
-    savings: "oklch(0.660 0.097 82)",
-    savingsText: "oklch(0.450 0.097 82)",
+    bg: "oklch(0.970 0.005 85.0)",
+    surface: "oklch(0.985 0.005 85.0)",
+    border: "oklch(0.350 0.015 60.0)",
+    text: "oklch(0.350 0.015 60.0)",
+    textMuted: "oklch(0.500 0.012 60.0)",
+    textFaint: "oklch(0.650 0.010 60.0)",
+    onPrimary: "oklch(0.985 0.005 85.0)",
+    primary: "oklch(0.350 0.015 60.0)",
+    primaryHover: "oklch(0.300 0.010 60.0)",
+    accent4: "oklch(0.500 0.020 60.0)",
+    success: "oklch(0.600 0.040 130.0)",
+    successText: "oklch(0.400 0.040 130.0)",
+    warning: "oklch(0.700 0.050 70.0)",
+    warningText: "oklch(0.450 0.050 70.0)",
+    danger: "oklch(0.500 0.060 25.0)",
+    savings: "oklch(0.650 0.050 70.0)",
+    savingsText: "oklch(0.450 0.050 70.0)",
   };
 
   // body text ≥ 4.5:1
@@ -83,12 +83,12 @@ describe("WCAG contrast pairs (Singapore theme)", () => {
     expect(ratio(T.text, T.surface)).toBeGreaterThanOrEqual(4.5);
   });
 
-  // muted text ≥ 3:1 (AA Large / non-text minimum)
-  it("text-muted on bg ≥ 3:1", () => {
-    expect(ratio(T.textMuted, T.bg)).toBeGreaterThanOrEqual(3);
+  // muted text appears in small metadata/body positions, so it must meet AA body contrast.
+  it("text-muted on bg ≥ 4.5:1", () => {
+    expect(ratio(T.textMuted, T.bg)).toBeGreaterThanOrEqual(4.5);
   });
-  it("text-muted on surface ≥ 3:1", () => {
-    expect(ratio(T.textMuted, T.surface)).toBeGreaterThanOrEqual(3);
+  it("text-muted on surface ≥ 4.5:1", () => {
+    expect(ratio(T.textMuted, T.surface)).toBeGreaterThanOrEqual(4.5);
   });
 
   // on-primary on primary — inverse text on button ≥ 4.5:1
@@ -110,12 +110,12 @@ describe("WCAG contrast pairs (Singapore theme)", () => {
     expect(ratio(T.savingsText, T.bg)).toBeGreaterThanOrEqual(3);
   });
 
-  // accent-4 (lacquer) on bg ≥ 3:1
-  it("accent-4 (lacquer) on bg ≥ 3:1", () => {
+  // accent-4 on bg ≥ 3:1
+  it("accent-4 on bg ≥ 3:1", () => {
     expect(ratio(T.accent4, T.bg)).toBeGreaterThanOrEqual(3);
   });
 
-  // faint text — must be < 3:1 (decorative only)
+  // faint text — decorative only.
   it("text-faint on bg < 3:1", () => {
     expect(ratio(T.textFaint, T.bg)).toBeLessThan(3);
   });
@@ -134,13 +134,13 @@ describe("WCAG contrast pairs (Singapore theme)", () => {
 
   // golden values — freeze actual ratios
   it("golden: text-on-bg", () => {
-    expect(ratioT(T.text, T.bg)).toBeCloseTo(12.43, 1);
+    expect(ratioT(T.text, T.bg)).toBeCloseTo(10.40, 1);
   });
   it("golden: on-primary-on-primary", () => {
-    expect(ratioT(T.onPrimary, T.primary)).toBeCloseTo(11.71, 1);
+    expect(ratioT(T.onPrimary, T.primary)).toBeCloseTo(10.86, 1);
   });
   it("golden: savings-text-on-bg", () => {
-    expect(ratioT(T.savingsText, T.bg)).toBeCloseTo(6.44, 1);
+    expect(ratioT(T.savingsText, T.bg)).toBeCloseTo(6.88, 1);
   });
 });
 
