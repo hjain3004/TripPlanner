@@ -55,6 +55,7 @@ export const ProofView = () => {
           </div>
         </div>
 
+        {/* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */}
         <div className="mt-6 border-2 border-warning bg-warning/10 p-4 flex items-start gap-3">
           <BadgeAlert className="w-5 h-5 text-warning-text shrink-0" aria-hidden="true" />
           <div className="text-sm">

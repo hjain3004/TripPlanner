@@ -17,6 +17,7 @@ export function WhyThis({ summary, children }: WhyThisProps) {
       <button 
         type="button"
         onClick={() => setIsOpen(!isOpen)}
+        /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
         className="flex items-center gap-2 text-sm font-medium text-primary hover:opacity-80 transition-opacity bg-primary/5 px-3 py-2 rounded-lg w-full"
       >
         <Info className="w-4 h-4" />
@@ -28,6 +29,7 @@ export function WhyThis({ summary, children }: WhyThisProps) {
       <AnimatePresence>
         {isOpen && (
           <motion.div animate={{ height: "auto", opacity: 1 }} initial={{ height: 0, opacity: 0 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            {/* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */}
             <div className="p-3 text-sm text-text-muted leading-relaxed bg-primary/5 rounded-b-lg border-t border-primary/10 text-left">
               {children}
             </div>

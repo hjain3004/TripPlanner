@@ -41,6 +41,7 @@ export const ItineraryView = () => {
               flightNumber={flight.id}
               duration="sample itinerary"
             />
+            {/* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */}
             <div className="mt-4 flex justify-between items-center bg-accent-2/30 p-4 border-l-2 border-primary">
               <span className="text-[13px] font-mono font-medium text-text-muted uppercase tracking-wide">Sample cash quote</span>
               <MoneyText minor={flightLine.amount_minor} currency={flightLine.currency} className="font-ui font-semibold text-primary text-[20px]" />
@@ -77,6 +78,7 @@ export const ItineraryView = () => {
         <RouteNode state="pending" icon={Train} label="Fixture day plan" subtitle="5 sample days · verify locally">
           <div className="border-2 border-border bg-bg p-5 shadow-1 space-y-2">
             {report.itinerary.days.map((day, index) => (
+              /* token-lint-disable-next-line no-dead-classes -- border-b-0 only exists under the last: modifier Tailwind emits; not matched by this script's plain-selector class scan */
               <div key={day.date} className="flex items-start justify-between gap-4 border-b border-border last:border-b-0 pb-2 last:pb-0">
                 <span className="font-mono text-xs text-text-muted">{day.date}</span>
                 <span className="text-sm text-text">Day {index + 1}: {day.items?.[0]?.poi_id ?? "open sample slot"}</span>

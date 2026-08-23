@@ -32,10 +32,12 @@ export default function KitchenSinkPage() {
   const activeTabLabel = PREVIEW_TABS.find((tab) => tab.id === activeTab)?.label ?? "Proof";
 
   return (
+    /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
     <div className={`min-h-screen bg-bg text-text font-ui selection:bg-primary/20 relative z-0 theme-${resolved.globalTheme}`}>
       <AbstractBackground />
 
       {/* Navbar */}
+      {/* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */}
       <nav className="sticky top-0 z-50 bg-bg/95 border-b-2 border-border">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-16 flex items-center justify-between gap-4 py-3">
           <div className="flex items-center gap-3">
@@ -54,6 +56,7 @@ export default function KitchenSinkPage() {
               aria-label="Preview section"
               value={activeTab}
               onChange={(event) => setActiveTab(event.target.value as PreviewTab)}
+              /* token-lint-disable-next-line no-dead-classes -- ring-4/ring-primary/30 only exist under the focus-visible: modifier Tailwind emits and the opacity value; neither is matched by this script's plain-selector class scan */
               className="min-h-11 w-[min(58vw,15rem)] border-2 border-border bg-surface px-3 font-ui text-sm font-semibold text-text shadow-1 outline-none focus-visible:ring-4 focus-visible:ring-primary/30"
             >
               {PREVIEW_TABS.map((tab) => (
@@ -74,6 +77,7 @@ export default function KitchenSinkPage() {
                   type="button"
                   aria-pressed={selected}
                   onClick={() => setActiveTab(tab.id)}
+                  /* token-lint-disable-next-line no-dead-classes -- ring-4/ring-primary/30 only exist under the focus-visible: modifier Tailwind emits and the opacity value; neither is matched by this script's plain-selector class scan */
                   className={`min-h-11 flex items-center gap-1.5 border-b-2 px-1 outline-none transition-colors focus-visible:ring-4 focus-visible:ring-primary/30 ${
                     selected
                       ? 'text-primary border-primary'

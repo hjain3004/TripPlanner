@@ -14,6 +14,7 @@ export function ProvenanceBand({
   confidence,
 }: ProvenanceBandProps) {
   return (
+    /* token-lint-disable-next-line no-dead-classes -- arbitrary opacity values compile to direct CSS values, not class names */
     <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted mt-4 pt-3 border-t border-border/60">
       <TrustChip variant={confidence && confidence < 90 ? "warning" : "verified"} label={verifiedBy || "Verified"} />
       {sourceUrl && (
