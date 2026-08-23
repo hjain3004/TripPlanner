@@ -226,14 +226,26 @@ function run() {
   console.log(`Found ${usedClasses.size} distinct color-bearing utility classes in source`);
 
   // 3. Check each used class against compiled CSS
+  // Suppression is a per-occurrence property (a disable comment only covers the
+  // line directly below it), so each location must be checked individually —
+  // checking only locations[0] and then treating the whole class as suppressed
+  // or not would let one file's suppression comment silently hide genuine
+  // violations elsewhere, or (as found in practice) let one file's unsuppressed
+  // occurrence flag another file's already-correctly-suppressed one.
+  const fileLinesCache = new Map();
+  function getFileLines(file) {
+    if (!fileLinesCache.has(file)) {
+      fileLinesCache.set(file, readLines(path.join(ROOT, file)));
+    }
+    return fileLinesCache.get(file);
+  }
+
   for (const [cls, locations] of usedClasses) {
     if (ALLOWLIST_SELECTORS.includes(cls)) continue;
     if (!compiledClasses.has(cls)) {
-      // Check for suppression on the first occurrence
-      const firstLoc = locations[0];
-      const firstLines = readLines(path.join(ROOT, firstLoc.file));
-      if (!isSuppressed(firstLines, firstLoc.line - 1)) {
-        for (const loc of locations) {
+      for (const loc of locations) {
+        const lines = getFileLines(loc.file);
+        if (!isSuppressed(lines, loc.line - 1)) {
           violations.push({ class: cls, file: loc.file, line: loc.line, text: loc.text });
         }
       }
