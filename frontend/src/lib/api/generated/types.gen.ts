@@ -5,6 +5,16 @@ export type ClientOptions = {
 };
 
 /**
+ * AdaptiveDetailPayload
+ */
+export type AdaptiveDetailPayload = {
+    /**
+     * Detail
+     */
+    detail: string;
+};
+
+/**
  * AddItem
  */
 export type AddItem = {
@@ -24,6 +34,60 @@ export type AddItem = {
      * Position
      */
     position: number;
+};
+
+/**
+ * AmendRequest
+ */
+export type AmendRequest = {
+    question_id: QuestionId;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Payload
+     */
+    payload?: TripEssentialsPayload | PurposePartyPayload | BudgetObjectivePayload | FlightPreferencesPayload | StayPreferencesPayload | DailyRhythmPayload | ExperiencesFoodPayload | HardConstraintsPayload | AdaptiveDetailPayload | null;
+    /**
+     * Delegated
+     */
+    delegated?: boolean;
+    /**
+     * Memory Scope
+     */
+    memory_scope?: 'trip_only' | 'propose_profile_update';
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+};
+
+/**
+ * AnswerRequest
+ */
+export type AnswerRequest = {
+    question_id: QuestionId;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Payload
+     */
+    payload?: TripEssentialsPayload | PurposePartyPayload | BudgetObjectivePayload | FlightPreferencesPayload | StayPreferencesPayload | DailyRhythmPayload | ExperiencesFoodPayload | HardConstraintsPayload | AdaptiveDetailPayload | null;
+    /**
+     * Delegated
+     */
+    delegated?: boolean;
+    /**
+     * Memory Scope
+     */
+    memory_scope?: 'trip_only' | 'propose_profile_update';
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
 };
 
 /**
@@ -96,6 +160,32 @@ export type AwardChartEntry = {
 };
 
 /**
+ * BudgetObjectivePayload
+ */
+export type BudgetObjectivePayload = {
+    /**
+     * Budget Minor
+     */
+    budget_minor?: number | null;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Travel Style
+     */
+    travel_style: 'budget' | 'balanced' | 'luxury';
+    /**
+     * Objective
+     */
+    objective: 'lowest_cash' | 'highest_value' | 'convenience' | 'balanced';
+    /**
+     * Points Priority
+     */
+    points_priority: 'save_points' | 'use_points' | 'best_value';
+};
+
+/**
  * BudgetTotals
  */
 export type BudgetTotals = {
@@ -137,6 +227,118 @@ export type BudgetTotals = {
  * Channel
  */
 export type Channel = 'direct_airline' | 'direct_hotel' | 'ota_generic' | 'bank_portal' | 'pos_abroad' | 'pos_domestic';
+
+/**
+ * ConfirmOut
+ */
+export type ConfirmOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * User Id
+     */
+    user_id: string;
+    status: PlanningSessionStatus;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    current_question: QuestionOut | null;
+    /**
+     * Suggested Question Ids
+     */
+    suggested_question_ids: Array<QuestionId>;
+    progress: ProgressOut;
+    /**
+     * Answers
+     */
+    answers: {
+        [key in QuestionId]?: InterviewAnswer;
+    };
+    /**
+     * Events
+     */
+    events: Array<ConversationEvent>;
+    /**
+     * Assistance Status
+     */
+    assistance_status: string;
+    /**
+     * Pending Profile Updates
+     */
+    pending_profile_updates: Array<ProfileUpdateProposal>;
+    brief?: TripBrief | null;
+    /**
+     * Planning Job Id
+     */
+    planning_job_id?: string | null;
+    /**
+     * Job Id
+     */
+    job_id: string;
+};
+
+/**
+ * ConfirmRequest
+ */
+export type ConfirmRequest = {
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    brief: TripBrief;
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+};
+
+/**
+ * ConstraintPreferences
+ */
+export type ConstraintPreferences = {
+    dietary?: PreferenceValueListStr | null;
+    accessibility?: PreferenceValueListStr | null;
+};
+
+/**
+ * ConversationEvent
+ *
+ * A persisted, user-visible event; never a raw transcript or model trace.
+ */
+export type ConversationEvent = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'assistant_question' | 'user_answer' | 'assistant_acknowledgement' | 'brief_review' | 'system_progress' | 'error';
+    question_id?: QuestionId | null;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
 
 /**
  * CostedTrip
@@ -191,6 +393,36 @@ export type CredentialsIn = {
 };
 
 /**
+ * DailyRhythmPayload
+ */
+export type DailyRhythmPayload = {
+    /**
+     * Pace
+     */
+    pace: 'relaxed' | 'moderate' | 'packed' | 'no_preference';
+    /**
+     * Day Start
+     */
+    day_start: 'early' | 'normal' | 'late' | 'no_preference';
+    /**
+     * Evening Style
+     */
+    evening_style: 'quiet' | 'flexible' | 'late' | 'no_preference';
+    /**
+     * Downtime Minutes
+     */
+    downtime_minutes?: number | null;
+    /**
+     * Transit Tolerance Minutes
+     */
+    transit_tolerance_minutes?: number | null;
+    /**
+     * Day Trip Appetite
+     */
+    day_trip_appetite: 'none' | 'one' | 'multiple' | 'no_preference';
+};
+
+/**
  * DraftItinerary
  */
 export type DraftItineraryInput = {
@@ -240,6 +472,43 @@ export type DraftItineraryOutput = {
      * Unverified Suggestions
      */
     unverified_suggestions?: Array<string>;
+};
+
+/**
+ * ExperiencePreferences
+ */
+export type ExperiencePreferences = {
+    interests?: PreferenceValueListStr | null;
+    food_interests?: PreferenceValueListStr | null;
+    iconic_local_balance?: PreferenceValueLiteralIconicBalancedLocal | null;
+    nightlife?: PreferenceValueBool | null;
+    shopping?: PreferenceValueBool | null;
+};
+
+/**
+ * ExperiencesFoodPayload
+ */
+export type ExperiencesFoodPayload = {
+    /**
+     * Interests
+     */
+    interests?: Array<string>;
+    /**
+     * Food Interests
+     */
+    food_interests?: Array<string>;
+    /**
+     * Iconic Local Balance
+     */
+    iconic_local_balance: 'iconic' | 'balanced' | 'local' | 'no_preference';
+    /**
+     * Nightlife
+     */
+    nightlife?: boolean | null;
+    /**
+     * Shopping
+     */
+    shopping?: boolean | null;
 };
 
 /**
@@ -305,6 +574,48 @@ export type FinalReport = {
 };
 
 /**
+ * FlightPreferences
+ */
+export type FlightPreferences = {
+    cabin?: PreferenceValueLiteralEconomyPremiumEconomyBusinessFirst | null;
+    max_stops?: PreferenceValueAnnotatedIntFieldInfoAnnotationNoneTypeRequiredTrueMetadataGeGe0LeLe3 | null;
+    schedule?: PreferenceValueLiteralMorningAfternoonEveningOvernightNoPreference | null;
+    checked_baggage?: PreferenceValueBool | null;
+    airport_flexible?: PreferenceValueBool | null;
+    seat?: PreferenceValueLiteralAisleWindowMiddleNoPreference | null;
+};
+
+/**
+ * FlightPreferencesPayload
+ */
+export type FlightPreferencesPayload = {
+    /**
+     * Cabin
+     */
+    cabin: 'economy' | 'premium_economy' | 'business' | 'first' | 'no_preference';
+    /**
+     * Max Stops
+     */
+    max_stops?: number | null;
+    /**
+     * Schedule
+     */
+    schedule: 'morning' | 'afternoon' | 'evening' | 'overnight' | 'no_preference';
+    /**
+     * Checked Baggage
+     */
+    checked_baggage?: boolean | null;
+    /**
+     * Airport Flexible
+     */
+    airport_flexible?: boolean | null;
+    /**
+     * Seat
+     */
+    seat?: 'aisle' | 'window' | 'middle' | 'no_preference';
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -312,6 +623,32 @@ export type HttpValidationError = {
      * Detail
      */
     detail?: Array<ValidationError>;
+};
+
+/**
+ * HardConstraintsPayload
+ */
+export type HardConstraintsPayload = {
+    /**
+     * Has Constraints
+     */
+    has_constraints: boolean;
+    /**
+     * Dietary
+     */
+    dietary?: Array<string>;
+    /**
+     * Accessibility
+     */
+    accessibility?: Array<string>;
+    /**
+     * Exclusions
+     */
+    exclusions?: Array<string>;
+    /**
+     * Immovable Events
+     */
+    immovable_events?: Array<string>;
 };
 
 /**
@@ -338,6 +675,33 @@ export type InfeasiblePlan = {
      * Note
      */
     note: string;
+};
+
+/**
+ * InterviewAnswer
+ */
+export type InterviewAnswer = {
+    question_id: QuestionId;
+    /**
+     * Payload
+     */
+    payload?: TripEssentialsPayload | PurposePartyPayload | BudgetObjectivePayload | FlightPreferencesPayload | StayPreferencesPayload | DailyRhythmPayload | ExperiencesFoodPayload | HardConstraintsPayload | AdaptiveDetailPayload | null;
+    /**
+     * Delegated
+     */
+    delegated?: boolean;
+    /**
+     * Memory Scope
+     */
+    memory_scope?: 'trip_only' | 'propose_profile_update';
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Answered At
+     */
+    answered_at: string;
 };
 
 /**
@@ -556,6 +920,14 @@ export type MoveItem = {
      * Position
      */
     position: number;
+};
+
+/**
+ * OptimizationPreferences
+ */
+export type OptimizationPreferences = {
+    objective?: PreferenceValueLiteralLowestCashHighestValueConvenienceBalanced | null;
+    points_priority?: PreferenceValueLiteralSavePointsUsePointsBestValue | null;
 };
 
 /**
@@ -823,6 +1195,355 @@ export type PlanJobStatus = {
 };
 
 /**
+ * PlanningSessionStatus
+ */
+export type PlanningSessionStatus = 'interviewing' | 'awaiting_assistant' | 'reviewing' | 'confirmed' | 'planning' | 'complete' | 'failed' | 'abandoned';
+
+/**
+ * PreferenceOut
+ */
+export type PreferenceOut = {
+    profile: TravelPreferenceProfile;
+};
+
+/**
+ * PreferencePatch
+ *
+ * Partial group replacement. Unspecified groups are preserved.
+ */
+export type PreferencePatch = {
+    flight?: FlightPreferences | null;
+    stay?: StayPreferences | null;
+    rhythm?: RhythmPreferences | null;
+    experiences?: ExperiencePreferences | null;
+    constraints?: ConstraintPreferences | null;
+    optimization?: OptimizationPreferences | null;
+};
+
+/**
+ * PreferenceValue[Annotated[int, FieldInfo(annotation=NoneType, required=True, metadata=[Ge(ge=0), Le(le=240)])]]
+ */
+export type PreferenceValueAnnotatedIntFieldInfoAnnotationNoneTypeRequiredTrueMetadataGeGe0LeLe240 = {
+    /**
+     * Value
+     */
+    value: number;
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Annotated[int, FieldInfo(annotation=NoneType, required=True, metadata=[Ge(ge=0), Le(le=360)])]]
+ */
+export type PreferenceValueAnnotatedIntFieldInfoAnnotationNoneTypeRequiredTrueMetadataGeGe0LeLe360 = {
+    /**
+     * Value
+     */
+    value: number;
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Annotated[int, FieldInfo(annotation=NoneType, required=True, metadata=[Ge(ge=0), Le(le=3)])]]
+ */
+export type PreferenceValueAnnotatedIntFieldInfoAnnotationNoneTypeRequiredTrueMetadataGeGe0LeLe3 = {
+    /**
+     * Value
+     */
+    value: number;
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Literal['aisle', 'window', 'middle', 'no_preference']]
+ */
+export type PreferenceValueLiteralAisleWindowMiddleNoPreference = {
+    /**
+     * Value
+     */
+    value: 'aisle' | 'window' | 'middle' | 'no_preference';
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Literal['early', 'normal', 'late']]
+ */
+export type PreferenceValueLiteralEarlyNormalLate = {
+    /**
+     * Value
+     */
+    value: 'early' | 'normal' | 'late';
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Literal['economy', 'premium_economy', 'business', 'first']]
+ */
+export type PreferenceValueLiteralEconomyPremiumEconomyBusinessFirst = {
+    /**
+     * Value
+     */
+    value: 'economy' | 'premium_economy' | 'business' | 'first';
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Literal['iconic', 'balanced', 'local']]
+ */
+export type PreferenceValueLiteralIconicBalancedLocal = {
+    /**
+     * Value
+     */
+    value: 'iconic' | 'balanced' | 'local';
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Literal['location', 'price', 'balanced']]
+ */
+export type PreferenceValueLiteralLocationPriceBalanced = {
+    /**
+     * Value
+     */
+    value: 'location' | 'price' | 'balanced';
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Literal['lowest_cash', 'highest_value', 'convenience', 'balanced']]
+ */
+export type PreferenceValueLiteralLowestCashHighestValueConvenienceBalanced = {
+    /**
+     * Value
+     */
+    value: 'lowest_cash' | 'highest_value' | 'convenience' | 'balanced';
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Literal['morning', 'afternoon', 'evening', 'overnight', 'no_preference']]
+ */
+export type PreferenceValueLiteralMorningAfternoonEveningOvernightNoPreference = {
+    /**
+     * Value
+     */
+    value: 'morning' | 'afternoon' | 'evening' | 'overnight' | 'no_preference';
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Literal['none', 'one', 'multiple']]
+ */
+export type PreferenceValueLiteralNoneOneMultiple = {
+    /**
+     * Value
+     */
+    value: 'none' | 'one' | 'multiple';
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Literal['quiet', 'flexible', 'late']]
+ */
+export type PreferenceValueLiteralQuietFlexibleLate = {
+    /**
+     * Value
+     */
+    value: 'quiet' | 'flexible' | 'late';
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Literal['relaxed', 'moderate', 'packed']]
+ */
+export type PreferenceValueLiteralRelaxedModeratePacked = {
+    /**
+     * Value
+     */
+    value: 'relaxed' | 'moderate' | 'packed';
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[Literal['save_points', 'use_points', 'best_value']]
+ */
+export type PreferenceValueLiteralSavePointsUsePointsBestValue = {
+    /**
+     * Value
+     */
+    value: 'save_points' | 'use_points' | 'best_value';
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[bool]
+ */
+export type PreferenceValueBool = {
+    /**
+     * Value
+     */
+    value: boolean;
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PreferenceValue[list[str]]
+ */
+export type PreferenceValueListStr = {
+    /**
+     * Value
+     */
+    value: Array<string>;
+    /**
+     * Source
+     */
+    source: 'user_profile_edit' | 'user_confirmed_from_trip';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * ProfileUpdateProposal
+ */
+export type ProfileUpdateProposal = {
+    /**
+     * Proposal Id
+     */
+    proposal_id: string;
+    /**
+     * Section
+     */
+    section: 'flight' | 'stay' | 'rhythm' | 'experiences' | 'constraints' | 'optimization';
+    candidate_profile: TravelPreferenceProfile;
+    source_question_id: QuestionId;
+};
+
+/**
+ * ProgressOut
+ */
+export type ProgressOut = {
+    /**
+     * Completed
+     */
+    completed: number;
+    /**
+     * Minimum Total
+     */
+    minimum_total: number;
+    /**
+     * Maximum Total
+     */
+    maximum_total: number;
+    status: PlanningSessionStatus;
+};
+
+/**
  * Provenance
  *
  * Trust metadata embedded on every fact row that can influence a recommendation.
@@ -856,6 +1577,66 @@ export type Provenance = {
      * Notes
      */
     notes?: string | null;
+};
+
+/**
+ * PurposePartyPayload
+ */
+export type PurposePartyPayload = {
+    /**
+     * Purpose
+     */
+    purpose: 'leisure' | 'work' | 'celebration' | 'family' | 'mixed';
+    /**
+     * Adults
+     */
+    adults: number;
+    /**
+     * Children Ages
+     */
+    children_ages?: Array<number>;
+    /**
+     * Companion Notes
+     */
+    companion_notes?: string | null;
+};
+
+/**
+ * QuestionId
+ */
+export type QuestionId = 'trip_essentials' | 'purpose_and_party' | 'budget_and_objective' | 'flight_preferences' | 'stay_preferences' | 'daily_rhythm' | 'experiences_and_food' | 'hard_constraints' | 'celebration_details' | 'children_needs' | 'mobility_details' | 'points_strategy' | 'flight_tradeoff' | 'hotel_tradeoff' | 'food_depth';
+
+/**
+ * QuestionOut
+ */
+export type QuestionOut = {
+    id: QuestionId;
+    /**
+     * Prompt
+     */
+    prompt: string;
+    /**
+     * Phase
+     */
+    phase: string;
+    /**
+     * Answer Kind
+     */
+    answer_kind: string;
+    /**
+     * Required
+     */
+    required: boolean;
+    /**
+     * Allow Delegate
+     */
+    allow_delegate: boolean;
+    /**
+     * Control
+     */
+    control: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -1019,6 +1800,18 @@ export type ReplaceItem = {
 };
 
 /**
+ * RhythmPreferences
+ */
+export type RhythmPreferences = {
+    pace?: PreferenceValueLiteralRelaxedModeratePacked | null;
+    day_start?: PreferenceValueLiteralEarlyNormalLate | null;
+    evening_style?: PreferenceValueLiteralQuietFlexibleLate | null;
+    downtime_minutes?: PreferenceValueAnnotatedIntFieldInfoAnnotationNoneTypeRequiredTrueMetadataGeGe0LeLe360 | null;
+    transit_tolerance_minutes?: PreferenceValueAnnotatedIntFieldInfoAnnotationNoneTypeRequiredTrueMetadataGeGe0LeLe240 | null;
+    day_trip_appetite?: PreferenceValueLiteralNoneOneMultiple | null;
+};
+
+/**
  * RunnerUp
  *
  * Second-best option for a line, for the report's 'why not X?' section.
@@ -1172,6 +1965,81 @@ export type SelectedHotelArea = {
 };
 
 /**
+ * SessionOut
+ */
+export type SessionOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * User Id
+     */
+    user_id: string;
+    status: PlanningSessionStatus;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    current_question: QuestionOut | null;
+    /**
+     * Suggested Question Ids
+     */
+    suggested_question_ids: Array<QuestionId>;
+    progress: ProgressOut;
+    /**
+     * Answers
+     */
+    answers: {
+        [key in QuestionId]?: InterviewAnswer;
+    };
+    /**
+     * Events
+     */
+    events: Array<ConversationEvent>;
+    /**
+     * Assistance Status
+     */
+    assistance_status: string;
+    /**
+     * Pending Profile Updates
+     */
+    pending_profile_updates: Array<ProfileUpdateProposal>;
+    brief?: TripBrief | null;
+    /**
+     * Planning Job Id
+     */
+    planning_job_id?: string | null;
+};
+
+/**
+ * SkipRequest
+ */
+export type SkipRequest = {
+    question_id: QuestionId;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+};
+
+/**
  * SpendCategory
  */
 export type SpendCategory = 'flights' | 'hotels' | 'dining' | 'grocery' | 'transit' | 'attractions' | 'shopping' | 'forex_general' | 'ota' | 'insurance' | 'other';
@@ -1211,6 +2079,43 @@ export type SpendLineItem = {
      * Splittable
      */
     splittable?: boolean;
+};
+
+/**
+ * StayPreferences
+ */
+export type StayPreferences = {
+    lodging_styles?: PreferenceValueListStr | null;
+    location_priorities?: PreferenceValueListStr | null;
+    room_needs?: PreferenceValueListStr | null;
+    location_price_tradeoff?: PreferenceValueLiteralLocationPriceBalanced | null;
+    loyalty_programs?: PreferenceValueListStr | null;
+};
+
+/**
+ * StayPreferencesPayload
+ */
+export type StayPreferencesPayload = {
+    /**
+     * Lodging Styles
+     */
+    lodging_styles?: Array<string>;
+    /**
+     * Neighborhood Priorities
+     */
+    neighborhood_priorities?: Array<string>;
+    /**
+     * Room Count
+     */
+    room_count?: number;
+    /**
+     * Room Needs
+     */
+    room_needs?: Array<string>;
+    /**
+     * Location Price Tradeoff
+     */
+    location_price_tradeoff: 'location' | 'price' | 'balanced' | 'no_preference';
 };
 
 /**
@@ -1348,6 +2253,114 @@ export type TransitSegment = {
 };
 
 /**
+ * TravelPreferenceProfile
+ *
+ * One user's remembered travel preferences, grouped by domain.
+ *
+ * Every leaf is an optional ``PreferenceValue`` — absence means "never
+ * told us," not a default choice the system silently assumed.
+ */
+export type TravelPreferenceProfile = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    flight?: FlightPreferences;
+    stay?: StayPreferences;
+    rhythm?: RhythmPreferences;
+    experiences?: ExperiencePreferences;
+    constraints?: ConstraintPreferences;
+    optimization?: OptimizationPreferences;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * TravelerHomeContext
+ */
+export type TravelerHomeContext = {
+    /**
+     * Home Country
+     */
+    home_country: 'IN' | 'AE' | 'US';
+    /**
+     * Home Currency
+     */
+    home_currency: string;
+    /**
+     * Default Origin
+     */
+    default_origin?: string | null;
+};
+
+/**
+ * TripBrief
+ */
+export type TripBrief = {
+    home: TravelerHomeContext;
+    trip_essentials: TripEssentialsPayload;
+    purpose_and_party?: PurposePartyPayload | null;
+    budget_and_objective?: BudgetObjectivePayload | null;
+    flight_preferences?: FlightPreferencesPayload | null;
+    stay_preferences?: StayPreferencesPayload | null;
+    daily_rhythm?: DailyRhythmPayload | null;
+    experiences_and_food?: ExperiencesFoodPayload | null;
+    hard_constraints: HardConstraintsPayload;
+    /**
+     * Adaptive Details
+     */
+    adaptive_details?: {
+        [key in QuestionId]?: AdaptiveDetailPayload;
+    };
+    /**
+     * Delegated Questions
+     */
+    delegated_questions?: Array<QuestionId>;
+    applied_profile_preferences?: TravelPreferenceProfile | null;
+    /**
+     * Applied Profile Sections
+     */
+    applied_profile_sections?: Array<string>;
+    /**
+     * Assumptions
+     */
+    assumptions?: Array<string>;
+    wallet: UserWallet;
+};
+
+/**
+ * TripEssentialsPayload
+ */
+export type TripEssentialsPayload = {
+    /**
+     * Origin
+     */
+    origin: string;
+    /**
+     * Destination
+     */
+    destination: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Date Flexibility Days
+     */
+    date_flexibility_days?: number;
+    /**
+     * Travelers
+     */
+    travelers: number;
+};
+
+/**
  * TripIntakeRequest
  */
 export type TripIntakeRequest = {
@@ -1481,6 +2494,376 @@ export type ValidationError = {
         [key: string]: unknown;
     };
 };
+
+/**
+ * VersionRequest
+ */
+export type VersionRequest = {
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+};
+
+export type GetPreferencesPlanningPreferencesGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/planning/preferences';
+};
+
+export type GetPreferencesPlanningPreferencesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PreferenceOut;
+};
+
+export type GetPreferencesPlanningPreferencesGetResponse = GetPreferencesPlanningPreferencesGetResponses[keyof GetPreferencesPlanningPreferencesGetResponses];
+
+export type PatchPreferencesPlanningPreferencesPatchData = {
+    body: PreferencePatch;
+    path?: never;
+    query?: never;
+    url: '/planning/preferences';
+};
+
+export type PatchPreferencesPlanningPreferencesPatchErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PatchPreferencesPlanningPreferencesPatchError = PatchPreferencesPlanningPreferencesPatchErrors[keyof PatchPreferencesPlanningPreferencesPatchErrors];
+
+export type PatchPreferencesPlanningPreferencesPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: PreferenceOut;
+};
+
+export type PatchPreferencesPlanningPreferencesPatchResponse = PatchPreferencesPlanningPreferencesPatchResponses[keyof PatchPreferencesPlanningPreferencesPatchResponses];
+
+export type ReplacePreferencesPlanningPreferencesPutData = {
+    body: TravelPreferenceProfile;
+    path?: never;
+    query?: never;
+    url: '/planning/preferences';
+};
+
+export type ReplacePreferencesPlanningPreferencesPutErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReplacePreferencesPlanningPreferencesPutError = ReplacePreferencesPlanningPreferencesPutErrors[keyof ReplacePreferencesPlanningPreferencesPutErrors];
+
+export type ReplacePreferencesPlanningPreferencesPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: PreferenceOut;
+};
+
+export type ReplacePreferencesPlanningPreferencesPutResponse = ReplacePreferencesPlanningPreferencesPutResponses[keyof ReplacePreferencesPlanningPreferencesPutResponses];
+
+export type RemovePreferencesPlanningPreferencesSectionDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Section
+         */
+        section: 'flight' | 'stay' | 'rhythm' | 'experiences' | 'constraints' | 'optimization';
+    };
+    query?: never;
+    url: '/planning/preferences/{section}';
+};
+
+export type RemovePreferencesPlanningPreferencesSectionDeleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemovePreferencesPlanningPreferencesSectionDeleteError = RemovePreferencesPlanningPreferencesSectionDeleteErrors[keyof RemovePreferencesPlanningPreferencesSectionDeleteErrors];
+
+export type RemovePreferencesPlanningPreferencesSectionDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: PreferenceOut;
+};
+
+export type RemovePreferencesPlanningPreferencesSectionDeleteResponse = RemovePreferencesPlanningPreferencesSectionDeleteResponses[keyof RemovePreferencesPlanningPreferencesSectionDeleteResponses];
+
+export type CreateSessionPlanningSessionsPostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/planning/sessions';
+};
+
+export type CreateSessionPlanningSessionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SessionOut;
+};
+
+export type CreateSessionPlanningSessionsPostResponse = CreateSessionPlanningSessionsPostResponses[keyof CreateSessionPlanningSessionsPostResponses];
+
+export type ReadSessionPlanningSessionsSessionIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}';
+};
+
+export type ReadSessionPlanningSessionsSessionIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadSessionPlanningSessionsSessionIdGetError = ReadSessionPlanningSessionsSessionIdGetErrors[keyof ReadSessionPlanningSessionsSessionIdGetErrors];
+
+export type ReadSessionPlanningSessionsSessionIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionOut;
+};
+
+export type ReadSessionPlanningSessionsSessionIdGetResponse = ReadSessionPlanningSessionsSessionIdGetResponses[keyof ReadSessionPlanningSessionsSessionIdGetResponses];
+
+export type AnswerSessionPlanningSessionsSessionIdAnswersPostData = {
+    body: AnswerRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/answers';
+};
+
+export type AnswerSessionPlanningSessionsSessionIdAnswersPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnswerSessionPlanningSessionsSessionIdAnswersPostError = AnswerSessionPlanningSessionsSessionIdAnswersPostErrors[keyof AnswerSessionPlanningSessionsSessionIdAnswersPostErrors];
+
+export type AnswerSessionPlanningSessionsSessionIdAnswersPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionOut;
+};
+
+export type AnswerSessionPlanningSessionsSessionIdAnswersPostResponse = AnswerSessionPlanningSessionsSessionIdAnswersPostResponses[keyof AnswerSessionPlanningSessionsSessionIdAnswersPostResponses];
+
+export type SkipSessionPlanningSessionsSessionIdSkipPostData = {
+    body: SkipRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/skip';
+};
+
+export type SkipSessionPlanningSessionsSessionIdSkipPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SkipSessionPlanningSessionsSessionIdSkipPostError = SkipSessionPlanningSessionsSessionIdSkipPostErrors[keyof SkipSessionPlanningSessionsSessionIdSkipPostErrors];
+
+export type SkipSessionPlanningSessionsSessionIdSkipPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionOut;
+};
+
+export type SkipSessionPlanningSessionsSessionIdSkipPostResponse = SkipSessionPlanningSessionsSessionIdSkipPostResponses[keyof SkipSessionPlanningSessionsSessionIdSkipPostResponses];
+
+export type AmendSessionPlanningSessionsSessionIdAmendPostData = {
+    body: AmendRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/amend';
+};
+
+export type AmendSessionPlanningSessionsSessionIdAmendPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AmendSessionPlanningSessionsSessionIdAmendPostError = AmendSessionPlanningSessionsSessionIdAmendPostErrors[keyof AmendSessionPlanningSessionsSessionIdAmendPostErrors];
+
+export type AmendSessionPlanningSessionsSessionIdAmendPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionOut;
+};
+
+export type AmendSessionPlanningSessionsSessionIdAmendPostResponse = AmendSessionPlanningSessionsSessionIdAmendPostResponses[keyof AmendSessionPlanningSessionsSessionIdAmendPostResponses];
+
+export type ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostData = {
+    body: VersionRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Proposal Id
+         */
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/profile-updates/{proposal_id}/approve';
+};
+
+export type ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostError = ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostErrors[keyof ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostErrors];
+
+export type ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionOut;
+};
+
+export type ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostResponse = ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostResponses[keyof ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostResponses];
+
+export type ReviewSessionPlanningSessionsSessionIdReviewGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/review';
+};
+
+export type ReviewSessionPlanningSessionsSessionIdReviewGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReviewSessionPlanningSessionsSessionIdReviewGetError = ReviewSessionPlanningSessionsSessionIdReviewGetErrors[keyof ReviewSessionPlanningSessionsSessionIdReviewGetErrors];
+
+export type ReviewSessionPlanningSessionsSessionIdReviewGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionOut;
+};
+
+export type ReviewSessionPlanningSessionsSessionIdReviewGetResponse = ReviewSessionPlanningSessionsSessionIdReviewGetResponses[keyof ReviewSessionPlanningSessionsSessionIdReviewGetResponses];
+
+export type ConfirmSessionPlanningSessionsSessionIdConfirmPostData = {
+    body: ConfirmRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/confirm';
+};
+
+export type ConfirmSessionPlanningSessionsSessionIdConfirmPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConfirmSessionPlanningSessionsSessionIdConfirmPostError = ConfirmSessionPlanningSessionsSessionIdConfirmPostErrors[keyof ConfirmSessionPlanningSessionsSessionIdConfirmPostErrors];
+
+export type ConfirmSessionPlanningSessionsSessionIdConfirmPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: ConfirmOut;
+};
+
+export type ConfirmSessionPlanningSessionsSessionIdConfirmPostResponse = ConfirmSessionPlanningSessionsSessionIdConfirmPostResponses[keyof ConfirmSessionPlanningSessionsSessionIdConfirmPostResponses];
+
+export type SessionJobPlanningSessionsSessionIdJobGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/job';
+};
+
+export type SessionJobPlanningSessionsSessionIdJobGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SessionJobPlanningSessionsSessionIdJobGetError = SessionJobPlanningSessionsSessionIdJobGetErrors[keyof SessionJobPlanningSessionsSessionIdJobGetErrors];
+
+export type SessionJobPlanningSessionsSessionIdJobGetResponses = {
+    /**
+     * Response Session Job Planning Sessions  Session Id  Job Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SessionJobPlanningSessionsSessionIdJobGetResponse = SessionJobPlanningSessionsSessionIdJobGetResponses[keyof SessionJobPlanningSessionsSessionIdJobGetResponses];
 
 export type HealthHealthGetData = {
     body?: never;

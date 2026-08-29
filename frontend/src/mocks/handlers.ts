@@ -11,6 +11,24 @@ import type {
 const SPEED_MULTIPLIER = 1;
 
 const jobStore: Record<string, { status: PlanJobStatus; timer: ReturnType<typeof setInterval> | null }> = {};
+const conversationSession = {
+  id: "msw-session-001",
+  user_id: "msw-user-001",
+  status: "interviewing",
+  version: 0,
+  created_at: "2026-08-29T00:00:00Z",
+  updated_at: "2026-08-29T00:00:00Z",
+  expires_at: "2026-09-28T00:00:00Z",
+  current_question: { id: "trip_essentials", prompt: "Where are you headed, and what are your travel dates?", phase: "core", answer_kind: "trip_essentials", required: true, allow_delegate: false, control: { type: "trip_essentials", fields: ["origin", "destination", "start_date", "end_date", "travelers"], allow_skip: false, options: [] } },
+  suggested_question_ids: [],
+  progress: { completed: 0, minimum_total: 8, maximum_total: 12, status: "interviewing" },
+  answers: {},
+  events: [{ id: "msw-event-001", kind: "assistant_question", question_id: "trip_essentials", text: "Where are you headed, and what are your travel dates?", created_at: "2026-08-29T00:00:00Z" }],
+  assistance_status: "not_run",
+  pending_profile_updates: [],
+  brief: null,
+  planning_job_id: null,
+};
 
 const STAGES: PlanJobStatus["stage"][] = [
   "intake",
@@ -579,6 +597,18 @@ export const handlers = [
     };
     return HttpResponse.json(rep);
   }),
+
+  http.get("*/planning/preferences", () => HttpResponse.json({ profile: { user_id: "msw-user-001", updated_at: today(), flight: null, stay: null, rhythm: null, experiences: null, constraints: null, optimization: null } })),
+  http.patch("*/planning/preferences", async ({ request }) => HttpResponse.json({ profile: await request.json() })),
+  http.post("*/planning/sessions", () => HttpResponse.json(conversationSession, { status: 201 })),
+  http.get("*/planning/sessions/:sessionId", () => HttpResponse.json(conversationSession)),
+  http.post("*/planning/sessions/:sessionId/answers", async ({ request }) => {
+    const body = (await request.json()) as { client_event_id?: string };
+    return HttpResponse.json({ ...conversationSession, version: 1, answers: {}, events: [...conversationSession.events, { id: `msw-answer-${body.client_event_id ?? "1"}`, kind: "user_answer", text: "Answer recorded.", created_at: new Date().toISOString() }] });
+  }),
+  http.post("*/planning/sessions/:sessionId/skip", () => HttpResponse.json({ ...conversationSession, version: 1 })),
+  http.get("*/planning/sessions/:sessionId/review", () => HttpResponse.json({ ...conversationSession, status: "reviewing" })),
+  http.post("*/planning/sessions/:sessionId/confirm", () => HttpResponse.json({ ...conversationSession, status: "planning", planning_job_id: "msw-job-001", job_id: "msw-job-001" }, { status: 202 })),
 ];
 
 export const fixtureHandlers = {
