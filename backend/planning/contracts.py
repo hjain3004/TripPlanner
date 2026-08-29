@@ -62,6 +62,24 @@ class AssistanceStatus(StrEnum):
     DEGRADED = "degraded"
 
 
+class ConversationEvent(BaseModel):
+    """A persisted, user-visible event; never a raw transcript or model trace."""
+
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    kind: Literal[
+        "assistant_question",
+        "user_answer",
+        "assistant_acknowledgement",
+        "brief_review",
+        "system_progress",
+        "error",
+    ]
+    question_id: QuestionId | None = None
+    text: str = Field(min_length=1, max_length=2000)
+    created_at: datetime
+
+
 def _normalize_iata(value: str) -> str:
     """Mirror ``accounts.models.UserProfile.normalize_iata`` exactly."""
     normalized = value.strip().upper()
@@ -156,6 +174,11 @@ class PlanningSession(BaseModel):
     pending_profile_updates: list[ProfileUpdateProposal] = Field(default_factory=list)
     confirmed_briefs: list[ConfirmedBriefSnapshot] = Field(default_factory=list)
     saved_trip_id: str | None = None
+    # Set atomically when a confirmed brief is handed to the existing
+    # non-live planning job.  Persisting this marker makes confirmation
+    # idempotent even when two clients submit the same review concurrently.
+    planning_job_id: str | None = None
+    events: list[ConversationEvent] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_session_invariants(self) -> PlanningSession:

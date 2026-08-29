@@ -147,10 +147,10 @@ export default function Home() {
                 Next: add the cards and point balances you already have.
               </p>
               <Link
-                href="/plan"
+                href="/plan/conversation"
                 className="min-w-[210px] border-0 border-l border-border rounded-none bg-primary text-text-on-primary font-semibold text-[12px] max-[650px]:border-l-0 max-[650px]:border-t max-[650px]:min-h-[54px] flex items-center justify-center px-6"
               >
-                Continue to your wallet →
+                Start your consultation →
               </Link>
             </div>
           </div>
