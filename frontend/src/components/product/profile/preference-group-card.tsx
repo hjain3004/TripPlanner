@@ -9,6 +9,7 @@ import {
   getPreferenceSourceLabel,
   getPreferenceStatusLabel,
 } from "./profile-policy";
+import { editablePreferenceValue } from "./profile-projection";
 import { PreferenceConfirmationDialog } from "./preference-confirmation-dialog";
 import type {
   PreferenceDraft,
@@ -19,22 +20,26 @@ import type {
 
 interface PreferenceGroupCardProps {
   group: ProfilePreferenceGroup;
-  onSave: (groupId: string, values: PreferenceDraft) => void;
-  onReset: (groupId: string) => void;
-  onRemove: (groupId: string) => void;
+  onSave: (groupId: string, values: PreferenceDraft) => boolean | Promise<boolean>;
+  onReset: (groupId: string) => boolean | Promise<boolean>;
+  onRemove: (groupId: string) => boolean | Promise<boolean>;
 }
 
 const statusClasses: Record<ProfilePreferenceGroup["updateStatus"], string> = {
   saved: "bg-success/15 text-success-text",
   pending: "bg-warning/20 text-warning-text",
   "needs-review": "bg-accent-2 text-text",
+  "not-set": "bg-bg text-text-muted",
 };
 
 function initialDraft(group: ProfilePreferenceGroup): PreferenceDraft {
-  return Object.fromEntries(group.fields.map((field) => [field.id, field.value]));
+  return Object.fromEntries(group.fields.map((field) => [field.id, editablePreferenceValue(field)]));
 }
 
 function displayValue(field: ProfilePreferenceField): string {
+  if (field.value === "Not set") return "Not set";
+  if (Array.isArray(field.value)) return field.value.join(", ");
+  if (typeof field.value === "boolean") return field.value ? "Yes" : "No";
   if (typeof field.value === "number") return field.value.toLocaleString();
   return field.value;
 }
@@ -48,6 +53,11 @@ function FieldValue({ field }: { field: ProfilePreferenceField }) {
       <dd className="mt-1 text-[15px] leading-[1.45] text-text">
         {displayValue(field)}
       </dd>
+      {field.source && field.source !== "unset" && field.updatedAt ? (
+        <dd className="mt-1 font-mono text-[10px] uppercase tracking-[.06em] text-text-muted">
+          Updated {field.updatedAt.slice(0, 10)}
+        </dd>
+      ) : null}
       {field.description && (
         <dd className="mt-1 text-[12px] leading-[1.5] text-text-muted">
           {field.description}
@@ -64,7 +74,7 @@ function EditableField({
 }: {
   field: ProfilePreferenceField;
   value: PreferenceValue;
-  onChange: (value: string | number) => void;
+  onChange: (value: PreferenceValue) => void;
 }) {
   const inputId = `preference-${field.id}`;
   const descriptionId = field.description ? `${inputId}-description` : undefined;
@@ -96,7 +106,7 @@ function EditableField({
         <Input
           {...commonProps}
           type={field.type}
-          value={value}
+          value={Array.isArray(value) ? value.join(", ") : String(value)}
           onChange={(event) =>
             onChange(field.type === "number" ? Number(event.target.value) : event.target.value)
           }
@@ -121,6 +131,8 @@ export function PreferenceGroupCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<PreferenceDraft>(() => initialDraft(group));
   const [confirmation, setConfirmation] = useState<"reset" | "remove" | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   const startEditing = () => {
     setDraft(initialDraft(group));
@@ -132,11 +144,18 @@ export function PreferenceGroupCard({
     setEditing(false);
   };
 
-  const confirmAction = () => {
-    if (confirmation === "reset") onReset(group.id);
-    if (confirmation === "remove") onRemove(group.id);
-    setConfirmation(null);
-    setEditing(false);
+  const confirmAction = async () => {
+    if (!confirmation) return false;
+    setConfirming(true);
+    const saved = confirmation === "reset"
+      ? await onReset(group.id)
+      : await onRemove(group.id);
+    setConfirming(false);
+    if (saved) {
+      setConfirmation(null);
+      setEditing(false);
+    }
+    return saved;
   };
 
   return (
@@ -147,9 +166,9 @@ export function PreferenceGroupCard({
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,1.15fr)_auto] lg:items-start">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h3 id={`${group.id}-title`} className="text-h3 font-ui font-semibold leading-[1.15] text-primary">
+            <h2 id={`${group.id}-title`} className="text-h3 font-ui font-semibold leading-[1.15] text-primary">
               {group.title}
-            </h3>
+            </h2>
             <span
               className="rounded-full border border-border px-2 py-1 text-[11px] font-medium text-text"
               aria-label={`Source: ${getPreferenceSourceLabel(group.source)}`}
@@ -199,12 +218,15 @@ export function PreferenceGroupCard({
               <Button
                 type="button"
                 className="min-h-11"
+                disabled={saving}
                 onClick={() => {
-                  onSave(group.id, draft);
-                  setEditing(false);
+                  setSaving(true);
+                  void Promise.resolve(onSave(group.id, draft)).then((saved) => {
+                    if (saved) setEditing(false);
+                  }).finally(() => setSaving(false));
                 }}
               >
-                Save changes
+                {saving ? "Saving…" : "Save changes"}
               </Button>
             </>
           ) : (
@@ -241,6 +263,7 @@ export function PreferenceGroupCard({
         groupTitle={group.title}
         onCancel={() => setConfirmation(null)}
         onConfirm={confirmAction}
+        confirming={confirming}
       />
     </article>
   );

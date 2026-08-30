@@ -15,6 +15,24 @@ export type AdaptiveDetailPayload = {
 };
 
 /**
+ * AdaptiveTextControl
+ */
+export type AdaptiveTextControl = {
+    /**
+     * Type
+     */
+    type: 'text';
+    /**
+     * Allow Skip
+     */
+    allow_skip: boolean;
+    /**
+     * Options
+     */
+    options?: Array<ControlOption>;
+};
+
+/**
  * AddItem
  */
 export type AddItem = {
@@ -160,6 +178,20 @@ export type AwardChartEntry = {
 };
 
 /**
+ * BackRequest
+ */
+export type BackRequest = {
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+};
+
+/**
  * BudgetObjectivePayload
  */
 export type BudgetObjectivePayload = {
@@ -287,6 +319,14 @@ export type ConfirmOut = {
      */
     planning_job_id?: string | null;
     /**
+     * Planning Error
+     */
+    planning_error?: string | null;
+    /**
+     * Question Catalog
+     */
+    question_catalog?: Array<QuestionOut>;
+    /**
      * Job Id
      */
     job_id: string;
@@ -313,6 +353,20 @@ export type ConfirmRequest = {
 export type ConstraintPreferences = {
     dietary?: PreferenceValueListStr | null;
     accessibility?: PreferenceValueListStr | null;
+};
+
+/**
+ * ControlOption
+ */
+export type ControlOption = {
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Label
+     */
+    label: string;
 };
 
 /**
@@ -623,6 +677,28 @@ export type HttpValidationError = {
      * Detail
      */
     detail?: Array<ValidationError>;
+};
+
+/**
+ * HardConstraintsControl
+ */
+export type HardConstraintsControl = {
+    /**
+     * Type
+     */
+    type: 'hard_constraints';
+    /**
+     * Allow Skip
+     */
+    allow_skip: false;
+    /**
+     * Fields
+     */
+    fields: Array<'has_constraints' | 'dietary' | 'accessibility' | 'exclusions' | 'immovable_events'>;
+    /**
+     * Options
+     */
+    options?: Array<ControlOption>;
 };
 
 /**
@@ -1634,9 +1710,15 @@ export type QuestionOut = {
     /**
      * Control
      */
-    control: {
-        [key: string]: unknown;
-    };
+    control: ({
+        type: 'budget_objective' | 'experiences_food' | 'flight' | 'purpose_party' | 'rhythm' | 'stay';
+    } & SelectControl) | ({
+        type: 'trip_essentials';
+    } & TripEssentialsControl) | ({
+        type: 'hard_constraints';
+    } & HardConstraintsControl) | ({
+        type: 'text';
+    } & AdaptiveTextControl);
 };
 
 /**
@@ -1947,6 +2029,24 @@ export type SectionFreshness = {
 export type SectionState = 'fresh' | 'stale' | 'recomputed';
 
 /**
+ * SelectControl
+ */
+export type SelectControl = {
+    /**
+     * Type
+     */
+    type: 'purpose_party' | 'budget_objective' | 'flight' | 'stay' | 'rhythm' | 'experiences_food';
+    /**
+     * Allow Skip
+     */
+    allow_skip: boolean;
+    /**
+     * Options
+     */
+    options: Array<ControlOption>;
+};
+
+/**
  * SelectedHotelArea
  */
 export type SelectedHotelArea = {
@@ -2022,6 +2122,14 @@ export type SessionOut = {
      * Planning Job Id
      */
     planning_job_id?: string | null;
+    /**
+     * Planning Error
+     */
+    planning_error?: string | null;
+    /**
+     * Question Catalog
+     */
+    question_catalog?: Array<QuestionOut>;
 };
 
 /**
@@ -2328,6 +2436,32 @@ export type TripBrief = {
      */
     assumptions?: Array<string>;
     wallet: UserWallet;
+};
+
+/**
+ * TripEssentialsControl
+ */
+export type TripEssentialsControl = {
+    /**
+     * Type
+     */
+    type: 'trip_essentials';
+    /**
+     * Allow Skip
+     */
+    allow_skip: false;
+    /**
+     * Fields
+     */
+    fields: Array<'origin' | 'destination' | 'start_date' | 'end_date' | 'travelers' | 'date_flexibility_days'>;
+    /**
+     * Options
+     */
+    options?: Array<ControlOption>;
+    /**
+     * Optional Fields
+     */
+    optional_fields?: Array<'date_flexibility_days'>;
 };
 
 /**
@@ -2736,6 +2870,36 @@ export type AmendSessionPlanningSessionsSessionIdAmendPostResponses = {
 };
 
 export type AmendSessionPlanningSessionsSessionIdAmendPostResponse = AmendSessionPlanningSessionsSessionIdAmendPostResponses[keyof AmendSessionPlanningSessionsSessionIdAmendPostResponses];
+
+export type BackSessionPlanningSessionsSessionIdBackPostData = {
+    body: BackRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/back';
+};
+
+export type BackSessionPlanningSessionsSessionIdBackPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BackSessionPlanningSessionsSessionIdBackPostError = BackSessionPlanningSessionsSessionIdBackPostErrors[keyof BackSessionPlanningSessionsSessionIdBackPostErrors];
+
+export type BackSessionPlanningSessionsSessionIdBackPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionOut;
+};
+
+export type BackSessionPlanningSessionsSessionIdBackPostResponse = BackSessionPlanningSessionsSessionIdBackPostResponses[keyof BackSessionPlanningSessionsSessionIdBackPostResponses];
 
 export type ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostData = {
     body: VersionRequest;

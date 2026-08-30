@@ -24,12 +24,12 @@ export function ProfilePreferences({
           <span className="h-0.5 w-7 bg-accent-4" aria-hidden="true" />
           Account / preferences
         </span>
-        <h2
+        <h1
           id="profile-preferences-heading"
           className="mt-5 font-display text-h2 leading-[1.05] tracking-[-0.015em] text-primary"
         >
           {heading}
-        </h2>
+        </h1>
         <p className="mt-4 max-w-[650px] text-[15px] leading-[1.65] text-text-muted">{description}</p>
       </div>
 

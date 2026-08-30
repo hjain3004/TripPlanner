@@ -78,6 +78,10 @@ class InvalidAssistantSuggestionError(PlanningPolicyError):
     """An assistant suggestion is unknown, inapplicable, repeated, or already answered."""
 
 
+class BackNavigationError(PlanningPolicyError):
+    """The interview has no prior answer that can be revisited."""
+
+
 class InterviewProgress(BaseModel):
     """A caller-facing progress summary: completed decisions and an honest range.
 
@@ -310,6 +314,89 @@ def record_answer(
         current_question_id=next_id,
         status=next_status,
         suggested_question_ids=next_suggested,
+    )
+
+
+def go_back(
+    session: PlanningSession, *, expected_version: int, now: datetime
+) -> PlanningSession:
+    """Move to the immediately preceding answered question.
+
+    Back is a server-owned transition: it removes only that answer, keeps the
+    rest of the transcript intact, and never touches a confirmed snapshot.
+    """
+    if expected_version != session.version:
+        raise StaleSessionVersionError(
+            f"expected_version={expected_version} does not match session.version={session.version}"
+        )
+    if session.status in {
+        PlanningSessionStatus.CONFIRMED,
+        PlanningSessionStatus.PLANNING,
+        PlanningSessionStatus.COMPLETE,
+    } or session.confirmed_briefs:
+        raise PlanningPolicyError("confirmed sessions cannot navigate back")
+    # The queue intentionally removes an adaptive id after it is answered, so
+    # reconstruct ordering from the catalog rather than from the remaining
+    # queue. Otherwise Back from review would reopen the last core question
+    # and silently discard the adaptive answer that was actually last.
+    ordered = [*CORE_QUESTION_ORDER, *_ADAPTIVE_BY_PRIORITY]
+    answered = [q for q in ordered if q in session.answers]
+    if not answered:
+        raise BackNavigationError("there is no previous answer")
+    previous = answered[-1]
+    remaining_answers = dict(session.answers)
+    del remaining_answers[previous]
+    # A core answer can determine whether adaptive answers are applicable.
+    # Remove any now-orphaned adaptive answers and queue entries before
+    # returning the new server-owned state; they must not survive a backtrack
+    # and silently influence review.
+    probe = session.model_copy(update={"answers": remaining_answers})
+    for adaptive_id in ADAPTIVE_QUESTION_IDS:
+        if adaptive_id in remaining_answers and not _adaptive_applicable(adaptive_id, probe):
+            del remaining_answers[adaptive_id]
+    remaining_suggestions = [
+        question_id
+        for question_id in session.suggested_question_ids
+        if question_id not in remaining_answers
+        and _adaptive_applicable(question_id, probe)
+    ]
+    return _bump(
+        session,
+        now,
+        answers=remaining_answers,
+        suggested_question_ids=remaining_suggestions,
+        current_question_id=previous,
+        status=PlanningSessionStatus.INTERVIEWING,
+    )
+
+
+def amend_answer(
+    session: PlanningSession,
+    answer: InterviewAnswer,
+    *,
+    expected_version: int,
+    now: datetime,
+) -> PlanningSession:
+    """Replace an existing answer in review, validating its full typed shape."""
+    if expected_version != session.version:
+        raise StaleSessionVersionError(
+            f"expected_version={expected_version} does not match session.version={session.version}"
+        )
+    if session.status is not PlanningSessionStatus.REVIEWING or session.confirmed_briefs:
+        raise PlanningPolicyError("only an unconfirmed review can be amended")
+    if answer.question_id not in session.answers:
+        raise PlanningPolicyError("cannot amend an unanswered question")
+    definition = _definition(answer.question_id)
+    if answer.delegated and not definition.allow_delegate:
+        raise DelegationNotAllowedError(f"{answer.question_id.value} cannot be delegated")
+    updated_answers = {**session.answers, answer.question_id: answer}
+    _validate_traveler_consistency(updated_answers)
+    return _bump(
+        session,
+        now,
+        answers=updated_answers,
+        pending_profile_updates=[],
+        processed_event_ids=[*session.processed_event_ids, answer.client_event_id],
     )
 
 

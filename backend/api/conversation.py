@@ -9,6 +9,8 @@ confirmation of a server-assembled Trip Brief.
 from __future__ import annotations
 
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal
 from uuid import uuid4
@@ -52,22 +54,62 @@ from planning.contracts import (
     TripBrief,
 )
 from planning.policy import (
+    BackNavigationError,
     DelegationNotAllowedError,
     PlanningPolicyError,
     StaleSessionVersionError,
     UnexpectedQuestionError,
+    amend_answer,
+    go_back,
     interview_progress,
     next_question,
     record_answer,
     record_assistant_suggestions,
     start_interview,
 )
-from planning.question_catalog import QuestionDefinition
+from planning.question_catalog import DEFAULT_QUESTION_CATALOG, QuestionDefinition
 from planning.repository import PlanningSessionRepository
 
 router = APIRouter(prefix="/planning", tags=["planning"])
-_CONFIRM_LOCKS: dict[str, threading.Lock] = {}
+class _ConfirmLockEntry:
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.references = 0
+
+
+_CONFIRM_LOCKS: dict[str, _ConfirmLockEntry] = {}
 _CONFIRM_LOCKS_GUARD = threading.Lock()
+_MAX_CONFIRM_LOCKS = 1024
+_PREFERENCES_LOCK = threading.Lock()
+
+
+@contextmanager
+def _confirmation_guard(session_id: str) -> Iterator[None]:
+    with _CONFIRM_LOCKS_GUARD:
+        entry = _CONFIRM_LOCKS.setdefault(session_id, _ConfirmLockEntry())
+        entry.references += 1
+        # Waiting callers count as references too. Eviction therefore cannot
+        # create two locks for one session id while a waiter holds an old ref.
+        if len(_CONFIRM_LOCKS) > _MAX_CONFIRM_LOCKS:
+            for key, candidate in list(_CONFIRM_LOCKS.items()):
+                if key != session_id and candidate.references == 0:
+                    del _CONFIRM_LOCKS[key]
+                    if len(_CONFIRM_LOCKS) <= _MAX_CONFIRM_LOCKS:
+                        break
+    try:
+        with entry.lock:
+            yield
+    finally:
+        with _CONFIRM_LOCKS_GUARD:
+            entry.references -= 1
+            if entry.references == 0 and len(_CONFIRM_LOCKS) > _MAX_CONFIRM_LOCKS:
+                # Opportunistically trim the oldest idle entries. No active or
+                # waiting entry is ever removed.
+                for key, candidate in list(_CONFIRM_LOCKS.items()):
+                    if candidate.references == 0:
+                        del _CONFIRM_LOCKS[key]
+                        if len(_CONFIRM_LOCKS) <= _MAX_CONFIRM_LOCKS:
+                            break
 
 
 class ErrorOut(BaseModel):
@@ -88,6 +130,12 @@ class AnswerRequest(BaseModel):
 class SkipRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     question_id: QuestionId
+    expected_version: int = Field(ge=0)
+    client_event_id: str = Field(min_length=1, max_length=128)
+
+
+class BackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     expected_version: int = Field(ge=0)
     client_event_id: str = Field(min_length=1, max_length=128)
 
@@ -118,6 +166,73 @@ class PreferencePatch(BaseModel):
     optimization: OptimizationPreferences | None = None
 
 
+class ControlOption(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    value: str
+    label: str
+
+
+class SelectControl(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    type: Literal[
+        "purpose_party",
+        "budget_objective",
+        "flight",
+        "stay",
+        "rhythm",
+        "experiences_food",
+    ]
+    allow_skip: bool
+    options: list[ControlOption]
+
+
+class TripEssentialsControl(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    type: Literal["trip_essentials"]
+    allow_skip: Literal[False]
+    fields: list[
+        Literal[
+            "origin",
+            "destination",
+            "start_date",
+            "end_date",
+            "travelers",
+            "date_flexibility_days",
+        ]
+    ]
+    options: list[ControlOption] = Field(default_factory=list)
+    optional_fields: list[Literal["date_flexibility_days"]] = Field(default_factory=list)
+
+
+class HardConstraintsControl(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    type: Literal["hard_constraints"]
+    allow_skip: Literal[False]
+    fields: list[
+        Literal[
+            "has_constraints",
+            "dietary",
+            "accessibility",
+            "exclusions",
+            "immovable_events",
+        ]
+    ]
+    options: list[ControlOption] = Field(default_factory=list)
+
+
+class AdaptiveTextControl(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    type: Literal["text"]
+    allow_skip: bool
+    options: list[ControlOption] = Field(default_factory=list)
+
+
+QuestionControl = Annotated[
+    SelectControl | TripEssentialsControl | HardConstraintsControl | AdaptiveTextControl,
+    Field(discriminator="type"),
+]
+
+
 class QuestionOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: QuestionId
@@ -126,7 +241,7 @@ class QuestionOut(BaseModel):
     answer_kind: str
     required: bool
     allow_delegate: bool
-    control: dict[str, Any]
+    control: QuestionControl
 
 
 class ProgressOut(BaseModel):
@@ -154,6 +269,8 @@ class SessionOut(BaseModel):
     pending_profile_updates: list[ProfileUpdateProposal]
     brief: TripBrief | None = None
     planning_job_id: str | None = None
+    planning_error: str | None = None
+    question_catalog: list[QuestionOut] = Field(default_factory=list)
 
 
 class PreferenceOut(BaseModel):
@@ -233,29 +350,35 @@ def _question_out(definition: QuestionDefinition | None) -> QuestionOut | None:
             )
         ],
     }
-    control: dict[str, Any] = {
-        "type": definition.answer_kind,
-        "allow_skip": definition.allow_delegate,
-        "options": option_sets.get(definition.answer_kind, []),
-    }
+    options = [ControlOption(**option) for option in option_sets.get(definition.answer_kind, [])]
+    control: QuestionControl
     if definition.answer_kind == "trip_essentials":
-        control.update(
-            {
-                "type": "trip_essentials",
-                "fields": ["origin", "destination", "start_date", "end_date", "travelers"],
-                "allow_skip": False,
-            }
+        control = TripEssentialsControl(
+            type="trip_essentials",
+            fields=[
+                "origin", "destination", "start_date", "end_date", "travelers",
+            ],
+            allow_skip=False,
+            optional_fields=["date_flexibility_days"],
         )
     elif definition.answer_kind == "hard_constraints":
-        control.update(
-            {
-                "type": "hard_constraints",
-                "fields": ["dietary", "accessibility", "exclusions", "immovable_events"],
-                "allow_skip": False,
-            }
+        control = HardConstraintsControl(
+            type="hard_constraints",
+            fields=[
+                "has_constraints", "dietary", "accessibility", "exclusions",
+                "immovable_events",
+            ],
+            allow_skip=False,
         )
     elif definition.answer_kind == "adaptive_detail":
-        control.update({"type": "text", "allow_skip": definition.allow_delegate})
+        control = AdaptiveTextControl(type="text", allow_skip=definition.allow_delegate)
+    else:
+        # Every non-structured answer kind is a closed select control above.
+        control = SelectControl(
+            type=definition.answer_kind,
+            allow_skip=definition.allow_delegate,
+            options=options,
+        )
     return QuestionOut(
         id=definition.id,
         prompt=definition.prompt,
@@ -274,6 +397,11 @@ def _session_out(session: PlanningSession) -> SessionOut:
     elif session.confirmed_briefs:
         brief = session.confirmed_briefs[-1].brief
     progress = interview_progress(session)
+    catalog: list[QuestionOut] = []
+    for definition in DEFAULT_QUESTION_CATALOG:
+        rendered = _question_out(definition)
+        if rendered is not None:
+            catalog.append(rendered)
     return SessionOut(
         id=session.id,
         user_id=session.user_id,
@@ -291,6 +419,8 @@ def _session_out(session: PlanningSession) -> SessionOut:
         pending_profile_updates=session.pending_profile_updates,
         brief=brief,
         planning_job_id=session.planning_job_id,
+        planning_error=session.planning_error,
+        question_catalog=catalog,
     )
 
 
@@ -385,16 +515,17 @@ def patch_preferences(
     store: Annotated[AccountStore, Depends(get_store)],
 ) -> PreferenceOut:
     require_csrf(request)
-    existing = store.get_travel_preferences(user.id)
-    now = now_utc()
-    if existing is None:
-        existing = TravelPreferenceProfile(user_id=user.id, updated_at=now)
-    # Use model instances, not ``model_dump`` dictionaries, so Pydantic's
-    # nested validators remain authoritative during the replacement.
-    updates = {name: getattr(body, name) for name in body.model_fields_set}
-    candidate = existing.model_copy(update={**updates, "updated_at": now})
-    profile = TravelPreferenceProfile.model_validate(candidate.model_dump())
-    store.put_travel_preferences(profile)
+    with _PREFERENCES_LOCK:
+        existing = store.get_travel_preferences(user.id)
+        now = now_utc()
+        if existing is None:
+            existing = TravelPreferenceProfile(user_id=user.id, updated_at=now)
+        # Use model instances, not ``model_dump`` dictionaries, so Pydantic's
+        # nested validators remain authoritative during the replacement.
+        updates = {name: getattr(body, name) for name in body.model_fields_set}
+        candidate = existing.model_copy(update={**updates, "updated_at": now})
+        profile = TravelPreferenceProfile.model_validate(candidate.model_dump())
+        store.put_travel_preferences(profile)
     return PreferenceOut(profile=profile)
 
 
@@ -422,21 +553,22 @@ def remove_preferences(
 ) -> PreferenceOut:
     """Explicitly remove one durable preference group; never an implicit reset."""
     require_csrf(request)
-    existing = store.get_travel_preferences(user.id)
-    now = now_utc()
-    if existing is None:
-        existing = TravelPreferenceProfile(user_id=user.id, updated_at=now)
-    empty_groups: dict[str, Any] = {
-        "flight": FlightPreferences(),
-        "stay": StayPreferences(),
-        "rhythm": RhythmPreferences(),
-        "experiences": ExperiencePreferences(),
-        "constraints": ConstraintPreferences(),
-        "optimization": OptimizationPreferences(),
-    }
-    candidate = existing.model_copy(update={section: empty_groups[section], "updated_at": now})
-    profile = TravelPreferenceProfile.model_validate(candidate.model_dump())
-    store.put_travel_preferences(profile)
+    with _PREFERENCES_LOCK:
+        existing = store.get_travel_preferences(user.id)
+        now = now_utc()
+        if existing is None:
+            existing = TravelPreferenceProfile(user_id=user.id, updated_at=now)
+        empty_groups: dict[str, Any] = {
+            "flight": FlightPreferences(),
+            "stay": StayPreferences(),
+            "rhythm": RhythmPreferences(),
+            "experiences": ExperiencePreferences(),
+            "constraints": ConstraintPreferences(),
+            "optimization": OptimizationPreferences(),
+        }
+        candidate = existing.model_copy(update={section: empty_groups[section], "updated_at": now})
+        profile = TravelPreferenceProfile.model_validate(candidate.model_dump())
+        store.put_travel_preferences(profile)
     return PreferenceOut(profile=profile)
 
 
@@ -597,22 +729,41 @@ def amend_session(
             client_event_id=body.client_event_id,
             answered_at=now_utc(),
         )
-        if body.question_id not in session.answers:
-            raise PlanningPolicyError("cannot amend an unanswered question")
-        updated = session.model_copy(
-            update={
-                "answers": {**session.answers, body.question_id: answer},
-                "processed_event_ids": [*session.processed_event_ids, body.client_event_id],
-                "version": session.version + 1,
-                "updated_at": now_utc(),
-            }
+        updated = amend_answer(
+            session, answer, expected_version=body.expected_version, now=now_utc()
         )
-        updated = PlanningSession.model_validate(updated.model_dump())
         repo.save(updated, expected_version=session.version)
     except StalePlanningSessionError as exc:
         raise _error(409, "STALE_SESSION", str(exc)) from None
     except PlanningPolicyError as exc:
         raise _error(422, "INVALID_AMENDMENT", str(exc)) from None
+    return _session_out(updated)
+
+
+@router.post("/sessions/{session_id}/back", response_model=SessionOut)
+def back_session(
+    session_id: str,
+    body: BackRequest,
+    request: Request,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+) -> SessionOut:
+    require_csrf(request)
+    repo = _repo(store)
+    session = _get_session(repo, user, session_id)
+    if body.client_event_id in session.processed_event_ids:
+        return _session_out(session)
+    try:
+        updated = go_back(session, expected_version=body.expected_version, now=now_utc())
+        updated = updated.model_copy(
+            update={"processed_event_ids": [*updated.processed_event_ids, body.client_event_id]}
+        )
+        updated = PlanningSession.model_validate(updated.model_dump())
+        repo.save(updated, expected_version=session.version)
+    except (StaleSessionVersionError, StalePlanningSessionError) as exc:
+        raise _error(409, "STALE_SESSION", str(exc)) from None
+    except (BackNavigationError, PlanningPolicyError) as exc:
+        raise _error(422, "INVALID_BACK", str(exc)) from None
     return _session_out(updated)
 
 
@@ -718,27 +869,44 @@ def confirm_session(
 ) -> ConfirmOut:
     require_csrf(request)
     repo = _repo(store)
-    with _CONFIRM_LOCKS_GUARD:
-        lock = _CONFIRM_LOCKS.setdefault(session_id, threading.Lock())
-    with lock:
+    with _confirmation_guard(session_id):
         session = _get_session(repo, user, session_id)
         if session.planning_job_id is not None:
             return ConfirmOut(**_session_out(session).model_dump(), job_id=session.planning_job_id)
-        if body.client_event_id in session.processed_event_ids and session.confirmed_briefs:
+        if (
+            body.client_event_id in session.processed_event_ids
+            and session.confirmed_briefs
+            and session.status is not PlanningSessionStatus.FAILED
+        ):
             raise _error(409, "CONFIRMATION_IN_PROGRESS", "Confirmation is already being processed")
         try:
-            confirmed = confirm_trip_brief(
-                session,
-                body.brief,
-                expected_version=body.expected_version,
-                now=now_utc(),
-            )
+            if session.status is PlanningSessionStatus.FAILED and session.confirmed_briefs:
+                if body.expected_version != session.version:
+                    raise StaleSessionVersionError("Session version is stale")
+                existing_json = session.confirmed_briefs[-1].brief.model_dump_json()
+                if body.brief.model_dump_json() != existing_json:
+                    raise BriefMismatchError("brief does not match the confirmed snapshot")
+                confirmed = session.model_copy(
+                    update={"version": session.version + 1, "updated_at": now_utc()}
+                )
+            else:
+                confirmed = confirm_trip_brief(
+                    session,
+                    body.brief,
+                    expected_version=body.expected_version,
+                    now=now_utc(),
+                )
             job_id = uuid4().hex
             confirmed = confirmed.model_copy(
                 update={
                     "status": PlanningSessionStatus.PLANNING,
                     "planning_job_id": job_id,
-                    "processed_event_ids": [*confirmed.processed_event_ids, body.client_event_id],
+                    "planning_error": None,
+                    "processed_event_ids": (
+                        confirmed.processed_event_ids
+                        if body.client_event_id in confirmed.processed_event_ids
+                        else [*confirmed.processed_event_ids, body.client_event_id]
+                    ),
                     "updated_at": now_utc(),
                     "events": [
                         *confirmed.events,
@@ -761,7 +929,28 @@ def confirm_session(
             raise _error(409, "STALE_SESSION", str(exc)) from None
         except StalePlanningSessionError as exc:
             raise _error(409, "STALE_SESSION", str(exc)) from None
-        _start_legacy_job(confirmed, job_id)
+        try:
+            _start_legacy_job(confirmed, job_id)
+        except Exception:
+            failed = confirmed.model_copy(
+                update={
+                    "status": PlanningSessionStatus.FAILED,
+                    "planning_job_id": None,
+                    "planning_error": "Planning job could not be started; retry confirmation.",
+                    "version": confirmed.version + 1,
+                    "updated_at": now_utc(),
+                }
+            )
+            failed = PlanningSession.model_validate(failed.model_dump())
+            try:
+                repo.save(failed, expected_version=confirmed.version)
+            except StalePlanningSessionError:
+                pass
+            raise _error(
+                503,
+                "PLANNING_START_FAILED",
+                failed.planning_error or "Planning job could not be started",
+            ) from None
         return ConfirmOut(**_session_out(confirmed).model_dump(), job_id=job_id)
 
 
@@ -779,4 +968,23 @@ def session_job(
     state = job_manager.get_job(session.planning_job_id)
     if state is None:
         return {"job_id": session.planning_job_id, "status": "queued"}
-    return state.to_status(session.planning_job_id).model_dump()
+    status = state.to_status(session.planning_job_id)
+    if status.status == "failed" and session.status is PlanningSessionStatus.PLANNING:
+        failed = PlanningSession.model_validate(
+            session.model_dump(
+                mode="python",
+                exclude={"planning_job_id", "planning_error", "status", "version", "updated_at"},
+            )
+            | {
+                "status": PlanningSessionStatus.FAILED,
+                "planning_job_id": None,
+                "planning_error": status.error.message if status.error else "Planning failed.",
+                "version": session.version + 1,
+                "updated_at": now_utc(),
+            }
+        )
+        try:
+            _repo(store).save(failed, expected_version=session.version)
+        except StalePlanningSessionError:
+            pass
+    return status.model_dump()

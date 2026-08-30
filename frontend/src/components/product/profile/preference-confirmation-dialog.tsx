@@ -16,7 +16,8 @@ interface PreferenceConfirmationDialogProps {
   action: PreferenceConfirmationAction | null;
   groupTitle: string;
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: () => boolean | Promise<boolean>;
+  confirming?: boolean;
 }
 
 const ACTION_COPY: Record<
@@ -26,7 +27,7 @@ const ACTION_COPY: Record<
   reset: {
     title: "Reset saved preferences?",
     description:
-      "This restores the group to TripPlanner defaults. Your trip answers stay unchanged.",
+      "This clears the saved values in this group. Your trip answers stay unchanged.",
     confirm: "Reset preferences",
   },
   remove: {
@@ -42,6 +43,7 @@ export function PreferenceConfirmationDialog({
   groupTitle,
   onCancel,
   onConfirm,
+  confirming = false,
 }: PreferenceConfirmationDialogProps) {
   const copy = action ? ACTION_COPY[action] : null;
 
@@ -61,7 +63,7 @@ export function PreferenceConfirmationDialog({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:justify-end">
-            <Button type="button" variant="outline" className="min-h-11" onClick={onCancel}>
+            <Button type="button" variant="outline" className="min-h-11" onClick={onCancel} disabled={confirming}>
               Keep as is
             </Button>
             <Button
@@ -69,8 +71,9 @@ export function PreferenceConfirmationDialog({
               variant={action === "remove" ? "destructive" : "default"}
               className="min-h-11"
               onClick={onConfirm}
+              disabled={confirming}
             >
-              {copy.confirm}
+              {confirming ? "Saving…" : copy.confirm}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -9,6 +9,7 @@ import type {
   ChoiceOption,
   ControlDefinition,
   MultiSelectControl,
+  StructuredAnswerValue,
 } from "./conversational-types";
 
 interface TypedAnswerControlProps {
@@ -25,6 +26,14 @@ const NO_PREFERENCE: ChoiceOption = {
   label: "No preference — choose for me",
   description: "I’ll keep this decision flexible.",
 };
+
+function structuredValue(value: AnswerValue): StructuredAnswerValue {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : {};
+}
+
+function updateStructured(value: AnswerValue, key: string, next: string | number | boolean | string[] | number[]): StructuredAnswerValue {
+  return { ...structuredValue(value), [key]: next };
+}
 
 function optionsWithDelegation(control: MultiSelectControl | Extract<ControlDefinition, { kind: "single-select" }>): ChoiceOption[] {
   if (!control.allowNoPreference || control.options.some((option) => option.value === NO_PREFERENCE.value)) {
@@ -155,6 +164,131 @@ export function TypedAnswerControl({
             Choose up to {control.maxSelections}
           </p>
         ) : null}
+      </fieldset>
+    );
+  }
+
+  if (control.kind === "party") {
+    const party = structuredValue(value);
+    const selected = typeof party.purpose === "string" ? party.purpose : "";
+    const children = Array.isArray(party.children_ages) ? party.children_ages.join(", ") : "";
+    return (
+      <fieldset className="space-y-4" aria-label={label} {...descriptionProps}>
+        <legend className="sr-only">{label}</legend>
+        <div className="grid gap-3 sm:grid-cols-2" role="radiogroup">
+          {control.options.map((option) => (
+            <ChoiceCard
+              key={option.value}
+              option={option}
+              checked={selected === option.value}
+              type="radio"
+              name={inputId}
+              onChange={() => onChange({
+                ...structuredValue(value),
+                purpose: option.value,
+                adults: typeof party.adults === "number" && party.adults > 0 ? party.adults : control.defaultAdults,
+                children_ages: Array.isArray(party.children_ages) ? party.children_ages : [],
+              })}
+              disabled={disabled}
+            />
+          ))}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor={`${inputId}-adults`} className="mb-2 block text-xs font-medium uppercase tracking-[0.06em] text-text-muted">Adults</label>
+            <Input
+              id={`${inputId}-adults`}
+              type="number"
+              min={1}
+              max={20}
+              value={typeof party.adults === "number" ? party.adults : control.defaultAdults}
+              onChange={(event) => onChange(updateStructured(value, "adults", Number(event.target.value) || 1))}
+              disabled={disabled}
+              className="min-h-[48px] rounded-md bg-surface text-base"
+            />
+          </div>
+          <div>
+            <label htmlFor={`${inputId}-children`} className="mb-2 block text-xs font-medium uppercase tracking-[0.06em] text-text-muted">Children’s ages</label>
+            <Input
+              id={`${inputId}-children`}
+              type="text"
+              inputMode="numeric"
+              placeholder="e.g. 4, 9"
+              value={children}
+              onChange={(event) => onChange(updateStructured(value, "children_ages", event.target.value.split(",").map((item) => Number(item.trim())).filter((age) => Number.isInteger(age) && age >= 0)))}
+              disabled={disabled}
+              className="min-h-[48px] rounded-md bg-surface text-base"
+            />
+          </div>
+        </div>
+      </fieldset>
+    );
+  }
+
+  if (control.kind === "hard-constraints") {
+    const constraints = structuredValue(value);
+    const hasConstraints = constraints.has_constraints === true;
+    const arrayField = (field: "dietary" | "accessibility" | "exclusions" | "immovable_events") => Array.isArray(constraints[field]) ? constraints[field].join(", ") : "";
+    return (
+      <fieldset className="space-y-4" aria-label={label} {...descriptionProps}>
+        <legend className="sr-only">{label}</legend>
+        <label className="flex min-h-[52px] cursor-pointer items-center gap-3 rounded-md border-2 border-border bg-surface px-4 py-3 text-sm font-semibold text-text">
+          <input
+            type="checkbox"
+            checked={hasConstraints}
+            onChange={(event) => onChange(updateStructured(value, "has_constraints", event.target.checked))}
+            disabled={disabled}
+            className="h-5 w-5 accent-primary"
+          />
+          I have requirements the plan must respect
+        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {control.fields.filter((field) => field !== "has_constraints").map((field) => {
+            const fieldLabel = field.replaceAll("_", " ");
+            return (
+              <div key={field}>
+                <label htmlFor={`${inputId}-${field}`} className="mb-2 block text-xs font-medium uppercase tracking-[0.06em] text-text-muted">{fieldLabel}</label>
+                <Input
+                  id={`${inputId}-${field}`}
+                  type="text"
+                  value={arrayField(field)}
+                  placeholder="Separate items with commas"
+                  onChange={(event) => onChange(updateStructured(value, field, event.target.value.split(",").map((item) => item.trim()).filter(Boolean)))}
+                  disabled={disabled || !hasConstraints}
+                  className="min-h-[48px] rounded-md bg-surface text-base"
+                />
+              </div>
+            );
+          })}
+        </div>
+      </fieldset>
+    );
+  }
+
+  if (control.kind === "trip-essentials") {
+    const essentials = structuredValue(value);
+    return (
+      <fieldset className="grid gap-4 sm:grid-cols-2" aria-label={label} {...descriptionProps}>
+        <legend className="sr-only">{label}</legend>
+        {control.fields.map((field) => {
+          const fieldLabel = field.replaceAll("_", " ");
+          const fieldId = `${inputId}-${field}`;
+          const numberField = field === "travelers" || field === "date_flexibility_days";
+          return (
+            <div key={field}>
+              <label htmlFor={fieldId} className="mb-2 block text-xs font-medium uppercase tracking-[0.06em] text-text-muted">{fieldLabel}</label>
+              <Input
+                id={fieldId}
+                type={field.includes("date") ? "date" : numberField ? "number" : "text"}
+                min={numberField ? (field === "travelers" ? 1 : 0) : undefined}
+                value={essentials[field] === undefined ? "" : String(essentials[field])}
+                onChange={(event) => onChange(updateStructured(value, field, numberField ? Number(event.target.value) || 0 : event.target.value.toUpperCase()))}
+                disabled={disabled}
+                className="min-h-[48px] rounded-md bg-surface text-base"
+              />
+            </div>
+          );
+        })}
       </fieldset>
     );
   }
