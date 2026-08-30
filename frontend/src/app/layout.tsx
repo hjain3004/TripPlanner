@@ -47,7 +47,7 @@ export default function RootLayout({
       <body>
         <TooltipProvider>
           <Providers>
-            <MSWProvider><main><PageTransition>{children}</PageTransition></main></MSWProvider>
+            <MSWProvider><PageTransition>{children}</PageTransition></MSWProvider>
           </Providers>
         </TooltipProvider>
       </body>

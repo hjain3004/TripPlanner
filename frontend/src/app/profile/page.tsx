@@ -1,180 +1,84 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { SiteHeader } from "@/components/product/site-header";
 import { ProfilePreferences } from "@/components/product/profile";
-import type {
-  PreferenceDraft,
-  ProfilePreferenceGroup,
-} from "@/components/product/profile";
-import { getPreferencesPlanningPreferencesGet, patchPreferencesPlanningPreferencesPatch, removePreferencesPlanningPreferencesSectionDelete } from "@/lib/api";
+import type { PreferenceDraft, ProfilePreferenceGroup } from "@/components/product/profile";
+import { emptyPreferencePatch, projectTravelPreferences, buildPreferencePatch } from "@/components/product/profile/profile-projection";
+import {
+  getPreferencesPlanningPreferencesGet,
+  patchPreferencesPlanningPreferencesPatch,
+  removePreferencesPlanningPreferencesSectionDelete,
+  type TravelPreferenceProfile,
+} from "@/lib/api";
 import { apiClient, csrfHeaders } from "@/lib/api/client-config";
 
-const NO_PREFERENCE = "No preference — choose for me";
-
-const DEFAULT_GROUPS: readonly ProfilePreferenceGroup[] = [
-  {
-    id: "travel-style",
-    title: "Travel style",
-    description: "The pace and shape of a trip you usually enjoy.",
-    source: "profile",
-    updateStatus: "saved",
-    updatedAt: "28 Aug 2026",
-    fields: [
-      {
-        id: "pace",
-        label: "Typical pace",
-        value: "Balanced",
-        type: "select",
-        options: ["Slow", "Balanced", "Full days", NO_PREFERENCE],
-        description: "Used as a starting point, never a hard rule.",
-      },
-      {
-        id: "planning_style",
-        label: "Planning style",
-        value: "A considered mix of landmarks and local places",
-        type: "text",
-      },
-    ],
-  },
-  {
-    id: "comfort-accessibility",
-    title: "Comfort & accessibility",
-    description: "Needs that should be visible before an itinerary is built.",
-    source: "profile",
-    updateStatus: "needs-review",
-    updatedAt: "12 Aug 2026",
-    fields: [
-      {
-        id: "mobility",
-        label: "Mobility support",
-        value: NO_PREFERENCE,
-        type: "select",
-        options: [NO_PREFERENCE, "Step-free routes", "Limited walking", "Wheelchair access"],
-      },
-      {
-        id: "dietary",
-        label: "Dietary notes",
-        value: NO_PREFERENCE,
-        type: "text",
-        description: "Only add what you want considered during planning.",
-      },
-    ],
-  },
-  {
-    id: "rewards-objective",
-    title: "Rewards objective",
-    description: "The trade-off you want the planner to make explicit.",
-    source: "imported",
-    updateStatus: "pending",
-    updatedAt: "From your wallet",
-    fields: [
-      {
-        id: "points_priority",
-        label: "Points priority",
-        value: "Best overall value",
-        type: "select",
-        options: ["Best overall value", "Lowest cash today", "Keep my points"],
-      },
-      {
-        id: "cabin",
-        label: "Preferred cabin",
-        value: NO_PREFERENCE,
-        type: "select",
-        options: [NO_PREFERENCE, "Economy", "Premium economy", "Business"],
-      },
-    ],
-  },
-];
-
-const defaultValues = new Map(
-  DEFAULT_GROUPS.map((group) => [
-    group.id,
-    Object.fromEntries(group.fields.map((field) => [field.id, NO_PREFERENCE])),
-  ])
-);
-
-function updateGroup(
-  groups: readonly ProfilePreferenceGroup[],
-  groupId: string,
-  values: PreferenceDraft,
-  status: ProfilePreferenceGroup["updateStatus"] = "saved",
-  source?: ProfilePreferenceGroup["source"],
-  updatedAt?: string,
-): ProfilePreferenceGroup[] {
-  return groups.map((group) =>
-    group.id === groupId
-      ? {
-          ...group,
-          updateStatus: status,
-          source: source ?? group.source,
-          updatedAt: updatedAt ?? group.updatedAt,
-          fields: group.fields.map((field) =>
-            Object.prototype.hasOwnProperty.call(values, field.id)
-              ? { ...field, value: values[field.id]! }
-              : field
-          ),
-        }
-      : group
-  );
-}
-
+type LoadState = "loading" | "ready" | "error";
 export default function ProfilePage() {
-  const [groups, setGroups] = useState<readonly ProfilePreferenceGroup[]>(DEFAULT_GROUPS);
-  const [profileState, setProfileState] = useState<"loading" | "connected" | "offline">("loading");
+  const [groups, setGroups] = useState<readonly ProfilePreferenceGroup[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    let active = true;
-    void getPreferencesPlanningPreferencesGet({ client: apiClient }).then((result) => {
-      if (!active) return;
-      if (!result.data) { setProfileState("offline"); return; }
-      const profile = result.data.profile;
-      const leaf = (section: keyof typeof profile, field: string): unknown => {
-        const group = profile[section] as Record<string, { value?: unknown }> | null | undefined;
-        return group?.[field]?.value;
-      };
-      const pace = leaf("rhythm", "pace");
-      const accessibility = leaf("constraints", "accessibility");
-      const points = leaf("optimization", "points_priority");
-      setGroups((current) => current.map((group) => {
-        if (group.id === "travel-style" && pace) return updateGroup(current, group.id, { pace: String(pace).replace("moderate", "Balanced").replace("relaxed", "Slow").replace("packed", "Full days") }, "saved", "profile")[0] ?? group;
-        if (group.id === "comfort-accessibility" && accessibility) return updateGroup(current, group.id, { mobility: Array.isArray(accessibility) ? accessibility.join(", ") : String(accessibility) }, "saved", "profile")[1] ?? group;
-        if (group.id === "rewards-objective" && points) return updateGroup(current, group.id, { points_priority: String(points).replaceAll("_", " ") }, "saved", "profile")[2] ?? group;
-        return group;
-      }));
-      setProfileState("connected");
-    }).catch(() => { if (active) setProfileState("offline"); });
-    return () => { active = false; };
+  const applyProfile = useCallback((profile: TravelPreferenceProfile) => {
+    setGroups(projectTravelPreferences(profile));
+    setLoadState("ready");
+    setError("");
   }, []);
 
-  const handleSave = (groupId: string, values: PreferenceDraft) => {
-    setGroups((current) => updateGroup(current, groupId, values));
-    const now = new Date().toISOString();
-    const leaf = (value: unknown) => ({ value, source: "user_profile_edit" as const, updated_at: now });
-    const patch = (groupId === "travel-style"
-      ? { rhythm: { pace: leaf(String(values.pace ?? "moderate").toLowerCase().replace("full days", "packed").replace("slow", "relaxed").replace("balanced", "moderate")) } }
-      : groupId === "rewards-objective"
-        ? { optimization: { points_priority: leaf(String(values.points_priority ?? "best_value").toLowerCase().replaceAll(" ", "_")) } }
-        : { constraints: { accessibility: leaf(String(values.mobility ?? "" ).split(",").filter(Boolean)) } }) as Parameters<typeof patchPreferencesPlanningPreferencesPatch>[0]["body"];
-    void patchPreferencesPlanningPreferencesPatch({ client: apiClient, body: patch, headers: csrfHeaders() }).then((result) => {
-      if (!result.error) setProfileState("connected");
+  const load = useCallback(async () => {
+    setLoadState("loading");
+    const result = await getPreferencesPlanningPreferencesGet({ client: apiClient });
+    if (result.error || !result.data) throw new Error("Sign in to view your saved travel preferences.");
+    applyProfile(result.data.profile);
+  }, [applyProfile]);
+
+  useEffect(() => {
+    void Promise.resolve().then(load).catch((cause: unknown) => {
+      setLoadState("error");
+      setError(cause instanceof Error ? cause.message : "Could not load your saved preferences.");
     });
-  };
+  }, [load]);
 
-  const handleReset = (groupId: string) => {
-    const values = defaultValues.get(groupId);
-    if (values) {
-      setGroups((current) => updateGroup(current, groupId, values, "saved", "default", "Just now"));
+  const save = async (groupId: string, values: PreferenceDraft): Promise<boolean> => {
+    setError("");
+    const result = await patchPreferencesPlanningPreferencesPatch({ client: apiClient, body: buildPreferencePatch(groupId, values, new Date().toISOString()), headers: csrfHeaders() });
+    if (result.error || !result.data) {
+      setError("We couldn’t save that group. Your draft is still open; try again.");
+      return false;
     }
-    const section = groupId === "travel-style" ? "rhythm" : groupId === "rewards-objective" ? "optimization" : "constraints";
-    void patchPreferencesPlanningPreferencesPatch({ client: apiClient, body: { [section]: null } as Parameters<typeof patchPreferencesPlanningPreferencesPatch>[0]["body"], headers: csrfHeaders() });
+    applyProfile(result.data.profile);
+    return true;
   };
 
-  const handleRemove = (groupId: string) => {
-    setGroups((current) => current.filter((group) => group.id !== groupId));
-    const section = groupId === "travel-style" ? "rhythm" : groupId === "rewards-objective" ? "optimization" : "constraints";
-    void removePreferencesPlanningPreferencesSectionDelete({ client: apiClient, path: { section }, headers: csrfHeaders() });
+  const resetGroup = async (groupId: string): Promise<boolean> => {
+    setError("");
+    const result = await patchPreferencesPlanningPreferencesPatch({
+      client: apiClient,
+      body: emptyPreferencePatch(groupId),
+      headers: csrfHeaders(),
+    });
+    if (result.error || !result.data) {
+      setError("We couldn’t update that preference group. Nothing was changed.");
+      return false;
+    }
+    applyProfile(result.data.profile);
+    return true;
+  };
+
+  const removeGroup = async (groupId: string): Promise<boolean> => {
+    setError("");
+    const result = await removePreferencesPlanningPreferencesSectionDelete({
+      client: apiClient,
+      path: { section: groupId as "flight" | "stay" | "rhythm" | "experiences" | "constraints" | "optimization" },
+      headers: csrfHeaders(),
+    });
+    if (result.error || !result.data) {
+      setError("We couldn’t update that preference group. Nothing was changed.");
+      return false;
+    }
+    applyProfile(result.data.profile);
+    return true;
   };
 
   return (
@@ -186,13 +90,12 @@ export default function ProfilePage() {
           <span className="mx-2" aria-hidden="true">/</span>
           <span aria-current="page">Your preferences</span>
         </nav>
-          {profileState === "offline" ? <p className="mb-5 border border-warning bg-accent-2 px-4 py-3 text-sm text-text-muted" role="status">Sign in to persist profile changes. You can still preview the preference controls.</p> : null}
-          <ProfilePreferences
-          groups={groups}
-          onSave={handleSave}
-          onReset={handleReset}
-          onRemove={handleRemove}
-        />
+        {loadState === "loading" ? <p className="py-16 text-center text-text-muted" role="status">Loading your saved preferences…</p> : null}
+        {loadState === "error" ? <div className="border-2 border-warning bg-accent-2 px-5 py-4" role="alert"><p>{error}</p><button type="button" className="mt-4 min-h-11 border-2 border-border bg-surface px-4 font-medium" onClick={() => void load().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load your saved preferences."))}>Try again</button></div> : null}
+        {loadState === "ready" ? <>
+          {error ? <p className="mb-5 border border-warning bg-accent-2 px-4 py-3 text-sm text-text-muted" role="alert">{error}</p> : null}
+          <ProfilePreferences groups={groups} onSave={save} onReset={resetGroup} onRemove={removeGroup} />
+        </> : null}
       </main>
     </div>
   );

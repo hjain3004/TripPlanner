@@ -1,4 +1,6 @@
-export type AnswerValue = string | string[] | number | null;
+export type StructuredScalar = string | number | boolean;
+export type StructuredAnswerValue = Record<string, StructuredScalar | string[] | number[]>;
+export type AnswerValue = string | string[] | number | boolean | StructuredAnswerValue | null;
 
 export type AnswerSource = "trip" | "profile" | "default" | "delegated";
 
@@ -57,13 +59,34 @@ export interface TextControl {
   maxLength?: number;
 }
 
+export interface TripEssentialsControl {
+  kind: "trip-essentials";
+  fields: Array<"origin" | "destination" | "start_date" | "end_date" | "travelers" | "date_flexibility_days">;
+  optionalFields?: Array<"date_flexibility_days">;
+}
+
+export interface HardConstraintsControl {
+  kind: "hard-constraints";
+  fields: Array<"has_constraints" | "dietary" | "accessibility" | "exclusions" | "immovable_events">;
+}
+
+export interface PartyControl {
+  kind: "party";
+  options: ChoiceOption[];
+  allowNoPreference?: boolean;
+  defaultAdults: number;
+}
+
 export type ControlDefinition =
   | SingleSelectControl
   | MultiSelectControl
   | SliderControl
   | DateControl
   | NumberControl
-  | TextControl;
+  | TextControl
+  | TripEssentialsControl
+  | HardConstraintsControl
+  | PartyControl;
 
 export interface InterviewQuestion {
   id: string;
@@ -128,6 +151,20 @@ export function isAnswerComplete(question: InterviewQuestion, value: AnswerValue
   if (value === null || value === undefined) return false;
   if (typeof value === "string") return value.trim().length > 0;
   if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") {
+    if (question.control.kind === "trip-essentials") {
+      const control = question.control;
+      return control.fields.filter((field) => !control.optionalFields?.includes(field as "date_flexibility_days")).every((field) => {
+        const candidate = value[field];
+        return candidate !== undefined && candidate !== null && candidate !== "";
+      });
+    }
+    if (question.control.kind === "party") {
+      return typeof value.purpose === "string" && value.purpose.length > 0 && typeof value.adults === "number" && value.adults > 0;
+    }
+    if (question.control.kind === "hard-constraints") return typeof value.has_constraints === "boolean";
+    return Object.keys(value).length > 0;
+  }
   return Number.isFinite(value);
 }
 

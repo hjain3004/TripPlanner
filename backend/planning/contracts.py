@@ -178,6 +178,7 @@ class PlanningSession(BaseModel):
     # non-live planning job.  Persisting this marker makes confirmation
     # idempotent even when two clients submit the same review concurrently.
     planning_job_id: str | None = None
+    planning_error: str | None = None
     events: list[ConversationEvent] = Field(default_factory=list)
 
     @model_validator(mode="after")

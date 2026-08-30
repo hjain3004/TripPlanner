@@ -375,6 +375,58 @@
         }
       }
     },
+    "/planning/sessions/{session_id}/back": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Back Session",
+        "operationId": "back_session_planning_sessions__session_id__back_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/planning/sessions/{session_id}/profile-updates/{proposal_id}/approve": {
       "post": {
         "tags": [
@@ -915,6 +967,33 @@
         ],
         "title": "AdaptiveDetailPayload"
       },
+      "AdaptiveTextControl": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "text",
+            "title": "Type"
+          },
+          "allow_skip": {
+            "type": "boolean",
+            "title": "Allow Skip"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ControlOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "allow_skip"
+        ],
+        "title": "AdaptiveTextControl"
+      },
       "AddItem": {
         "properties": {
           "op": {
@@ -1215,6 +1294,28 @@
         ],
         "title": "AwardChartEntry"
       },
+      "BackRequest": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version"
+          },
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_version",
+          "client_event_id"
+        ],
+        "title": "BackRequest"
+      },
       "BudgetObjectivePayload": {
         "properties": {
           "budget_minor": {
@@ -1440,6 +1541,24 @@
             ],
             "title": "Planning Job Id"
           },
+          "planning_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planning Error"
+          },
+          "question_catalog": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionOut"
+            },
+            "type": "array",
+            "title": "Question Catalog"
+          },
           "job_id": {
             "type": "string",
             "title": "Job Id"
@@ -1518,6 +1637,25 @@
         "additionalProperties": false,
         "type": "object",
         "title": "ConstraintPreferences"
+      },
+      "ControlOption": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "ControlOption"
       },
       "ConversationEvent": {
         "properties": {
@@ -2223,6 +2361,49 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HardConstraintsControl": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "hard_constraints",
+            "title": "Type"
+          },
+          "allow_skip": {
+            "type": "boolean",
+            "const": false,
+            "title": "Allow Skip"
+          },
+          "fields": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "has_constraints",
+                "dietary",
+                "accessibility",
+                "exclusions",
+                "immovable_events"
+              ]
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ControlOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "allow_skip",
+          "fields"
+        ],
+        "title": "HardConstraintsControl"
       },
       "HardConstraintsPayload": {
         "properties": {
@@ -4148,9 +4329,35 @@
             "title": "Allow Delegate"
           },
           "control": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Control"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SelectControl"
+              },
+              {
+                "$ref": "#/components/schemas/TripEssentialsControl"
+              },
+              {
+                "$ref": "#/components/schemas/HardConstraintsControl"
+              },
+              {
+                "$ref": "#/components/schemas/AdaptiveTextControl"
+              }
+            ],
+            "title": "Control",
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "budget_objective": "#/components/schemas/SelectControl",
+                "experiences_food": "#/components/schemas/SelectControl",
+                "flight": "#/components/schemas/SelectControl",
+                "hard_constraints": "#/components/schemas/HardConstraintsControl",
+                "purpose_party": "#/components/schemas/SelectControl",
+                "rhythm": "#/components/schemas/SelectControl",
+                "stay": "#/components/schemas/SelectControl",
+                "text": "#/components/schemas/AdaptiveTextControl",
+                "trip_essentials": "#/components/schemas/TripEssentialsControl"
+              }
+            }
           }
         },
         "additionalProperties": false,
@@ -4730,6 +4937,41 @@
         ],
         "title": "SectionState"
       },
+      "SelectControl": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "purpose_party",
+              "budget_objective",
+              "flight",
+              "stay",
+              "rhythm",
+              "experiences_food"
+            ],
+            "title": "Type"
+          },
+          "allow_skip": {
+            "type": "boolean",
+            "title": "Allow Skip"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ControlOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "allow_skip",
+          "options"
+        ],
+        "title": "SelectControl"
+      },
       "SelectedHotelArea": {
         "properties": {
           "id": {
@@ -4853,6 +5095,24 @@
               }
             ],
             "title": "Planning Job Id"
+          },
+          "planning_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planning Error"
+          },
+          "question_catalog": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionOut"
+            },
+            "type": "array",
+            "title": "Question Catalog"
           }
         },
         "additionalProperties": false,
@@ -5490,6 +5750,58 @@
           "wallet"
         ],
         "title": "TripBrief"
+      },
+      "TripEssentialsControl": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "trip_essentials",
+            "title": "Type"
+          },
+          "allow_skip": {
+            "type": "boolean",
+            "const": false,
+            "title": "Allow Skip"
+          },
+          "fields": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "origin",
+                "destination",
+                "start_date",
+                "end_date",
+                "travelers",
+                "date_flexibility_days"
+              ]
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ControlOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "optional_fields": {
+            "items": {
+              "type": "string",
+              "const": "date_flexibility_days"
+            },
+            "type": "array",
+            "title": "Optional Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "allow_skip",
+          "fields"
+        ],
+        "title": "TripEssentialsControl"
       },
       "TripEssentialsPayload": {
         "properties": {

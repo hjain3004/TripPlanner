@@ -136,13 +136,17 @@ Do not parallelize edits to `backend/api/main.py`, OpenAPI/generated files, Zod/
 
 ## Acceptance Checklist
 
-- [ ] Authenticated user can view/edit/reset/remove visible preferences.
-- [ ] User can create, resume, answer, skip, amend and review a server-owned interview.
-- [ ] Interview remains within the approved 8–12 decision policy.
-- [ ] Profile defaults, trip-only overrides and explicit proposals remain distinct.
-- [ ] Confirmation is mandatory and exactly once.
-- [ ] Existing non-live planning starts only after confirmation and cannot double-start.
-- [ ] No provider or LLM call occurs before confirmation; CP2 adds no LLM call.
-- [ ] OpenAPI/generated/Zod/MSW/frontend contract is synchronized in one change set.
-- [ ] Responsive and accessibility tests pass.
-- [ ] Backend gate, frontend gates and full review pass from a clean tree.
+- [x] Authenticated user can view/edit/reset/remove visible preferences.
+- [x] User can create, resume, answer, skip, amend and review a server-owned interview.
+- [x] Interview remains within the approved 8–12 decision policy.
+- [x] Profile defaults, trip-only overrides and explicit proposals remain distinct.
+- [x] Confirmation is mandatory and idempotent, with retryable start failure handling.
+- [x] Existing non-live planning starts only after confirmation and cannot double-start within the process-local job manager.
+- [x] No provider or LLM call occurs before confirmation; CP2 adds no LLM call.
+- [x] OpenAPI/generated/MSW/frontend contract is synchronized in one change set.
+- [x] Responsive and accessibility tests pass.
+- [x] Backend gate, frontend gates and independent review pass from a clean tree.
+
+## CP2.1 closure note
+
+Acceptance hardening added server-owned back navigation, typed discriminated controls, structured amendment/resume handling, truthful profile persistence, concurrent confirmation/start-failure tests, and browser-backed CP2 coverage. The final complete backend run is 1,266 passed and 1 skipped; remaining work is CP3, G3.4 and CP4, not additional CP2 implementation.

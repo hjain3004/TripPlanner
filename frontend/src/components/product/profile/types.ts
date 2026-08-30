@@ -1,6 +1,6 @@
-export type PreferenceSource = "profile" | "trip" | "imported" | "default";
-export type PreferenceUpdateStatus = "saved" | "pending" | "needs-review";
-export type PreferenceValue = string | number;
+export type PreferenceSource = "profile" | "trip" | "confirmed" | "imported" | "default" | "unset" | "mixed";
+export type PreferenceUpdateStatus = "saved" | "pending" | "needs-review" | "not-set";
+export type PreferenceValue = string | number | boolean | string[];
 export type PreferenceFieldType = "text" | "number" | "select";
 
 export interface ProfilePreferenceField {
@@ -11,6 +11,7 @@ export interface ProfilePreferenceField {
   options?: readonly string[];
   description?: string;
   source?: PreferenceSource;
+  updatedAt?: string;
 }
 
 export interface ProfilePreferenceGroup {
@@ -27,7 +28,7 @@ export interface ProfilePreferenceGroup {
 export type PreferenceDraft = Record<string, PreferenceValue>;
 
 export interface ProfilePreferencesHandlers {
-  onSave: (groupId: string, values: PreferenceDraft) => void;
-  onReset: (groupId: string) => void;
-  onRemove: (groupId: string) => void;
+  onSave: (groupId: string, values: PreferenceDraft) => boolean | Promise<boolean>;
+  onReset: (groupId: string) => boolean | Promise<boolean>;
+  onRemove: (groupId: string) => boolean | Promise<boolean>;
 }

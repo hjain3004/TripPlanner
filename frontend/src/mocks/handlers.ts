@@ -11,6 +11,7 @@ import type {
 const SPEED_MULTIPLIER = 1;
 
 const jobStore: Record<string, { status: PlanJobStatus; timer: ReturnType<typeof setInterval> | null }> = {};
+const questionCatalog = [{ id: "trip_essentials", prompt: "Where are you headed, and what are your travel dates?", phase: "core", answer_kind: "trip_essentials", required: true, allow_delegate: false, control: { type: "trip_essentials", fields: ["origin", "destination", "start_date", "end_date", "travelers"], allow_skip: false, options: [] } }];
 const conversationSession = {
   id: "msw-session-001",
   user_id: "msw-user-001",
@@ -19,7 +20,8 @@ const conversationSession = {
   created_at: "2026-08-29T00:00:00Z",
   updated_at: "2026-08-29T00:00:00Z",
   expires_at: "2026-09-28T00:00:00Z",
-  current_question: { id: "trip_essentials", prompt: "Where are you headed, and what are your travel dates?", phase: "core", answer_kind: "trip_essentials", required: true, allow_delegate: false, control: { type: "trip_essentials", fields: ["origin", "destination", "start_date", "end_date", "travelers"], allow_skip: false, options: [] } },
+  current_question: questionCatalog[0],
+  question_catalog: questionCatalog,
   suggested_question_ids: [],
   progress: { completed: 0, minimum_total: 8, maximum_total: 12, status: "interviewing" },
   answers: {},
@@ -608,7 +610,11 @@ export const handlers = [
   }),
   http.post("*/planning/sessions/:sessionId/skip", () => HttpResponse.json({ ...conversationSession, version: 1 })),
   http.get("*/planning/sessions/:sessionId/review", () => HttpResponse.json({ ...conversationSession, status: "reviewing" })),
+  http.post("*/planning/sessions/:sessionId/back", () => HttpResponse.json({ ...conversationSession, version: 1 })),
+  http.post("*/planning/sessions/:sessionId/amend", () => HttpResponse.json({ ...conversationSession, status: "reviewing", version: 1 })),
+  http.post("*/planning/sessions/:sessionId/profile-updates/:proposalId/approve", () => HttpResponse.json({ ...conversationSession, version: 1 })),
   http.post("*/planning/sessions/:sessionId/confirm", () => HttpResponse.json({ ...conversationSession, status: "planning", planning_job_id: "msw-job-001", job_id: "msw-job-001" }, { status: 202 })),
+  http.get("*/planning/sessions/:sessionId/job", () => HttpResponse.json({ job_id: "msw-job-001", status: "complete", stage: "explaining", progress: 1 })),
 ];
 
 export const fixtureHandlers = {
