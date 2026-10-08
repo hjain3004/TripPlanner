@@ -84,7 +84,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-bg font-ui text-text">
       <SiteHeader />
-      <main className="mx-auto w-full max-w-[1180px] bg-surface px-[62px] py-12 shadow-3 max-[650px]:px-[22px] max-[650px]:py-8">
+      <div className="mx-auto w-full max-w-[1180px] bg-surface px-[62px] py-12 shadow-3 max-[650px]:px-[22px] max-[650px]:py-8">
         <nav aria-label="Breadcrumb" className="mb-7 text-[11px] font-mono uppercase tracking-[.08em] text-text-muted">
           <Link href="/" className="underline decoration-border underline-offset-4 hover:text-text">TripPlanner</Link>
           <span className="mx-2" aria-hidden="true">/</span>
@@ -96,7 +96,7 @@ export default function ProfilePage() {
           {error ? <p className="mb-5 border border-warning bg-accent-2 px-4 py-3 text-sm text-text-muted" role="alert">{error}</p> : null}
           <ProfilePreferences groups={groups} onSave={save} onReset={resetGroup} onRemove={removeGroup} />
         </> : null}
-      </main>
+      </div>
     </div>
   );
 }
