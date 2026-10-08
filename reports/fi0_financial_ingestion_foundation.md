@@ -25,7 +25,14 @@ No crawler, Firecrawl/Crawl4AI adapter, PDF parser, browser automation, schedule
 - FI0 strict mypy: **passed**.
 - `git diff --check`: **passed**.
 - `make seed` succeeded when the existing backend virtualenv was placed on `PATH`; the unmodified Makefile command first failed because this shell has no `python` executable on `PATH`.
-- The seeded full backend suite collected **1,251 tests** and reached the first failure after **100 passed**: `evals/test_audit_regional_search.py::test_regional_catalog_pois_use_geo_cell_areas[BOM]` asserted that the loaded KB had POIs, but `retrieve_candidates(..., load_kb())` returned none. Root cause is confirmed: `make seed` creates the 42-row kernel database, while the regional acceptance tests require active catalog artifacts for BOM/DXB/NYC/LON/PAR; those artifacts are not tracked or provisioned by `make seed` in this worktree. No FI0 code is on that stack. Full gate acceptance remains pending until that pre-existing fixture/provisioning issue is resolved by its owning milestone.
+- The seeded full backend suite collected **1,251 tests** and completed with **1,224 passed, 19 failed, 8 skipped**. All 19 failures are catalog-fixture failures: regional retrieval/search tests see no BOM/DXB/NYC/LON/PAR active artifacts, SIN has only the four seed POIs where the test requires at least eight, and recompute tests cannot open `catalogs/active_lon-core.json`. Root cause is confirmed: `make seed` creates the 42-row kernel database, while these acceptance tests require active catalog artifacts that are neither tracked nor provisioned by `make seed` in this worktree. No FI0 code is on those stacks.
+- Exact committed-tree `make gate` result: **exit 1** at the full pytest phase with the same **1,224 passed, 19 failed, 8 skipped** result; mypy, ruff, frozen-artifact checks, contract checks, and clean-tree checks were not reached because the gate stops on pytest failure. Acceptance remains pending until the pre-existing catalog fixture/provisioning issue is resolved by its owning milestone.
+
+## Commits
+
+- `1547589` — `feat(fi0): harden financial ingestion persistence`
+- `51dd1b6` — `docs(fi0): record acceptance verification`
+- `9ac4818` — `fix(fi0): preserve existing gate command contracts`
 
 ## Review notes
 
