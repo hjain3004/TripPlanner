@@ -1,80 +1,103 @@
-# Frontend design contract — Japan philatelic reconciliation
+# Frontend design contract — Japan-first current direction
 
-This is the editable frontend design contract for the current TripPlanner visual system. It points to, and must stay consistent with:
+**Status:** reconciled documentation for the integrated CP2/Japan implementation; not a claim that
+CP3, G3.4, or every future J-phase item is complete.
+
+This contract points to the approved Japan foundation inputs:
 
 - `docs/superpowers/specs/2026-08-09-japan-frontend-foundation-design.md`
 - `docs/superpowers/specs/2026-08-11-japan-philatelic-figma-reconciliation-design.md`
 
-The raw Figma Make export is reference-only. Do not import it wholesale, copy its runtime structure, or let it override typed data, provenance, accessibility, or the deterministic frontend contract.
+The raw Figma/Framer material is reference-only. Runtime source, typed API data, provenance,
+accessibility, and the deterministic frontend contract always win over visual experiments.
 
 ## Typography
 
 | Role | Family | Allowed contexts |
 |---|---|---|
-| Display | Poiret One, 400 only, stroked by theme tokens | Page hero/H1 and approved large marks only |
-| UI | Schibsted Grotesk | H2–H6, card titles, navigation, body, buttons, form controls, all money, points, dates, and dense functional text |
-| Metadata | Roboto Mono | Provenance, trace IDs, airport codes, timestamps, technical labels, and small metadata only |
+| Display | Poiret One, 400 only, stroked by theme tokens | Page hero/H1 and approved large marks |
+| UI | Schibsted Grotesk | H2–H6, card titles, navigation, body, buttons, form controls, money, points, dates, and dense functional text |
+| Metadata | Roboto Mono | Provenance, trace IDs, airport codes, timestamps, technical labels, and small metadata |
 
-Poiret One is never faux-bold. Use `display-hero` for page-level display and `display-mark` for approved marks; do not combine display classes with `font-bold`, `font-semibold`, or numeric containers.
+Poiret One is never faux-bold and never used for money, points, or dense UI. `display-hero` and
+`display-mark` are the approved display roles. Bodoni Moda is historical F1 documentation and is
+not part of this current contract.
 
-## Theme scope
+## Theme resolution
 
-Japan Quiet Blossom is the golden destination pack. Natural is the fallback. Runtime theme resolution is deterministic and allowlisted:
+Japan Quiet Blossom is the approved golden destination pack. Natural is the safe fallback. The
+implemented resolver is deterministic and allowlisted:
 
-- explicit `JP` → `theme-japan`;
-- null, unknown, unsupported, lowercase after normalization, or free-form city strings that are not explicit country codes → natural unless the normalized code is `JP`;
+- explicit normalized `JP` → `theme-japan`;
+- null, unknown, unsupported, lowercase after normalization, or free-form city strings → natural
+  unless the normalized country code is `JP`;
 - no browser locale, geolocation, LLM, city-name guessing, or network lookup.
 
-Singapore-specific visual instructions are obsolete for this reconciliation and must not be reintroduced.
+The root layout passes `null`, so the ordinary shell uses the natural fallback. Japan is selected
+explicitly by the theme-proof/kitchen-sink visual proof surfaces and by typed Japan fixtures. This is
+visual fixture selection, not a claim that the live travel data is Japanese or that the planning API
+queries Japan.
+
+Singapore-specific visual instructions and the old soft-rounded default are superseded for this
+Japan-first reconciliation. Singapore remains in legacy fixtures/content and in the existing
+Singapore theme file for compatibility.
 
 ## Color and tone
 
-The interface is light-only and uses semantic theme tokens. It forbids:
+Use semantic theme tokens only. The light-only Japan pack is warm paper, soft blossom, olive, brass,
+and ink. Natural is a calm low-chroma fallback, not a competing destination identity.
 
-- black, `#000`, `bg-black`, `text-black`, `border-black`, or equivalent raw black utilities;
-- neon/synthwave/glow treatment;
-- blurred/glowing shadows;
-- raw color literals in product/app source except documented technical escapes already covered by lint suppression.
+Forbidden:
 
-Japan Quiet Blossom should feel like warm paper, soft blossom, olive, brass, and ink. The natural pack is a calm fallback, not a second destination skin.
+- pure black or `#000`, `bg-black`, `text-black`, `border-black`, or equivalent raw black utilities;
+- neon, synthwave, glow, or blurred-shadow treatment;
+- raw color literals in product/app source except documented technical escapes covered by lint;
+- color-only status meaning.
 
-## Shape, depth, and surface rules
+## Shape and depth
 
-Principal product surfaces are square editorial panels:
-
-- `rounded-none` or token-driven zero-radius containers for main surfaces;
-- 2px destination-ink rules for principal panels;
-- zero-blur hard offsets (`shadow-1`, `shadow-2`, `shadow-3`) rather than soft card shadows;
-- rounded geometry remains only for semantically round controls, chips, nodes, and the eventual stamp artifact.
-
-Hover states may shift color, border, or small press feedback. Do not use generic hover lift on non-interactive cards.
+Principal product surfaces use square editorial panels, explicit 2px destination-ink rules, and
+zero-blur hard offset shadows. Rounded geometry remains for semantically round controls, chips,
+nodes, and the approved stamp artifact only. Do not add generic hover lift to non-interactive cards.
 
 ## Motion
 
-Motion is restrained and purposeful:
+Motion is restrained and explanatory:
 
-- no `transition-all`;
-- no `initial={{ scale: 0 }}` or blank scale-zero entrances;
-- reduced-motion users must land on the final visible state immediately;
-- route/graph line drawing may remain when it conveys structure;
-- confetti and generic celebration effects are out of scope.
+- no `transition-all`, scale-zero entrances, perpetual loops, or generic celebration effects;
+- use explicit opacity/transform/color/border/shadow transitions only when interaction requires them;
+- reduced-motion users receive the final visible state immediately;
+- route/graph line drawing is allowed when it communicates travel structure.
 
-Use explicit transitions such as color, border, shadow, opacity, or transform only where the interaction requires them.
+## Philatelic placement
 
-## Philatelic placement contract
+Philately is Japan-only and presentation-only. A stamp is a fictional Atlas artifact, not legal
+postage, proof of verification, a booking, a transfer, an airline/hotel endorsement, or a
+government-approved document.
 
-Philately is Japan-only and presentation-only. A stamp is a fictional Atlas artifact, not legal postage, proof of verification, a booking, a transfer, an airline/hotel endorsement, or a government-approved document.
+Stamp placement is limited to approved editorial destination surfaces. Never place it on money,
+points, transfers, savings, fees, offers, provenance, trust badges, warnings, errors, accounts,
+wallets, passports, or credentials. The asset enters through an explicit typed prop and approved
+allowlist; no component infers Japan from a city string or fetches/generates an asset at runtime.
 
-Stamp placement is limited to approved editorial destination surfaces. Do not place a stamp on:
+## Data, money, and provenance
 
-- money, points, transfers, savings, fees, or offer calculations;
-- provenance, trust badges, warnings, errors, or verification state;
-- account, wallet, passport, or credential surfaces.
+Components render typed report fields. They do not calculate travel finance outcomes, savings,
+transfer paths, provider trust, or availability. Every displayed financial number must originate in
+a fixture/report artifact and remain covered by no-orphan-number tests.
 
-The stamp must enter through an explicit typed prop from an approved asset allowlist. No component may infer Japan from free-form city text, fetch an asset, call a generator, or mutate trust state.
+Every non-trivial fact retains its source, verification date/status, confidence, and
+`needs_verification` meaning. Sample evidence is visibly labeled and must not claim live provider
+access, account synchronization, seat availability, active bonuses, or verified booking inventory
+unless those typed facts exist.
 
-## Data and provenance
+## Current implementation boundaries
 
-Frontend components render typed report fields. They do not compute travel finance outcomes, savings, transfer paths, provider trust, or availability. Every displayed financial number must be present in a fixture/report artifact and remain covered by no-orphan-number tests.
-
-Sample visual evidence must be visibly labelled as sample data and must not claim live provider access, account synchronization, seat availability, active bonuses, passport storage, or verified booking inventory unless those exact typed facts exist.
+1. CP2 conversational/profile UI is implemented, but CP3 bounded LLM interview assistance remains
+   unimplemented.
+2. Confirmed briefs start the existing non-live planning job exactly once; confirmation does not
+   query Gondola. G3.4 remains future work.
+3. Mock data remains India/Singapore-shaped (`DEL`/`SIN`, Marina Bay, INR), while typed Japan visual
+   fixtures and philatelic screenshots are presentation evidence only.
+4. The existing `/plan` page remains the integration point for editable itinerary behavior. Do not
+   introduce an older results extraction that drops F5/F5.1 behavior.
