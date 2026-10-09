@@ -1,5 +1,12 @@
 # Frontend Design and Development Handover
 
+> **STALE HANDOFF — HISTORICAL CONTEXT ONLY (reconciled 2026-10-08).** This file predates the
+> shipped frontend. Do not follow its “No frontend code has been written,” old branch, Singapore/
+> Bodoni, or “stop before implementation” instructions as current status. Start with
+> [`frontend/ARCHITECTURE.md`](ARCHITECTURE.md), [`frontend/FABLE_HANDOFF.md`](FABLE_HANDOFF.md),
+> and [`docs/CURRENT_STATE.md`](../docs/CURRENT_STATE.md). The current implementation includes
+> the App Router, wizard, MSW flow, results, and F5/F5.1 editable itinerary work.
+
 **Prepared:** 2026-07-26  
 **Audience:** Claude or another implementation agent taking over the TripPlanner frontend  
 **Immediate milestone:** F1 — tokens, themed primitives, fonts/assets pipeline, and the kitchen-sink gate  
@@ -750,4 +757,3 @@ Claude should:
 8. Only after plan approval, initialize and implement F1 on a clean frontend branch.
 
 The expensive model's job is to freeze taste, contracts, and gates. Cheaper models should receive bounded implementation tickets and objective visual/test evidence.
-
