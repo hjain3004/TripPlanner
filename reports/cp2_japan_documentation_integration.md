@@ -21,8 +21,8 @@ existing derived savings display, and the map's missing `aria-hidden` attribute 
 - `2bef0ff` — `docs: reconcile CP2 and Japan current state`
 - `d366ecd` — `test: reconcile CP2 frontend regressions`
 
-The final report commit is the commit immediately following this document; the final HEAD is
-reported with the clean status and final gate result at handoff.
+The report was committed in `80a5f10`; the final handoff records the subsequent report-finalization
+commit and exact clean-tree HEAD.
 
 ## Verification
 
@@ -79,7 +79,7 @@ The exact committed-tree backend gate produced:
 
 ```text
 --- pytest (full suite) ---
-1266 passed, 1 skipped, 3 warnings in 76.45s (0:01:16)
+1266 passed, 1 skipped, 3 warnings in 75.63s (0:01:15)
 --- mypy --strict (every source package) ---
 Success: no issues found in 149 source files
 --- ruff (zero-tolerance scope) ---
