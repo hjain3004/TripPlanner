@@ -1,7 +1,8 @@
 # Frontend architecture
 
-**Current evidence:** `main` at `c3261ab`; source under `frontend/src`; API boundary under
-`frontend/src/lib/api` and `contract/openapi.json`.
+**Current evidence:** source under `frontend/src`; API boundary under `frontend/src/lib/api` and
+`contract/openapi.json`; exact branch/test evidence is in
+`reports/cp2_japan_documentation_integration.md`.
 
 ## Runtime shape
 
@@ -9,6 +10,8 @@
 App Router pages
   ├─ `/`                 landing / route-first editorial shell
   ├─ `/plan`             five-step wizard, polling, report, editable itinerary
+  ├─ `/plan/conversation` CP2 typed interview, review, amend, confirm, resume
+  ├─ `/profile`          CP2 authenticated preference projection and updates
   ├─ `/kitchen-sink`     component/state proof surface
   └─ `/theme-proof`      theme inspection surface
           │
@@ -20,9 +23,9 @@ App Router pages
 ```
 
 `frontend/src/app/layout.tsx` owns fonts, theme class selection, providers, and the page
-transition wrapper. It currently loads Poiret One, Schibsted Grotesk, and Roboto Mono. The root
-shell explicitly resolves `JP`; the resolver still has a temporary unconditional Japan default,
-which is why theme selection is listed as a known deviation below.
+transition wrapper. It loads Poiret One, Schibsted Grotesk, and Roboto Mono. The root passes `null`
+to the deterministic resolver and uses the natural fallback; explicit `JP` is selected only by
+visual proof surfaces and typed Japan fixtures.
 
 ## Page and data flow
 
@@ -73,8 +76,7 @@ documentation handoff.
 ## Known deviations and seams
 
 1. The legacy handover still describes “no frontend code”; it is now bannered as historical.
-2. The live code currently uses Japan as the root/test theme and the resolver's fallback is not
-   destination-correct. Fixing that is product work, outside this docs-only branch.
-3. The mock corpus is still Singapore/India-shaped while the visual shell is Japan-oriented.
-4. The current results rendering remains integrated with `/plan`; no documentation task should
+2. The mock corpus is still Singapore/India-shaped while the visual shell and explicit proof
+   surfaces are Japan-oriented.
+3. The current results rendering remains integrated with `/plan`; no documentation task should
    introduce a speculative extraction or change the editable-itinerary boundary.

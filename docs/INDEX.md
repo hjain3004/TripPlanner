@@ -6,7 +6,7 @@ changing behavior.
 
 ## Read in this order
 
-1. [Current state](CURRENT_STATE.md) — what is actually on `main`, what is enabled, and what is
+1. [Current state](CURRENT_STATE.md) — what is actually on this reconciliation branch, what is enabled, and what is
    still planned.
 2. [Infrastructure](INFRASTRUCTURE.md) — runtime boundaries, persistence, provider profile, and
    verification surfaces.
@@ -45,12 +45,12 @@ commit. They remain invisible to a fresh clone until deliberately committed:
 | Path | Classification | Treatment |
 |---|---|---|
 | `docs/examples/` | User-owned or unclear image set | untouched and untracked |
-| `docs/superpowers/plans/2026-08-22-japan-philatelic-landing-handoff.md` | Valuable historical/planned Japan handoff | untouched and untracked; current docs supersede its stale status claims |
-| `docs/superpowers/plans/2026-08-22-japan-philatelic-split-landing.md` | Valuable historical/planned implementation plan | untouched and untracked; useful for deferred plan-page work, not current authority |
+| `docs/superpowers/plans/2026-08-22-japan-philatelic-landing-handoff.md` | Valuable historical/planned Japan handoff | committed on this branch; retained as historical context, not current authority |
+| `docs/superpowers/plans/2026-08-22-japan-philatelic-split-landing.md` | Valuable historical/planned implementation plan | committed on this branch; useful for deferred plan-page work, not current authority |
 | `docs/superpowers/plans/2026-10-07-robust-financial-ingestion.md` | Valuable planned FI0–FI6 design input | untouched and untracked; no ingestion implementation is implied here |
 
-This classification is intentional: the task reconciles canonical handoff docs but does not claim
-ownership of pre-existing untracked assets or plans.
+This classification is intentional: the two Japan plans are already committed historical inputs;
+the image set and financial-ingestion plan remain user-owned/untracked and are not absorbed here.
 
 ## Historical and planned references
 
@@ -58,7 +58,8 @@ ownership of pre-existing untracked assets or plans.
   the approved design input; it is not a statement that every J-phase item is implemented.
 - [Gondola acceptance report](../reports/g3_2_gondola_live_acceptance.md) records partial live
   schema/argument verification and the still-open structured-normalization proof.
-- [Japan split-landing plan](superpowers/plans/2026-08-22-japan-philatelic-split-landing.md)
-  remains a plan, not a merged implementation record.
+- [Japan landing handoff](superpowers/plans/2026-08-22-japan-philatelic-landing-handoff.md) and
+  [Japan split-landing plan](superpowers/plans/2026-08-22-japan-philatelic-split-landing.md) are
+  committed historical/planned records; the implemented CP2/Japan branch is the current evidence.
 - [Robust financial ingestion plan](superpowers/plans/2026-10-07-robust-financial-ingestion.md)
   remains a plan; it does not authorize FI1 or any crawler work.
