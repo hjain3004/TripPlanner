@@ -43,6 +43,18 @@ function expectedDisplayStrings(report: Record<string, unknown>): Set<string> {
     }
   };
   walk(report, "");
+  // The current wire contract exposes gross/effective totals rather than a
+  // separate savings_minor field; VerdictHeader renders their documented
+  // difference. Keep that derived display tied to the fixture inputs.
+  const totals = report.budget_totals;
+  if (totals && typeof totals === "object") {
+    const t = totals as Record<string, unknown>;
+    if (typeof t.gross_minor === "number" && typeof t.effective_cost_minor === "number") {
+      const savingsMinor = t.gross_minor - t.effective_cost_minor;
+      s.add(INR2.format(savingsMinor / 100));
+      s.add(INR0.format(savingsMinor / 100));
+    }
+  }
   return s;
 }
 
