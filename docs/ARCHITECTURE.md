@@ -6,7 +6,7 @@
 
 "A travel planner that knows your credit cards." Given one trip and the user's cards, points, preferences, and constraints, produce one coherent answer: a practical itinerary, cash and award travel options, a costed budget, the best card/offer/payment strategy, and a points-transfer plan. Every number is deterministic, every external claim is sourced and time-stamped, and every irreversible action remains with the user. Initial corridor: India → Singapore.
 
-The **target prototype** combines the useful outcomes of itinerary planners, cash metasearch, award-search tools, and credit-card optimizers without pretending that one unrestricted data source exists. The **current build** is the test-data Kernel MVP: the trusted optimizer and user experience are completed before free/read-only live providers are activated.
+The **target prototype** combines the useful outcomes of itinerary planners, cash metasearch, award-search tools, and credit-card optimizers without pretending that one unrestricted data source exists. The **current build** includes the deterministic Kernel MVP, the implemented frontend wizard/results experience, accounts/planning foundations, and offline gateway/provider seams. Live provider activation and some gateway integration remain deliberately disabled or incomplete; see [`CURRENT_STATE.md`](CURRENT_STATE.md) for evidence-linked status.
 
 ## Operating profile
 
@@ -115,7 +115,7 @@ Until a free/personal award adapter is available, the prototype uses recorded aw
 2. **Kernel frontend:** F1 → F2 → F3 → F4 using MSW, then one end-to-end run against the sample-data backend.
 3. **Platform gateway:** normalized quote contracts + `SampleAdapter`; no paid provider required.
 4. **Open/reference ingestion:** FX, airports, and licensed POIs as isolated importers.
-5. **Student live evidence:** add read-only Gondola MCP for hotel/cash-flight evidence; optionally add Travelpayouts cached flight trends; evaluate OpenBnB as an experimental, low-volume rental adapter; add award evidence when a free/personal source is available.
+5. **Student live evidence:** the Gondola read-only adapter and acceptance harness now exist behind disabled-by-default registry/kill-switch boundaries; `/plan` is not wired to it. Travelpayouts, OpenBnB, and award evidence remain optional/future adapter work.
 6. **Optional experiments:** rate alerts, user-authorized loyalty OAuth, and any browser extension are separately gated. Automated booking and phone negotiation remain outside the current project.
 
 Provider access is never a prerequisite for completing the Kernel MVP. A free provider disappearing must degrade to recorded/sample evidence, not derail the project.
