@@ -6,6 +6,626 @@
     "version": "0.3.0"
   },
   "paths": {
+    "/planning/preferences": {
+      "get": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Get Preferences",
+        "operationId": "get_preferences_planning_preferences_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferenceOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Replace Preferences",
+        "operationId": "replace_preferences_planning_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPreferenceProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferenceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Patch Preferences",
+        "operationId": "patch_preferences_planning_preferences_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferenceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/preferences/{section}": {
+      "delete": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Remove Preferences",
+        "description": "Explicitly remove one durable preference group; never an implicit reset.",
+        "operationId": "remove_preferences_planning_preferences__section__delete",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "flight",
+                "stay",
+                "rhythm",
+                "experiences",
+                "constraints",
+                "optimization"
+              ],
+              "type": "string",
+              "title": "Section"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferenceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Create Session",
+        "operationId": "create_session_planning_sessions_post",
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Read Session",
+        "operationId": "read_session_planning_sessions__session_id__get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/answers": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Answer Session",
+        "operationId": "answer_session_planning_sessions__session_id__answers_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/skip": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Skip Session",
+        "operationId": "skip_session_planning_sessions__session_id__skip_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkipRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/amend": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Amend Session",
+        "operationId": "amend_session_planning_sessions__session_id__amend_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmendRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/back": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Back Session",
+        "operationId": "back_session_planning_sessions__session_id__back_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/profile-updates/{proposal_id}/approve": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Approve Profile Update",
+        "operationId": "approve_profile_update_planning_sessions__session_id__profile_updates__proposal_id__approve_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/review": {
+      "get": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Review Session",
+        "operationId": "review_session_planning_sessions__session_id__review_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/confirm": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Confirm Session",
+        "operationId": "confirm_session_planning_sessions__session_id__confirm_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/job": {
+      "get": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Session Job",
+        "operationId": "session_job_planning_sessions__session_id__job_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Session Job Planning Sessions  Session Id  Job Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -331,6 +951,49 @@
   },
   "components": {
     "schemas": {
+      "AdaptiveDetailPayload": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "AdaptiveDetailPayload"
+      },
+      "AdaptiveTextControl": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "text",
+            "title": "Type"
+          },
+          "allow_skip": {
+            "type": "boolean",
+            "title": "Allow Skip"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ControlOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "allow_skip"
+        ],
+        "title": "AdaptiveTextControl"
+      },
       "AddItem": {
         "properties": {
           "op": {
@@ -361,6 +1024,156 @@
           "position"
         ],
         "title": "AddItem"
+      },
+      "AmendRequest": {
+        "properties": {
+          "question_id": {
+            "$ref": "#/components/schemas/QuestionId"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TripEssentialsPayload"
+              },
+              {
+                "$ref": "#/components/schemas/PurposePartyPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BudgetObjectivePayload"
+              },
+              {
+                "$ref": "#/components/schemas/FlightPreferencesPayload"
+              },
+              {
+                "$ref": "#/components/schemas/StayPreferencesPayload"
+              },
+              {
+                "$ref": "#/components/schemas/DailyRhythmPayload"
+              },
+              {
+                "$ref": "#/components/schemas/ExperiencesFoodPayload"
+              },
+              {
+                "$ref": "#/components/schemas/HardConstraintsPayload"
+              },
+              {
+                "$ref": "#/components/schemas/AdaptiveDetailPayload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
+          "delegated": {
+            "type": "boolean",
+            "title": "Delegated",
+            "default": false
+          },
+          "memory_scope": {
+            "type": "string",
+            "enum": [
+              "trip_only",
+              "propose_profile_update"
+            ],
+            "title": "Memory Scope",
+            "default": "trip_only"
+          },
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question_id",
+          "expected_version",
+          "client_event_id"
+        ],
+        "title": "AmendRequest"
+      },
+      "AnswerRequest": {
+        "properties": {
+          "question_id": {
+            "$ref": "#/components/schemas/QuestionId"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TripEssentialsPayload"
+              },
+              {
+                "$ref": "#/components/schemas/PurposePartyPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BudgetObjectivePayload"
+              },
+              {
+                "$ref": "#/components/schemas/FlightPreferencesPayload"
+              },
+              {
+                "$ref": "#/components/schemas/StayPreferencesPayload"
+              },
+              {
+                "$ref": "#/components/schemas/DailyRhythmPayload"
+              },
+              {
+                "$ref": "#/components/schemas/ExperiencesFoodPayload"
+              },
+              {
+                "$ref": "#/components/schemas/HardConstraintsPayload"
+              },
+              {
+                "$ref": "#/components/schemas/AdaptiveDetailPayload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
+          "delegated": {
+            "type": "boolean",
+            "title": "Delegated",
+            "default": false
+          },
+          "memory_scope": {
+            "type": "string",
+            "enum": [
+              "trip_only",
+              "propose_profile_update"
+            ],
+            "title": "Memory Scope",
+            "default": "trip_only"
+          },
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question_id",
+          "expected_version",
+          "client_event_id"
+        ],
+        "title": "AnswerRequest"
       },
       "AppliedOffer": {
         "properties": {
@@ -481,6 +1294,85 @@
         ],
         "title": "AwardChartEntry"
       },
+      "BackRequest": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version"
+          },
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_version",
+          "client_event_id"
+        ],
+        "title": "BackRequest"
+      },
+      "BudgetObjectivePayload": {
+        "properties": {
+          "budget_minor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Minor"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "travel_style": {
+            "type": "string",
+            "enum": [
+              "budget",
+              "balanced",
+              "luxury"
+            ],
+            "title": "Travel Style"
+          },
+          "objective": {
+            "type": "string",
+            "enum": [
+              "lowest_cash",
+              "highest_value",
+              "convenience",
+              "balanced"
+            ],
+            "title": "Objective"
+          },
+          "points_priority": {
+            "type": "string",
+            "enum": [
+              "save_points",
+              "use_points",
+              "best_value"
+            ],
+            "title": "Points Priority"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "currency",
+          "travel_style",
+          "objective",
+          "points_priority"
+        ],
+        "title": "BudgetObjectivePayload"
+      },
       "BudgetTotals": {
         "properties": {
           "gross_minor": {
@@ -547,6 +1439,274 @@
           "pos_domestic"
         ],
         "title": "Channel"
+      },
+      "ConfirmOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PlanningSessionStatus"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "current_question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuestionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggested_question_ids": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionId"
+            },
+            "type": "array",
+            "title": "Suggested Question Ids"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ProgressOut"
+          },
+          "answers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/InterviewAnswer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/QuestionId"
+            },
+            "type": "object",
+            "title": "Answers"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationEvent"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "assistance_status": {
+            "type": "string",
+            "title": "Assistance Status"
+          },
+          "pending_profile_updates": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileUpdateProposal"
+            },
+            "type": "array",
+            "title": "Pending Profile Updates"
+          },
+          "brief": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TripBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "planning_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planning Job Id"
+          },
+          "planning_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planning Error"
+          },
+          "question_catalog": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionOut"
+            },
+            "type": "array",
+            "title": "Question Catalog"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "status",
+          "version",
+          "created_at",
+          "updated_at",
+          "expires_at",
+          "current_question",
+          "suggested_question_ids",
+          "progress",
+          "answers",
+          "events",
+          "assistance_status",
+          "pending_profile_updates",
+          "job_id"
+        ],
+        "title": "ConfirmOut"
+      },
+      "ConfirmRequest": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version"
+          },
+          "brief": {
+            "$ref": "#/components/schemas/TripBrief"
+          },
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_version",
+          "brief",
+          "client_event_id"
+        ],
+        "title": "ConfirmRequest"
+      },
+      "ConstraintPreferences": {
+        "properties": {
+          "dietary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_list_str__"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accessibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_list_str__"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ConstraintPreferences"
+      },
+      "ControlOption": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "ControlOption"
+      },
+      "ConversationEvent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "assistant_question",
+              "user_answer",
+              "assistant_acknowledgement",
+              "brief_review",
+              "system_progress",
+              "error"
+            ],
+            "title": "Kind"
+          },
+          "question_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuestionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "text",
+          "created_at"
+        ],
+        "title": "ConversationEvent",
+        "description": "A persisted, user-visible event; never a raw transcript or model trace."
       },
       "CostedTrip": {
         "properties": {
@@ -615,6 +1775,85 @@
           "password"
         ],
         "title": "CredentialsIn"
+      },
+      "DailyRhythmPayload": {
+        "properties": {
+          "pace": {
+            "type": "string",
+            "enum": [
+              "relaxed",
+              "moderate",
+              "packed",
+              "no_preference"
+            ],
+            "title": "Pace"
+          },
+          "day_start": {
+            "type": "string",
+            "enum": [
+              "early",
+              "normal",
+              "late",
+              "no_preference"
+            ],
+            "title": "Day Start"
+          },
+          "evening_style": {
+            "type": "string",
+            "enum": [
+              "quiet",
+              "flexible",
+              "late",
+              "no_preference"
+            ],
+            "title": "Evening Style"
+          },
+          "downtime_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 360.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downtime Minutes"
+          },
+          "transit_tolerance_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 240.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transit Tolerance Minutes"
+          },
+          "day_trip_appetite": {
+            "type": "string",
+            "enum": [
+              "none",
+              "one",
+              "multiple",
+              "no_preference"
+            ],
+            "title": "Day Trip Appetite"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pace",
+          "day_start",
+          "evening_style",
+          "day_trip_appetite"
+        ],
+        "title": "DailyRhythmPayload"
       },
       "DraftItinerary-Input": {
         "properties": {
@@ -705,6 +1944,119 @@
           "days"
         ],
         "title": "DraftItinerary"
+      },
+      "ExperiencePreferences": {
+        "properties": {
+          "interests": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_list_str__"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "food_interests": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_list_str__"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "iconic_local_balance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Literal__iconic____balanced____local___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nightlife": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_bool_"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shopping": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_bool_"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ExperiencePreferences"
+      },
+      "ExperiencesFoodPayload": {
+        "properties": {
+          "interests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Interests"
+          },
+          "food_interests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Food Interests"
+          },
+          "iconic_local_balance": {
+            "type": "string",
+            "enum": [
+              "iconic",
+              "balanced",
+              "local",
+              "no_preference"
+            ],
+            "title": "Iconic Local Balance"
+          },
+          "nightlife": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nightlife"
+          },
+          "shopping": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shopping"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "iconic_local_balance"
+        ],
+        "title": "ExperiencesFoodPayload"
       },
       "FinalReport": {
         "properties": {
@@ -851,6 +2203,152 @@
         ],
         "title": "FinalReport"
       },
+      "FlightPreferences": {
+        "properties": {
+          "cabin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Literal__economy____premium_economy____business____first___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_stops": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0___Le_le_3_____"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Literal__morning____afternoon____evening____overnight____no_preference___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "checked_baggage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_bool_"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "airport_flexible": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_bool_"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seat": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Literal__aisle____window____middle____no_preference___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "FlightPreferences"
+      },
+      "FlightPreferencesPayload": {
+        "properties": {
+          "cabin": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "premium_economy",
+              "business",
+              "first",
+              "no_preference"
+            ],
+            "title": "Cabin"
+          },
+          "max_stops": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Stops"
+          },
+          "schedule": {
+            "type": "string",
+            "enum": [
+              "morning",
+              "afternoon",
+              "evening",
+              "overnight",
+              "no_preference"
+            ],
+            "title": "Schedule"
+          },
+          "checked_baggage": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked Baggage"
+          },
+          "airport_flexible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airport Flexible"
+          },
+          "seat": {
+            "type": "string",
+            "enum": [
+              "aisle",
+              "window",
+              "middle",
+              "no_preference"
+            ],
+            "title": "Seat",
+            "default": "no_preference"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cabin",
+          "schedule"
+        ],
+        "title": "FlightPreferencesPayload"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -863,6 +2361,91 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HardConstraintsControl": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "hard_constraints",
+            "title": "Type"
+          },
+          "allow_skip": {
+            "type": "boolean",
+            "const": false,
+            "title": "Allow Skip"
+          },
+          "fields": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "has_constraints",
+                "dietary",
+                "accessibility",
+                "exclusions",
+                "immovable_events"
+              ]
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ControlOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "allow_skip",
+          "fields"
+        ],
+        "title": "HardConstraintsControl"
+      },
+      "HardConstraintsPayload": {
+        "properties": {
+          "has_constraints": {
+            "type": "boolean",
+            "title": "Has Constraints"
+          },
+          "dietary": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dietary"
+          },
+          "accessibility": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accessibility"
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Exclusions"
+          },
+          "immovable_events": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Immovable Events"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "has_constraints"
+        ],
+        "title": "HardConstraintsPayload"
       },
       "InfeasiblePlan": {
         "properties": {
@@ -900,6 +2483,81 @@
           "note"
         ],
         "title": "InfeasiblePlan"
+      },
+      "InterviewAnswer": {
+        "properties": {
+          "question_id": {
+            "$ref": "#/components/schemas/QuestionId"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TripEssentialsPayload"
+              },
+              {
+                "$ref": "#/components/schemas/PurposePartyPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BudgetObjectivePayload"
+              },
+              {
+                "$ref": "#/components/schemas/FlightPreferencesPayload"
+              },
+              {
+                "$ref": "#/components/schemas/StayPreferencesPayload"
+              },
+              {
+                "$ref": "#/components/schemas/DailyRhythmPayload"
+              },
+              {
+                "$ref": "#/components/schemas/ExperiencesFoodPayload"
+              },
+              {
+                "$ref": "#/components/schemas/HardConstraintsPayload"
+              },
+              {
+                "$ref": "#/components/schemas/AdaptiveDetailPayload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
+          "delegated": {
+            "type": "boolean",
+            "title": "Delegated",
+            "default": false
+          },
+          "memory_scope": {
+            "type": "string",
+            "enum": [
+              "trip_only",
+              "propose_profile_update"
+            ],
+            "title": "Memory Scope",
+            "default": "trip_only"
+          },
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          },
+          "answered_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Answered At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question_id",
+          "client_event_id",
+          "answered_at"
+        ],
+        "title": "InterviewAnswer"
       },
       "ItineraryDay-Input": {
         "properties": {
@@ -1340,6 +2998,33 @@
           "position"
         ],
         "title": "MoveItem"
+      },
+      "OptimizationPreferences": {
+        "properties": {
+          "objective": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Literal__lowest_cash____highest_value____convenience____balanced___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "points_priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Literal__save_points____use_points____best_value___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "OptimizationPreferences"
       },
       "OptimizationPrefs": {
         "properties": {
@@ -1798,6 +3483,695 @@
         ],
         "title": "PlanJobStatus"
       },
+      "PlanningSessionStatus": {
+        "type": "string",
+        "enum": [
+          "interviewing",
+          "awaiting_assistant",
+          "reviewing",
+          "confirmed",
+          "planning",
+          "complete",
+          "failed",
+          "abandoned"
+        ],
+        "title": "PlanningSessionStatus"
+      },
+      "PreferenceOut": {
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/TravelPreferenceProfile"
+          }
+        },
+        "type": "object",
+        "required": [
+          "profile"
+        ],
+        "title": "PreferenceOut"
+      },
+      "PreferencePatch": {
+        "properties": {
+          "flight": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlightPreferences"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stay": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StayPreferences"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rhythm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RhythmPreferences"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "experiences": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperiencePreferences"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConstraintPreferences"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "optimization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OptimizationPreferences"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PreferencePatch",
+        "description": "Partial group replacement. Unspecified groups are preserved."
+      },
+      "PreferenceValue_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0___Le_le_240_____": {
+        "properties": {
+          "value": {
+            "type": "integer",
+            "maximum": 240.0,
+            "minimum": 0.0,
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Annotated[int, FieldInfo(annotation=NoneType, required=True, metadata=[Ge(ge=0), Le(le=240)])]]"
+      },
+      "PreferenceValue_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0___Le_le_360_____": {
+        "properties": {
+          "value": {
+            "type": "integer",
+            "maximum": 360.0,
+            "minimum": 0.0,
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Annotated[int, FieldInfo(annotation=NoneType, required=True, metadata=[Ge(ge=0), Le(le=360)])]]"
+      },
+      "PreferenceValue_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0___Le_le_3_____": {
+        "properties": {
+          "value": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Annotated[int, FieldInfo(annotation=NoneType, required=True, metadata=[Ge(ge=0), Le(le=3)])]]"
+      },
+      "PreferenceValue_Literal__aisle____window____middle____no_preference___": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "aisle",
+              "window",
+              "middle",
+              "no_preference"
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Literal['aisle', 'window', 'middle', 'no_preference']]"
+      },
+      "PreferenceValue_Literal__early____normal____late___": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "early",
+              "normal",
+              "late"
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Literal['early', 'normal', 'late']]"
+      },
+      "PreferenceValue_Literal__economy____premium_economy____business____first___": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "premium_economy",
+              "business",
+              "first"
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Literal['economy', 'premium_economy', 'business', 'first']]"
+      },
+      "PreferenceValue_Literal__iconic____balanced____local___": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "iconic",
+              "balanced",
+              "local"
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Literal['iconic', 'balanced', 'local']]"
+      },
+      "PreferenceValue_Literal__location____price____balanced___": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "location",
+              "price",
+              "balanced"
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Literal['location', 'price', 'balanced']]"
+      },
+      "PreferenceValue_Literal__lowest_cash____highest_value____convenience____balanced___": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "lowest_cash",
+              "highest_value",
+              "convenience",
+              "balanced"
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Literal['lowest_cash', 'highest_value', 'convenience', 'balanced']]"
+      },
+      "PreferenceValue_Literal__morning____afternoon____evening____overnight____no_preference___": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "morning",
+              "afternoon",
+              "evening",
+              "overnight",
+              "no_preference"
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Literal['morning', 'afternoon', 'evening', 'overnight', 'no_preference']]"
+      },
+      "PreferenceValue_Literal__none____one____multiple___": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "none",
+              "one",
+              "multiple"
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Literal['none', 'one', 'multiple']]"
+      },
+      "PreferenceValue_Literal__quiet____flexible____late___": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "quiet",
+              "flexible",
+              "late"
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Literal['quiet', 'flexible', 'late']]"
+      },
+      "PreferenceValue_Literal__relaxed____moderate____packed___": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "relaxed",
+              "moderate",
+              "packed"
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Literal['relaxed', 'moderate', 'packed']]"
+      },
+      "PreferenceValue_Literal__save_points____use_points____best_value___": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "save_points",
+              "use_points",
+              "best_value"
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[Literal['save_points', 'use_points', 'best_value']]"
+      },
+      "PreferenceValue_bool_": {
+        "properties": {
+          "value": {
+            "type": "boolean",
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[bool]"
+      },
+      "PreferenceValue_list_str__": {
+        "properties": {
+          "value": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user_profile_edit",
+              "user_confirmed_from_trip"
+            ],
+            "title": "Source"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "updated_at"
+        ],
+        "title": "PreferenceValue[list[str]]"
+      },
+      "ProfileUpdateProposal": {
+        "properties": {
+          "proposal_id": {
+            "type": "string",
+            "title": "Proposal Id"
+          },
+          "section": {
+            "type": "string",
+            "enum": [
+              "flight",
+              "stay",
+              "rhythm",
+              "experiences",
+              "constraints",
+              "optimization"
+            ],
+            "title": "Section"
+          },
+          "candidate_profile": {
+            "$ref": "#/components/schemas/TravelPreferenceProfile"
+          },
+          "source_question_id": {
+            "$ref": "#/components/schemas/QuestionId"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "proposal_id",
+          "section",
+          "candidate_profile",
+          "source_question_id"
+        ],
+        "title": "ProfileUpdateProposal"
+      },
+      "ProgressOut": {
+        "properties": {
+          "completed": {
+            "type": "integer",
+            "title": "Completed"
+          },
+          "minimum_total": {
+            "type": "integer",
+            "title": "Minimum Total"
+          },
+          "maximum_total": {
+            "type": "integer",
+            "title": "Maximum Total"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PlanningSessionStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "completed",
+          "minimum_total",
+          "maximum_total",
+          "status"
+        ],
+        "title": "ProgressOut"
+      },
       "Provenance": {
         "properties": {
           "source_url": {
@@ -1860,6 +4234,144 @@
         ],
         "title": "Provenance",
         "description": "Trust metadata embedded on every fact row that can influence a recommendation."
+      },
+      "PurposePartyPayload": {
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "leisure",
+              "work",
+              "celebration",
+              "family",
+              "mixed"
+            ],
+            "title": "Purpose"
+          },
+          "adults": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Adults"
+          },
+          "children_ages": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Children Ages"
+          },
+          "companion_notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Companion Notes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "purpose",
+          "adults"
+        ],
+        "title": "PurposePartyPayload"
+      },
+      "QuestionId": {
+        "type": "string",
+        "enum": [
+          "trip_essentials",
+          "purpose_and_party",
+          "budget_and_objective",
+          "flight_preferences",
+          "stay_preferences",
+          "daily_rhythm",
+          "experiences_and_food",
+          "hard_constraints",
+          "celebration_details",
+          "children_needs",
+          "mobility_details",
+          "points_strategy",
+          "flight_tradeoff",
+          "hotel_tradeoff",
+          "food_depth"
+        ],
+        "title": "QuestionId"
+      },
+      "QuestionOut": {
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/QuestionId"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "phase": {
+            "type": "string",
+            "title": "Phase"
+          },
+          "answer_kind": {
+            "type": "string",
+            "title": "Answer Kind"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "allow_delegate": {
+            "type": "boolean",
+            "title": "Allow Delegate"
+          },
+          "control": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SelectControl"
+              },
+              {
+                "$ref": "#/components/schemas/TripEssentialsControl"
+              },
+              {
+                "$ref": "#/components/schemas/HardConstraintsControl"
+              },
+              {
+                "$ref": "#/components/schemas/AdaptiveTextControl"
+              }
+            ],
+            "title": "Control",
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "budget_objective": "#/components/schemas/SelectControl",
+                "experiences_food": "#/components/schemas/SelectControl",
+                "flight": "#/components/schemas/SelectControl",
+                "hard_constraints": "#/components/schemas/HardConstraintsControl",
+                "purpose_party": "#/components/schemas/SelectControl",
+                "rhythm": "#/components/schemas/SelectControl",
+                "stay": "#/components/schemas/SelectControl",
+                "text": "#/components/schemas/AdaptiveTextControl",
+                "trip_essentials": "#/components/schemas/TripEssentialsControl"
+              }
+            }
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "prompt",
+          "phase",
+          "answer_kind",
+          "required",
+          "allow_delegate",
+          "control"
+        ],
+        "title": "QuestionOut"
       },
       "Recommendation": {
         "properties": {
@@ -2144,6 +4656,73 @@
         ],
         "title": "ReplaceItem"
       },
+      "RhythmPreferences": {
+        "properties": {
+          "pace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Literal__relaxed____moderate____packed___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_start": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Literal__early____normal____late___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evening_style": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Literal__quiet____flexible____late___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "downtime_minutes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0___Le_le_360_____"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transit_tolerance_minutes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Annotated_int__FieldInfo_annotation_NoneType__required_True__metadata__Ge_ge_0___Le_le_240_____"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_trip_appetite": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Literal__none____one____multiple___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RhythmPreferences"
+      },
       "RunnerUp": {
         "properties": {
           "card_id": {
@@ -2358,6 +4937,41 @@
         ],
         "title": "SectionState"
       },
+      "SelectControl": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "purpose_party",
+              "budget_objective",
+              "flight",
+              "stay",
+              "rhythm",
+              "experiences_food"
+            ],
+            "title": "Type"
+          },
+          "allow_skip": {
+            "type": "boolean",
+            "title": "Allow Skip"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ControlOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "allow_skip",
+          "options"
+        ],
+        "title": "SelectControl"
+      },
       "SelectedHotelArea": {
         "properties": {
           "id": {
@@ -2380,6 +4994,172 @@
           "reason"
         ],
         "title": "SelectedHotelArea"
+      },
+      "SessionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PlanningSessionStatus"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "current_question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuestionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggested_question_ids": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionId"
+            },
+            "type": "array",
+            "title": "Suggested Question Ids"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ProgressOut"
+          },
+          "answers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/InterviewAnswer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/QuestionId"
+            },
+            "type": "object",
+            "title": "Answers"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationEvent"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "assistance_status": {
+            "type": "string",
+            "title": "Assistance Status"
+          },
+          "pending_profile_updates": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileUpdateProposal"
+            },
+            "type": "array",
+            "title": "Pending Profile Updates"
+          },
+          "brief": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TripBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "planning_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planning Job Id"
+          },
+          "planning_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planning Error"
+          },
+          "question_catalog": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionOut"
+            },
+            "type": "array",
+            "title": "Question Catalog"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "status",
+          "version",
+          "created_at",
+          "updated_at",
+          "expires_at",
+          "current_question",
+          "suggested_question_ids",
+          "progress",
+          "answers",
+          "events",
+          "assistance_status",
+          "pending_profile_updates"
+        ],
+        "title": "SessionOut"
+      },
+      "SkipRequest": {
+        "properties": {
+          "question_id": {
+            "$ref": "#/components/schemas/QuestionId"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version"
+          },
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question_id",
+          "expected_version",
+          "client_event_id"
+        ],
+        "title": "SkipRequest"
       },
       "SpendCategory": {
         "type": "string",
@@ -2454,6 +5234,111 @@
         ],
         "title": "SpendLineItem",
         "description": "A normalized unit of spend (spec 02 \u00a73)."
+      },
+      "StayPreferences": {
+        "properties": {
+          "lodging_styles": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_list_str__"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location_priorities": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_list_str__"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "room_needs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_list_str__"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location_price_tradeoff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_Literal__location____price____balanced___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "loyalty_programs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenceValue_list_str__"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "StayPreferences"
+      },
+      "StayPreferencesPayload": {
+        "properties": {
+          "lodging_styles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lodging Styles"
+          },
+          "neighborhood_priorities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Neighborhood Priorities"
+          },
+          "room_count": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Room Count",
+            "default": 1
+          },
+          "room_needs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Room Needs"
+          },
+          "location_price_tradeoff": {
+            "type": "string",
+            "enum": [
+              "location",
+              "price",
+              "balanced",
+              "no_preference"
+            ],
+            "title": "Location Price Tradeoff"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "location_price_tradeoff"
+        ],
+        "title": "StayPreferencesPayload"
       },
       "TransferAdvice": {
         "properties": {
@@ -2665,6 +5550,303 @@
           "source"
         ],
         "title": "TransitSegment"
+      },
+      "TravelPreferenceProfile": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "flight": {
+            "$ref": "#/components/schemas/FlightPreferences"
+          },
+          "stay": {
+            "$ref": "#/components/schemas/StayPreferences"
+          },
+          "rhythm": {
+            "$ref": "#/components/schemas/RhythmPreferences"
+          },
+          "experiences": {
+            "$ref": "#/components/schemas/ExperiencePreferences"
+          },
+          "constraints": {
+            "$ref": "#/components/schemas/ConstraintPreferences"
+          },
+          "optimization": {
+            "$ref": "#/components/schemas/OptimizationPreferences"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "user_id",
+          "updated_at"
+        ],
+        "title": "TravelPreferenceProfile",
+        "description": "One user's remembered travel preferences, grouped by domain.\n\nEvery leaf is an optional ``PreferenceValue`` \u2014 absence means \"never\ntold us,\" not a default choice the system silently assumed."
+      },
+      "TravelerHomeContext": {
+        "properties": {
+          "home_country": {
+            "type": "string",
+            "enum": [
+              "IN",
+              "AE",
+              "US"
+            ],
+            "title": "Home Country"
+          },
+          "home_currency": {
+            "type": "string",
+            "title": "Home Currency"
+          },
+          "default_origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Origin"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "home_country",
+          "home_currency"
+        ],
+        "title": "TravelerHomeContext"
+      },
+      "TripBrief": {
+        "properties": {
+          "home": {
+            "$ref": "#/components/schemas/TravelerHomeContext"
+          },
+          "trip_essentials": {
+            "$ref": "#/components/schemas/TripEssentialsPayload"
+          },
+          "purpose_and_party": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PurposePartyPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "budget_and_objective": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BudgetObjectivePayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flight_preferences": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlightPreferencesPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stay_preferences": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StayPreferencesPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_rhythm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DailyRhythmPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "experiences_and_food": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExperiencesFoodPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hard_constraints": {
+            "$ref": "#/components/schemas/HardConstraintsPayload"
+          },
+          "adaptive_details": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AdaptiveDetailPayload"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/QuestionId"
+            },
+            "type": "object",
+            "title": "Adaptive Details"
+          },
+          "delegated_questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionId"
+            },
+            "type": "array",
+            "title": "Delegated Questions"
+          },
+          "applied_profile_preferences": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TravelPreferenceProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "applied_profile_sections": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Applied Profile Sections"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions"
+          },
+          "wallet": {
+            "$ref": "#/components/schemas/UserWallet"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "home",
+          "trip_essentials",
+          "hard_constraints",
+          "wallet"
+        ],
+        "title": "TripBrief"
+      },
+      "TripEssentialsControl": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "trip_essentials",
+            "title": "Type"
+          },
+          "allow_skip": {
+            "type": "boolean",
+            "const": false,
+            "title": "Allow Skip"
+          },
+          "fields": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "origin",
+                "destination",
+                "start_date",
+                "end_date",
+                "travelers",
+                "date_flexibility_days"
+              ]
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ControlOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "optional_fields": {
+            "items": {
+              "type": "string",
+              "const": "date_flexibility_days"
+            },
+            "type": "array",
+            "title": "Optional Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "allow_skip",
+          "fields"
+        ],
+        "title": "TripEssentialsControl"
+      },
+      "TripEssentialsPayload": {
+        "properties": {
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "destination": {
+            "type": "string",
+            "title": "Destination"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "date_flexibility_days": {
+            "type": "integer",
+            "maximum": 14.0,
+            "minimum": 0.0,
+            "title": "Date Flexibility Days",
+            "default": 0
+          },
+          "travelers": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Travelers"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "origin",
+          "destination",
+          "start_date",
+          "end_date",
+          "travelers"
+        ],
+        "title": "TripEssentialsPayload"
       },
       "TripIntakeRequest": {
         "properties": {
@@ -2886,6 +6068,21 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VersionRequest": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "title": "VersionRequest"
       }
     }
   }

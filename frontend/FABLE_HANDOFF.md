@@ -20,11 +20,15 @@ touching code.
 
 ## What exists
 
-- Next.js 16 App Router with `/`, `/plan`, `/kitchen-sink`, and `/theme-proof`.
+- Next.js 16 App Router with `/`, `/plan`, `/plan/conversation`, `/profile`, `/kitchen-sink`, and
+  `/theme-proof`.
+- CP2 conversational/profile UI is implemented with typed controls, server-owned session state,
+  explicit confirmation, and authenticated API calls. CP3's bounded LLM assistance is not
+  implemented.
 - `/plan` already has the five-step wizard, mock polling, report sections, editable itinerary,
   recompute/prose refresh, freshness, and payment guidance. Preserve these seams.
-- Semantic themes and a Japan-first visual shell exist. The root currently intentionally resolves
-  `JP` for the visual proof, while the resolver also contains a known unconditional Japan default.
+- Semantic themes and a Japan-first visual shell exist. The ordinary root passes `null` and uses the
+  natural fallback; explicit `JP` is limited to visual-proof surfaces and typed Japan fixtures.
 - `frontend/design/CONTRACT.md` is the current visual contract. The old
   `frontend/FRONTEND_HANDOVER.md` is historical and explicitly stale.
 
@@ -40,8 +44,8 @@ touching code.
 
 ## Current open work
 
-- Reconcile resolver/theme selection and the Singapore-shaped mock data only in a separately scoped
-  product task.
+- A future product task may add a real Japan data pack; do not infer one from the visual fixtures or
+  change the deterministic resolver without tests and a scoped contract decision.
 - If extracting result rendering, start from the current editable `/plan` implementation rather
   than an older Japan branch; do not drop F5/F5.1 interactions.
 - Capture a fresh 390/768/1440 visual baseline when the build environment can resolve the declared

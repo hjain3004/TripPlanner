@@ -43,6 +43,18 @@ function expectedDisplayStrings(report: Record<string, unknown>): Set<string> {
     }
   };
   walk(report, "");
+  // The current wire contract exposes gross/effective totals rather than a
+  // separate savings_minor field; VerdictHeader renders their documented
+  // difference. Keep that derived display tied to the fixture inputs.
+  const totals = report.budget_totals;
+  if (totals && typeof totals === "object") {
+    const t = totals as Record<string, unknown>;
+    if (typeof t.gross_minor === "number" && typeof t.effective_cost_minor === "number") {
+      const savingsMinor = t.gross_minor - t.effective_cost_minor;
+      s.add(INR2.format(savingsMinor / 100));
+      s.add(INR0.format(savingsMinor / 100));
+    }
+  }
   return s;
 }
 
@@ -124,18 +136,6 @@ function tracesToFixture(domStr: string, expected: Set<string>): boolean {
   for (const factor of [100, 1]) {
     const minor = Math.round(num * factor);
     if (expected.has(String(minor))) return true;
-  }
-
-  // 3. Computed savings (gross_minor - effective_cost_minor).
-  //    The fixture has gross and effective; their difference is rendered.
-  //    Try adding/subtracting nearby fixture _minor values.
-  //    (This is a best‑effort check — we accept any positive amount that
-  //     is a valid difference between two fixture _minor values.)
-  if (domStr.startsWith("₹")) {
-    const minor = Math.round(num * 100);
-    // We can't compute all pairs here, so accept any non‑zero minor value
-    // that appears in the DOM — it traces to the fixture via the pair.
-    if (minor > 0) return true;
   }
 
   return false;

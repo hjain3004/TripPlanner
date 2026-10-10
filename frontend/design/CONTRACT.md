@@ -1,7 +1,7 @@
 # Frontend design contract — Japan-first current direction
 
-**Status:** reconciled documentation for the implementation on `main`; not a claim that every
-planned J-phase item is complete.
+**Status:** reconciled documentation for the integrated CP2/Japan implementation; not a claim that
+CP3, G3.4, or every future J-phase item is complete.
 
 This contract points to the approved Japan foundation inputs:
 
@@ -26,21 +26,21 @@ not part of this current contract.
 ## Theme resolution
 
 Japan Quiet Blossom is the approved golden destination pack. Natural is the safe fallback. The
-intended resolver contract is deterministic and allowlisted:
+implemented resolver is deterministic and allowlisted:
 
 - explicit normalized `JP` → `theme-japan`;
 - null, unknown, unsupported, lowercase after normalization, or free-form city strings → natural
   unless the normalized country code is `JP`;
 - no browser locale, geolocation, LLM, city-name guessing, or network lookup.
 
-**Current implementation deviation:** `layout.tsx` explicitly resolves `JP` for the visual proof,
-and `resolver.ts` currently assigns Japan before checking the input. Therefore the code does not yet
-implement the fallback rule above. This documentation records the approved contract and the exact
-gap; it does not silently rewrite the resolver.
+The root layout passes `null`, so the ordinary shell uses the natural fallback. Japan is selected
+explicitly by the theme-proof/kitchen-sink visual proof surfaces and by typed Japan fixtures. This is
+visual fixture selection, not a claim that the live travel data is Japanese or that the planning API
+queries Japan.
 
 Singapore-specific visual instructions and the old soft-rounded default are superseded for this
 Japan-first reconciliation. Singapore remains in legacy fixtures/content and in the existing
-Singapore theme file for compatibility; it is not the destination direction for new visual work.
+Singapore theme file for compatibility.
 
 ## Color and tone
 
@@ -91,10 +91,13 @@ Every non-trivial fact retains its source, verification date/status, confidence,
 access, account synchronization, seat availability, active bonuses, or verified booking inventory
 unless those typed facts exist.
 
-## Current code deviations to keep visible
+## Current implementation boundaries
 
-1. The theme resolver is temporarily Japan-defaulting, as described above.
-2. Mock data is still India/Singapore-shaped (`DEL`/`SIN`, Marina Bay, INR), so the visual Japan
-   pack is not evidence of a complete Japan data pack.
-3. The existing `/plan` page remains the integration point for editable itinerary behavior. Do not
-   introduce an older results extraction as a documentation-driven refactor.
+1. CP2 conversational/profile UI is implemented, but CP3 bounded LLM interview assistance remains
+   unimplemented.
+2. Confirmed briefs start the existing non-live planning job exactly once; confirmation does not
+   query Gondola. G3.4 remains future work.
+3. Mock data remains India/Singapore-shaped (`DEL`/`SIN`, Marina Bay, INR), while typed Japan visual
+   fixtures and philatelic screenshots are presentation evidence only.
+4. The existing `/plan` page remains the integration point for editable itinerary behavior. Do not
+   introduce an older results extraction that drops F5/F5.1 behavior.

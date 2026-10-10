@@ -23,6 +23,21 @@ FastAPI API (`backend/api`)
         Deterministic kernel (`backend/core`)
 ```
 
+The CP2 conversation path is a separate authenticated request-time flow:
+
+```text
+Browser `/plan/conversation` or `/profile`
+        │  typed OpenAPI request + CSRF
+        ▼
+`/planning/preferences` and `/planning/sessions`
+        │
+        ├── SQLite user scoping, CAS versions, idempotent client events, audit events
+        └── explicit confirmation → existing non-live planning job
+```
+
+The job manager is currently process-local; durable session state and the confirmation event are
+the recovery boundary, not a claim of a distributed queue.
+
 The request-time default uses seeded/sample data and the configured LLM call sites. The kernel is
 not allowed to import the gateway or reach the network. Provider I/O belongs behind
 `backend/gateway/`; the orchestrator must map normalized evidence into kernel inputs.
@@ -54,7 +69,8 @@ discovery, and credentials in frontend/LLM context are outside the boundary.
 - Raw/live provider content is not silently promoted into the financial knowledge base. Offline
   financial ingestion remains a future human-reviewed proposal/approval workflow under spec 05.
 - Account and planning persistence is user-scoped and uses the existing SQLite/CAS/audit patterns;
-  it is separate from gateway quote/cache evidence.
+  it is separate from gateway quote/cache evidence. CP2 does not authorize provider activation or
+  autonomous financial writes.
 
 ## Environment matrix
 
@@ -77,6 +93,8 @@ facade. It does not import Python packages or compute financial values.
 ## Operationally important gaps
 
 - `/plan` is not wired to Gondola; the gateway seam is proven separately.
+- CP3 bounded LLM interview assistance and G3.4 confirmed-brief gateway integration remain future
+  work.
 - Full structured Gondola response capture and normalization proof remain open in the G3.2 report.
 - Live Tripadvisor activation remains pending.
 - The robust financial-ingestion document is a plan only; FI1/Crawl4AI/Firecrawl work is not part

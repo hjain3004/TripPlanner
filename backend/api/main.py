@@ -13,17 +13,6 @@ from pydantic import BaseModel, Field
 
 from accounts.models import User
 from accounts.store import AccountStore, DuplicateEmailError
-from api.auth import (
-    CSRF_HEADER,
-    SESSION_COOKIE,
-    clear_session_cookies,
-    current_user,
-    get_store,
-    new_csrf_token,
-    now_utc,
-    require_csrf,
-    set_session_cookies,
-)
 from agents.llm import HostedFreeTier, LLMClient
 from agents.models import (
     FinalReport,
@@ -38,6 +27,18 @@ from agents.models import (
 from agents.pipeline import run_pipeline
 from agents.recompute import recompute_itinerary, refresh_prose
 from agents.search import search_catalog_places
+from api.auth import (
+    CSRF_HEADER,
+    SESSION_COOKIE,
+    clear_session_cookies,
+    current_user,
+    get_store,
+    new_csrf_token,
+    now_utc,
+    require_csrf,
+    set_session_cookies,
+)
+from api.conversation import router as conversation_router
 from api.job_manager import job_manager
 from core.db import DB_PATH, KnowledgeBase, load_kb, seed_database
 from gateway.catalog.regions import get_region
@@ -51,6 +52,7 @@ app = FastAPI(
     version="0.3.0",
     description="Kernel MVP API over local curated sample data.",
 )
+app.include_router(conversation_router)
 
 # Without this, a browser's preflight OPTIONS /plan gets 405 and the POST never
 # fires - exactly what happened the first time the real frontend talked to the
@@ -69,7 +71,7 @@ app.add_middleware(
         if origin.strip()
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", CSRF_HEADER],
 )
 

@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import type { BudgetTotals } from "@/lib/api";
 import { CountUp } from "./count-up";
 import { useReducedMotionSafe } from "@/lib/motion/use-reduced-motion-safe";
-import confetti from "canvas-confetti";
 
 interface VerdictHeaderProps {
   totals: BudgetTotals;
@@ -21,30 +19,7 @@ function confidenceLabel(score?: number): string {
 }
 
 export function VerdictHeader({ totals, destination, days, confidence }: VerdictHeaderProps) {
-  const reduced = useReducedMotionSafe();
-  const triggeredRef = useRef(false);
-
-  useEffect(() => {
-    const savingsPct = totals.savings_pct_bp / 100;
-    if (!reduced && savingsPct >= 3.0 && !triggeredRef.current) {
-      triggeredRef.current = true;
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
-        disableForReducedMotion: true,
-      });
-      setTimeout(() => {
-        document.querySelectorAll("body > canvas").forEach((c) => {
-          c.setAttribute("aria-hidden", "true");
-          const main = document.querySelector("main");
-          if (main && c.parentElement !== main) {
-            main.appendChild(c);
-          }
-        });
-      }, 0);
-    }
-  }, [totals.savings_pct_bp, reduced]);
+  useReducedMotionSafe();
 
   return (
     <div className="text-center py-12 border-b-2 border-border" data-motion="verdict">
