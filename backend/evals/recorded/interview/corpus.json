@@ -1,0 +1,27 @@
+{
+  "provenance": "Authored synthetic contract fixtures, not captured live model responses.",
+  "cases": [
+    {
+      "persona": "food-first traveler considering flight stops",
+      "expected_next": "food_depth",
+      "response": {
+        "acknowledgement": "Your food interests will shape the follow-up.",
+        "acknowledgement_answer_ids": ["experiences_and_food"],
+        "question_ids": ["food_depth"],
+        "wording": {"food_depth": "Which local dishes would you most like to explore?"},
+        "contradictions": []
+      }
+    },
+    {
+      "persona": "celebration traveler requiring step-free access",
+      "expected_next": "mobility_details",
+      "response": {
+        "acknowledgement": "Your accessibility requirements need a closer look.",
+        "acknowledgement_answer_ids": ["hard_constraints"],
+        "question_ids": ["mobility_details"],
+        "wording": {"mobility_details": "What step-free access is essential for this celebration?"},
+        "contradictions": []
+      }
+    }
+  ]
+}

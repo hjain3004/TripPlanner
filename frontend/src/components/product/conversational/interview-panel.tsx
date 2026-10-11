@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { progressLabel, type AnswerValue, type InterviewQuestion } from "./conversational-types";
@@ -20,6 +20,10 @@ interface InterviewPanelProps {
   isSubmitting?: boolean;
   error?: string;
   announcement?: string;
+  assistance?: ReactNode;
+  continueLabel?: string;
+  actionsDisabled?: boolean;
+  controlsDisabled?: boolean;
 }
 
 export function InterviewPanel({
@@ -35,6 +39,10 @@ export function InterviewPanel({
   isSubmitting = false,
   error,
   announcement,
+  assistance,
+  continueLabel,
+  actionsDisabled = false,
+  controlsDisabled = false,
 }: InterviewPanelProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const headingId = `question-heading-${question.id}`;
@@ -79,10 +87,12 @@ export function InterviewPanel({
             control={question.control}
             value={value}
             onChange={onChange}
-            disabled={isSubmitting}
+            disabled={isSubmitting || controlsDisabled}
             label={question.title}
             describedBy={question.description ? descriptionId : undefined}
           />
+
+          {assistance}
 
           <div className="min-h-6" aria-live="polite" aria-atomic="true">
             {announcement ? <p className="text-xs text-text-muted">{announcement}</p> : null}
@@ -92,27 +102,27 @@ export function InterviewPanel({
 
         <div className="flex flex-col gap-3 border-t-2 border-border bg-accent-2/60 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-2">
-            <Button type="button" variant="ghost" size="lg" className="min-h-[44px]" onClick={onBack} disabled={!canGoBack || isSubmitting} aria-label="Go back to the previous question">
+            <Button type="button" variant="ghost" size="lg" className="min-h-[44px]" onClick={onBack} disabled={!canGoBack || isSubmitting || actionsDisabled} aria-label="Go back to the previous question">
               <ArrowLeft aria-hidden="true" /> Back
             </Button>
             {question.canSkip && onSkip ? (
-              <Button type="button" variant="ghost" size="lg" className="min-h-[44px]" onClick={onSkip} disabled={isSubmitting}>
+              <Button type="button" variant="ghost" size="lg" className="min-h-[44px]" onClick={onSkip} disabled={isSubmitting || actionsDisabled}>
                 No preference
               </Button>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2 sm:justify-end">
-            <Button type="button" variant="outline" size="lg" className="min-h-[44px]" onClick={onReview} disabled={isSubmitting}>
+            <Button type="button" variant="outline" size="lg" className="min-h-[44px]" onClick={onReview} disabled={isSubmitting || actionsDisabled}>
               <ClipboardList aria-hidden="true" /> Review answers
             </Button>
-            <Button type="button" size="lg" className="min-h-[44px]" onClick={onContinue} disabled={!canContinue || isSubmitting}>
-              {isSubmitting ? "Saving…" : question.step === question.totalSteps ? "Review trip brief" : "Continue"}
+            <Button type="button" size="lg" className="min-h-[44px]" onClick={onContinue} disabled={!canContinue || isSubmitting || actionsDisabled}>
+              {isSubmitting ? "Saving…" : continueLabel ?? (question.step === question.totalSteps ? "Review trip brief" : "Continue")}
               {!isSubmitting ? <ArrowRight aria-hidden="true" /> : null}
             </Button>
           </div>
         </div>
       </div>
-      <p className="text-center font-mono text-[10px] uppercase tracking-[0.1em] text-text-faint">Your answers stay in your account so you can resume on another device</p>
+      <p className="text-center font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">Your answers stay in your account so you can resume on another device</p>
     </section>
   );
 }

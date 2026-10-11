@@ -43,6 +43,12 @@ from planning.answers import (
     StayPreferencesPayload,
     TripEssentialsPayload,
 )
+from planning.assistance import (
+    AnswerCandidate,
+    AssistanceDiagnostic,
+    AssistanceRequestRecord,
+    InterviewContradiction,
+)
 
 
 class PlanningSessionStatus(StrEnum):
@@ -171,6 +177,11 @@ class PlanningSession(BaseModel):
     processed_event_ids: list[str] = Field(default_factory=list)
     assistance_status: AssistanceStatus = AssistanceStatus.NOT_RUN
     interview_llm_calls: int = Field(default=0, ge=0, le=2)
+    assistance_diagnostics: list[AssistanceDiagnostic] = Field(default_factory=list)
+    assistance_requests: dict[str, AssistanceRequestRecord] = Field(default_factory=dict)
+    personalized_wording: dict[QuestionId, str] = Field(default_factory=dict)
+    pending_answer: AnswerCandidate | None = None
+    contradictions: list[InterviewContradiction] = Field(default_factory=list)
     pending_profile_updates: list[ProfileUpdateProposal] = Field(default_factory=list)
     confirmed_briefs: list[ConfirmedBriefSnapshot] = Field(default_factory=list)
     saved_trip_id: str | None = None

@@ -38,6 +38,16 @@ Browser `/plan/conversation` or `/profile`
 The job manager is currently process-local; durable session state and the confirmation event are
 the recovery boundary, not a claim of a distributed queue.
 
+CP3's separate interview assistant uses `agents/interview_assistant.py` behind the authenticated
+session adapter. Every semantic call is reserved in SQLite before dispatch; failed/interrupted
+attempts retain their spent slot and identical client events reuse their request fingerprint.
+Typed controls make no semantic call except the adaptive checkpoint after the eighth core answer.
+The maximum is two calls: one adaptive review and at most one optional interpretation. Results
+remain user-reviewed proposals; contradictions must be reviewed before explicit confirmation.
+This role uses a separately configured model with no provider/schema retry. It is disabled unless
+`TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED=1` and declared cost is zero; see
+`backend/.env.example`. All automated CP3 acceptance uses scripted/replay clients.
+
 The request-time default uses seeded/sample data and the configured LLM call sites. The kernel is
 not allowed to import the gateway or reach the network. Provider I/O belongs behind
 `backend/gateway/`; the orchestrator must map normalized evidence into kernel inputs.
@@ -93,8 +103,8 @@ facade. It does not import Python packages or compute financial values.
 ## Operationally important gaps
 
 - `/plan` is not wired to Gondola; the gateway seam is proven separately.
-- CP3 bounded LLM interview assistance and G3.4 confirmed-brief gateway integration remain future
-  work.
+- G3.4 confirmed-brief gateway integration remains future work; CP3's local implementation and
+  verification are recorded in `reports/cp3_interview_assistance.md`.
 - Full structured Gondola response capture and normalization proof remain open in the G3.2 report.
 - Live Tripadvisor activation remains pending.
 - The robust financial-ingestion document is a plan only; FI1/Crawl4AI/Firecrawl work is not part

@@ -12,6 +12,7 @@ interface ReviewTripBriefProps {
   onApproveProfileChange?: (changeId: string) => void;
   onConfirm: () => void;
   confirming?: boolean;
+  actionsDisabled?: boolean;
   error?: string;
 }
 
@@ -21,7 +22,7 @@ function SourceTag({ source, delegated }: { source: AnswerSource; delegated?: bo
   return <span className={`inline-flex min-h-[28px] items-center rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.05em] ${tone}`}>{label}</span>;
 }
 
-function ProfileChangeRow({ change, onApprove }: { change: PendingProfileChange; onApprove?: () => void }) {
+function ProfileChangeRow({ change, onApprove, disabled }: { change: PendingProfileChange; onApprove?: () => void; disabled?: boolean }) {
   return (
     <li className="flex flex-col gap-3 border-b border-border py-4 last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
       <div>
@@ -32,7 +33,7 @@ function ProfileChangeRow({ change, onApprove }: { change: PendingProfileChange;
       {change.approved ? (
         <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.08em] text-success-text"><Check aria-hidden="true" className="h-4 w-4" /> Approved</span>
       ) : onApprove ? (
-        <Button type="button" variant="outline" size="sm" className="min-h-[44px]" onClick={onApprove}>Save to profile</Button>
+        <Button type="button" variant="outline" size="sm" className="min-h-[44px]" onClick={onApprove} disabled={disabled}>Save to profile</Button>
       ) : (
         <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-muted">Review before saving</span>
       )}
@@ -48,6 +49,7 @@ export function ReviewTripBrief({
   onApproveProfileChange,
   onConfirm,
   confirming = false,
+  actionsDisabled = false,
   error,
 }: ReviewTripBriefProps) {
   const unresolved = brief.unresolvedRequirements ?? [];
@@ -71,7 +73,7 @@ export function ReviewTripBrief({
                   {section.description ? <p className="mt-1 text-xs leading-5 text-text-muted">{section.description}</p> : null}
                 </div>
                 {section.amendable !== false ? (
-                  <Button type="button" variant="ghost" size="sm" className="min-h-[44px]" onClick={() => onAmend(section.id)} aria-label={`Amend ${section.title}`}>
+                  <Button type="button" variant="ghost" size="sm" className="min-h-[44px]" onClick={() => onAmend(section.id)} aria-label={`Amend ${section.title}`} disabled={actionsDisabled || confirming}>
                     <Pencil aria-hidden="true" /> Amend
                   </Button>
                 ) : null}
@@ -99,7 +101,7 @@ export function ReviewTripBrief({
                   <p className="mt-1 text-sm leading-5 text-text-muted">Nothing changes in your saved profile until you approve it.</p>
                 </div>
               </div>
-              <ul className="mt-3"><>{profileChanges.map((change) => <ProfileChangeRow key={change.id} change={change} onApprove={onApproveProfileChange ? () => onApproveProfileChange(change.id) : undefined} />)}</></ul>
+              <ul className="mt-3"><>{profileChanges.map((change) => <ProfileChangeRow key={change.id} change={change} onApprove={onApproveProfileChange ? () => onApproveProfileChange(change.id) : undefined} disabled={actionsDisabled || confirming} />)}</></ul>
             </article>
           ) : null}
 
@@ -121,10 +123,10 @@ export function ReviewTripBrief({
           </div>
           {unresolved.length > 0 ? <ul className="mt-4 space-y-2 border-t border-border pt-4 text-xs text-text-muted">{unresolved.map((item) => <li key={item}>• {item}</li>)}</ul> : null}
           {error ? <p className="mt-4 border-t border-border pt-4 text-sm text-danger" role="alert">{error}</p> : null}
-          <Button type="button" size="lg" className="mt-5 min-h-[48px] w-full" disabled={!isReady || confirming} onClick={onConfirm}>
+          <Button type="button" size="lg" className="mt-5 min-h-[48px] w-full" disabled={!isReady || confirming || actionsDisabled} onClick={onConfirm}>
             {confirming ? "Confirming…" : "Build my trip"}
           </Button>
-          <p className="mt-3 text-center font-mono text-[10px] uppercase tracking-[0.07em] text-text-faint">Planning starts only after confirmation</p>
+          <p className="mt-3 text-center font-mono text-[10px] uppercase tracking-[0.07em] text-text-muted">Planning starts only after confirmation</p>
         </aside>
       </div>
     </section>

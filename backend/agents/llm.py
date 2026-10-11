@@ -143,7 +143,8 @@ class HostedFreeTier:
 
     DEFAULT_MAX_CALLS = 25
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_retries: int = 3) -> None:
+        self.max_retries = max_retries
         self.base_url = os.getenv("TRIPWISE_LLM_BASE_URL")
         self.model = os.getenv("TRIPWISE_LLM_MODEL")
         fallback_models = [
@@ -253,7 +254,7 @@ class HostedFreeTier:
 
         import time
 
-        max_retries = 3
+        max_retries = self.max_retries
         raw = ""
         last_model_error: LLMCallError | None = None
         for model_index, model in enumerate(self.models):

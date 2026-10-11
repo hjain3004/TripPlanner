@@ -2,6 +2,7 @@
 
 **Current evidence:** source under `frontend/src`; API boundary under `frontend/src/lib/api` and
 `contract/openapi.json`; exact branch/test evidence is in
+`reports/cp3_interview_assistance.md` (local CP3), with historical CP2/Japan evidence in
 `reports/cp2_japan_documentation_integration.md`.
 
 ## Runtime shape
@@ -10,7 +11,7 @@
 App Router pages
   ├─ `/`                 landing / route-first editorial shell
   ├─ `/plan`             five-step wizard, polling, report, editable itinerary
-  ├─ `/plan/conversation` CP2 typed interview, review, amend, confirm, resume
+  ├─ `/plan/conversation` CP2 typed flow + CP3 proposals, contradiction review and recovery
   ├─ `/profile`          CP2 authenticated preference projection and updates
   ├─ `/kitchen-sink`     component/state proof surface
   └─ `/theme-proof`      theme inspection surface
@@ -40,6 +41,13 @@ payment guidance. Any future extraction of result rendering must preserve those 
 older plan-page extraction without revalidating this behavior.
 
 ## Styling and visual contract
+
+CP3 assistance remains proposal-only. The server supplies personalized wording, pending typed
+answers, contradiction references, diagnostics and `assistance_pending`. The conversation page
+polls an active reservation without reissuing interpretation; controls resume after a validated
+result or interrupted-request recovery. Copying a candidate into controls is not an answer write:
+the traveler must still explicitly Continue/Save. No browser storage or financial arithmetic is
+introduced.
 
 - Semantic Tailwind tokens are defined in `frontend/src/themes/base.css`, `natural.css`,
   `singapore.css`, and `japan.css` and bridged through `globals.css`.

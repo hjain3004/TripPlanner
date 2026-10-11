@@ -82,6 +82,17 @@ export type AmendRequest = {
 };
 
 /**
+ * AnswerCandidate
+ */
+export type AnswerCandidate = {
+    question_id: QuestionId;
+    /**
+     * Payload
+     */
+    payload: TripEssentialsPayload | PurposePartyPayload | BudgetObjectivePayload | FlightPreferencesPayload | StayPreferencesPayload | DailyRhythmPayload | ExperiencesFoodPayload | HardConstraintsPayload | AdaptiveDetailPayload;
+};
+
+/**
  * AnswerRequest
  */
 export type AnswerRequest = {
@@ -309,6 +320,23 @@ export type ConfirmOut = {
      * Assistance Status
      */
     assistance_status: string;
+    /**
+     * Interview Llm Calls
+     */
+    interview_llm_calls?: number;
+    /**
+     * Assistance Pending
+     */
+    assistance_pending?: boolean;
+    /**
+     * Assistance Diagnostics
+     */
+    assistance_diagnostics?: Array<'unavailable' | 'invalid_response' | 'budget_exhausted' | 'interrupted'>;
+    pending_answer?: AnswerCandidate | null;
+    /**
+     * Contradictions
+     */
+    contradictions?: Array<InterviewContradiction>;
     /**
      * Pending Profile Updates
      */
@@ -754,6 +782,25 @@ export type InfeasiblePlan = {
 };
 
 /**
+ * InterpretRequest
+ */
+export type InterpretRequest = {
+    question_id: QuestionId;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+};
+
+/**
  * InterviewAnswer
  */
 export type InterviewAnswer = {
@@ -778,6 +825,20 @@ export type InterviewAnswer = {
      * Answered At
      */
     answered_at: string;
+};
+
+/**
+ * InterviewContradiction
+ */
+export type InterviewContradiction = {
+    /**
+     * Answer Ids
+     */
+    answer_ids: Array<QuestionId>;
+    /**
+     * Clarification
+     */
+    clarification: string;
 };
 
 /**
@@ -2114,6 +2175,23 @@ export type SessionOut = {
      */
     assistance_status: string;
     /**
+     * Interview Llm Calls
+     */
+    interview_llm_calls?: number;
+    /**
+     * Assistance Pending
+     */
+    assistance_pending?: boolean;
+    /**
+     * Assistance Diagnostics
+     */
+    assistance_diagnostics?: Array<'unavailable' | 'invalid_response' | 'budget_exhausted' | 'interrupted'>;
+    pending_answer?: AnswerCandidate | null;
+    /**
+     * Contradictions
+     */
+    contradictions?: Array<InterviewContradiction>;
+    /**
      * Pending Profile Updates
      */
     pending_profile_updates: Array<ProfileUpdateProposal>;
@@ -2840,6 +2918,36 @@ export type SkipSessionPlanningSessionsSessionIdSkipPostResponses = {
 };
 
 export type SkipSessionPlanningSessionsSessionIdSkipPostResponse = SkipSessionPlanningSessionsSessionIdSkipPostResponses[keyof SkipSessionPlanningSessionsSessionIdSkipPostResponses];
+
+export type InterpretSessionPlanningSessionsSessionIdInterpretPostData = {
+    body: InterpretRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/interpret';
+};
+
+export type InterpretSessionPlanningSessionsSessionIdInterpretPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type InterpretSessionPlanningSessionsSessionIdInterpretPostError = InterpretSessionPlanningSessionsSessionIdInterpretPostErrors[keyof InterpretSessionPlanningSessionsSessionIdInterpretPostErrors];
+
+export type InterpretSessionPlanningSessionsSessionIdInterpretPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionOut;
+};
+
+export type InterpretSessionPlanningSessionsSessionIdInterpretPostResponse = InterpretSessionPlanningSessionsSessionIdInterpretPostResponses[keyof InterpretSessionPlanningSessionsSessionIdInterpretPostResponses];
 
 export type AmendSessionPlanningSessionsSessionIdAmendPostData = {
     body: AmendRequest;

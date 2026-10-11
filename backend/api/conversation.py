@@ -1,7 +1,7 @@
 """Authenticated CP2 conversational planning API.
 
-This module is deliberately a thin HTTP adapter around the pure CP1 planning
-domain.  It owns no provider discovery and makes no LLM call.  In particular,
+This module is a thin HTTP adapter around the pure planning domain and the
+bounded CP3 assistant service. It owns no provider discovery. In particular,
 the only transition that starts the legacy planner is an explicit, successful
 confirmation of a server-assembled Trip Brief.
 """
@@ -30,14 +30,25 @@ from accounts.models import (
 )
 from accounts.projection import build_user_wallet
 from accounts.store import AccountStore, StalePlanningSessionError
+from agents.interview_assistant import INTERPRETABLE_QUESTIONS, get_interview_llm
+from agents.llm import LLMClient
 from agents.models import TripIntakeRequest
 from api.auth import current_user, get_store, now_utc, require_csrf
+from api.interview_assistance import (
+    AssistanceIdempotencyConflict,
+    AssistanceInProgress,
+    fingerprint,
+    interpret_answer,
+    recover_interrupted_requests,
+    run_adaptive_review,
+)
 from core.models import UserWallet
 from planning.answers import (
     AnswerPayload,
     InterviewAnswer,
     QuestionId,
 )
+from planning.assistance import AnswerCandidate, AssistanceDiagnostic, InterviewContradiction
 from planning.brief import (
     BriefAlreadyConfirmedError,
     BriefMismatchError,
@@ -64,7 +75,6 @@ from planning.policy import (
     interview_progress,
     next_question,
     record_answer,
-    record_assistant_suggestions,
     start_interview,
 )
 from planning.question_catalog import DEFAULT_QUESTION_CATALOG, QuestionDefinition
@@ -142,6 +152,14 @@ class BackRequest(BaseModel):
 
 class AmendRequest(AnswerRequest):
     expected_version: int = Field(ge=0)
+
+
+class InterpretRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question_id: QuestionId
+    expected_version: int = Field(ge=0)
+    text: str = Field(min_length=1, max_length=1000)
+    client_event_id: str = Field(min_length=1, max_length=128)
 
 
 class VersionRequest(BaseModel):
@@ -266,6 +284,11 @@ class SessionOut(BaseModel):
     answers: dict[QuestionId, InterviewAnswer]
     events: list[ConversationEvent]
     assistance_status: str
+    interview_llm_calls: int = 0
+    assistance_pending: bool = False
+    assistance_diagnostics: list[AssistanceDiagnostic] = Field(default_factory=list)
+    pending_answer: AnswerCandidate | None = None
+    contradictions: list[InterviewContradiction] = Field(default_factory=list)
     pending_profile_updates: list[ProfileUpdateProposal]
     brief: TripBrief | None = None
     planning_job_id: str | None = None
@@ -402,6 +425,11 @@ def _session_out(session: PlanningSession) -> SessionOut:
         rendered = _question_out(definition)
         if rendered is not None:
             catalog.append(rendered)
+    current_question = _question_out(next_question(session))
+    if current_question and current_question.id in session.personalized_wording:
+        current_question = current_question.model_copy(
+            update={"prompt": session.personalized_wording[current_question.id]}
+        )
     return SessionOut(
         id=session.id,
         user_id=session.user_id,
@@ -410,12 +438,19 @@ def _session_out(session: PlanningSession) -> SessionOut:
         created_at=session.created_at,
         updated_at=session.updated_at,
         expires_at=session.expires_at,
-        current_question=_question_out(next_question(session)),
+        current_question=current_question,
         suggested_question_ids=session.suggested_question_ids,
         progress=ProgressOut(**progress.model_dump()),
         answers=session.answers,
         events=session.events,
         assistance_status=session.assistance_status.value,
+        interview_llm_calls=session.interview_llm_calls,
+        assistance_pending=any(
+            row.status == "reserved" for row in session.assistance_requests.values()
+        ),
+        assistance_diagnostics=session.assistance_diagnostics,
+        pending_answer=session.pending_answer,
+        contradictions=session.contradictions,
         pending_profile_updates=session.pending_profile_updates,
         brief=brief,
         planning_job_id=session.planning_job_id,
@@ -609,7 +644,22 @@ def read_session(
     user: Annotated[User, Depends(current_user)],
     store: Annotated[AccountStore, Depends(get_store)],
 ) -> SessionOut:
-    return _session_out(_get_session(_repo(store), user, session_id))
+    repo = _repo(store)
+    session = _get_session(repo, user, session_id)
+    # Recovery is deterministic: a reserved/interrupted review never dispatches
+    # again. CAS prevents overwriting an in-flight successful result.
+    try:
+        stalled = now_utc() - session.updated_at >= timedelta(seconds=30)
+        recovered = recover_interrupted_requests(repo, session, now_utc())
+        if recovered != session:
+            stalled = True
+        session = recovered
+        active = any(row.status == "reserved" for row in session.assistance_requests.values())
+        if session.status is PlanningSessionStatus.AWAITING_ASSISTANT and stalled and not active:
+            session = run_adaptive_review(repo, session, None, now_utc)
+    except (StalePlanningSessionError, AssistanceInProgress):
+        session = _get_session(repo, user, session_id)
+    return _session_out(session)
 
 
 def _apply_answer(
@@ -627,6 +677,12 @@ def _apply_answer(
         answered_at=now,
     )
     updated = record_answer(session, answer, expected_version=body.expected_version, now=now)
+    updated = updated.model_copy(update={
+        "pending_answer": None,
+        "contradictions": [
+            c for c in updated.contradictions if body.question_id not in c.answer_ids
+        ],
+    })
     updated = _append_event(
         updated,
         event_id=f"event:{body.client_event_id}",
@@ -644,7 +700,7 @@ def _apply_answer(
             event_id=f"{updated.id}:question:{updated.version}",
             kind="assistant_question",
             question_id=updated.current_question_id,
-            text=definition.prompt,
+            text=updated.personalized_wording.get(definition.id, definition.prompt),
             now=now,
         )
     return updated
@@ -657,29 +713,20 @@ def answer_session(
     request: Request,
     user: Annotated[User, Depends(current_user)],
     store: Annotated[AccountStore, Depends(get_store)],
+    llm: Annotated[LLMClient, Depends(get_interview_llm)],
 ) -> SessionOut:
     require_csrf(request)
     repo = _repo(store)
     session = _get_session(repo, user, session_id)
     if body.client_event_id in session.processed_event_ids:
         return _session_out(session)
+    if any(row.status == "reserved" for row in session.assistance_requests.values()):
+        raise _error(409, "ASSISTANCE_IN_PROGRESS", "Tailored assistance is in progress")
     try:
         updated = _apply_answer(session, body, now=now_utc())
         repo.save(updated, expected_version=session.version)
-        # CP2 deliberately has no interview LLM call.  At the CP1 assistant
-        # seam, record a truthful degraded result and let deterministic catalog
-        # predicates add only applicable adaptive questions.
         if updated.status is PlanningSessionStatus.AWAITING_ASSISTANT:
-            assistant_now = now_utc()
-            updated = record_assistant_suggestions(
-                updated,
-                [],
-                assistance_status="degraded",
-                llm_calls=0,
-                expected_version=updated.version,
-                now=assistant_now,
-            )
-            repo.save(updated, expected_version=updated.version - 1)
+            updated = run_adaptive_review(repo, updated, llm, now_utc)
     except (StaleSessionVersionError, StalePlanningSessionError) as exc:
         raise _error(409, "STALE_SESSION", str(exc)) from None
     except (UnexpectedQuestionError, DelegationNotAllowedError, PlanningPolicyError) as exc:
@@ -694,6 +741,7 @@ def skip_session(
     request: Request,
     user: Annotated[User, Depends(current_user)],
     store: Annotated[AccountStore, Depends(get_store)],
+    llm: Annotated[LLMClient, Depends(get_interview_llm)],
 ) -> SessionOut:
     require_csrf(request)
     body_as_answer = AnswerRequest(
@@ -702,7 +750,57 @@ def skip_session(
         delegated=True,
         client_event_id=body.client_event_id,
     )
-    return answer_session(session_id, body_as_answer, request, user, store)
+    return answer_session(session_id, body_as_answer, request, user, store, llm)
+
+
+@router.post("/sessions/{session_id}/interpret", response_model=SessionOut)
+def interpret_session(
+    session_id: str, body: InterpretRequest, request: Request,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+    llm: Annotated[LLMClient, Depends(get_interview_llm)],
+) -> SessionOut:
+    require_csrf(request)
+    repo = _repo(store)
+    session = _get_session(repo, user, session_id)
+    key = f"interpret:{body.client_event_id}"
+    existing = session.assistance_requests.get(key)
+    if existing:
+        request_hash = fingerprint({
+            "question_id": body.question_id.value,
+            "text": body.text,
+            "expected_version": body.expected_version,
+        })
+        if existing.fingerprint != request_hash:
+            raise _error(409, "IDEMPOTENCY_CONFLICT", "Event id belongs to another request")
+        return _session_out(session)
+    if body.question_id not in INTERPRETABLE_QUESTIONS or not body.text.strip():
+        raise _error(422, "TYPED_ANSWER_REQUIRED", "Use typed controls for this answer")
+    eligible = (
+        session.status is PlanningSessionStatus.INTERVIEWING
+        and body.question_id == session.current_question_id
+    ) or (
+        session.status is PlanningSessionStatus.REVIEWING
+        and body.question_id in session.answers
+    )
+    if not eligible or session.confirmed_briefs:
+        raise _error(
+            422, "INVALID_QUESTION",
+            "Only the current or an unconfirmed review answer can be interpreted",
+        )
+    try:
+        updated = interpret_answer(
+            repo, session, llm, question_id=body.question_id, text=body.text,
+            client_event_id=body.client_event_id, expected_version=body.expected_version,
+            clock=now_utc,
+        )
+    except AssistanceIdempotencyConflict as exc:
+        raise _error(409, "IDEMPOTENCY_CONFLICT", str(exc)) from None
+    except (StaleSessionVersionError, StalePlanningSessionError) as exc:
+        raise _error(409, "STALE_SESSION", str(exc)) from None
+    except AssistanceInProgress as exc:
+        raise _error(409, "ASSISTANCE_IN_PROGRESS", str(exc)) from None
+    return _session_out(updated)
 
 
 @router.post("/sessions/{session_id}/amend", response_model=SessionOut)
@@ -732,6 +830,12 @@ def amend_session(
         updated = amend_answer(
             session, answer, expected_version=body.expected_version, now=now_utc()
         )
+        updated = PlanningSession.model_validate(updated.model_copy(update={
+            "pending_answer": None,
+            "contradictions": [
+                c for c in updated.contradictions if body.question_id not in c.answer_ids
+            ],
+        }).model_dump())
         repo.save(updated, expected_version=session.version)
     except StalePlanningSessionError as exc:
         raise _error(409, "STALE_SESSION", str(exc)) from None
@@ -871,6 +975,11 @@ def confirm_session(
     repo = _repo(store)
     with _confirmation_guard(session_id):
         session = _get_session(repo, user, session_id)
+        if session.contradictions and not session.confirmed_briefs:
+            raise _error(
+                422, "UNRESOLVED_CONTRADICTIONS",
+                "Review the conflicting answers before confirming",
+            )
         if session.planning_job_id is not None:
             return ConfirmOut(**_session_out(session).model_dump(), job_id=session.planning_job_id)
         if (
