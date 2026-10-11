@@ -2,7 +2,7 @@
 
 **Evidence date:** 2026-10-11
 **Repository state:** local development branch `codex/cp3-interview-assistance`, based on
-`eccb198` (CP2/Japan merged through PR #13). CP3 verification is tracked in
+`eccb198` (CP2/Japan merged through PR #13). CP3 local/offline acceptance passed; verification is tracked in
 `reports/cp3_interview_assistance.md`; the prior baseline is recorded in
 `reports/cp2_japan_documentation_integration.md`.
 
@@ -27,6 +27,8 @@ separates shipped code, disabled experiments, and plans.
   SQLite CAS reservations cap the interview at two LLM calls across retries, concurrent clients,
   backtracking and reopen. The hosted role remains disabled until an eligible zero-spend/local
   configuration is explicitly confirmed; development and acceptance use offline fixtures.
+  Acceptance: backend **1326 passed, 1 skipped**, strict mypy **152 files**, frontend Vitest
+  **163 passed**, complete browser suite **458 passed, 74 existing skips**, clean-tree `make gate` passed.
 
 ## Gateway and provider status
 

@@ -32,41 +32,41 @@
 
 Files: `backend/planning/assistance.py`, `backend/planning/contracts.py`, `backend/planning/policy.py`, `backend/agents/interview_assistant.py`, `backend/agents/llm.py`, `backend/evals/test_cp3_assistant.py`.
 
-- [ ] Write strict-output and adversarial tests before implementation; run pytest and observe missing-module failures.
-- [ ] Define catalog-ranked question proposals, grounded wording, answer candidates and exact-answer contradiction references. Expose a pure `applicable_adaptive_questions(session)` helper.
-- [ ] Implement `InterviewAssistant.review(session)` and `interpret(session, question_id, text)` through `LLMClient.complete_json`, with bounded compact inputs, strict validation and no repair.
-- [ ] Configure a distinct interview model using the existing hosted client with retries disabled and a one-call instance ceiling; retain the kernel client's defaults.
-- [ ] Add scripted replay cases for different personas and a no-op mutation assertion proving personalization depends on the response.
-- [ ] Run focused tests, strict mypy and Ruff.
+- [x] Write strict-output and adversarial tests before implementation; run pytest and observe missing-module failures.
+- [x] Define catalog-ranked question proposals, grounded wording, answer candidates and exact-answer contradiction references. Expose a pure `applicable_adaptive_questions(session)` helper.
+- [x] Implement `InterviewAssistant.review(session)` and `interpret(session, question_id, text)` through `LLMClient.complete_json`, with bounded compact inputs, strict validation and no repair.
+- [x] Configure a distinct interview model using the existing hosted client with retries disabled and a one-call instance ceiling; retain the kernel client's defaults.
+- [x] Add scripted replay cases for different personas and a no-op mutation assertion proving personalization depends on the response.
+- [x] Run focused tests, strict mypy and Ruff.
 
 ## Task 2: durable API integration
 
 Files: `backend/api/interview_assistance.py`, `backend/api/conversation.py`, `backend/evals/test_cp3_api.py`.
 
-- [ ] Test the checkpoint, interpretation proposals, authenticated/CSRF/user-scoped access, identical replay, conflicting event IDs, stale versions, concurrent reservations and persistence reopen.
-- [ ] Reserve each call with CAS before dispatch; store a canonical request fingerprint and a conservative interrupted diagnostic at reservation time.
-- [ ] Replace CP2's degraded-only seam with the assistant result, grounded acknowledgement and catalog wording; fall back to deterministic branches on failure.
-- [ ] Add `/planning/sessions/{id}/interpret` returning the existing `SessionOut` plus a proposed typed answer. Acceptance still uses the existing answer/amend route.
-- [ ] Persist contradiction references and require explicit answer review/amendment before confirmation; include recovery/resume behavior.
-- [ ] Run all CP1/CP2/CP3 tests and the complete backend suite.
+- [x] Test the checkpoint, interpretation proposals, authenticated/CSRF/user-scoped access, identical replay, conflicting event IDs, stale versions, concurrent reservations and persistence reopen.
+- [x] Reserve each call with CAS before dispatch; store a canonical request fingerprint and a conservative interrupted diagnostic at reservation time.
+- [x] Replace CP2's degraded-only seam with the assistant result, grounded acknowledgement and catalog wording; fall back to deterministic branches on failure.
+- [x] Add `/planning/sessions/{id}/interpret` returning the existing `SessionOut` plus a proposed typed answer. Acceptance still uses the existing answer/amend route.
+- [x] Persist contradiction references and require explicit answer review/amendment before confirmation; include recovery/resume behavior.
+- [x] Run all CP1/CP2/CP3 tests and the complete backend suite.
 
 ## Task 3: frontend and synchronized contract
 
 Files: `frontend/src/app/plan/conversation/page.tsx`, conversational components, API/MSW fixtures, generated API, `contract/openapi.json`, frontend tests and `frontend/e2e/cp3-assistance.spec.ts`.
 
-- [ ] Add optional interpretation controls, a reviewable candidate and explicit save action; preserve typed controls on failure/exhaustion.
-- [ ] Render server-authored personalized prompts and acknowledgements, and disclose degraded assistance without parsing prose for state.
-- [ ] Render contradiction review actions and prevent premature confirmation.
-- [ ] Regenerate OpenAPI/client in this branch and update MSW fixtures.
-- [ ] Verify TypeScript, Vitest, ESLint, tokens, production build and browser accessibility/resume/failure behavior.
+- [x] Add optional interpretation controls, a reviewable candidate and explicit save action; preserve typed controls on failure/exhaustion.
+- [x] Render server-authored personalized prompts and acknowledgements, and disclose degraded assistance without parsing prose for state.
+- [x] Render contradiction review actions and prevent premature confirmation.
+- [x] Regenerate OpenAPI/client in this branch and update MSW fixtures.
+- [x] Verify TypeScript, Vitest, ESLint, tokens, production build and browser accessibility/resume/failure behavior.
 
 ## Task 4: review and acceptance
 
 Files: `DEVIATIONS.md`, synchronized `AGENTS.md`/`CLAUDE.md`, `docs/CURRENT_STATE.md`, `reports/cp3_interview_assistance.md`.
 
-- [ ] Obtain a fresh whole-branch review; resolve verified Critical/Important findings with regression tests.
-- [ ] Record decisions, actual counts and limitations; preserve deferred G3.4/CP4/FI work.
-- [ ] Commit coherent local changes and run `make gate` on the exact committed clean tree.
-- [ ] Check spec/golden/seed/kernel preservation and report local branch/worktree/commit evidence.
+- [x] Obtain a fresh whole-branch review; resolve verified Critical/Important findings with regression tests.
+- [x] Record decisions, actual counts and limitations; preserve deferred G3.4/CP4/FI work.
+- [x] Commit coherent local changes and run `make gate` on the exact committed clean tree.
+- [x] Check spec/golden/seed/kernel preservation and report local branch/worktree/commit evidence.
 
 Execution is authorized by the user's request to continue local development after the CP3 recommendation. No additional plan approval is required.
