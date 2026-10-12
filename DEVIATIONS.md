@@ -1,5 +1,11 @@
 # DEVIATIONS
 
+## G3.4 — implementation planning (2026-10-11)
+
+| date | doc§ | question | decision | rationale | affected_files |
+|---|---|---|---|---|---|
+| 2026-10-11 | Conversational design §§4.2, 9, 15; 16 §§7–9; 12 §§8–9 | Which G3.4 slice can ship while Gondola's successful structured responses remain unverified? | Plan confirmed-session-only, sample-default product wiring with explicit offline adapter injection, price-scope validation, authenticated results resume, and server-owned edit/refresh context. Keep live transport construction/activation, broader searches, CP4, FI and frozen Kernel changes out of scope. Retain and validate the existing intake rather than introducing a typed bypass. | Existing approved design puts product integration after CP3 and permits conservative handling of the schema gap. The old adapter plan's no-pipeline-edit rule did not authorize this later product work; this separate plan requires review before implementation. Wallet handoff, workspace hydration and sample-versus-party price scope are explicit regression targets. | `docs/superpowers/plans/2026-10-11-g3-4-confirmed-brief-gateway.md`; no product file changed |
+
 ## CP3 — bounded interview assistance (2026-10-10)
 
 | date | doc§ | question | decision | rationale | affected_files |
