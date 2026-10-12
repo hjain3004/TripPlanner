@@ -379,15 +379,91 @@ def estimate_confirmed_inventory(
         and hotel.evidence.provider_id.startswith("sample_")
     )
     if only_sample:
-        estimate = estimate_costed_trip_via_gateway(spec, itinerary, kb, booking_date=booking_date)
+        home_ccy = home_currency(spec)
+        external_lines: list[SpendLineItem] = []
+        legacy_flight = None
+        legacy_hotel = None
+        flight_assumptions: list[str] = []
+        hotel_assumptions: list[str] = []
+        if flight is not None:
+            flight_id = flight.evidence.provider_quote_id
+            legacy_flight = next(
+                (
+                    row
+                    for row in kb.sample_flights(
+                        spec.origin_city, spec.destination_city, flight.segments[0].cabin
+                    )
+                    if row.id == flight_id
+                ),
+                None,
+            )
+            external_lines.append(
+                SpendLineItem(
+                    id=f"flight:{flight_id}",
+                    label=f"{flight.segments[0].marketing_airline} round-trip flight",
+                    category=SpendCategory.FLIGHTS,
+                    amount_minor=price_in_home(flight.total_minor, flight.currency, home_ccy, kb)
+                    * spec.travelers,
+                    currency=home_ccy,
+                    available_channels=flight.purchasable_channels,
+                    merchant_hint=flight.segments[0].marketing_airline,
+                )
+            )
+            flight_assumptions.extend(flight.evidence.notes)
+        if hotel is not None:
+            legacy_hotel = next(
+                (
+                    row
+                    for row in kb.sample_hotels(destination_city(spec), spec.style)
+                    if row.id == hotel.property_id
+                ),
+                None,
+            )
+            external_lines.append(
+                SpendLineItem(
+                    id=f"hotel:{hotel.property_id}",
+                    label=f"{hotel.name} ({spec.nights} nights)",
+                    category=SpendCategory.HOTELS,
+                    amount_minor=price_in_home(
+                        hotel.total_minor // spec.nights, hotel.currency, home_ccy, kb
+                    )
+                    * spec.nights,
+                    currency=home_ccy,
+                    available_channels=hotel.purchasable_channels,
+                    merchant_hint=hotel.name,
+                )
+            )
+            hotel_assumptions.extend(hotel.evidence.notes)
+        poi, poi_assumptions = poi_lines(spec, itinerary, kb)
+        per_diem, per_diem_assumptions = per_diem_lines(spec, kb)
+        external_lines.extend([*poi, *per_diem])
+        estimate = EstimatorResult(
+            costed_trip=CostedTrip(
+                id=f"{spec.origin_city}-{spec.destination_city}-{spec.start_date.isoformat()}",
+                origin=spec.origin_city,
+                destination=spec.destination_city,
+                home_currency=home_ccy,
+                booking_date=booking_date,
+                trip_start_date=spec.start_date,
+                lines=external_lines,
+            ),
+            flight=legacy_flight,
+            hotel=legacy_hotel,
+            assumptions=[
+                *flight_assumptions,
+                *hotel_assumptions,
+                *poi_assumptions,
+                *per_diem_assumptions,
+            ],
+        )
     else:
         home_ccy = home_currency(spec)
-        lines: list[SpendLineItem] = []
+        admitted_lines: list[SpendLineItem] = []
         if flight is not None and flight_scope is not None:
             amount = price_in_home(flight.total_minor, flight.currency, home_ccy, kb)
             if flight.evidence.provider_id.startswith("sample_"):
                 amount *= spec.travelers
-            lines.append(
+            admitted_lines.append(
                 SpendLineItem(
                     id=f"flight:{flight.id}",
                     label="Confirmed flight",
@@ -405,7 +481,7 @@ def estimate_confirmed_inventory(
                 )
             else:
                 amount = price_in_home(hotel.total_minor, hotel.currency, home_ccy, kb)
-            lines.append(
+            admitted_lines.append(
                 SpendLineItem(
                     id=f"hotel:{hotel.id}",
                     label=hotel.name,
@@ -417,7 +493,7 @@ def estimate_confirmed_inventory(
             )
         poi, poi_assumptions = poi_lines(spec, itinerary, kb)
         per_diem, per_diem_assumptions = per_diem_lines(spec, kb)
-        lines.extend([*poi, *per_diem])
+        admitted_lines.extend([*poi, *per_diem])
         estimate = EstimatorResult(
             costed_trip=CostedTrip(
                 id=f"{spec.origin_city}-{spec.destination_city}-{spec.start_date.isoformat()}",
@@ -426,7 +502,7 @@ def estimate_confirmed_inventory(
                 home_currency=home_ccy,
                 booking_date=booking_date,
                 trip_start_date=spec.start_date,
-                lines=lines,
+                lines=admitted_lines,
             ),
             assumptions=[*poi_assumptions, *per_diem_assumptions],
         )

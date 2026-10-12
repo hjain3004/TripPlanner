@@ -33,7 +33,7 @@ from accounts.store import AccountStore, StalePlanningSessionError
 from agents.interview_assistant import INTERPRETABLE_QUESTIONS, get_interview_llm
 from agents.llm import LLMClient
 from agents.models import FinalReport, PlanJobStatus
-from agents.models import RecomputeRequest, RefreshProseRequest
+from agents.pipeline import build_region_capability
 from api.auth import current_user, get_store, now_utc, require_csrf
 from api.interview_assistance import (
     AssistanceIdempotencyConflict,
@@ -44,6 +44,7 @@ from api.interview_assistance import (
     run_adaptive_review,
 )
 from core.models import UserWallet
+from core.trip_models import ItineraryEdit
 from planning.answers import (
     AnswerPayload,
     InterviewAnswer,
@@ -309,7 +310,7 @@ class ConfirmOut(SessionOut):
 
 class ConfirmedEditRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    edit: Any
+    edit: ItineraryEdit
     expected_inventory_revision: int = Field(ge=1)
 
 
@@ -1196,11 +1197,12 @@ def refresh_confirmed_session_prose(
             "INVENTORY_REVIEW_REQUIRED",
             "Inventory evidence changed; review the current report",
         )
+    from pathlib import Path
+
     from agents.explainer import run_explainer
     from agents.models import EstimatorResult, KernelResult
     from agents.retrieval import retrieve_candidates
-    from api.main import build_region_capability, get_booking_date, get_kb, get_llm
-    from pathlib import Path
+    from api.main import get_kb, get_llm
 
     estimate = EstimatorResult(
         costed_trip=report.costed_trip,

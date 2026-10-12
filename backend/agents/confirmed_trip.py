@@ -183,8 +183,16 @@ def build_inventory_requests(
         nearby_airports=bool(flight and flight.airport_flexible),
         currency=currency,
     )
+    destination_names = {
+        "SIN": "Singapore",
+        "BOM": "Mumbai",
+        "DXB": "Dubai",
+        "NYC": "New York",
+        "LON": "London",
+        "PAR": "Paris",
+    }
     hotel_request = HotelSearchRequest(
-        city=essentials.destination,
+        city=destination_names.get(essentials.destination, essentials.destination),
         check_in=essentials.start_date,
         check_out=essentials.end_date,
         travelers=traveler_mix,

@@ -90,8 +90,7 @@ class TravelInventoryService:
                             domain="flight",
                             provider_id=provider_id,
                             message=(
-                                "The eligible sample inventory has no confirmed "
-                                "nonstop option."
+                                "The eligible sample inventory has no confirmed nonstop option."
                             ),
                         )
                     )
@@ -105,6 +104,17 @@ class TravelInventoryService:
                             message="Flight response did not match the confirmed request.",
                         )
                     )
+                    continue
+                segment = quote.segments[0]
+                if segment.origin != flight.origin or segment.destination != flight.destination:
+                    continue
+                if not provider_id.startswith("sample_") and segment.cabin != flight.cabin:
+                    continue
+                if (
+                    not provider_id.startswith("sample_")
+                    and flight.return_date is not None
+                    and quote.trip_type != "round_trip"
+                ):
                     continue
                 if quote.evidence.provider_id != provider_id:
                     continue
@@ -163,15 +173,20 @@ class TravelInventoryService:
                     scope_verified=provider_id.startswith("sample_"),
                     rooms=hotel_quote.rooms,
                 )
+                if not provider_id.startswith("sample_") and (
+                    hotel_quote.evidence.completeness != "complete"
+                    or not hotel_quote.purchasable_channels
+                ):
+                    hotel_scopes[hotel_quote.id] = QuotePriceScope(
+                        basis="unknown", scope_verified=False, rooms=hotel_quote.rooms
+                    )
                 if hotel.rooms > 1 and provider_id.startswith("sample_"):
                     hotel_scopes[hotel_quote.id] = QuotePriceScope(
                         basis="unknown", scope_verified=False, rooms=hotel_quote.rooms
                     )
             if hotels:
                 break
-        if hotel.rooms > 1 and any(
-            hotel_scopes[q.id].basis == "sample_nightly_stay" for q in hotels
-        ):
+        if hotel.rooms > 1 and hotels:
             diagnostics.append(
                 GatewayDiagnostic(
                     code="missing_price_scope",

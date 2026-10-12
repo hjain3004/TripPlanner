@@ -191,6 +191,8 @@ def run_pipeline(
         itinerary = planner.itinerary
         planner_caveats.extend(planner.caveats)
         if confirmed_snapshot is not None and gateway_estimate is not None:
+            assert inventory_service is not None
+            confirmed_snapshot = inventory_service.revalidate(confirmed_snapshot)
             gateway_estimate = estimate_confirmed_inventory(
                 spec, itinerary, kb, confirmed_snapshot, booking_date=booking_date
             )
