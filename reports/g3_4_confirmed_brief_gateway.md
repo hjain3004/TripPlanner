@@ -41,8 +41,23 @@ by the focused G3.4 boundary/parity and existing CP2/CP3 suites.
 
 ## Verification ledger
 
-The final exact-tree gate is intentionally not claimed until it passes. Recorded local checks
-include seed success, focused backend regression, strict mypy on changed source, frontend type/
-Vitest/ESLint checks, and byte-stable OpenAPI/client regeneration. The complete backend gate is
-pending because the isolated checkout lacks the ignored regional catalog artifacts required by
-pre-existing catalog tests.
+The final exact-tree gate is intentionally not claimed because it fails at the pre-existing
+regional-catalog fixture boundary. Exact results on the committed tree:
+
+- `make seed PY=.venv/bin/python`: passed; 42 rows seeded.
+- Full backend pytest: **1283 passed, 8 skipped, 19 failed**. All 19 failures are regional
+  catalog retrieval/recompute assertions; two directly report missing
+  `catalogs/active_lon-core.json`, and the remaining failures observe absent regional artifacts.
+- Strict mypy: **156 source files**, clean. Zero-tolerance backend Ruff: clean. Contract one-PR
+  test: **1 passed**. `AGENTS.md`/`CLAUDE.md` byte-identical and committed tree clean.
+- Frontend TypeScript: clean; Vitest: **163 passed across 10 files**; ESLint: 0 errors (14
+  pre-existing warnings); token lint: 0 violations; emitted-class lint: 0 dead classes; webpack
+  production build: passed.
+- Browser suite with live tests disabled: **458 passed, 74 skipped** across 532 tests. Generated
+  captures were saved under `/private/tmp/g34-browser-captures`; tracked visual baselines were
+  restored unchanged.
+- Repeated OpenAPI/client generation: **byte-stable**.
+
+The authoritative `make gate` was run on the clean committed tree and failed fast at the same
+19 catalog-dependent tests. No catalog data was fabricated and no gate was narrowed or
+suppressed; the report therefore remains **ACCEPTANCE PENDING**.
