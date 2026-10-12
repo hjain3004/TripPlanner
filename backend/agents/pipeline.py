@@ -140,6 +140,7 @@ def run_pipeline(
 
         flight_request, hotel_request = build_inventory_requests(confirmed_input, itinerary)
         confirmed_snapshot = asyncio.run(inventory_service.search(flight_request, hotel_request))
+        confirmed_snapshot = inventory_service.revalidate(confirmed_snapshot)
         gateway_estimate = estimate_confirmed_inventory(
             spec, itinerary, kb, confirmed_snapshot, booking_date=booking_date
         )

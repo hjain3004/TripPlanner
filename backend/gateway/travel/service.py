@@ -83,6 +83,19 @@ class TravelInventoryService:
                 )
                 continue
             for quote in candidates:
+                if flight.nonstop_only and not self._sample_stops_allowed(adapter, quote):
+                    diagnostics.append(
+                        GatewayDiagnostic(
+                            code="unsupported_preference",
+                            domain="flight",
+                            provider_id=provider_id,
+                            message=(
+                                "The eligible sample inventory has no confirmed "
+                                "nonstop option."
+                            ),
+                        )
+                    )
+                    continue
                 if quote.travelers != flight.travelers or quote.currency != flight.currency:
                     diagnostics.append(
                         GatewayDiagnostic(
@@ -150,6 +163,10 @@ class TravelInventoryService:
                     scope_verified=provider_id.startswith("sample_"),
                     rooms=hotel_quote.rooms,
                 )
+                if hotel.rooms > 1 and provider_id.startswith("sample_"):
+                    hotel_scopes[hotel_quote.id] = QuotePriceScope(
+                        basis="unknown", scope_verified=False, rooms=hotel_quote.rooms
+                    )
             if hotels:
                 break
         if hotel.rooms > 1 and any(
@@ -174,11 +191,41 @@ class TravelInventoryService:
             expires_at=retrieved + timedelta(minutes=15),
         )
 
+    @staticmethod
+    def _sample_stops_allowed(adapter: TravelProviderAdapter, quote: FlightQuote) -> bool:
+        kb = getattr(adapter, "kb", None)
+        if kb is None or not quote.evidence.provider_quote_id:
+            return True
+        rows = kb.sample_flights(
+            quote.segments[0].origin,
+            quote.segments[0].destination,
+            quote.segments[0].cabin,
+        )
+        row = next(
+            (candidate for candidate in rows if candidate.id == quote.evidence.provider_quote_id),
+            None,
+        )
+        return row is None or row.stops == 0
+
     def revalidate(self, snapshot: TravelInventorySnapshot) -> TravelInventorySnapshot:
         now = self.now()
         if snapshot.expires_at is not None and now >= snapshot.expires_at:
+            flights = [
+                quote.model_copy(
+                    update={"evidence": quote.evidence.model_copy(update={"status": "stale"})}
+                )
+                for quote in snapshot.flights
+            ]
+            hotels = [
+                quote.model_copy(
+                    update={"evidence": quote.evidence.model_copy(update={"status": "stale"})}
+                )
+                for quote in snapshot.hotels
+            ]
             return snapshot.model_copy(
                 update={
+                    "flights": flights,
+                    "hotels": hotels,
                     "diagnostics": [
                         *snapshot.diagnostics,
                         GatewayDiagnostic(
@@ -186,7 +233,7 @@ class TravelInventoryService:
                             domain="general",
                             message="Inventory evidence expired before final assembly.",
                         ),
-                    ]
+                    ],
                 }
             )
         return snapshot

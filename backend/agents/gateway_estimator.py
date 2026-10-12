@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, date, datetime
+from urllib.parse import urlsplit
 
 from agents.estimator import (
     area_by_id,
@@ -274,11 +275,26 @@ class GatewayEstimateResult:
         self.summary = summary
 
 
+def _safe_public_url(value: str | None) -> str | None:
+    if value is None or any(ord(char) < 32 for char in value):
+        return None
+    parsed = urlsplit(value)
+    if parsed.scheme != "https" or parsed.username or parsed.password:
+        return None
+    return value
+
+
 def _summary_quote(
     domain: str, quote: FlightQuote | HotelQuote, *, selected: bool, scope: object
 ) -> InventoryQuoteSummary:
     evidence = quote.evidence
     limitations = list(evidence.notes)
+    source_url = _safe_public_url(evidence.source_url)
+    deep_link_url = _safe_public_url(evidence.deep_link_url)
+    if evidence.source_url is not None and source_url is None:
+        limitations.append("Provider source link was omitted because it was not a safe HTTPS URL.")
+    if evidence.deep_link_url is not None and deep_link_url is None:
+        limitations.append("Provider detail link was omitted because it was not a safe HTTPS URL.")
     if domain == "flight" and isinstance(quote, FlightQuote) and quote.trip_type == "one_way":
         limitations.append(
             "Sample flight packaging is a per-traveler one-way estimate; "
@@ -294,8 +310,8 @@ def _summary_quote(
         quote_id=quote.id,
         provider_id=evidence.provider_id,
         provider_quote_id=evidence.provider_quote_id,
-        source_url=evidence.source_url,
-        deep_link_url=evidence.deep_link_url,
+        source_url=source_url,
+        deep_link_url=deep_link_url,
         attribution=evidence.attribution,
         retrieved_at=evidence.retrieved_at,
         expires_at=evidence.expires_at,
@@ -327,8 +343,10 @@ def estimate_confirmed_inventory(
     one conversion and never manufacture a SampleFlight/SampleHotel row.
     """
     diagnostics = list(snapshot.diagnostics)
-    flight = min(snapshot.flights, key=lambda q: (q.total_minor, q.id), default=None)
-    hotel = min(snapshot.hotels, key=lambda q: (q.total_minor, q.id), default=None)
+    current_flights = [quote for quote in snapshot.flights if quote.evidence.status != "stale"]
+    current_hotels = [quote for quote in snapshot.hotels if quote.evidence.status != "stale"]
+    flight = min(current_flights, key=lambda q: (q.total_minor, q.id), default=None)
+    hotel = min(current_hotels, key=lambda q: (q.total_minor, q.id), default=None)
     flight_scope = snapshot.flight_scopes.get(flight.id) if flight else None
     hotel_scope = snapshot.hotel_scopes.get(hotel.id) if hotel else None
     if flight is not None and flight_scope is not None and not flight_scope.cost_eligible:
