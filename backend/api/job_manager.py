@@ -4,10 +4,13 @@ import threading
 from uuid import uuid4
 
 from agents.models import PIPELINE_STAGES, FinalReport, JobError, PlanJobStatus
+from gateway.travel.product import TravelInventorySummary
 
 
 class JobState:
-    def __init__(self) -> None:
+    def __init__(self, *, owner_id: str | None = None, session_id: str | None = None) -> None:
+        self.owner_id = owner_id
+        self.session_id = session_id
         self.status: str = "queued"
         self.stage: str | None = None
         self.stage_index: int | None = None
@@ -15,6 +18,7 @@ class JobState:
         self.unresolved: list[str] | None = None
         self.report: FinalReport | None = None
         self.error: JobError | None = None
+        self.inventory_summary: TravelInventorySummary | None = None
         self._lock = threading.Lock()
 
     def to_status(self, job_id: str) -> PlanJobStatus:
@@ -36,12 +40,18 @@ class JobManager:
         self._jobs: dict[str, JobState] = {}
         self._lock = threading.Lock()
 
-    def create_job(self, job_id: str | None = None) -> str:
+    def create_job(
+        self,
+        job_id: str | None = None,
+        *,
+        owner_id: str | None = None,
+        session_id: str | None = None,
+    ) -> str:
         job_id = job_id or uuid4().hex
         with self._lock:
             if job_id in self._jobs:
                 return job_id
-            self._jobs[job_id] = JobState()
+            self._jobs[job_id] = JobState(owner_id=owner_id, session_id=session_id)
         return job_id
 
     def get_job(self, job_id: str) -> JobState | None:

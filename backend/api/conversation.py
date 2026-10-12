@@ -32,7 +32,8 @@ from accounts.projection import build_user_wallet
 from accounts.store import AccountStore, StalePlanningSessionError
 from agents.interview_assistant import INTERPRETABLE_QUESTIONS, get_interview_llm
 from agents.llm import LLMClient
-from agents.models import TripIntakeRequest
+from agents.models import FinalReport, PlanJobStatus
+from agents.models import RecomputeRequest, RefreshProseRequest
 from api.auth import current_user, get_store, now_utc, require_csrf
 from api.interview_assistance import (
     AssistanceIdempotencyConflict,
@@ -81,6 +82,8 @@ from planning.question_catalog import DEFAULT_QUESTION_CATALOG, QuestionDefiniti
 from planning.repository import PlanningSessionRepository
 
 router = APIRouter(prefix="/planning", tags=["planning"])
+
+
 class _ConfirmLockEntry:
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -304,6 +307,17 @@ class ConfirmOut(SessionOut):
     job_id: str
 
 
+class ConfirmedEditRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    edit: Any
+    expected_inventory_revision: int = Field(ge=1)
+
+
+class ConfirmedProseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_inventory_revision: int = Field(ge=1)
+
+
 PreferenceSection = Literal[
     "flight", "stay", "rhythm", "experiences", "constraints", "optimization"
 ]
@@ -379,7 +393,11 @@ def _question_out(definition: QuestionDefinition | None) -> QuestionOut | None:
         control = TripEssentialsControl(
             type="trip_essentials",
             fields=[
-                "origin", "destination", "start_date", "end_date", "travelers",
+                "origin",
+                "destination",
+                "start_date",
+                "end_date",
+                "travelers",
             ],
             allow_skip=False,
             optional_fields=["date_flexibility_days"],
@@ -388,7 +406,10 @@ def _question_out(definition: QuestionDefinition | None) -> QuestionOut | None:
         control = HardConstraintsControl(
             type="hard_constraints",
             fields=[
-                "has_constraints", "dietary", "accessibility", "exclusions",
+                "has_constraints",
+                "dietary",
+                "accessibility",
+                "exclusions",
                 "immovable_events",
             ],
             allow_skip=False,
@@ -677,12 +698,14 @@ def _apply_answer(
         answered_at=now,
     )
     updated = record_answer(session, answer, expected_version=body.expected_version, now=now)
-    updated = updated.model_copy(update={
-        "pending_answer": None,
-        "contradictions": [
-            c for c in updated.contradictions if body.question_id not in c.answer_ids
-        ],
-    })
+    updated = updated.model_copy(
+        update={
+            "pending_answer": None,
+            "contradictions": [
+                c for c in updated.contradictions if body.question_id not in c.answer_ids
+            ],
+        }
+    )
     updated = _append_event(
         updated,
         event_id=f"event:{body.client_event_id}",
@@ -755,7 +778,9 @@ def skip_session(
 
 @router.post("/sessions/{session_id}/interpret", response_model=SessionOut)
 def interpret_session(
-    session_id: str, body: InterpretRequest, request: Request,
+    session_id: str,
+    body: InterpretRequest,
+    request: Request,
     user: Annotated[User, Depends(current_user)],
     store: Annotated[AccountStore, Depends(get_store)],
     llm: Annotated[LLMClient, Depends(get_interview_llm)],
@@ -766,11 +791,13 @@ def interpret_session(
     key = f"interpret:{body.client_event_id}"
     existing = session.assistance_requests.get(key)
     if existing:
-        request_hash = fingerprint({
-            "question_id": body.question_id.value,
-            "text": body.text,
-            "expected_version": body.expected_version,
-        })
+        request_hash = fingerprint(
+            {
+                "question_id": body.question_id.value,
+                "text": body.text,
+                "expected_version": body.expected_version,
+            }
+        )
         if existing.fingerprint != request_hash:
             raise _error(409, "IDEMPOTENCY_CONFLICT", "Event id belongs to another request")
         return _session_out(session)
@@ -779,19 +806,22 @@ def interpret_session(
     eligible = (
         session.status is PlanningSessionStatus.INTERVIEWING
         and body.question_id == session.current_question_id
-    ) or (
-        session.status is PlanningSessionStatus.REVIEWING
-        and body.question_id in session.answers
-    )
+    ) or (session.status is PlanningSessionStatus.REVIEWING and body.question_id in session.answers)
     if not eligible or session.confirmed_briefs:
         raise _error(
-            422, "INVALID_QUESTION",
+            422,
+            "INVALID_QUESTION",
             "Only the current or an unconfirmed review answer can be interpreted",
         )
     try:
         updated = interpret_answer(
-            repo, session, llm, question_id=body.question_id, text=body.text,
-            client_event_id=body.client_event_id, expected_version=body.expected_version,
+            repo,
+            session,
+            llm,
+            question_id=body.question_id,
+            text=body.text,
+            client_event_id=body.client_event_id,
+            expected_version=body.expected_version,
             clock=now_utc,
         )
     except AssistanceIdempotencyConflict as exc:
@@ -830,12 +860,16 @@ def amend_session(
         updated = amend_answer(
             session, answer, expected_version=body.expected_version, now=now_utc()
         )
-        updated = PlanningSession.model_validate(updated.model_copy(update={
-            "pending_answer": None,
-            "contradictions": [
-                c for c in updated.contradictions if body.question_id not in c.answer_ids
-            ],
-        }).model_dump())
+        updated = PlanningSession.model_validate(
+            updated.model_copy(
+                update={
+                    "pending_answer": None,
+                    "contradictions": [
+                        c for c in updated.contradictions if body.question_id not in c.answer_ids
+                    ],
+                }
+            ).model_dump()
+        )
         repo.save(updated, expected_version=session.version)
     except StalePlanningSessionError as exc:
         raise _error(409, "STALE_SESSION", str(exc)) from None
@@ -927,40 +961,9 @@ def review_session(
 def _start_legacy_job(session: PlanningSession, job_id: str) -> None:
     # Imports are local to avoid api.main <-> this router import cycles.  This
     # is the existing non-live pipeline boundary; no provider is touched here.
-    from api.job_manager import job_manager
-    from api.main import (
-        _run_job,
-        get_booking_date,
-        get_kb,
-        get_llm,
-        get_place_registry,
-        get_trace_dir,
-    )
+    from api.confirmed_planning import start_confirmed_job
 
-    kb = get_kb()
-    llm = get_llm()
-    registry = get_place_registry()
-    brief = session.confirmed_briefs[-1].brief
-    essentials = brief.trip_essentials
-    brief_json = brief.model_dump_json(exclude={"wallet", "home"})
-    request = TripIntakeRequest(
-        raw_request=(
-            f"{essentials.origin} to {essentials.destination} "
-            f"{essentials.start_date.isoformat()} to {essentials.end_date.isoformat()} "
-            f"for {essentials.travelers} traveler(s); "
-            f"confirmed preferences: {brief_json}"
-        ),
-        wallet=session.wallet,
-    )
-    # The job manager is process-local in the Kernel MVP.  It is deliberately
-    # created before the daemon starts so a client can poll immediately.
-    job_manager.create_job(job_id)
-    thread = threading.Thread(
-        target=_run_job,
-        args=(job_id, request, kb, llm, registry, get_booking_date(), get_trace_dir()),
-        daemon=True,
-    )
-    thread.start()
+    start_confirmed_job(session, job_id)
 
 
 @router.post("/sessions/{session_id}/confirm", response_model=ConfirmOut, status_code=202)
@@ -977,7 +980,8 @@ def confirm_session(
         session = _get_session(repo, user, session_id)
         if session.contradictions and not session.confirmed_briefs:
             raise _error(
-                422, "UNRESOLVED_CONTRADICTIONS",
+                422,
+                "UNRESOLVED_CONTRADICTIONS",
                 "Review the conflicting answers before confirming",
             )
         if session.planning_job_id is not None:
@@ -1063,12 +1067,12 @@ def confirm_session(
         return ConfirmOut(**_session_out(confirmed).model_dump(), job_id=job_id)
 
 
-@router.get("/sessions/{session_id}/job", response_model=dict[str, Any])
+@router.get("/sessions/{session_id}/job", response_model=PlanJobStatus)
 def session_job(
     session_id: str,
     user: Annotated[User, Depends(current_user)],
     store: Annotated[AccountStore, Depends(get_store)],
-) -> dict[str, Any]:
+) -> PlanJobStatus:
     session = _get_session(_repo(store), user, session_id)
     if session.planning_job_id is None:
         raise _error(404, "JOB_NOT_STARTED", "Planning has not started")
@@ -1076,7 +1080,7 @@ def session_job(
 
     state = job_manager.get_job(session.planning_job_id)
     if state is None:
-        return {"job_id": session.planning_job_id, "status": "queued"}
+        return PlanJobStatus(job_id=session.planning_job_id, status="queued")
     status = state.to_status(session.planning_job_id)
     if status.status == "failed" and session.status is PlanningSessionStatus.PLANNING:
         failed = PlanningSession.model_validate(
@@ -1096,4 +1100,132 @@ def session_job(
             _repo(store).save(failed, expected_version=session.version)
         except StalePlanningSessionError:
             pass
-    return status.model_dump()
+    return status
+
+
+def _owned_job_report(session: PlanningSession, user: User) -> tuple[Any, Any]:
+    if session.planning_job_id is None:
+        raise _error(404, "JOB_NOT_STARTED", "Planning has not started")
+    from api.job_manager import job_manager
+
+    state = job_manager.get_job(session.planning_job_id)
+    if state is None or state.owner_id != user.id or state.session_id != session.id:
+        raise _error(404, "JOB_NOT_FOUND", "Planning job not found")
+    if state.report is None or state.report.travel_inventory is None:
+        raise _error(409, "INVENTORY_REVIEW_REQUIRED", "Inventory evidence is not available")
+    return state, state.report
+
+
+@router.post("/sessions/{session_id}/recompute", response_model=FinalReport)
+def recompute_confirmed_session(
+    session_id: str,
+    body: ConfirmedEditRequest,
+    request: Request,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+) -> Any:
+    require_csrf(request)
+    session = _get_session(_repo(store), user, session_id)
+    state, report = _owned_job_report(session, user)
+    current_revision = report.travel_inventory.inventory_revision
+    if body.expected_inventory_revision != current_revision:
+        raise _error(
+            409,
+            "INVENTORY_REVIEW_REQUIRED",
+            "Inventory evidence changed; review the current report",
+        )
+    from agents.recompute import recompute_itinerary
+
+    updated = recompute_itinerary(
+        report.trip_spec,
+        report.itinerary,
+        body.edit,
+        get_kb_for_conversation(),
+        booking_date=report.costed_trip.booking_date,
+        trace_id=report.trace_id,
+        previous_freshness=report.freshness,
+    )
+    # The admitted flight/hotel evidence remains authoritative across typed
+    # itinerary edits. Only the deterministic itinerary/POI work is replaced.
+    updated = updated.model_copy(
+        update={
+            "travel_inventory": report.travel_inventory.model_copy(
+                update={"inventory_revision": current_revision + 1}
+            ),
+            "costed_trip": report.costed_trip.model_copy(
+                update={
+                    "lines": [
+                        line
+                        for line in updated.costed_trip.lines
+                        if line.category.value not in {"flights", "hotels"}
+                    ]
+                    + [
+                        line
+                        for line in report.costed_trip.lines
+                        if line.category.value in {"flights", "hotels"}
+                    ]
+                }
+            ),
+        }
+    )
+    with state._lock:
+        state.report = updated
+    return updated
+
+
+def get_kb_for_conversation() -> Any:
+    from api.main import get_kb
+
+    return get_kb()
+
+
+@router.post("/sessions/{session_id}/refresh-prose", response_model=FinalReport)
+def refresh_confirmed_session_prose(
+    session_id: str,
+    body: ConfirmedProseRequest,
+    request: Request,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+) -> FinalReport:
+    require_csrf(request)
+    session = _get_session(_repo(store), user, session_id)
+    state, report = _owned_job_report(session, user)
+    if body.expected_inventory_revision != report.travel_inventory.inventory_revision:
+        raise _error(
+            409,
+            "INVENTORY_REVIEW_REQUIRED",
+            "Inventory evidence changed; review the current report",
+        )
+    from agents.explainer import run_explainer
+    from agents.models import EstimatorResult, KernelResult
+    from agents.retrieval import retrieve_candidates
+    from api.main import build_region_capability, get_booking_date, get_kb, get_llm
+    from pathlib import Path
+
+    estimate = EstimatorResult(
+        costed_trip=report.costed_trip,
+        flight=report.flights_pick,
+        hotel=report.hotel_pick,
+    )
+    kernel = KernelResult(
+        optimizer_result=report.optimizer_result,
+        transfer_advice=report.transfer_advice,
+    )
+    refreshed = run_explainer(
+        report.trip_spec,
+        report.itinerary,
+        estimate,
+        kernel,
+        retrieve_candidates(report.trip_spec, get_kb()),
+        critic_caveats=report.caveats,
+        trace_id=report.trace_id,
+        llm=get_llm(),
+        region_capability=build_region_capability(
+            report.trip_spec.destination_city, Path("catalogs")
+        ),
+        freshness=report.freshness,
+    )
+    refreshed = refreshed.model_copy(update={"travel_inventory": report.travel_inventory})
+    with state._lock:
+        state.report = refreshed
+    return refreshed

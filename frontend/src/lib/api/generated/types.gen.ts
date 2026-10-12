@@ -376,6 +376,30 @@ export type ConfirmRequest = {
 };
 
 /**
+ * ConfirmedEditRequest
+ */
+export type ConfirmedEditRequest = {
+    /**
+     * Edit
+     */
+    edit: unknown;
+    /**
+     * Expected Inventory Revision
+     */
+    expected_inventory_revision: number;
+};
+
+/**
+ * ConfirmedProseRequest
+ */
+export type ConfirmedProseRequest = {
+    /**
+     * Expected Inventory Revision
+     */
+    expected_inventory_revision: number;
+};
+
+/**
  * ConstraintPreferences
  */
 export type ConstraintPreferences = {
@@ -653,6 +677,7 @@ export type FinalReport = {
     status?: PipelineStatus;
     region_capability?: RegionCapability | null;
     freshness?: SectionFreshness;
+    travel_inventory?: TravelInventorySummary | null;
 };
 
 /**
@@ -695,6 +720,28 @@ export type FlightPreferencesPayload = {
      * Seat
      */
     seat?: 'aisle' | 'window' | 'middle' | 'no_preference';
+};
+
+/**
+ * GatewayDiagnostic
+ */
+export type GatewayDiagnostic = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Domain
+     */
+    domain: 'flight' | 'hotel' | 'general';
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Provider Id
+     */
+    provider_id?: string | null;
 };
 
 /**
@@ -839,6 +886,85 @@ export type InterviewContradiction = {
      * Clarification
      */
     clarification: string;
+};
+
+/**
+ * InventoryQuoteSummary
+ */
+export type InventoryQuoteSummary = {
+    /**
+     * Domain
+     */
+    domain: 'flight' | 'hotel';
+    /**
+     * Quote Id
+     */
+    quote_id: string;
+    /**
+     * Provider Id
+     */
+    provider_id: string;
+    /**
+     * Provider Quote Id
+     */
+    provider_quote_id?: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Needs Verification
+     */
+    needs_verification: boolean;
+    /**
+     * Source Url
+     */
+    source_url?: string | null;
+    /**
+     * Deep Link Url
+     */
+    deep_link_url?: string | null;
+    /**
+     * Attribution
+     */
+    attribution?: string | null;
+    /**
+     * Retrieved At
+     */
+    retrieved_at: string;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
+    /**
+     * Completeness
+     */
+    completeness: string;
+    /**
+     * Source Amount Minor
+     */
+    source_amount_minor: number;
+    /**
+     * Source Currency
+     */
+    source_currency: string;
+    /**
+     * Converted Amount Minor
+     */
+    converted_amount_minor?: number | null;
+    price_scope: QuotePriceScope;
+    /**
+     * Selected
+     */
+    selected?: boolean;
+    /**
+     * Alternative
+     */
+    alternative?: boolean;
+    /**
+     * Limitations
+     */
+    limitations?: Array<string>;
 };
 
 /**
@@ -1783,6 +1909,28 @@ export type QuestionOut = {
 };
 
 /**
+ * QuotePriceScope
+ */
+export type QuotePriceScope = {
+    /**
+     * Basis
+     */
+    basis: 'sample_per_traveler_trip' | 'sample_nightly_stay' | 'party_total' | 'unknown';
+    /**
+     * Scope Verified
+     */
+    scope_verified?: boolean;
+    /**
+     * Travelers
+     */
+    travelers?: number | null;
+    /**
+     * Rooms
+     */
+    rooms?: number | null;
+};
+
+/**
  * Recommendation
  */
 export type Recommendation = {
@@ -2436,6 +2584,34 @@ export type TransitSegment = {
      * Source
      */
     source: string;
+};
+
+/**
+ * TravelInventorySummary
+ */
+export type TravelInventorySummary = {
+    flight?: InventoryQuoteSummary | null;
+    hotel?: InventoryQuoteSummary | null;
+    /**
+     * Alternatives
+     */
+    alternatives?: Array<InventoryQuoteSummary>;
+    /**
+     * Diagnostics
+     */
+    diagnostics?: Array<GatewayDiagnostic>;
+    /**
+     * Limitations
+     */
+    limitations?: Array<string>;
+    /**
+     * Reference Only Awards
+     */
+    reference_only_awards?: boolean;
+    /**
+     * Inventory Revision
+     */
+    inventory_revision?: number;
 };
 
 /**
@@ -3126,16 +3302,72 @@ export type SessionJobPlanningSessionsSessionIdJobGetError = SessionJobPlanningS
 
 export type SessionJobPlanningSessionsSessionIdJobGetResponses = {
     /**
-     * Response Session Job Planning Sessions  Session Id  Job Get
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: PlanJobStatus;
 };
 
 export type SessionJobPlanningSessionsSessionIdJobGetResponse = SessionJobPlanningSessionsSessionIdJobGetResponses[keyof SessionJobPlanningSessionsSessionIdJobGetResponses];
+
+export type RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostData = {
+    body: ConfirmedEditRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/recompute';
+};
+
+export type RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostError = RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostErrors[keyof RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostErrors];
+
+export type RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FinalReport;
+};
+
+export type RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostResponse = RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostResponses[keyof RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostResponses];
+
+export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostData = {
+    body: ConfirmedProseRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/refresh-prose';
+};
+
+export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostError = RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostErrors[keyof RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostErrors];
+
+export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FinalReport;
+};
+
+export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponse = RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponses[keyof RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponses];
 
 export type HealthHealthGetData = {
     body?: never;

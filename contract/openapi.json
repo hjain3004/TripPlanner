@@ -658,9 +658,111 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Session Job Planning Sessions  Session Id  Job Get"
+                  "$ref": "#/components/schemas/PlanJobStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/recompute": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Recompute Confirmed Session",
+        "operationId": "recompute_confirmed_session_planning_sessions__session_id__recompute_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmedEditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinalReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/refresh-prose": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Refresh Confirmed Session Prose",
+        "operationId": "refresh_confirmed_session_prose_planning_sessions__session_id__refresh_prose_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmedProseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinalReport"
                 }
               }
             }
@@ -1749,6 +1851,40 @@
         ],
         "title": "ConfirmRequest"
       },
+      "ConfirmedEditRequest": {
+        "properties": {
+          "edit": {
+            "title": "Edit"
+          },
+          "expected_inventory_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Inventory Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "edit",
+          "expected_inventory_revision"
+        ],
+        "title": "ConfirmedEditRequest"
+      },
+      "ConfirmedProseRequest": {
+        "properties": {
+          "expected_inventory_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Inventory Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_inventory_revision"
+        ],
+        "title": "ConfirmedProseRequest"
+      },
       "ConstraintPreferences": {
         "properties": {
           "dietary": {
@@ -2325,6 +2461,16 @@
           },
           "freshness": {
             "$ref": "#/components/schemas/SectionFreshness"
+          },
+          "travel_inventory": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TravelInventorySummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -2486,6 +2632,46 @@
           "schedule"
         ],
         "title": "FlightPreferencesPayload"
+      },
+      "GatewayDiagnostic": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "domain": {
+            "type": "string",
+            "enum": [
+              "flight",
+              "hotel",
+              "general"
+            ],
+            "title": "Domain"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "domain",
+          "message"
+        ],
+        "title": "GatewayDiagnostic"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2755,6 +2941,153 @@
           "clarification"
         ],
         "title": "InterviewContradiction"
+      },
+      "InventoryQuoteSummary": {
+        "properties": {
+          "domain": {
+            "type": "string",
+            "enum": [
+              "flight",
+              "hotel"
+            ],
+            "title": "Domain"
+          },
+          "quote_id": {
+            "type": "string",
+            "title": "Quote Id"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "provider_quote_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Quote Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "needs_verification": {
+            "type": "boolean",
+            "title": "Needs Verification"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "deep_link_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deep Link Url"
+          },
+          "attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution"
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Retrieved At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "completeness": {
+            "type": "string",
+            "title": "Completeness"
+          },
+          "source_amount_minor": {
+            "type": "integer",
+            "title": "Source Amount Minor"
+          },
+          "source_currency": {
+            "type": "string",
+            "title": "Source Currency"
+          },
+          "converted_amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Converted Amount Minor"
+          },
+          "price_scope": {
+            "$ref": "#/components/schemas/QuotePriceScope"
+          },
+          "selected": {
+            "type": "boolean",
+            "title": "Selected",
+            "default": false
+          },
+          "alternative": {
+            "type": "boolean",
+            "title": "Alternative",
+            "default": true
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "domain",
+          "quote_id",
+          "provider_id",
+          "status",
+          "needs_verification",
+          "retrieved_at",
+          "completeness",
+          "source_amount_minor",
+          "source_currency",
+          "price_scope"
+        ],
+        "title": "InventoryQuoteSummary"
       },
       "ItineraryDay-Input": {
         "properties": {
@@ -4570,6 +4903,55 @@
         ],
         "title": "QuestionOut"
       },
+      "QuotePriceScope": {
+        "properties": {
+          "basis": {
+            "type": "string",
+            "enum": [
+              "sample_per_traveler_trip",
+              "sample_nightly_stay",
+              "party_total",
+              "unknown"
+            ],
+            "title": "Basis"
+          },
+          "scope_verified": {
+            "type": "boolean",
+            "title": "Scope Verified",
+            "default": false
+          },
+          "travelers": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Travelers"
+          },
+          "rooms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rooms"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "basis"
+        ],
+        "title": "QuotePriceScope"
+      },
       "Recommendation": {
         "properties": {
           "kind": {
@@ -5787,6 +6169,65 @@
           "source"
         ],
         "title": "TransitSegment"
+      },
+      "TravelInventorySummary": {
+        "properties": {
+          "flight": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventoryQuoteSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hotel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventoryQuoteSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryQuoteSummary"
+            },
+            "type": "array",
+            "title": "Alternatives"
+          },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/GatewayDiagnostic"
+            },
+            "type": "array",
+            "title": "Diagnostics"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          },
+          "reference_only_awards": {
+            "type": "boolean",
+            "title": "Reference Only Awards",
+            "default": true
+          },
+          "inventory_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Inventory Revision",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TravelInventorySummary"
       },
       "TravelPreferenceProfile": {
         "properties": {

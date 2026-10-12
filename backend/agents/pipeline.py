@@ -7,9 +7,15 @@ from typing import Any
 from uuid import uuid4
 
 from agents.config import load_agent_config
+from agents.confirmed_trip import (
+    ConfirmedTripInput,
+    build_inventory_requests,
+    validate_confirmed_intake,
+)
 from agents.critic import run_critic
 from agents.estimator import estimate_costed_trip
 from agents.explainer import run_explainer
+from agents.gateway_estimator import GatewayEstimateResult, estimate_confirmed_inventory
 from agents.intake import run_intake
 from agents.kernel import run_kernel
 from agents.llm import LLMClient
@@ -20,6 +26,8 @@ from agents.trace import TraceRecorder
 from core.db import KnowledgeBase
 from gateway.catalog.activate import active_catalog_summary
 from gateway.catalog.regions import get_region
+from gateway.travel.product import TravelInventorySnapshot
+from gateway.travel.service import TravelInventoryService
 
 MAX_CRITIC_REPLAN_LOOPS = load_agent_config().llm["critic"].max_replan_loops or 2
 
@@ -68,6 +76,9 @@ def run_pipeline(
     booking_date: date,
     trace_dir: Path | None = None,
     on_stage: Callable[[int, str], None] | None = None,
+    confirmed_input: ConfirmedTripInput | None = None,
+    inventory_service: TravelInventoryService | None = None,
+    on_inventory: Callable[[GatewayEstimateResult], None] | None = None,
 ) -> PlanResponse:
     trace_id = uuid4().hex
     trace = TraceRecorder(trace_id, trace_dir)
@@ -90,6 +101,15 @@ def run_pipeline(
         )
 
     spec = intake.trip_spec
+    if confirmed_input is not None:
+        try:
+            spec = validate_confirmed_intake(spec, confirmed_input)
+        except ValueError as exc:
+            return PlanResponse(
+                status=PipelineStatus.NEEDS_CLARIFICATION,
+                trace_id=trace_id,
+                unresolved=[str(exc)],
+            )
 
     region_cap = build_region_capability(spec.destination_city, Path("catalogs"))
 
@@ -113,7 +133,19 @@ def run_pipeline(
 
     if on_stage is not None:
         on_stage(3, "costing")
-    estimate = estimate_costed_trip(spec, itinerary, kb, booking_date=booking_date)
+    confirmed_snapshot: TravelInventorySnapshot | None = None
+    gateway_estimate: GatewayEstimateResult | None = None
+    if confirmed_input is not None and inventory_service is not None:
+        import asyncio
+
+        flight_request, hotel_request = build_inventory_requests(confirmed_input, itinerary)
+        confirmed_snapshot = asyncio.run(inventory_service.search(flight_request, hotel_request))
+        gateway_estimate = estimate_confirmed_inventory(
+            spec, itinerary, kb, confirmed_snapshot, booking_date=booking_date
+        )
+        estimate = gateway_estimate.estimate
+    else:
+        estimate = estimate_costed_trip(spec, itinerary, kb, booking_date=booking_date)
     trace.record("estimator", estimate)
     if on_stage is not None:
         on_stage(4, "optimizing")
@@ -157,7 +189,13 @@ def run_pipeline(
         )
         itinerary = planner.itinerary
         planner_caveats.extend(planner.caveats)
-        estimate = estimate_costed_trip(spec, itinerary, kb, booking_date=booking_date)
+        if confirmed_snapshot is not None and gateway_estimate is not None:
+            gateway_estimate = estimate_confirmed_inventory(
+                spec, itinerary, kb, confirmed_snapshot, booking_date=booking_date
+            )
+            estimate = gateway_estimate.estimate
+        else:
+            estimate = estimate_costed_trip(spec, itinerary, kb, booking_date=booking_date)
         trace.record("estimator", estimate, attributes={"revision_count": loop_index + 1})
         kernel = run_kernel(spec, estimate, kb, booking_date=booking_date)
         trace.record("optimizer", kernel, attributes={"revision_count": loop_index + 1})
@@ -175,5 +213,9 @@ def run_pipeline(
         llm=llm,
         region_capability=region_cap,
     )
+    if gateway_estimate is not None:
+        report = report.model_copy(update={"travel_inventory": gateway_estimate.summary})
+        if on_inventory is not None:
+            on_inventory(gateway_estimate)
     trace.record("explainer", report, model="llm:explainer")
     return PlanResponse(status=PipelineStatus.OK, trace_id=trace_id, report=report)

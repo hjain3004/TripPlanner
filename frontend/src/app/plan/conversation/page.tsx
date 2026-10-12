@@ -284,7 +284,7 @@ export default function ConversationalPlanPage() {
               <p className="font-mono text-[11px] uppercase tracking-[.14em] text-accent-4">Planning in progress</p>
               <h1 className="font-display text-h2 text-primary">Your confirmed brief is on its way.</h1>
               <p className="text-sm text-text-muted">Current status: <strong>{jobStatus || "queued"}</strong>.</p>
-              <Link href={`/plan?job_id=${session.planning_job_id ?? ""}`} className="inline-flex min-h-12 items-center border-2 border-border bg-primary px-5 font-semibold text-text-on-primary">Open plan workspace →</Link>
+              <Link href={`/plan?session=${session.id}`} className="inline-flex min-h-12 items-center border-2 border-border bg-primary px-5 font-semibold text-text-on-primary">Open plan workspace →</Link>
             </section>
           ) : (
             <ReviewTripBrief brief={presentation(session)} actionsDisabled={awaitingAssistance} isReady={!awaitingAssistance && !hasContradictions && (session.status === "reviewing" || session.status === "failed")} readinessMessage={awaitingAssistance ? "Interview assistance is in progress. Your saved brief will be available when it finishes." : hasContradictions ? "Review and save an affected answer to resolve conflicting preferences before confirmation." : session.status === "failed" ? (session.planning_error ?? "Planning did not start. Review and retry confirmation.") : "Review every assumption, then confirm when you are ready."} onAmend={openAmendment} onApproveProfileChange={(id) => void approve(id)} onConfirm={() => void confirm()} confirming={busy} />
