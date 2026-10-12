@@ -115,7 +115,10 @@ function getCompiledUtilityClasses() {
   // Tailwind escapes opacity slashes and variant colons in CSS selectors.
   // Compare the emitted utility portion with the source scanner's utility
   // portion, not its CSS escape spelling or trailing :hover pseudo-class.
-  const utilClassRegex = /\.(?:[\w-]+:)*((?:text|bg|border|ring|fill|stroke|shadow|outline|divide|from|via|to|accent|caret|placeholder|decoration)-[^{},\s:]+)/g;
+  // Child-combinator utilities such as `.divide-y>:not(...)` are emitted with
+  // `>` immediately after the class name. Keep that combinator out of the
+  // captured utility so source and compiled names compare byte-for-byte.
+  const utilClassRegex = /\.(?:[\w-]+:)*((?:text|bg|border|ring|fill|stroke|shadow|outline|divide|from|via|to|accent|caret|placeholder|decoration)-[^{},\s:>]+)/g;
 
   for (const cssFile of cssFiles) {
     const css = fs.readFileSync(cssFile, "utf-8").replace(/\\([:/])/g, "$1");

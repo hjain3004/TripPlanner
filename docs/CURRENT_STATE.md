@@ -1,7 +1,7 @@
 # Current state
 
 **Evidence date:** 2026-10-11
-**Repository state:** local development branch `codex/cp3-interview-assistance`, based on
+**Repository state:** local development branch `codex/g3-4-confirmed-brief-gateway`, based on
 `eccb198` (CP2/Japan merged through PR #13). CP3 local/offline acceptance passed; verification is tracked in
 `reports/cp3_interview_assistance.md`; the prior baseline is recorded in
 `reports/cp2_japan_documentation_integration.md`.
@@ -29,6 +29,15 @@ separates shipped code, disabled experiments, and plans.
   configuration is explicitly confirmed; development and acceptance use offline fixtures.
   Acceptance: backend **1326 passed, 1 skipped**, strict mypy **152 files**, frontend Vitest
   **163 passed**, complete browser suite **458 passed, 74 existing skips**, clean-tree `make gate` passed.
+
+- G3.4 confirmed-brief integration is implemented in the isolated branch, pending the final
+  exact-tree gate. Confirmed sessions validate canonical facts before bounded inventory search,
+  use sample-only runtime construction with explicit price-scope/freshness checks, preserve
+  admitted costs through typed edits, and bind jobs/interactions to the authenticated owner and
+  planning session. The contract, generated client, MSW fixture, and resumable results UI are
+  synchronized. Live Gondola remains disabled and its structured responses remain unverified;
+  no provider credentials or paid services were used. See
+  `reports/g3_4_confirmed_brief_gateway.md`.
 
 ## Gateway and provider status
 
@@ -76,7 +85,7 @@ Separate FI0/Japan/CP2 worktrees and the primary checkout's untracked files rema
 
 ## What is explicitly not claimed
 
-- G3.4, CP4 and financial-ingestion/crawler work are not included in CP3. No credential, live
+- CP4 and financial-ingestion/crawler work are not included in G3.4. No credential, live
   provider/MCP/LLM call, booking, payment or transfer execution was activated during development.
 - A report saying “complete” for an older milestone does not mean its later live activation or
   integration follow-up is complete.

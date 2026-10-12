@@ -5,6 +5,11 @@
 `reports/cp3_interview_assistance.md` (local CP3), with historical CP2/Japan evidence in
 `reports/cp2_japan_documentation_integration.md`.
 
+The G3.4 branch adds a confirmed-session results path: `/plan/conversation` hands off only after
+matching confirmation, `/plan` resumes the owner-scoped job from the session query, and the
+results surface renders typed inventory evidence/fallback diagnostics from the synchronized
+OpenAPI client and MSW fixture. It performs no financial arithmetic and makes no provider call.
+
 ## Runtime shape
 
 ```text
