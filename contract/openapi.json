@@ -1854,7 +1854,34 @@
       "ConfirmedEditRequest": {
         "properties": {
           "edit": {
-            "title": "Edit"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MoveItem"
+              },
+              {
+                "$ref": "#/components/schemas/RemoveItem"
+              },
+              {
+                "$ref": "#/components/schemas/ReorderDay"
+              },
+              {
+                "$ref": "#/components/schemas/AddItem"
+              },
+              {
+                "$ref": "#/components/schemas/ReplaceItem"
+              }
+            ],
+            "title": "Edit",
+            "discriminator": {
+              "propertyName": "op",
+              "mapping": {
+                "add_item": "#/components/schemas/AddItem",
+                "move_item": "#/components/schemas/MoveItem",
+                "remove_item": "#/components/schemas/RemoveItem",
+                "reorder_day": "#/components/schemas/ReorderDay",
+                "replace_item": "#/components/schemas/ReplaceItem"
+              }
+            }
           },
           "expected_inventory_revision": {
             "type": "integer",

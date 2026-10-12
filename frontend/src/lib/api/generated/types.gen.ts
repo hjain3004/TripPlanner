@@ -382,7 +382,17 @@ export type ConfirmedEditRequest = {
     /**
      * Edit
      */
-    edit: unknown;
+    edit: ({
+        op: 'move_item';
+    } & MoveItem) | ({
+        op: 'remove_item';
+    } & RemoveItem) | ({
+        op: 'reorder_day';
+    } & ReorderDay) | ({
+        op: 'add_item';
+    } & AddItem) | ({
+        op: 'replace_item';
+    } & ReplaceItem);
     /**
      * Expected Inventory Revision
      */
