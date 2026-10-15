@@ -1,0 +1,13 @@
+{
+  "_fixture_meta": {
+    "origin": "authored_synthetic",
+    "description": "Authored synthetic fixture. NOT provider output and NOT a captured response; shaped from the documented output schema of open-meteo-mcp-server@0.4.1 (commit bff522070d90cdf99579a3d23a88e8c0e93324ee). Numbers are invented.",
+    "authored_by": "Claude (G4 milestone)",
+    "authored_on": "2026-10-14"
+  },
+  "tool": "openmeteo_get_forecast",
+  "error": {
+    "code": "provider_unavailable",
+    "message": "simulated 503"
+  }
+}
