@@ -279,7 +279,7 @@ def _forecast(
     _check_units(payload, "daily_units", FORECAST_DAILY_VARIABLES)
     days = tuple(_daily(row) for row in rows)
     first = days[0].day
-    if abs((first - local_today).days) > 1:
+    if first != local_today:
         raise _invalid("forecast does not start on the current local date")
     for i, day in enumerate(days):
         if day.day != first + timedelta(days=i):
@@ -356,13 +356,11 @@ def _windowed_days(
     rows = _rows(payload, span)
     _check_units(payload, "daily_units", variables)
     days = tuple(_daily(row) for row in rows)
-    previous: date | None = None
-    for day in days:
-        if not start <= day.day <= end:
-            raise _invalid("a row falls outside the requested window")
-        if previous is not None and day.day <= previous:
-            raise _invalid("rows are not ascending")
-        previous = day.day
+    if len(days) != span:
+        raise _invalid("daily rows do not cover the complete requested window")
+    for offset, day in enumerate(days):
+        if day.day != start + timedelta(days=offset):
+            raise _invalid("daily rows do not cover the complete requested window")
     return days
 
 
@@ -400,6 +398,13 @@ def _mean(values: list[float]) -> float | None:
     return round(statistics.fmean(values), 1) if values else None
 
 
+def _complete_metric(values: list[float | None]) -> list[float]:
+    """Return a metric series only when every requested day supplied it."""
+    if any(value is None for value in values):
+        return []
+    return [value for value in values if value is not None]
+
+
 def _climate(
     request: ClimateRequest, payload: dict[str, Any], origin: EvidenceOrigin, now: datetime
 ) -> tuple[WeatherEvidence, ...]:
@@ -408,9 +413,9 @@ def _climate(
         payload, request.start_date, request.end_date, CLIMATE_DAILY_VARIABLES, PINNED_CLIMATE_MODEL
     )
     first, last = days[0].day, days[-1].day
-    highs = [d.temperature_max_c for d in days if d.temperature_max_c is not None]
-    lows = [d.temperature_min_c for d in days if d.temperature_min_c is not None]
-    rain = [d.precipitation_sum_mm for d in days if d.precipitation_sum_mm is not None]
+    highs = _complete_metric([d.temperature_max_c for d in days])
+    lows = _complete_metric([d.temperature_min_c for d in days])
+    rain = _complete_metric([d.precipitation_sum_mm for d in days])
     return (
         ClimateSummary(
             meta=_meta(

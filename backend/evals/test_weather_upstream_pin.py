@@ -14,10 +14,13 @@ import os
 import re
 import shutil
 import stat
+import tomllib
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
+from packaging.requirements import Requirement
 
 from gateway.weather.errors import WeatherGatewayError
 from gateway.weather.stdio_transport import StdioWeatherTransport, pinned_upstream_launch
@@ -62,6 +65,16 @@ class TestPinConstants:
         assert FIXED_SERVER_ENV["MCP_TRANSPORT_TYPE"] == "stdio"
         for key in FIXED_SERVER_ENV:
             assert not re.search(r"(?i)key|token|secret|passw|credential", key), key
+
+    def test_declared_mcp_dependency_excludes_incompatible_1_x(self) -> None:
+        pyproject = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
+        dependency = next(
+            Requirement(item)
+            for item in pyproject["project"]["dependencies"]
+            if Requirement(item).name == "mcp"
+        )
+        assert dependency.specifier.contains("1.9.9") is False
+        assert dependency.specifier.contains("2.3.0") is True
 
 
 class TestAuditedLockfile:
@@ -142,6 +155,14 @@ class TestPinnedLaunch:
         )
         assert dict(launch.env) == FIXED_SERVER_ENV
         assert StdioWeatherTransport(launch).origin == "live"
+
+    def test_a_valid_launch_cannot_be_copied_into_live_provenance(
+        self, tmp_path: Path
+    ) -> None:
+        root, node = make_install(tmp_path)
+        approved = pinned_upstream_launch(root, node)
+        forged = replace(approved, command="/arbitrary/executable")
+        assert StdioWeatherTransport(forged).origin == "fixture_synthetic"
 
     def test_caller_environment_cannot_influence_the_launch(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

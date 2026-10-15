@@ -47,7 +47,7 @@ class WeatherProviderRegistryEntry(BaseModel):
     provider_id: str = Field(min_length=1)
     enabled: bool = False
     allowed_profiles: set[Literal["student_noncommercial", "commercial_production"]]
-    source_method: Literal["provider_mcp"]
+    source_method: Literal["community_mcp"]
     live_data: bool = False
     monthly_cost_minor: int = Field(ge=0)
     evidence_kinds: set[EvidenceKind]
@@ -77,7 +77,7 @@ def get_default_weather_registry(env: Mapping[str, str] | None = None) -> Weathe
                 enabled=_enabled_from_env(source),
                 # Open-Meteo's free API is non-commercial only: student profile only.
                 allowed_profiles={"student_noncommercial"},
-                source_method="provider_mcp",
+                source_method="community_mcp",
                 live_data=True,
                 monthly_cost_minor=0,
                 evidence_kinds={

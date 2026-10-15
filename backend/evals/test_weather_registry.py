@@ -61,7 +61,7 @@ def test_student_profile_only_and_zero_cost() -> None:
     e = entry({ENABLE_ENV_VAR: "1"})
     assert e.allowed_profiles == {"student_noncommercial"}
     assert e.monthly_cost_minor == 0
-    assert e.source_method == "provider_mcp"
+    assert e.source_method == "community_mcp"
     registry = get_default_weather_registry({ENABLE_ENV_VAR: "1"})
     assert registry.select(active_profile="student_noncommercial") == [e]
     assert registry.select(active_profile="commercial_production") == []
@@ -73,7 +73,7 @@ def test_unknown_cost_cannot_construct_an_entry() -> None:
             {
                 "provider_id": "x",
                 "allowed_profiles": {"student_noncommercial"},
-                "source_method": "provider_mcp",
+                "source_method": "community_mcp",
                 "evidence_kinds": {"climate_summary"},
             }
         )

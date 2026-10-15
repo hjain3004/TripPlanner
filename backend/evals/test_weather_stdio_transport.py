@@ -152,10 +152,22 @@ class TestEnvironmentIsolation:
     ) -> None:
         monkeypatch.setenv("SOME_SECRET_TOKEN", "super-secret")
         monkeypatch.setenv("OPEN_METEO_API_BASE_URL", "https://evil.example")
+        monkeypatch.setenv("HOME", "/sensitive-home")
+        monkeypatch.setenv("LOGNAME", "sensitive-logname")
+        monkeypatch.setenv("PATH", "/sensitive-path")
+        monkeypatch.setenv("SHELL", "/sensitive-shell")
+        monkeypatch.setenv("TERM", "sensitive-term")
+        monkeypatch.setenv("USER", "sensitive-user")
         transport = StdioWeatherTransport(launch("env_dump"), total_timeout_s=30)
         payload = call(transport, *FORECAST_CALL).payload
         assert payload["leaked_secret"] is False
         assert payload["api_base"] != "https://evil.example"
+        assert payload["home"] != "/sensitive-home"
+        assert payload["logname"] == "tripwise-weather"
+        assert payload["path"] == str(Path(sys.executable).parent)
+        assert payload["shell"] == "/bin/false"
+        assert payload["term"] == "dumb"
+        assert payload["user"] == "tripwise-weather"
 
 
 class TestFailureModes:

@@ -40,7 +40,7 @@ from gateway.weather.errors import WeatherGatewayError
 from gateway.weather.normalize import normalize_tool_result
 from gateway.weather.sanitize import sanitize_provider_text
 from gateway.weather.stdio_transport import StdioWeatherTransport, pinned_upstream_launch
-from gateway.weather.tool_policy import build_tool_call
+from gateway.weather.tool_policy import CURRENT_VARIABLES, FORECAST_DAILY_VARIABLES, build_tool_call
 from gateway.weather.upstream_pin import REQUIRED_NODE_MAJOR, UPSTREAM_COMMIT, UPSTREAM_VERSION
 
 ACK_ENV = "TRIPWISE_OPEN_METEO_PROBE_ACK"
@@ -48,6 +48,7 @@ ACK_VALUE = "ONE_ANONYMOUS_READ_ONLY_CALL"
 DEFAULT_OUT = (
     Path(__file__).resolve().parents[1] / "fixtures" / "singapore_live_capture.forecast.json"
 )
+ATTEMPT_MARKER_NAME = ".tripwise-open-meteo-probe-attempted"
 # Singapore, 3 forecast days (+ current conditions): far inside the 16-day horizon.
 PROBE_REQUEST = CurrentAndForecastRequest(
     location=WeatherLocation(latitude=1.3521, longitude=103.8198, label="Singapore"),
@@ -65,11 +66,31 @@ _WHITELIST = (
     "daily",
     "daily_units",
 )
+_CURRENT_CAPTURE_KEYS = frozenset({"time", "interval", *CURRENT_VARIABLES})
+_DAILY_CAPTURE_KEYS = frozenset({"time", *FORECAST_DAILY_VARIABLES})
+
+
+def _project_object(value: Any, keys: frozenset[str]) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    return {key: value[key] for key in keys if key in value}
 
 
 def node_major(node: Path) -> int:
     out = subprocess.run([str(node), "--version"], capture_output=True, text=True, timeout=10)
     return int(out.stdout.strip().lstrip("v").split(".")[0])
+
+
+def _reserve_probe_attempt() -> bool:
+    """Atomically consume the one-off authorization before any dispatch."""
+    marker = DEFAULT_OUT.with_name(ATTEMPT_MARKER_NAME)
+    try:
+        descriptor = os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        return False
+    with os.fdopen(descriptor, "w") as stream:
+        stream.write("One anonymous read-only Open-Meteo probe was attempted.\n")
+    return True
 
 
 def structural_summary(value: Any) -> Any:
@@ -86,7 +107,21 @@ def structural_summary(value: Any) -> Any:
 
 
 def sanitized_capture(payload: dict[str, Any], captured_at: datetime) -> dict[str, Any]:
-    kept = {k: payload[k] for k in _WHITELIST if k in payload}
+    kept = {
+        key: payload[key]
+        for key in _WHITELIST
+        if key in payload and key not in {"current", "current_units", "daily", "daily_units"}
+    }
+    if "current" in payload:
+        kept["current"] = _project_object(payload["current"], _CURRENT_CAPTURE_KEYS)
+    if "current_units" in payload:
+        kept["current_units"] = _project_object(payload["current_units"], _CURRENT_CAPTURE_KEYS)
+    if isinstance(payload.get("daily"), list):
+        kept["daily"] = [
+            _project_object(row, _DAILY_CAPTURE_KEYS) for row in payload["daily"]
+        ]
+    if "daily_units" in payload:
+        kept["daily_units"] = _project_object(payload["daily_units"], _DAILY_CAPTURE_KEYS)
     return {
         "_fixture_meta": {
             "origin": "sanitized_capture",
@@ -172,12 +207,15 @@ def main() -> int:
     if os.environ.get(ACK_ENV) != ACK_VALUE:
         print(f"refusing: set {ACK_ENV}={ACK_VALUE} to acknowledge exactly one anonymous call")
         return 64
-    if args.out.exists():
+    if DEFAULT_OUT.exists() or args.out.exists():
         print("refusing: the capture fixture already exists — a probe is a one-off")
         return 65
     if node_major(args.node) < REQUIRED_NODE_MAJOR:
         print(f"refusing: node >= {REQUIRED_NODE_MAJOR} is required by the pinned server")
         return 66
+    if not _reserve_probe_attempt():
+        print("refusing: this checkout has already consumed its one-off probe attempt")
+        return 65
     return asyncio.run(run(args.install_root, args.node, args.out))
 
 

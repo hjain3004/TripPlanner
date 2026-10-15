@@ -175,6 +175,11 @@ class TestHistorical:
         data["models"] = ["best_match"]
         expect_invalid(HISTORICAL_REQ, data)
 
+    def test_incomplete_or_gapped_requested_window_is_rejected(self) -> None:
+        data = payload("singapore_ok.historical")
+        del data["daily"][3]
+        expect_invalid(HISTORICAL_REQ, data)
+
 
 class TestClimate:
     def test_climate_is_a_labelled_non_forecast_window_summary(self) -> None:
@@ -219,6 +224,27 @@ class TestClimate:
         (summary,) = normalize_tool_result(CLIMATE_REQ, result(data), now=NOW)
         assert isinstance(summary, ClimateSummary)
         assert summary.total_precipitation_mm is None
+
+    @pytest.mark.parametrize(
+        ("field", "summary_field"),
+        [
+            ("temperature_2m_max", "mean_temperature_max_c"),
+            ("temperature_2m_min", "mean_temperature_min_c"),
+            ("precipitation_sum", "total_precipitation_mm"),
+        ],
+    )
+    def test_partially_missing_metric_remains_unavailable(
+        self, field: str, summary_field: str
+    ) -> None:
+        data = payload("singapore_ok.climate")
+        data["daily"][2][field] = None
+        (summary,) = normalize_tool_result(CLIMATE_REQ, result(data), now=NOW)
+        assert getattr(summary, summary_field) is None
+
+    def test_incomplete_or_gapped_requested_window_is_rejected(self) -> None:
+        data = payload("singapore_ok.climate")
+        del data["daily"][3]
+        expect_invalid(CLIMATE_REQ, data)
 
 
 class TestMalformedPayloads:
@@ -298,6 +324,14 @@ class TestIncorrectDateSemantics:
         data = forecast_ok()
         for i, row in enumerate(data["daily"]):
             row["time"] = (date(2026, 10, 1) + timedelta(days=i)).isoformat()
+        expect_invalid(FORECAST_REQ, data)
+
+    @pytest.mark.parametrize("delta", [-1, 1])
+    def test_forecast_must_start_on_exact_current_local_date(self, delta: int) -> None:
+        data = forecast_ok()
+        first = date(2026, 10, 14) + timedelta(days=delta)
+        for i, row in enumerate(data["daily"]):
+            row["time"] = (first + timedelta(days=i)).isoformat()
         expect_invalid(FORECAST_REQ, data)
 
     def test_forecast_days_must_be_contiguous_and_ascending(self) -> None:

@@ -12,8 +12,9 @@ What is fixed, and enforced here rather than trusted:
   pinned package name/version/licence, or that resolves outside the install
   root;
 * the environment — a minimal, code-owned set (official base URLs, storage
-  features off). The SDK adds only a tiny default allowlist (HOME/PATH/...),
-  so nothing secret is inherited from the parent process;
+  features off). Every variable on the SDK's default inheritance allowlist is
+  overridden, including an ephemeral empty HOME, so parent configuration and
+  credential locations do not reach the child;
 * the tool set and arguments — ``validate_tool_call`` runs before any process
   is started, so a forbidden tool or out-of-policy argument never leaves this
   process;
@@ -35,8 +36,9 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +67,7 @@ from gateway.weather.upstream_pin import (
 
 DEFAULT_TOTAL_TIMEOUT_S = 12.0  # spawn + handshake + call (spec 16: total <= 12s)
 _SECRET_KEY_RE = re.compile(r"(?i)(key|token|secret|passw|credential|auth)")
+_PINNED_LIVE_ATTESTATION = object()
 
 
 @dataclass(frozen=True)
@@ -74,8 +77,13 @@ class ServerLaunch:
     env: tuple[tuple[str, str], ...] = ()
     expected_server_name: str = UPSTREAM_SERVER_NAME
     expected_server_version: str = UPSTREAM_SERVER_VERSION
-    # True only when built by ``pinned_upstream_launch``.
-    is_pinned_upstream: bool = False
+    # Not accepted by the public constructor. Only ``pinned_upstream_launch``
+    # can attach the module-private identity token after completing every pin check.
+    _live_attestation: object | None = field(default=None, init=False, repr=False, compare=False)
+
+    @property
+    def is_pinned_upstream(self) -> bool:
+        return self._live_attestation is _PINNED_LIVE_ATTESTATION
 
 
 def _refuse(message: str) -> WeatherGatewayError:
@@ -119,12 +127,13 @@ def pinned_upstream_launch(install_root: Path, node_executable: Path) -> ServerL
     if not entry.is_relative_to(pkg_dir) or not entry.is_file():
         raise _refuse("the pinned server entrypoint is missing")
 
-    return ServerLaunch(
+    launch = ServerLaunch(
         command=str(node),
         args=(str(entry),),
         env=tuple(sorted(FIXED_SERVER_ENV.items())),
-        is_pinned_upstream=True,
     )
+    object.__setattr__(launch, "_live_attestation", _PINNED_LIVE_ATTESTATION)
+    return launch
 
 
 def _assert_launch_safe(launch: ServerLaunch) -> None:
@@ -152,6 +161,22 @@ def _leaves(exc: BaseException) -> Iterator[BaseException]:
         yield exc
 
 
+def _isolated_child_environment(launch: ServerLaunch, home: str) -> dict[str, str]:
+    """Override every environment variable the MCP SDK otherwise inherits."""
+    env = dict(launch.env)
+    env.update(
+        {
+            "HOME": home,
+            "LOGNAME": "tripwise-weather",
+            "PATH": str(Path(launch.command).parent),
+            "SHELL": "/bin/false",
+            "TERM": "dumb",
+            "USER": "tripwise-weather",
+        }
+    )
+    return env
+
+
 class StdioWeatherTransport:
     def __init__(
         self, launch: ServerLaunch, *, total_timeout_s: float = DEFAULT_TOTAL_TIMEOUT_S
@@ -167,43 +192,46 @@ class StdioWeatherTransport:
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolResult:
         validate_tool_call(tool_name, arguments)  # before any process exists
         launch = self._launch
-        params = StdioServerParameters(
-            command=launch.command, args=list(launch.args), env=dict(launch.env)
-        )
         identity_ok = False
         raw: Any = None
-        try:
-            with anyio.fail_after(self._timeout_s), open(os.devnull, "w") as errlog:
-                async with stdio_client(params, errlog=errlog) as (read, write):
-                    async with ClientSession(read, write) as session:
-                        init = await session.initialize()
-                        info = init.server_info
-                        identity_ok = (
-                            info.name == launch.expected_server_name
-                            and info.version == launch.expected_server_version
-                        )
-                        if identity_ok:
-                            raw = await session.call_tool(tool_name, arguments)
-        except TimeoutError as exc:
-            raise WeatherGatewayError("timeout", "the weather server timed out") from exc
-        except BaseExceptionGroup as group:
-            leaves = list(_leaves(group))
-            for leaf in leaves:
-                if isinstance(leaf, WeatherGatewayError):
-                    raise leaf from None
-            if any(isinstance(leaf, TimeoutError) for leaf in leaves):
-                raise WeatherGatewayError("timeout", "the weather server timed out") from None
-            raise WeatherGatewayError(
-                "provider_unavailable", "the weather server could not be reached"
-            ) from None
-        except OSError as exc:
-            raise WeatherGatewayError(
-                "provider_unavailable", "the weather server could not be started"
-            ) from exc
-        except Exception as exc:
-            raise WeatherGatewayError(
-                "provider_unavailable", "the weather server failed during the call"
-            ) from exc
+        with tempfile.TemporaryDirectory(prefix="tripwise-weather-home-") as isolated_home:
+            params = StdioServerParameters(
+                command=launch.command,
+                args=list(launch.args),
+                env=_isolated_child_environment(launch, isolated_home),
+            )
+            try:
+                with anyio.fail_after(self._timeout_s), open(os.devnull, "w") as errlog:
+                    async with stdio_client(params, errlog=errlog) as (read, write):
+                        async with ClientSession(read, write) as session:
+                            init = await session.initialize()
+                            info = init.server_info
+                            identity_ok = (
+                                info.name == launch.expected_server_name
+                                and info.version == launch.expected_server_version
+                            )
+                            if identity_ok:
+                                raw = await session.call_tool(tool_name, arguments)
+            except TimeoutError as exc:
+                raise WeatherGatewayError("timeout", "the weather server timed out") from exc
+            except BaseExceptionGroup as group:
+                leaves = list(_leaves(group))
+                for leaf in leaves:
+                    if isinstance(leaf, WeatherGatewayError):
+                        raise leaf from None
+                if any(isinstance(leaf, TimeoutError) for leaf in leaves):
+                    raise WeatherGatewayError("timeout", "the weather server timed out") from None
+                raise WeatherGatewayError(
+                    "provider_unavailable", "the weather server could not be reached"
+                ) from None
+            except OSError as exc:
+                raise WeatherGatewayError(
+                    "provider_unavailable", "the weather server could not be started"
+                ) from exc
+            except Exception as exc:
+                raise WeatherGatewayError(
+                    "provider_unavailable", "the weather server failed during the call"
+                ) from exc
 
         if not identity_ok:
             raise _refuse("the MCP server is not the pinned Open-Meteo server")

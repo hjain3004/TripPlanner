@@ -54,6 +54,12 @@ def _behave(short: str) -> Any:  # dict for structured modes, str for unstructur
             "api_base": os.environ.get("OPEN_METEO_API_BASE_URL"),
             "canvas": os.environ.get("CANVAS_PROVIDER_TYPE"),
             "leaked_secret": "SOME_SECRET_TOKEN" in os.environ,
+            "home": os.environ.get("HOME"),
+            "logname": os.environ.get("LOGNAME"),
+            "path": os.environ.get("PATH"),
+            "shell": os.environ.get("SHELL"),
+            "term": os.environ.get("TERM"),
+            "user": os.environ.get("USER"),
         }
     if MODE == "unstructured_junk":
         return "this is not json"
