@@ -1,7 +1,7 @@
 # G4 — Open-Meteo MCP weather-context adapter
 
-**Status:** ACCEPTANCE PENDING FINAL COMMITTED-TREE GATE — implementation, bounded live forecast
-probe, independent review, accepted fixes, reseed, and full regression are complete.
+**Status:** COMPLETE — implementation, bounded live forecast probe, independent review, accepted
+fixes, reseed, full regression, and the exact committed-tree gate are complete.
 
 **Branch:** `codex/g4-open-meteo-mcp`
 
@@ -95,8 +95,19 @@ Fresh post-review verification before the final report commit:
 - strict mypy: **163 source files**, clean;
 - weather/G4 Ruff scope: clean.
 
-The authoritative final `make gate` is not yet claimed. It must be run after independent review,
-all accepted review fixes, and the final report commit.
+The authoritative `make gate` passed on exact clean commit
+`dd1c00054793ee7e834fe83014f4500cea85d504`:
+
+- pytest: **1610 passed, 1 skipped**, 3 existing OR-Tools deprecation warnings;
+- strict mypy: **163 source files**, clean;
+- zero-tolerance Ruff scopes: clean;
+- legacy `core/` + `api/` Ruff findings: **6**, below ceiling **12**;
+- frozen checks: `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`;
+- working tree: `TREE_CLEAN`;
+- final line: `================ GATE PASSED ================`.
+
+The status transition is report-only; the same complete gate is rerun on the resulting final
+commit before handoff.
 
 ## Review
 
