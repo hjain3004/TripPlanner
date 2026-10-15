@@ -75,6 +75,12 @@ def build_hotel_request_arguments(request: HotelSearchRequest) -> dict[str, Any]
             "unsupported_domain",
             "Gondola hotel search does not advertise child or infant occupancy dimensions",
         )
+    if request.area_ids or request.style or request.currency or request.property_kinds != {"hotel"}:
+        raise TravelGatewayError(
+            "unsupported_domain",
+            "Gondola hotel search does not advertise area, style, property-kind, or "
+            "currency dimensions",
+        )
     return build_hotel_search_arguments(
         location=request.city,
         checkin=request.check_in,
@@ -89,6 +95,12 @@ def build_flight_request_arguments(request: FlightSearchRequest) -> dict[str, An
         raise TravelGatewayError(
             "unsupported_domain",
             "Gondola flight search does not advertise child or infant passenger dimensions",
+        )
+    if request.nearby_airports or request.nonstop_only or request.currency:
+        raise TravelGatewayError(
+            "unsupported_domain",
+            "Gondola flight search does not advertise nearby-airport, nonstop, or "
+            "currency dimensions",
         )
     return build_flight_search_arguments(
         origin=request.origin,

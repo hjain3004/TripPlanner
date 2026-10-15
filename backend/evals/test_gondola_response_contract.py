@@ -43,6 +43,7 @@ def test_captured_hotel_markdown_is_discovery_only() -> None:
     assert evidence.is_current_normalized_quote is False
     assert evidence.is_costable is False
     assert evidence.needs_verification is True
+    assert evidence.provenance == "live_observation"
     assert evidence.safe_links == ()
     assert "provider_markdown_not_typed_inventory" in evidence.limitations
     assert "result" not in evidence.model_dump()
@@ -56,6 +57,7 @@ def test_captured_flight_markdown_is_discovery_only() -> None:
     evidence = parse_markdown_discovery(excerpt, tool="search_flights", now=NOW)
     assert evidence.is_current_normalized_quote is False
     assert evidence.is_costable is False
+    assert evidence.provenance == "live_observation"
     assert "segment_identity_and_timezone_unverified" in evidence.limitations
 
 
@@ -74,6 +76,13 @@ def test_provider_personalization_tokens_and_links_never_enter_discovery_model()
     assert "Ignore previous instructions" not in dumped
 
 
+def test_unknown_discovery_tool_fails_with_typed_gateway_error() -> None:
+    with pytest.raises(TravelGatewayError, match="Unsupported Gondola discovery tool"):
+        parse_markdown_discovery(
+            {"result": "## provider markdown"}, tool="get_hotel_details", now=NOW  # type: ignore[arg-type]
+        )
+
+
 def test_response_envelope_preserves_markdown_only_as_untyped_payload() -> None:
     from mcp.types import CallToolResult
 
@@ -86,6 +95,21 @@ def test_response_envelope_preserves_markdown_only_as_untyped_payload() -> None:
         base_url=f"https://{ALLOWED_HOST}/mcp", get_access_token=lambda: None
     )._unwrap_tool_result(result)
     assert payload == {"result": "## Flight options"}
+
+
+def test_refresh_script_keeps_markdown_discovery_out_of_quote_fixtures() -> None:
+    script = (
+        Path(__file__).parent.parent
+        / "gateway"
+        / "travel"
+        / "adapters"
+        / "gondola"
+        / "scripts"
+        / "refresh_and_retry_flight.py"
+    ).read_text(encoding="utf-8")
+    assert "parse_markdown_discovery" in script
+    assert 'print("sanitized_fixture_written=False")' in script
+    assert 'print("deterministic_costing=False")' in script
 
 
 def test_request_time_provider_transport_is_not_imported_by_product_packages() -> None:
@@ -151,3 +175,21 @@ def test_request_builders_reject_dimensions_the_provider_does_not_advertise() ->
     )
     with pytest.raises(TravelGatewayError, match="child or infant"):
         build_flight_request_arguments(flight_request)
+
+
+def test_request_builders_reject_all_unadvertised_hotel_dimensions() -> None:
+    request = HotelSearchRequest(
+        city="Singapore", check_in=date(2027, 1, 11), check_out=date(2027, 1, 14),
+        travelers=TravelerMix(adults=1), rooms=1, style="balanced", currency="SGD",
+    )
+    with pytest.raises(TravelGatewayError, match="style.*currency"):
+        build_hotel_request_arguments(request)
+
+
+def test_request_builders_reject_all_unadvertised_flight_dimensions() -> None:
+    request = FlightSearchRequest(
+        origin="DEL", destination="SIN", depart_date=date(2027, 1, 11),
+        travelers=TravelerMix(adults=1), cabin="economy", currency="INR", nonstop_only=True,
+    )
+    with pytest.raises(TravelGatewayError, match="nonstop.*currency"):
+        build_flight_request_arguments(request)

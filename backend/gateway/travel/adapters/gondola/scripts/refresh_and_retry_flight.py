@@ -24,6 +24,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from gateway.travel.adapters.gondola.budget import GondolaCallBudget
+from gateway.travel.adapters.gondola.discovery import parse_markdown_discovery
 from gateway.travel.adapters.gondola.mcp_client import ALLOWED_HOST
 from gateway.travel.adapters.gondola.oauth import (
     REQUIRED_SCOPE,
@@ -288,6 +289,21 @@ async def _refresh_and_call() -> None:
     structured = getattr(result, "structured_content", None)
     print(f"status=success structured_content_present={structured is not None}")
     if isinstance(structured, dict):
+        if isinstance(structured.get("result"), str):
+            evidence = parse_markdown_discovery(
+                structured,
+                tool="search_flights",
+                now=datetime.now(UTC),
+                provenance="live_observation",
+            )
+            print("response_contract=provider_markdown")
+            print(f"evidence_provenance={evidence.provenance}")
+            print("normalized_quote_admission=False")
+            print("deterministic_costing=False")
+            print("evidence_status=verify_required")
+            print("sanitized_fixture_written=False")
+            print("del_sin_coverage=unknown (Markdown discovery is not typed inventory evidence)")
+            return
         print(f"top_level_keys={sorted(structured.keys())}")
         for key, value in structured.items():
             if isinstance(value, list):

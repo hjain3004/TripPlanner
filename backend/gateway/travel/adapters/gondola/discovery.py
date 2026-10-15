@@ -8,7 +8,7 @@ never extracts prices, links, selections, personalization, or provider prose.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, Field
@@ -19,6 +19,7 @@ GONDOLA_SOURCE_URL = "https://mcp.gondola.ai/mcp"
 MAX_DISCOVERY_TEXT_BYTES = 512_000
 
 DiscoveryTool = Literal["search_hotels", "search_flights"]
+DiscoveryProvenance = Literal["live_observation", "synthetic_fixture"]
 
 
 class GondolaDiscoveryEvidence(BaseModel):
@@ -26,6 +27,9 @@ class GondolaDiscoveryEvidence(BaseModel):
     tool: DiscoveryTool
     result_format: Literal["provider_markdown"] = "provider_markdown"
     observed_at: AwareDatetime
+    provenance: DiscoveryProvenance
+    captured_on: date | None = None
+    fixture_name: str | None = None
     source_url: str = GONDOLA_SOURCE_URL
     reported_match_count: int | None = Field(default=None, ge=0)
     displayed_match_count: int | None = Field(default=None, ge=0)
@@ -55,8 +59,16 @@ _LIMITATIONS: dict[DiscoveryTool, tuple[str, ...]] = {
 
 
 def parse_markdown_discovery(
-    payload: Mapping[str, object], *, tool: DiscoveryTool, now: datetime
+    payload: Mapping[str, object],
+    *,
+    tool: DiscoveryTool,
+    now: datetime,
+    provenance: DiscoveryProvenance = "live_observation",
+    captured_on: date | None = None,
+    fixture_name: str | None = None,
 ) -> GondolaDiscoveryEvidence:
+    if tool not in _LIMITATIONS:
+        raise TravelGatewayError("invalid_response", "Unsupported Gondola discovery tool")
     raw_result = payload.get("result")
     if not isinstance(raw_result, str) or not raw_result.strip():
         raise TravelGatewayError(
@@ -69,6 +81,9 @@ def parse_markdown_discovery(
     return GondolaDiscoveryEvidence(
         tool=tool,
         observed_at=now,
+        provenance=provenance,
+        captured_on=captured_on,
+        fixture_name=fixture_name,
         source_attribution="provider-reported discovery evidence; unverified",
         limitations=_LIMITATIONS[tool],
     )

@@ -27,6 +27,9 @@ def test_successful_flight_search() -> None:
 def test_captured_markdown_fixture_replays_as_discovery_evidence_only() -> None:
     evidence = _transport().load_discovery("search_hotels", "gondola_response_contract_2026_10_14")
     assert evidence.result_format == "provider_markdown"
+    assert evidence.provenance == "synthetic_fixture"
+    assert evidence.captured_on is not None
+    assert evidence.fixture_name == "gondola_response_contract_2026_10_14"
     assert evidence.is_costable is False
     assert evidence.safe_links == ()
 
