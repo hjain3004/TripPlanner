@@ -187,6 +187,38 @@ def test_every_committed_fixture_is_honestly_labelled() -> None:
     assert files, "expected committed fixtures"
     for path in files:
         meta = json.loads(path.read_text())["_fixture_meta"]
-        assert meta["origin"] == "authored_synthetic", path.name
-        assert "NOT provider output" in meta["description"], path.name
         assert meta.get("status") != "live", path.name
+        if meta["origin"] == "authored_synthetic":
+            assert "NOT provider output" in meta["description"], path.name
+        else:
+            # A real capture must say when, from what, and how it was sanitized.
+            assert meta["origin"] == "sanitized_capture", path.name
+            assert meta["captured_at"] and meta["upstream_version"] == "0.4.1", path.name
+            assert meta["upstream_commit"] and meta["sanitization"], path.name
+            assert "Open-Meteo" in meta["attribution"], path.name
+            assert len(path.read_bytes()) < 20_000, path.name
+
+
+def test_the_live_capture_replays_as_a_capture_never_as_live() -> None:
+    from datetime import UTC, datetime
+
+    from gateway.weather.adapter import OpenMeteoWeatherAdapter
+    from gateway.weather.budget import WeatherCallBudget
+
+    envelope = json.loads((FIXTURES / "singapore_live_capture.forecast.json").read_text())
+    captured_at = datetime.fromisoformat(envelope["_fixture_meta"]["captured_at"])
+    request = CurrentAndForecastRequest(location=LOC, forecast_days=3, include_current=True)
+    adapter = OpenMeteoWeatherAdapter(
+        transport=FixtureWeatherTransport("singapore_live_capture"),
+        budget=WeatherCallBudget(),
+        plan_id="p",
+        now=lambda: captured_at.astimezone(UTC),
+        enabled=True,
+    )
+    outcome = asyncio.run(adapter.get_context(request))
+    assert [e.kind for e in outcome.evidence] == ["current_observation", "near_term_forecast"]
+    for evidence in outcome.evidence:
+        assert evidence.meta.origin == "fixture_captured"
+        assert evidence.meta.needs_verification is True
+        assert evidence.meta.verified_by == "fixture:sanitized_capture"
+        assert any("sanitized capture" in note for note in evidence.meta.notes)
