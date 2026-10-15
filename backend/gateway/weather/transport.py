@@ -103,7 +103,7 @@ class FixtureWeatherTransport:
             if code not in _REPLAYABLE_ERRORS:
                 raise WeatherGatewayError("invalid_response", "fixture error is not replayable")
             replay_code: ErrorCode = code
-            raise WeatherGatewayError(replay_code, f"simulated {code} from replay fixture")
+            raise WeatherGatewayError(replay_code, f"{code} replayed from a fixture")
         if "payload" not in envelope:
             raise WeatherGatewayError("invalid_response", "fixture carries no payload")
         return ToolResult(payload=envelope["payload"], origin=_FIXTURE_ORIGINS[declared])
