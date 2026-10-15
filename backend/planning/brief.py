@@ -326,13 +326,21 @@ def _flight_from_payload(payload: FlightPreferencesPayload, *, now: datetime) ->
     cabin: PreferenceValue[Cabin] | None = None
     if payload.cabin != "no_preference":
         cabin = _wrap(payload.cabin, now=now)
+    schedule: PreferenceValue[
+        Literal["morning", "afternoon", "evening", "overnight", "no_preference"]
+    ] | None = None
+    if payload.schedule != "no_preference":
+        schedule = _wrap(payload.schedule, now=now)
+    seat: PreferenceValue[Literal["aisle", "window", "middle", "no_preference"]] | None = None
+    if payload.seat != "no_preference":
+        seat = _wrap(payload.seat, now=now)
     return FlightPreferences(
         cabin=cabin,
         max_stops=_wrap_optional(payload.max_stops, now=now),
-        schedule=_wrap(payload.schedule, now=now),
+        schedule=schedule,
         checked_baggage=_wrap_optional(payload.checked_baggage, now=now),
         airport_flexible=_wrap_optional(payload.airport_flexible, now=now),
-        seat=_wrap(payload.seat, now=now),
+        seat=seat,
     )
 
 
@@ -445,6 +453,11 @@ def build_profile_update_proposals(
             # payload types handled above.
             continue
         candidate = _candidate_profile(session, section=section, group=group, now=now)
+        # ``no_preference`` and an entirely empty payload carry no durable
+        # user preference. Never propose replacing a populated profile group
+        # with an empty/no-preference group.
+        if not _section_has_any_value(group):
+            continue
         proposals.append(
             ProfileUpdateProposal(
                 proposal_id=f"{session.id}:{session.version}:{section}",

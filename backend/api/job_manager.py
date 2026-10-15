@@ -36,9 +36,11 @@ class JobManager:
         self._jobs: dict[str, JobState] = {}
         self._lock = threading.Lock()
 
-    def create_job(self) -> str:
-        job_id = uuid4().hex
+    def create_job(self, job_id: str | None = None) -> str:
+        job_id = job_id or uuid4().hex
         with self._lock:
+            if job_id in self._jobs:
+                return job_id
             self._jobs[job_id] = JobState()
         return job_id
 

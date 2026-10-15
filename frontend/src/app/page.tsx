@@ -6,7 +6,7 @@ export default function Home() {
     <div className="min-h-screen bg-bg font-ui text-text">
       <SiteHeader />
 
-      <main className="w-full max-w-[1440px] mx-auto bg-surface shadow-3">
+      <div className="w-full max-w-[1440px] mx-auto bg-surface shadow-3">
         {/* ── Hero ── */}
         <section className="grid grid-cols-[53%_47%] min-h-[630px] border-b border-border max-[960px]:grid-cols-1">
           {/* Left: Hero Copy */}
@@ -17,7 +17,7 @@ export default function Home() {
               Travel intelligence · made human
             </span>
 
-            {/* H1 — Display face (Bodoni Moda) */}
+            {/* H1 — Display face (Poiret One) */}
             <h1 className="font-display display-hero text-hero leading-[1.0] tracking-[-0.02em] mt-[31px] max-w-[720px]">
               One journey.
               <br />
@@ -147,10 +147,10 @@ export default function Home() {
                 Next: add the cards and point balances you already have.
               </p>
               <Link
-                href="/plan"
+                href="/plan/conversation"
                 className="min-w-[210px] border-0 border-l border-border rounded-none bg-primary text-text-on-primary font-semibold text-[12px] max-[650px]:border-l-0 max-[650px]:border-t max-[650px]:min-h-[54px] flex items-center justify-center px-6"
               >
-                Continue to your wallet →
+                Start your consultation →
               </Link>
             </div>
           </div>
@@ -260,7 +260,7 @@ export default function Home() {
         </section>
 
         {/* Swatch strip is Phase 0 proof scaffolding — do not build */}
-      </main>
+      </div>
     </div>
   );
 }

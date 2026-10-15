@@ -144,6 +144,96 @@ describe("WCAG contrast pairs (Singapore theme)", () => {
   });
 });
 
+describe("WCAG contrast pairs (Natural fallback theme)", () => {
+  const T: TokenSet = {
+    bg: "oklch(0.970 0.005 85.0)",
+    surface: "oklch(0.985 0.005 85.0)",
+    border: "oklch(0.350 0.015 60.0)",
+    text: "oklch(0.350 0.015 60.0)",
+    textMuted: "oklch(0.500 0.012 60.0)",
+    textFaint: "oklch(0.650 0.010 60.0)",
+    onPrimary: "oklch(0.985 0.005 85.0)",
+    primary: "oklch(0.350 0.015 60.0)",
+    primaryHover: "oklch(0.300 0.010 60.0)",
+    accent4: "oklch(0.500 0.020 60.0)",
+    success: "oklch(0.600 0.040 130.0)",
+    successText: "oklch(0.400 0.040 130.0)",
+    warning: "oklch(0.700 0.050 70.0)",
+    warningText: "oklch(0.450 0.050 70.0)",
+    danger: "oklch(0.500 0.060 25.0)",
+    savings: "oklch(0.650 0.050 70.0)",
+    savingsText: "oklch(0.450 0.050 70.0)",
+  };
+
+  // body text ≥ 4.5:1
+  it("text on bg ≥ 4.5:1", () => {
+    expect(ratio(T.text, T.bg)).toBeGreaterThanOrEqual(4.5);
+  });
+  it("text on surface ≥ 4.5:1", () => {
+    expect(ratio(T.text, T.surface)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // muted text appears in small metadata/body positions, so it must meet AA body contrast.
+  it("text-muted on bg ≥ 4.5:1", () => {
+    expect(ratio(T.textMuted, T.bg)).toBeGreaterThanOrEqual(4.5);
+  });
+  it("text-muted on surface ≥ 4.5:1", () => {
+    expect(ratio(T.textMuted, T.surface)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // on-primary on primary — inverse text on button ≥ 4.5:1
+  it("on-primary on primary ≥ 4.5:1", () => {
+    expect(ratio(T.onPrimary, T.primary)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // status text on bg (these -text tokens render on page bg, not on status bg)
+  it("success-text on bg ≥ 3:1", () => {
+    expect(ratio(T.successText, T.bg)).toBeGreaterThanOrEqual(3);
+  });
+  it("warning-text on bg ≥ 3:1", () => {
+    expect(ratio(T.warningText, T.bg)).toBeGreaterThanOrEqual(3);
+  });
+  it("danger on bg ≥ 3:1", () => {
+    expect(ratioT(T.danger, T.bg)).toBeGreaterThanOrEqual(3);
+  });
+  it("savings-text on bg ≥ 3:1", () => {
+    expect(ratio(T.savingsText, T.bg)).toBeGreaterThanOrEqual(3);
+  });
+
+  // accent-4 on bg ≥ 3:1
+  it("accent-4 on bg ≥ 3:1", () => {
+    expect(ratio(T.accent4, T.bg)).toBeGreaterThanOrEqual(3);
+  });
+
+  // faint text — decorative only.
+  it("text-faint on bg < 3:1", () => {
+    expect(ratio(T.textFaint, T.bg)).toBeLessThan(3);
+  });
+
+  // border composited over bg ≥ 1.2:1 (visual separation minimum)
+  it("border (composited over bg) ≥ 1.2:1", () => {
+    const bc = alphaCompose(c(T.border), c(T.bg));
+    const br = wcagContrast(bc, c(T.bg));
+    expect(br).toBeGreaterThanOrEqual(1.2);
+  });
+
+  // focus ring on bg ≥ 3:1
+  it("focus ring (primary) on bg ≥ 3:1", () => {
+    expect(ratio(T.primary, T.bg)).toBeGreaterThanOrEqual(3);
+  });
+
+  // golden values — freeze actual ratios
+  it("golden: text-on-bg", () => {
+    expect(ratioT(T.text, T.bg)).toBeCloseTo(10.40, 1);
+  });
+  it("golden: on-primary-on-primary", () => {
+    expect(ratioT(T.onPrimary, T.primary)).toBeCloseTo(10.86, 1);
+  });
+  it("golden: savings-text-on-bg", () => {
+    expect(ratioT(T.savingsText, T.bg)).toBeCloseTo(6.88, 1);
+  });
+});
+
 describe("WCAG contrast pairs (Japan theme)", () => {
   const T: TokenSet = {
     bg: "oklch(0.958 0.012 75.4)",

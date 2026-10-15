@@ -125,7 +125,7 @@ function SortableTimelineItem({
     <li
       ref={setNodeRef}
       style={style}
-      className={`flex flex-col gap-1 p-3 rounded border border-border bg-surface transition-all ${
+      className={`flex flex-col gap-1 p-3 rounded border border-border bg-surface ${
         isDragging ? "opacity-30 border-primary" : ""
       }`}
     >

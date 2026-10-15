@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetJobStatusPlanJobIdGetData, GetJobStatusPlanJobIdGetErrors, GetJobStatusPlanJobIdGetResponses, HealthHealthGetData, HealthHealthGetResponses, LoginAuthLoginPostData, LoginAuthLoginPostErrors, LoginAuthLoginPostResponses, LogoutAuthLogoutPostData, LogoutAuthLogoutPostResponses, MeAuthMeGetData, MeAuthMeGetResponses, PlanPlanPostData, PlanPlanPostErrors, PlanPlanPostResponses, RecomputePlanPlanRecomputePostData, RecomputePlanPlanRecomputePostErrors, RecomputePlanPlanRecomputePostResponses, RefreshProsePlanPlanRefreshProsePostData, RefreshProsePlanPlanRefreshProsePostErrors, RefreshProsePlanPlanRefreshProsePostResponses, RegisterAuthRegisterPostData, RegisterAuthRegisterPostErrors, RegisterAuthRegisterPostResponses, SearchPlacesPlacesSearchPostData, SearchPlacesPlacesSearchPostErrors, SearchPlacesPlacesSearchPostResponses } from './types.gen';
+import type { AmendSessionPlanningSessionsSessionIdAmendPostData, AmendSessionPlanningSessionsSessionIdAmendPostErrors, AmendSessionPlanningSessionsSessionIdAmendPostResponses, AnswerSessionPlanningSessionsSessionIdAnswersPostData, AnswerSessionPlanningSessionsSessionIdAnswersPostErrors, AnswerSessionPlanningSessionsSessionIdAnswersPostResponses, ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostData, ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostErrors, ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostResponses, BackSessionPlanningSessionsSessionIdBackPostData, BackSessionPlanningSessionsSessionIdBackPostErrors, BackSessionPlanningSessionsSessionIdBackPostResponses, ConfirmSessionPlanningSessionsSessionIdConfirmPostData, ConfirmSessionPlanningSessionsSessionIdConfirmPostErrors, ConfirmSessionPlanningSessionsSessionIdConfirmPostResponses, CreateSessionPlanningSessionsPostData, CreateSessionPlanningSessionsPostResponses, GetJobStatusPlanJobIdGetData, GetJobStatusPlanJobIdGetErrors, GetJobStatusPlanJobIdGetResponses, GetPreferencesPlanningPreferencesGetData, GetPreferencesPlanningPreferencesGetResponses, HealthHealthGetData, HealthHealthGetResponses, LoginAuthLoginPostData, LoginAuthLoginPostErrors, LoginAuthLoginPostResponses, LogoutAuthLogoutPostData, LogoutAuthLogoutPostResponses, MeAuthMeGetData, MeAuthMeGetResponses, PatchPreferencesPlanningPreferencesPatchData, PatchPreferencesPlanningPreferencesPatchErrors, PatchPreferencesPlanningPreferencesPatchResponses, PlanPlanPostData, PlanPlanPostErrors, PlanPlanPostResponses, ReadSessionPlanningSessionsSessionIdGetData, ReadSessionPlanningSessionsSessionIdGetErrors, ReadSessionPlanningSessionsSessionIdGetResponses, RecomputePlanPlanRecomputePostData, RecomputePlanPlanRecomputePostErrors, RecomputePlanPlanRecomputePostResponses, RefreshProsePlanPlanRefreshProsePostData, RefreshProsePlanPlanRefreshProsePostErrors, RefreshProsePlanPlanRefreshProsePostResponses, RegisterAuthRegisterPostData, RegisterAuthRegisterPostErrors, RegisterAuthRegisterPostResponses, RemovePreferencesPlanningPreferencesSectionDeleteData, RemovePreferencesPlanningPreferencesSectionDeleteErrors, RemovePreferencesPlanningPreferencesSectionDeleteResponses, ReplacePreferencesPlanningPreferencesPutData, ReplacePreferencesPlanningPreferencesPutErrors, ReplacePreferencesPlanningPreferencesPutResponses, ReviewSessionPlanningSessionsSessionIdReviewGetData, ReviewSessionPlanningSessionsSessionIdReviewGetErrors, ReviewSessionPlanningSessionsSessionIdReviewGetResponses, SearchPlacesPlacesSearchPostData, SearchPlacesPlacesSearchPostErrors, SearchPlacesPlacesSearchPostResponses, SessionJobPlanningSessionsSessionIdJobGetData, SessionJobPlanningSessionsSessionIdJobGetErrors, SessionJobPlanningSessionsSessionIdJobGetResponses, SkipSessionPlanningSessionsSessionIdSkipPostData, SkipSessionPlanningSessionsSessionIdSkipPostErrors, SkipSessionPlanningSessionsSessionIdSkipPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -17,6 +17,134 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
      */
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+/**
+ * Get Preferences
+ */
+export const getPreferencesPlanningPreferencesGet = <ThrowOnError extends boolean = false>(options?: Options<GetPreferencesPlanningPreferencesGetData, ThrowOnError>): RequestResult<GetPreferencesPlanningPreferencesGetResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetPreferencesPlanningPreferencesGetResponses, unknown, ThrowOnError>({ url: '/planning/preferences', ...options });
+
+/**
+ * Patch Preferences
+ */
+export const patchPreferencesPlanningPreferencesPatch = <ThrowOnError extends boolean = false>(options: Options<PatchPreferencesPlanningPreferencesPatchData, ThrowOnError>): RequestResult<PatchPreferencesPlanningPreferencesPatchResponses, PatchPreferencesPlanningPreferencesPatchErrors, ThrowOnError> => (options.client ?? client).patch<PatchPreferencesPlanningPreferencesPatchResponses, PatchPreferencesPlanningPreferencesPatchErrors, ThrowOnError>({
+    url: '/planning/preferences',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Replace Preferences
+ */
+export const replacePreferencesPlanningPreferencesPut = <ThrowOnError extends boolean = false>(options: Options<ReplacePreferencesPlanningPreferencesPutData, ThrowOnError>): RequestResult<ReplacePreferencesPlanningPreferencesPutResponses, ReplacePreferencesPlanningPreferencesPutErrors, ThrowOnError> => (options.client ?? client).put<ReplacePreferencesPlanningPreferencesPutResponses, ReplacePreferencesPlanningPreferencesPutErrors, ThrowOnError>({
+    url: '/planning/preferences',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove Preferences
+ *
+ * Explicitly remove one durable preference group; never an implicit reset.
+ */
+export const removePreferencesPlanningPreferencesSectionDelete = <ThrowOnError extends boolean = false>(options: Options<RemovePreferencesPlanningPreferencesSectionDeleteData, ThrowOnError>): RequestResult<RemovePreferencesPlanningPreferencesSectionDeleteResponses, RemovePreferencesPlanningPreferencesSectionDeleteErrors, ThrowOnError> => (options.client ?? client).delete<RemovePreferencesPlanningPreferencesSectionDeleteResponses, RemovePreferencesPlanningPreferencesSectionDeleteErrors, ThrowOnError>({ url: '/planning/preferences/{section}', ...options });
+
+/**
+ * Create Session
+ */
+export const createSessionPlanningSessionsPost = <ThrowOnError extends boolean = false>(options?: Options<CreateSessionPlanningSessionsPostData, ThrowOnError>): RequestResult<CreateSessionPlanningSessionsPostResponses, unknown, ThrowOnError> => (options?.client ?? client).post<CreateSessionPlanningSessionsPostResponses, unknown, ThrowOnError>({ url: '/planning/sessions', ...options });
+
+/**
+ * Read Session
+ */
+export const readSessionPlanningSessionsSessionIdGet = <ThrowOnError extends boolean = false>(options: Options<ReadSessionPlanningSessionsSessionIdGetData, ThrowOnError>): RequestResult<ReadSessionPlanningSessionsSessionIdGetResponses, ReadSessionPlanningSessionsSessionIdGetErrors, ThrowOnError> => (options.client ?? client).get<ReadSessionPlanningSessionsSessionIdGetResponses, ReadSessionPlanningSessionsSessionIdGetErrors, ThrowOnError>({ url: '/planning/sessions/{session_id}', ...options });
+
+/**
+ * Answer Session
+ */
+export const answerSessionPlanningSessionsSessionIdAnswersPost = <ThrowOnError extends boolean = false>(options: Options<AnswerSessionPlanningSessionsSessionIdAnswersPostData, ThrowOnError>): RequestResult<AnswerSessionPlanningSessionsSessionIdAnswersPostResponses, AnswerSessionPlanningSessionsSessionIdAnswersPostErrors, ThrowOnError> => (options.client ?? client).post<AnswerSessionPlanningSessionsSessionIdAnswersPostResponses, AnswerSessionPlanningSessionsSessionIdAnswersPostErrors, ThrowOnError>({
+    url: '/planning/sessions/{session_id}/answers',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Skip Session
+ */
+export const skipSessionPlanningSessionsSessionIdSkipPost = <ThrowOnError extends boolean = false>(options: Options<SkipSessionPlanningSessionsSessionIdSkipPostData, ThrowOnError>): RequestResult<SkipSessionPlanningSessionsSessionIdSkipPostResponses, SkipSessionPlanningSessionsSessionIdSkipPostErrors, ThrowOnError> => (options.client ?? client).post<SkipSessionPlanningSessionsSessionIdSkipPostResponses, SkipSessionPlanningSessionsSessionIdSkipPostErrors, ThrowOnError>({
+    url: '/planning/sessions/{session_id}/skip',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Amend Session
+ */
+export const amendSessionPlanningSessionsSessionIdAmendPost = <ThrowOnError extends boolean = false>(options: Options<AmendSessionPlanningSessionsSessionIdAmendPostData, ThrowOnError>): RequestResult<AmendSessionPlanningSessionsSessionIdAmendPostResponses, AmendSessionPlanningSessionsSessionIdAmendPostErrors, ThrowOnError> => (options.client ?? client).post<AmendSessionPlanningSessionsSessionIdAmendPostResponses, AmendSessionPlanningSessionsSessionIdAmendPostErrors, ThrowOnError>({
+    url: '/planning/sessions/{session_id}/amend',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Back Session
+ */
+export const backSessionPlanningSessionsSessionIdBackPost = <ThrowOnError extends boolean = false>(options: Options<BackSessionPlanningSessionsSessionIdBackPostData, ThrowOnError>): RequestResult<BackSessionPlanningSessionsSessionIdBackPostResponses, BackSessionPlanningSessionsSessionIdBackPostErrors, ThrowOnError> => (options.client ?? client).post<BackSessionPlanningSessionsSessionIdBackPostResponses, BackSessionPlanningSessionsSessionIdBackPostErrors, ThrowOnError>({
+    url: '/planning/sessions/{session_id}/back',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve Profile Update
+ */
+export const approveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePost = <ThrowOnError extends boolean = false>(options: Options<ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostData, ThrowOnError>): RequestResult<ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostResponses, ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostErrors, ThrowOnError> => (options.client ?? client).post<ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostResponses, ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostErrors, ThrowOnError>({
+    url: '/planning/sessions/{session_id}/profile-updates/{proposal_id}/approve',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Review Session
+ */
+export const reviewSessionPlanningSessionsSessionIdReviewGet = <ThrowOnError extends boolean = false>(options: Options<ReviewSessionPlanningSessionsSessionIdReviewGetData, ThrowOnError>): RequestResult<ReviewSessionPlanningSessionsSessionIdReviewGetResponses, ReviewSessionPlanningSessionsSessionIdReviewGetErrors, ThrowOnError> => (options.client ?? client).get<ReviewSessionPlanningSessionsSessionIdReviewGetResponses, ReviewSessionPlanningSessionsSessionIdReviewGetErrors, ThrowOnError>({ url: '/planning/sessions/{session_id}/review', ...options });
+
+/**
+ * Confirm Session
+ */
+export const confirmSessionPlanningSessionsSessionIdConfirmPost = <ThrowOnError extends boolean = false>(options: Options<ConfirmSessionPlanningSessionsSessionIdConfirmPostData, ThrowOnError>): RequestResult<ConfirmSessionPlanningSessionsSessionIdConfirmPostResponses, ConfirmSessionPlanningSessionsSessionIdConfirmPostErrors, ThrowOnError> => (options.client ?? client).post<ConfirmSessionPlanningSessionsSessionIdConfirmPostResponses, ConfirmSessionPlanningSessionsSessionIdConfirmPostErrors, ThrowOnError>({
+    url: '/planning/sessions/{session_id}/confirm',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Session Job
+ */
+export const sessionJobPlanningSessionsSessionIdJobGet = <ThrowOnError extends boolean = false>(options: Options<SessionJobPlanningSessionsSessionIdJobGetData, ThrowOnError>): RequestResult<SessionJobPlanningSessionsSessionIdJobGetResponses, SessionJobPlanningSessionsSessionIdJobGetErrors, ThrowOnError> => (options.client ?? client).get<SessionJobPlanningSessionsSessionIdJobGetResponses, SessionJobPlanningSessionsSessionIdJobGetErrors, ThrowOnError>({ url: '/planning/sessions/{session_id}/job', ...options });
 
 /**
  * Health

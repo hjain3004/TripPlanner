@@ -154,6 +154,7 @@ export function TripMap({ destination, mapData, itinerary }: TripMapProps) {
         ref={containerRef}
         className="absolute inset-0 w-full h-full"
         data-testid="map-container"
+        aria-hidden="true"
         inert
       />
     </div>

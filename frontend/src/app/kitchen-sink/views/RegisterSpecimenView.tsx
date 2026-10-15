@@ -1,14 +1,12 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { fixtureHandlers } from '@/mocks/handlers';
-import { VerdictHeader } from '@/components/product/verdict-header';
-import { DecisionLedger } from '@/components/product/decision-ledger';
-import { PaymentStrategyCard } from '@/components/product/payment-strategy-card';
-import { TransferPlanPanel } from '@/components/product/transfer-plan-panel';
-import { ItineraryTimeline } from '@/components/product/itinerary-timeline';
+import { ResultsView } from '@/components/product/results-view';
+import { japanVisualFixture } from '@/mocks/japan-visual-fixture';
+import { resolveTheme } from '@/lib/theme/resolver';
+import { JAPAN_ATLAS_STAMP } from '@/lib/design/philatelic-assets';
 
 export function RegisterSpecimenView() {
-  const report = fixtureHandlers.redeemReport();
+  const resolved = resolveTheme(japanVisualFixture.primaryCountryCode);
 
   return (
     <motion.div
@@ -16,87 +14,28 @@ export function RegisterSpecimenView() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.3 }}
-      className="space-y-12 pb-24 max-w-2xl mx-auto"
+      className={`space-y-8 pb-24 max-w-3xl mx-auto theme-${resolved.globalTheme}`}
     >
-      <div className="space-y-4">
-        <h2 className="text-2xl font-display font-bold">Issue Register Specimen</h2>
+      <div className="space-y-3 border-2 border-border bg-surface p-5 shadow-1">
+        <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-muted">
+          Frontend visual fixture · sample data
+        </p>
+        <h2 className="text-2xl font-ui font-semibold">Japan results preview</h2>
         <p className="text-text-muted">
-          All §2 components rendered in their semantic form, proving they correctly receive the inverted tokens.
+          This preview uses a type-valid sample report for composition testing. It does not claim live
+          prices, award availability, account sync, or booked inventory.
         </p>
       </div>
 
-      <section>
-        <h3 className="text-lg font-medium text-text-muted mb-4">VerdictHeader</h3>
-        <VerdictHeader 
-          totals={report.budget_totals} 
-          destination={report.trip_spec.destination_city} 
-          days={5} 
-          confidence={report.confidence} 
-        />
-      </section>
-
-      <section>
-        <h3 className="text-lg font-medium text-text-muted mb-4">DecisionLedger & LedgerRow</h3>
-        <DecisionLedger
-          title="Payment Plan"
-          items={[
-            {
-              id: 'row1',
-              label: 'Flight Booking',
-              value: '₹120,000',
-              cost: '₹114,000',
-              notch: 'Best Value',
-              dominant: true
-            },
-            {
-              id: 'row2',
-              label: 'Hotel Reservation',
-              value: '₹80,000',
-              cost: '₹80,000',
-            }
-          ]}
-        />
-      </section>
-
-      <section>
-        <h3 className="text-lg font-medium text-text-muted mb-4">PaymentStrategyCard</h3>
-        <PaymentStrategyCard 
-          assignment={{
-            line: {
-              id: "flight_001",
-              label: "DEL→SIN flights (2 pax)",
-              category: "flights",
-              amount_minor: 12000000,
-              currency: "INR",
-              available_channels: ["direct_airline"]
-            },
-            card_id: "hdfc-infinia",
-            channel: "direct_airline",
-            offers_applied: [{ offer_id: "5% cashback", discount_minor: 600000, stacking_class: "bank_offer" }],
-            points_earned: 5000,
-            points_value_minor: 500000,
-            forex_fee_minor: 0,
-            benefit_minor: 1100000,
-            assumed_redemption: 'cashback',
-            explanation: ["Infinia offers 5% base cashback on SmartBuy flights"]
-          }}
-        />
-      </section>
-
-      <section>
-        <h3 className="text-lg font-medium text-text-muted mb-4">TransferPlanPanel</h3>
-        {report.transfer_advice && (
-          <TransferPlanPanel advice={report.transfer_advice} />
-        )}
-      </section>
-
-      <section>
-        <h3 className="text-lg font-medium text-text-muted mb-4">ItineraryTimeline</h3>
-        {report.itinerary && (
-          <ItineraryTimeline itinerary={report.itinerary} />
-        )}
-      </section>
-
+      <ResultsView
+        report={japanVisualFixture.report}
+        destinationArtifact={{
+          asset: JAPAN_ATLAS_STAMP,
+          routeLabel: `${japanVisualFixture.report.trip_spec.origin_city} → ${japanVisualFixture.report.trip_spec.destination_city}`,
+          dateLabel: japanVisualFixture.report.trip_spec.start_date,
+          issued: true,
+        }}
+      />
     </motion.div>
   );
 }

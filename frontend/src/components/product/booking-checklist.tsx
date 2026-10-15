@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useReducedMotionSafe } from "@/lib/motion/use-reduced-motion-safe";
-import confetti from "canvas-confetti";
+import { useState } from "react";
 import { ProgressRing } from "@/components/ui/progress-ring";
 
 interface BookingChecklistProps {
@@ -11,23 +9,8 @@ interface BookingChecklistProps {
 
 export function BookingChecklist({ steps }: BookingChecklistProps) {
   const [checked, setChecked] = useState<Set<number>>(new Set());
-  const reduced = useReducedMotionSafe();
-  const completedRef = useRef(false);
 
-  const allComplete = checked.size === steps.length && steps.length > 0;
   const progress = steps.length > 0 ? (checked.size / steps.length) * 100 : 0;
-
-  useEffect(() => {
-    if (allComplete && !completedRef.current && !reduced) {
-      completedRef.current = true;
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.4 },
-        disableForReducedMotion: true,
-      });
-    }
-  }, [allComplete, reduced]);
 
   const toggle = (i: number) => {
     setChecked((prev) => {

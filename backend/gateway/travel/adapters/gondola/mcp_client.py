@@ -111,13 +111,21 @@ class LiveGondolaTransport:
         at the transport boundary. ``structured_content`` (the MCP-native
         structured result) is preferred; a JSON text content block is the
         fallback for tools that only return unstructured text content."""
-        if bool(getattr(result, "is_error", False)):
+        # MCP SDK releases have used both Pythonic snake_case and protocol
+        # camelCase aliases for these fields. Accept either spelling at the
+        # transport boundary; downstream code should see only the unwrapped
+        # native payload.
+        if bool(getattr(result, "is_error", getattr(result, "isError", False))):
             raise TravelGatewayError(
                 "invalid_response",
                 f"Gondola tool call returned isError=true: {self._summarize_error(result)}",
             )
 
-        structured = getattr(result, "structured_content", None)
+        structured = getattr(
+            result,
+            "structured_content",
+            getattr(result, "structuredContent", None),
+        )
         if structured is not None:
             try:
                 payload_bytes = json.dumps(structured).encode("utf-8")
