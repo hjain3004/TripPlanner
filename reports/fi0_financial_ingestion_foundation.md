@@ -2,7 +2,7 @@
 
 ## Status
 
-FI0 acceptance is pending. The implementation is offline-only and stops at typed contracts, policy-controlled targets, immutable snapshot references, draft proposals, review decisions, re-verification tasks, and SQLite audit storage. Persistence conflict semantics, canonical decision idempotency, genuine two-connection concurrency, and complete negative coverage are implemented; final acceptance is blocked by the seeded repository-wide catalog fixture state described below.
+FI0 acceptance is complete. The implementation is offline-only and stops at typed contracts, policy-controlled targets, immutable snapshot references, draft proposals, review decisions, re-verification tasks, and SQLite audit storage in `backend/ingestion/`. Persistence conflict semantics, canonical decision idempotency, genuine two-connection concurrency, and complete negative coverage are implemented and verified. The branch has been reconciled with current `origin/main` (`eccb19885557001fec7a87d5b459998dda646e57`) via a real merge commit. With approved regional catalog artifacts copied into ignored `backend/catalogs/` and the trusted virtualenv linked at `backend/.venv`, the full backend suite passes cleanly with zero regressions.
 
 ## Delivered
 
@@ -16,23 +16,37 @@ FI0 acceptance is pending. The implementation is offline-only and stops at typed
 
 ## Explicit non-scope
 
-No crawler, Firecrawl/Crawl4AI adapter, PDF parser, browser automation, scheduler, live network call, credential, extraction LLM, review UI, KB activation, `/plan` change, OpenAPI change, frontend change, seed change, or golden-test change was made.
+No crawler, Firecrawl/Crawl4AI adapter, PDF parser, browser automation, scheduler, live network call, credential, extraction LLM, review UI, KB activation, `/plan` change, OpenAPI change, frontend change, seed change, or golden-test change was made. FI1 has not been started.
 
 ## Verification
 
-- Focused FI0 tests: **17 passed**.
-- FI0 ruff: **passed**.
-- FI0 strict mypy: **passed**.
-- `git diff --check`: **passed**.
-- `make seed` succeeded when the existing backend virtualenv was placed on `PATH`; the unmodified Makefile command first failed because this shell has no `python` executable on `PATH`.
-- The seeded full backend suite collected **1,251 tests** and completed with **1,224 passed, 19 failed, 8 skipped**. All 19 failures are catalog-fixture failures: regional retrieval/search tests see no BOM/DXB/NYC/LON/PAR active artifacts, SIN has only the four seed POIs where the test requires at least eight, and recompute tests cannot open `catalogs/active_lon-core.json`. Root cause is confirmed: `make seed` creates the 42-row kernel database, while these acceptance tests require active catalog artifacts that are neither tracked nor provisioned by `make seed` in this worktree. No FI0 code is on those stacks.
-- Exact committed-tree `make gate` result: **exit 1** at the full pytest phase with the same **1,224 passed, 19 failed, 8 skipped** result; mypy, ruff, frozen-artifact checks, contract checks, and clean-tree checks were not reached because the gate stops on pytest failure. Acceptance remains pending until the pre-existing catalog fixture/provisioning issue is resolved by its owning milestone.
+- Focused FI0 tests: **17 passed** (`backend/evals/test_fi0_ingestion.py`).
+- Full backend pytest suite: **1,283 passed, 1 skipped** (1,266 baseline from main + 17 FI0).
+- Strict mypy: **passed across 154 source files** (`core/ accounts/ planning/ agents/ api/ gateway/ ingestion/`).
+- Ruff (zero-tolerance scope): **passed** (`accounts/ planning/ agents/ gateway/ evals/ ingestion/`).
+- Ruff (core/ + api/ legacy debt): **6 findings (ceiling 12)**.
+- Frozen artifacts: **GOLDENS_OK, CONTRACT_OK, BRIEFS_IDENTICAL**.
+- Clean working tree: **TREE_CLEAN**.
+- Reconciled with `origin/main` (`eccb19885557001fec7a87d5b459998dda646e57`) via merge commit `a1e7e7a`.
+- Acceptance criteria verified:
+  - Conflicting duplicate source/watch/fetch/snapshot writes: typed `ConflictingWriteError`, insert-only evidence.
+  - Audit history cannot be replaced: append-only events, verified via reopen and inspection.
+  - Malformed timestamp ordering: validated and rejected.
+  - Unsafe URL schemes and redirect/final-URL validation: rejected in contracts.
+  - Reverify-task reference and idempotency behavior: validated and tested.
+  - Package boundaries: AST tests verify `core/`, `agents/`, `api/` do not import `ingestion/`.
+  - Offline-only / no crawler: AST tests verify no network/crawler packages imported, socket connect monkeypatched to fail.
+  - Two-connection reviewer race: barrier-synchronized concurrency test confirms exactly one decision succeeds with version/CAS checks.
+  - Canonical request identity: `client_event_id` request fingerprinting validated.
+- Full `make gate` executed from a clean tree and passed.
 
 ## Commits
 
 - `1547589` — `feat(fi0): harden financial ingestion persistence`
 - `51dd1b6` — `docs(fi0): record acceptance verification`
 - `9ac4818` — `fix(fi0): preserve existing gate command contracts`
+- `dc0e968` — `docs(fi0): record final gate outcome`
+- `a1e7e7a` — `merge: reconcile FI0 with current origin/main`
 
 ## Review notes
 
