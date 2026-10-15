@@ -1,6 +1,6 @@
 # G3.5 — Gondola response-contract closure
 
-**Status: ACCEPTANCE PENDING**
+**Status: COMPLETE**
 
 **Branch:** `codex/g3-5-gondola-contract-closure`  
 **Reviewed base:** `5ffbbe85c0349b48098887b79e165139f08fe480`  
@@ -67,8 +67,20 @@ verify-required discovery in the refresh script, unsupported request dimensions 
 fixture evidence carries `synthetic_fixture`, capture date, and fixture name, and invalid tools
 raise a typed gateway error.
 
-The report remains **ACCEPTANCE PENDING** until the final documentation commit and exact clean-tree
-`make gate` pass.
+## Final acceptance
+
+The exact committed tree passed `make gate` after the documentation closure:
+
+- Full backend pytest: **1348 passed, 1 skipped**.
+- Strict mypy: **158 source files**, clean.
+- Zero-tolerance Ruff: clean; legacy core/api findings remained at the ratcheted ceiling of 6
+  (ceiling 12).
+- Frozen goldens: **GOLDENS_OK**.
+- Contract/codegen guard: **CONTRACT_OK**.
+- Brief identity: **BRIEFS_IDENTICAL**.
+- Working tree: **TREE_CLEAN**.
+
+**GATE PASSED.**
 
 ## Review
 
