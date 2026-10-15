@@ -52,9 +52,22 @@ def test_dispatch_tool_accepts_allowlisted_tool() -> None:
     transport = LiveGondolaTransport(
         base_url=f"https://{ALLOWED_HOST}/mcp", get_access_token=lambda: "t"
     )
-    name, arguments = transport.build_tool_call("search_hotels", {"city": "Singapore"})
+    name, arguments = transport.build_tool_call(
+        "search_hotels",
+        {
+            "location": "Singapore",
+            "checkin": "2027-01-11",
+            "checkout": "2027-01-14",
+            "num_adults": 1,
+        },
+    )
     assert name == "search_hotels"
-    assert arguments == {"city": "Singapore"}
+    assert arguments == {
+        "location": "Singapore",
+        "checkin": "2027-01-11",
+        "checkout": "2027-01-14",
+        "num_adults": 1,
+    }
 
 
 def test_oversized_response_is_rejected_before_json_parsing() -> None:
@@ -162,13 +175,15 @@ def test_error_result_preserves_a_sanitized_bounded_error_summary() -> None:
     from mcp.types import CallToolResult, TextContent
 
     result = CallToolResult(
-        content=[TextContent(type="text", text="Invalid parameter: depart_date must be ISO-8601")],
+        content=[
+            TextContent(type="text", text="Invalid parameter: departure_date must be ISO-8601")
+        ],
         structuredContent=None,
         isError=True,
     )
     with pytest.raises(TravelGatewayError) as exc_info:
         _transport()._unwrap_tool_result(result)
-    assert "Invalid parameter: depart_date must be ISO-8601" in exc_info.value.message
+    assert "Invalid parameter: departure_date must be ISO-8601" in exc_info.value.message
 
 
 def test_error_summary_is_bounded_in_length_even_for_a_huge_error_text() -> None:

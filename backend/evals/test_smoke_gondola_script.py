@@ -25,6 +25,35 @@ def _source() -> str:
     return inspect.getsource(smoke)
 
 
+def test_schema_summary_reads_the_sdk_python_field_name() -> None:
+    summary = smoke.summarize_tool_schema(
+        {
+            "name": "search_flights",
+            "input_schema": {
+                "required": ["origin", "destination", "departure_date"],
+                "properties": {"departure_date": {"type": "string"}},
+            },
+        }
+    )
+    assert summary["required_fields"] == ["departure_date", "destination", "origin"]
+    assert summary["all_field_names"] == ["departure_date"]
+
+
+def test_markdown_result_is_reported_as_untyped_discovery(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert smoke._print_markdown_discovery_result({"result": "# provider prose"}) is True
+    output = capsys.readouterr().out
+    assert "response_contract=provider_markdown" in output
+    assert "normalized_quote_admission=False" in output
+    assert "deterministic_costing=False" in output
+    assert "provider prose" not in output
+
+
+def test_non_markdown_result_is_available_to_future_typed_summary() -> None:
+    assert smoke._print_markdown_discovery_result({"results": []}) is False
+
+
 def test_missing_acknowledge_flag_exits_nonzero_without_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

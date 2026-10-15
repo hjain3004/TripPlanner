@@ -30,6 +30,7 @@ from gateway.travel.adapters.gondola.oauth import (
     KeychainClientInfoStore,
     KeychainTokenStore,
 )
+from gateway.travel.adapters.gondola.requests import build_flight_search_arguments
 from gateway.travel.adapters.gondola.tool_policy import assert_tool_allowed
 
 MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp"
@@ -192,21 +193,19 @@ async def _refresh_and_call() -> None:
         redirect_handler=_refuse_interactive_reauth,
     )
 
-    # Corrected argument shape, confirmed live in G3.2.1 via the provider's
-    # own error text (captured through mcp_client.py's _summarize_error):
-    # the field is "departure_date", not "depart_date", and there is no
-    # "currency" field.
+    # Corrected live schema: departure_date, num_passengers and cabin_class;
+    # there is no provider currency field.
     departure_date = (datetime.now(UTC).date() + timedelta(days=90)).isoformat()
-    arguments = {
-        "origin": "DEL",
-        "destination": "SIN",
-        "departure_date": departure_date,
-        "adults": 1,
-        "cabin": "economy",
-    }
+    arguments = build_flight_search_arguments(
+        origin="DEL",
+        destination="SIN",
+        departure_date=datetime.fromisoformat(departure_date).date(),
+        num_passengers=1,
+        cabin_class="economy",
+    )
     print("=== Refresh + retry: authenticated search_flights (DEL -> SIN) ===")
     print(
-        "corrected_request_shape=origin,destination,departure_date,adults,cabin "
+        "corrected_request_shape=origin,destination,departure_date,num_passengers,cabin_class "
         f"departure_date={departure_date}"
     )
 
