@@ -30,8 +30,11 @@ so merging them would add nothing and was not done). This is a consequence of G3
 milestone, and it is also what makes the expected test arithmetic work
 (1266 base + 82 from the G3.5 stack + 344 G4 + 17 FI0 = 1709).
 
-G3.4's own report (`reports/g3_4_confirmed_brief_gateway.md`) still says **ACCEPTANCE PENDING**; this
-integration does not formally accept G3.4 and does not start any G3.4, CP3, FI1 or CP4 work.
+The G3.4 **implementation** was inherited through the G3.5 ancestry; it was not written here. G3.4's own report
+originally said **ACCEPTANCE PENDING** (its only blocker being 19 catalog-dependent failures caused by missing ignored
+catalog artifacts). A follow-up **acceptance-closure-only** task (2026-10-16, documentation-only) moved that report to
+**COMPLETE** using the evidence recorded below; see "G3.4 acceptance closure". No new G3.4, CP3, FI1 or CP4
+implementation was started.
 
 ## Conflict resolutions
 
@@ -113,7 +116,8 @@ Compared with the integration base `eccb198`:
 
 ## Remaining limitations
 
-- G3.4 remains ACCEPTANCE PENDING in its own report; CP3 and G3.4 are present only as G3.5's ancestors.
+- CP3 and G3.4 are present only as G3.5's ancestors (implementation inherited, not authored here); G3.4 acceptance
+  was closed by documentation only after the integrated tree passed the gate (see "G3.4 acceptance closure").
 - Weather historical and climate tools have never been run against the real server (only forecast and current
   conditions were probed once).
 - Pre-existing `pyproject.toml` packaging gap for a few subpackages (finding 3).
@@ -122,8 +126,9 @@ Compared with the integration base `eccb198`:
 
 ## Explicitly not started
 
-FI1, G3.4 acceptance, CP3, CP4, G3.3-style `/plan` wiring, any new live provider activation, any crawler or
-fetch implementation, and any new milestone were **not** started.
+FI1, CP4, any new CP3 or G3.4 implementation, G3.3-style `/plan` wiring, any new live provider activation, any
+crawler or fetch implementation, and any new milestone were **not** started. (G3.4 acceptance *closure* was
+performed afterwards as a documentation-only task, described below.)
 
 ## Final acceptance
 
@@ -140,3 +145,25 @@ This section and the status line above are the only changes made after that run 
 `make gate` was then re-run on the resulting final HEAD and passed again. The final HEAD SHA and the second
 gate transcript are returned with the handoff rather than embedded here, because a commit cannot contain its own
 SHA.
+
+## G3.4 acceptance closure (2026-10-16, documentation-only follow-up)
+
+Starting from `2f34d53`, this follow-up changed only `reports/g3_4_confirmed_brief_gateway.md` (status
+ACCEPTANCE PENDING -> COMPLETE, with a dated "Acceptance closure" section and the original 19-failure account
+preserved), this report, `AGENTS.md`/`CLAUDE.md` (kept byte-identical), `docs/CURRENT_STATE.md` and
+`docs/INFRASTRUCTURE.md`. No application code, test, OpenAPI file, generated client, frontend file, spec, seed,
+golden or Tier-F arithmetic was touched, and the existing merges were not redone or amended.
+
+Verified facts it rests on:
+
+- G3.4 `5ffbbe8` and CP3 `a24f557` are ancestors of G3.5 `fae3915` and of neither G4 `805fa73` nor FI0 `95db19d`;
+  they arrived solely via merge `e2f8d18`.
+- The original blocker was the 19 catalog-dependent failures; the 12 approved ignored catalog artifacts are
+  provisioned in this worktree, git-ignored, with nothing tracked under `backend/catalogs`.
+- Combined backend suite: 1709 passed, 1 skipped (inside `make gate` at `2f34d53`); carried CP3/G3.4 suite: 62 passed.
+- `frontend/` and `contract/openapi.json` are byte-identical to G3.5 HEAD `fae3915` (and to G3.4 HEAD `5ffbbe8`),
+  so the recorded TypeScript/build, Vitest 163, browser 458 passed / 74 skipped, and byte-stable OpenAPI evidence
+  applies unchanged.
+
+The exact-tree gate for this follow-up is recorded in the handoff for the final HEAD (a commit cannot contain its
+own SHA).

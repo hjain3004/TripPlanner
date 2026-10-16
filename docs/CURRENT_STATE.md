@@ -35,8 +35,8 @@ separates shipped code, disabled experiments, and plans.
   Acceptance: backend **1326 passed, 1 skipped**, strict mypy **152 files**, frontend Vitest
   **163 passed**, complete browser suite **458 passed, 74 existing skips**, clean-tree `make gate` passed.
 
-- G3.4 confirmed-brief integration is implemented in the isolated branch, pending the final
-  exact-tree gate. Confirmed sessions validate canonical facts before bounded inventory search,
+- G3.4 confirmed-brief integration arrived via the stacked G3.5 branch; its acceptance was closed on 2026-10-16
+  after the integrated tree passed the exact-tree gate. Confirmed sessions validate canonical facts before bounded inventory search,
   use sample-only runtime construction with explicit price-scope/freshness checks, preserve
   admitted costs through typed edits, and bind jobs/interactions to the authenticated owner and
   planning session. The contract, generated client, MSW fixture, and resumable results UI are

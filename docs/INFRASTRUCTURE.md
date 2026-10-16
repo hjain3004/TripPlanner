@@ -106,8 +106,8 @@ facade. It does not import Python packages or compute financial values.
 - `/plan` is not wired to Gondola; the gateway seam is proven separately.
 - G3.4 confirmed-brief gateway integration is implemented on the isolated branch with
   sample-only runtime construction, explicit inventory price-scope/freshness validation, and
-  authenticated owner/session-bound job interactions. It remains acceptance-pending until the
-  exact committed tree passes `make gate`; live Gondola structured responses are still
+  authenticated owner/session-bound job interactions. Its acceptance was closed on 2026-10-16 once the integrated tree
+  passed `make gate` with the approved catalogs; live Gondola structured responses are still
   unverified and no live transport is enabled. Evidence is in
   `reports/g3_4_confirmed_brief_gateway.md`.
 - Full structured Gondola response capture and normalization proof remain open in the G3.2 report.
