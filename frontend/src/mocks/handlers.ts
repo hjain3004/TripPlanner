@@ -28,6 +28,11 @@ const conversationSession = {
   answers: {},
   events: [{ id: "msw-event-001", kind: "assistant_question", question_id: "trip_essentials", text: "Where are you headed, and what are your travel dates?", created_at: "2026-08-29T00:00:00Z" }],
   assistance_status: "not_run",
+  assistance_pending: false,
+  assistance_diagnostics: [],
+  interview_llm_calls: 0,
+  pending_answer: null,
+  contradictions: [],
   pending_profile_updates: [],
   brief: null,
   planning_job_id: null,
@@ -111,6 +116,34 @@ function baseReport(): Omit<FinalReport, "summary" | "itinerary_overview" | "pay
       prose: "fresh",
       critic_verdict: "fresh",
       edit_count: 0,
+    },
+    travel_inventory: {
+      flight: {
+        domain: "flight",
+        quote_id: "sample-flight-001",
+        provider_id: "sample_travel_adapter",
+        provider_quote_id: "sample-flight-001",
+        status: "estimated",
+        needs_verification: true,
+        source_url: null,
+        deep_link_url: null,
+        attribution: "TripPlanner sample fixture data (not real inventory)",
+        retrieved_at: "2026-08-01T00:00:00Z",
+        expires_at: null,
+        completeness: "taxes_uncertain",
+        source_amount_minor: 8200000,
+        source_currency: "INR",
+        converted_amount_minor: 8200000,
+        price_scope: { basis: "sample_per_traveler_trip", scope_verified: true, travelers: 2, rooms: null },
+        selected: true,
+        alternative: false,
+        limitations: ["Verify price and availability before booking."],
+      },
+      hotel: null,
+      alternatives: [],
+      diagnostics: [],
+      limitations: ["Award guidance is reference-only; verify before transfer."],
+      reference_only_awards: true,
     },
   };
 }
@@ -605,6 +638,10 @@ export const handlers = [
   http.patch("*/planning/preferences", async ({ request }) => HttpResponse.json({ profile: await request.json() })),
   http.post("*/planning/sessions", () => HttpResponse.json(conversationSession, { status: 201 })),
   http.get("*/planning/sessions/:sessionId", () => HttpResponse.json(conversationSession)),
+  http.post("*/planning/sessions/:sessionId/interpret", async ({ request }) => {
+    const body = await request.json() as { expected_version: number };
+    return HttpResponse.json({ ...conversationSession, version: body.expected_version + 1, assistance_status: "degraded", assistance_diagnostics: ["unavailable"], interview_llm_calls: 1 });
+  }),
   http.post("*/planning/sessions/:sessionId/answers", async ({ request }) => {
     const body = (await request.json()) as { client_event_id?: string };
     return HttpResponse.json({ ...conversationSession, version: 1, answers: {}, events: [...conversationSession.events, { id: `msw-answer-${body.client_event_id ?? "1"}`, kind: "user_answer", text: "Answer recorded.", created_at: new Date().toISOString() }] });

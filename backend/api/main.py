@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from accounts.models import User
 from accounts.store import AccountStore, DuplicateEmailError
+from agents.confirmed_trip import ConfirmedTripInput
 from agents.llm import HostedFreeTier, LLMClient
 from agents.models import (
     FinalReport,
@@ -44,6 +45,7 @@ from core.db import DB_PATH, KnowledgeBase, load_kb, seed_database
 from gateway.catalog.regions import get_region
 from gateway.places.protocol import PlaceProviderAdapter
 from gateway.places.registry import ProviderRegistry, get_default_place_registry
+from gateway.travel.service import TravelInventoryService
 
 TRACE_DIR = Path(__file__).resolve().parents[1] / ".traces"
 
@@ -168,10 +170,17 @@ def plan(
 
 
 @app.get("/plan/{job_id}", response_model=PlanJobStatus)
-def get_job_status(job_id: str) -> PlanJobStatus:
+def get_job_status(
+    job_id: str, request: Request, store: Annotated[AccountStore, Depends(get_store)]
+) -> PlanJobStatus:
     state = job_manager.get_job(job_id)
     if state is None:
         raise HTTPException(status_code=404, detail="Job not found")
+    if state.owner_id is not None:
+        token = request.cookies.get(SESSION_COOKIE)
+        session = store.session_for_token(token, now=now_utc()) if token else None
+        if session is None or session.user_id != state.owner_id:
+            raise HTTPException(status_code=404, detail="Job not found")
     return state.to_status(job_id)
 
 
@@ -228,7 +237,6 @@ def search_places(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-
 def _run_job(
     job_id: str,
     request: TripIntakeRequest,
@@ -237,11 +245,20 @@ def _run_job(
     registry: ProviderRegistry,
     booking_date: date,
     trace_dir: Path,
+    *,
+    confirmed_input: ConfirmedTripInput | None = None,
+    inventory_service: TravelInventoryService | None = None,
 ) -> None:
     try:
 
         def on_stage(stage_index: int, stage: str) -> None:
             job_manager.set_stage(job_id, stage_index, stage)
+
+        def on_inventory(result: object) -> None:
+            state = job_manager.get_job(job_id)
+            if state is not None and hasattr(result, "summary"):
+                with state._lock:
+                    state.inventory_summary = result.summary
 
         result = run_pipeline(
             request.raw_request,
@@ -251,6 +268,9 @@ def _run_job(
             booking_date=booking_date,
             trace_dir=trace_dir,
             on_stage=on_stage,
+            confirmed_input=confirmed_input,
+            inventory_service=inventory_service,
+            on_inventory=on_inventory,
         )
         if result.status == PipelineStatus.NEEDS_CLARIFICATION:
             job_manager.complete(job_id, "needs_clarification", unresolved=result.unresolved)
@@ -267,12 +287,17 @@ def _run_job(
         else:
             job_manager.complete(job_id, "complete", report=result.report)
     except Exception as exc:
+        safe_message = (
+            "Confirmed planning failed; retry confirmation or review the saved brief."
+            if confirmed_input is not None
+            else str(exc)
+        )
         job_manager.complete(
             job_id,
             "failed",
             error={
                 "code": "INTERNAL_ERROR",
-                "message": str(exc),
+                "message": safe_message,
                 "trace_id": "",
             },
         )
@@ -290,9 +315,7 @@ class UserOut(BaseModel):
 
 
 @app.post("/auth/register", status_code=201, response_model=UserOut)
-def register(
-    body: CredentialsIn, store: AccountStore = Depends(get_store)
-) -> UserOut:
+def register(body: CredentialsIn, store: AccountStore = Depends(get_store)) -> UserOut:
     now = now_utc()
     try:
         user = store.create_user(email=body.email, now=now)
@@ -321,9 +344,7 @@ def login(
 
 
 @app.post("/auth/logout", status_code=204)
-def logout(
-    request: Request, store: AccountStore = Depends(get_store)
-) -> Response:
+def logout(request: Request, store: AccountStore = Depends(get_store)) -> Response:
     require_csrf(request)
     now = now_utc()
     token = request.cookies.get(SESSION_COOKIE)

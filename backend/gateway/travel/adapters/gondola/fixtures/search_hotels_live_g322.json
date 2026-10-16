@@ -1,5 +1,5 @@
 {
-  "_fixture_provenance": "schema observed from live Gondola MCP on 2026-08-21; content sanitized and synthetic",
+  "_fixture_provenance": "Historical alias retained for offline replay. The 2026-10-14 captured contract confirms location/checkin/checkout/num_adults and result:string provider Markdown; this is discovery evidence only, never a hotel quote.",
   "_fixture_meta": {
     "status": "estimated",
     "source_method": "provider_mcp"

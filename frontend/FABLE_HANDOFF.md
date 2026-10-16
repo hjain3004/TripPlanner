@@ -23,8 +23,10 @@ touching code.
 - Next.js 16 App Router with `/`, `/plan`, `/plan/conversation`, `/profile`, `/kitchen-sink`, and
   `/theme-proof`.
 - CP2 conversational/profile UI is implemented with typed controls, server-owned session state,
-  explicit confirmation, and authenticated API calls. CP3's bounded LLM assistance is not
-  implemented.
+  explicit confirmation, and authenticated API calls. CP3 adds optional preference interpretation,
+  proposed-answer review, server-authored personalized questions, contradiction amendments and
+  degraded-assistance disclosure. See `reports/cp3_interview_assistance.md` for local acceptance;
+  hosted assistance remains explicitly configured and is not activated by this handoff.
 - `/plan` already has the five-step wizard, mock polling, report sections, editable itinerary,
   recompute/prose refresh, freshness, and payment guidance. Preserve these seams.
 - Semantic themes and a Japan-first visual shell exist. The ordinary root passes `null` and uses the

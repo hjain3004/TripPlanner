@@ -41,6 +41,10 @@ from typing import Any
 from gateway.travel.adapters.gondola.budget import GondolaCallBudget
 from gateway.travel.adapters.gondola.mcp_client import ALLOWED_HOST, LiveGondolaTransport
 from gateway.travel.adapters.gondola.oauth import REQUIRED_SCOPE, KeychainTokenStore
+from gateway.travel.adapters.gondola.requests import (
+    build_flight_search_arguments,
+    build_hotel_search_arguments,
+)
 from gateway.travel.adapters.gondola.tool_policy import ALLOWED_TOOLS, DENIED_TOOLS
 from gateway.travel.errors import TravelGatewayError
 
@@ -131,6 +135,19 @@ def _find_result_list(result: dict[str, Any]) -> tuple[str | None, list[Any]]:
     return None, []
 
 
+def _print_markdown_discovery_result(result: dict[str, Any]) -> bool:
+    """Report Gondola's observed Markdown envelope without treating it as quotes."""
+    markdown = result.get("result")
+    if not isinstance(markdown, str):
+        return False
+    print("response_contract=provider_markdown")
+    print("normalized_quote_admission=False")
+    print("deterministic_costing=False")
+    print("evidence_status=verify_required")
+    print("provider_result_preserved=False")
+    return True
+
+
 def classify_tools(names: list[str]) -> dict[str, list[str]]:
     allowed = sorted(n for n in names if n in ALLOWED_TOOLS)
     denied = sorted(n for n in names if n in DENIED_TOOLS)
@@ -157,7 +174,10 @@ def summarize_tool_schema(tool: dict[str, Any]) -> dict[str, Any]:
     """Structural-only summary of one discovered tool: name and the field
     names of its input schema. Never includes example values or free-text
     descriptions verbatim (descriptions could carry arbitrary provider text)."""
-    schema = tool.get("inputSchema") or {}
+    # ``ClientSession.list_tools().model_dump()`` uses the SDK's Pythonic
+    # ``input_schema`` field. Do not inspect the protocol's camelCase spelling
+    # and mistake an empty schema for a live server finding.
+    schema = tool.get("input_schema") or {}
     properties = schema.get("properties") or {}
     return {
         "name": tool.get("name"),
@@ -209,15 +229,14 @@ async def run_anonymous_hotel_search() -> None:
     error text, captured through ``_summarize_error``."""
     transport = LiveGondolaTransport(base_url=MCP_ENDPOINT, get_access_token=lambda: None)
     checkin, checkout = _hotel_search_dates()
-    arguments = {
-        "location": "Singapore",
-        "checkin": checkin,
-        "checkout": checkout,
-        "adults": 1,
-        "rooms": 1,
-    }
+    arguments = build_hotel_search_arguments(
+        location="Singapore",
+        checkin=datetime.fromisoformat(checkin).date(),
+        checkout=datetime.fromisoformat(checkout).date(),
+        num_adults=1,
+    )
     print("=== Anonymous search_hotels ===")
-    print(f"request_shape=location,checkin,checkout,adults,rooms checkin={checkin}")
+    print(f"request_shape=location,checkin,checkout,num_adults checkin={checkin}")
     start = time.monotonic()
     try:
         result = await transport.call_tool("search_hotels", arguments)
@@ -230,6 +249,11 @@ async def run_anonymous_hotel_search() -> None:
         print(f"error_message={gateway_error.message}")
         return
     elapsed = time.monotonic() - start
+
+    if _print_markdown_discovery_result(result):
+        print(f"status=success elapsed_s={elapsed:.2f}")
+        print("coverage=unknown (Markdown discovery is not typed inventory evidence)")
+        return
 
     top_level_keys = sorted(result.keys())
     list_key, results = _find_result_list(result)
@@ -289,16 +313,16 @@ async def run_authenticated_flight_search(access_token: str) -> None:
     instead, which refreshes before calling."""
     transport = LiveGondolaTransport(base_url=MCP_ENDPOINT, get_access_token=lambda: access_token)
     departure_date = _flight_search_date()
-    arguments = {
-        "origin": "DEL",
-        "destination": "SIN",
-        "departure_date": departure_date,
-        "adults": 1,
-        "cabin": "economy",
-    }
+    arguments = build_flight_search_arguments(
+        origin="DEL",
+        destination="SIN",
+        departure_date=datetime.fromisoformat(departure_date).date(),
+        num_passengers=1,
+        cabin_class="economy",
+    )
     print("=== Authenticated search_flights (DEL -> SIN) ===")
     print(
-        "request_shape=origin,destination,departure_date,adults,cabin "
+        "request_shape=origin,destination,departure_date,num_passengers,cabin_class "
         f"departure_date={departure_date}"
     )
     start = time.monotonic()
@@ -314,6 +338,11 @@ async def run_authenticated_flight_search(access_token: str) -> None:
         print("del_sin_coverage=unknown (call failed; not evidence of no coverage)")
         return
     elapsed = time.monotonic() - start
+
+    if _print_markdown_discovery_result(result):
+        print(f"status=success elapsed_s={elapsed:.2f}")
+        print("del_sin_coverage=unknown (Markdown discovery is not typed inventory evidence)")
+        return
 
     top_level_keys = sorted(result.keys())
     list_key, results = _find_result_list(result)

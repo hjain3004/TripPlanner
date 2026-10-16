@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, date, datetime
+from urllib.parse import urlsplit
 
 from agents.estimator import (
     area_by_id,
@@ -46,6 +47,12 @@ from gateway.travel.contracts import (
     HotelQuote,
     HotelSearchRequest,
     TravelerMix,
+)
+from gateway.travel.product import (
+    GatewayDiagnostic,
+    InventoryQuoteSummary,
+    TravelInventorySnapshot,
+    TravelInventorySummary,
 )
 from gateway.travel.registry import get_default_travel_registry
 
@@ -257,4 +264,294 @@ def estimate_costed_trip_via_gateway(
             *poi_assumptions,
             *per_diem_assumptions,
         ],
+    )
+
+
+class GatewayEstimateResult:
+    """Kernel estimator output plus display-safe inventory evidence."""
+
+    def __init__(self, estimate: EstimatorResult, summary: TravelInventorySummary) -> None:
+        self.estimate = estimate
+        self.summary = summary
+
+
+def _safe_public_url(value: str | None) -> str | None:
+    if value is None or any(ord(char) < 32 for char in value):
+        return None
+    parsed = urlsplit(value)
+    if parsed.scheme != "https" or parsed.username or parsed.password:
+        return None
+    return value
+
+
+def _summary_quote(
+    domain: str, quote: FlightQuote | HotelQuote, *, selected: bool, scope: object
+) -> InventoryQuoteSummary:
+    evidence = quote.evidence
+    limitations = list(evidence.notes)
+    source_url = _safe_public_url(evidence.source_url)
+    deep_link_url = _safe_public_url(evidence.deep_link_url)
+    if evidence.source_url is not None and source_url is None:
+        limitations.append("Provider source link was omitted because it was not a safe HTTPS URL.")
+    if evidence.deep_link_url is not None and deep_link_url is None:
+        limitations.append("Provider detail link was omitted because it was not a safe HTTPS URL.")
+    if domain == "flight" and isinstance(quote, FlightQuote) and quote.trip_type == "one_way":
+        limitations.append(
+            "Sample flight packaging is a per-traveler one-way estimate; "
+            "it is not proof of a current return itinerary."
+        )
+    if domain == "hotel" and isinstance(quote, HotelQuote):
+        limitations.append(
+            "Sample hotel packaging is a nightly fixture estimate; verify room "
+            "availability and taxes before booking."
+        )
+    return InventoryQuoteSummary(
+        domain=domain,
+        quote_id=quote.id,
+        provider_id=evidence.provider_id,
+        provider_quote_id=evidence.provider_quote_id,
+        source_url=source_url,
+        deep_link_url=deep_link_url,
+        attribution=evidence.attribution,
+        retrieved_at=evidence.retrieved_at,
+        expires_at=evidence.expires_at,
+        status=evidence.status,
+        needs_verification=evidence.needs_verification,
+        completeness=evidence.completeness,
+        source_amount_minor=quote.total_minor,
+        source_currency=quote.currency,
+        converted_amount_minor=None,
+        price_scope=scope,
+        selected=selected,
+        alternative=not selected,
+        limitations=limitations,
+    )
+
+
+def estimate_confirmed_inventory(
+    spec: TripSpec,
+    itinerary: DraftItinerary,
+    kb: KnowledgeBase,
+    snapshot: TravelInventorySnapshot,
+    *,
+    booking_date: date,
+) -> GatewayEstimateResult:
+    """Map admitted quotes into the unchanged deterministic Kernel input.
+
+    Sample quotes deliberately use the compatibility estimator to preserve the
+    existing seed multiplier/FX-floor order.  Verified party-total quotes use
+    one conversion and never manufacture a SampleFlight/SampleHotel row.
+    """
+    diagnostics = list(snapshot.diagnostics)
+    current_flights = [quote for quote in snapshot.flights if quote.evidence.status != "stale"]
+    current_hotels = [quote for quote in snapshot.hotels if quote.evidence.status != "stale"]
+    flight = min(current_flights, key=lambda q: (q.total_minor, q.id), default=None)
+    hotel = min(current_hotels, key=lambda q: (q.total_minor, q.id), default=None)
+    flight_scope = snapshot.flight_scopes.get(flight.id) if flight else None
+    hotel_scope = snapshot.hotel_scopes.get(hotel.id) if hotel else None
+    if flight is not None and flight_scope is not None and not flight_scope.cost_eligible:
+        diagnostics.append(
+            GatewayDiagnostic(
+                code="missing_price_scope",
+                domain="flight",
+                message=(
+                    "Flight evidence is alternative-only because its price scope is not verified."
+                ),
+            )
+        )
+        flight = None
+    if hotel is not None and hotel_scope is not None and not hotel_scope.cost_eligible:
+        diagnostics.append(
+            GatewayDiagnostic(
+                code="missing_price_scope",
+                domain="hotel",
+                message=(
+                    "Hotel evidence is alternative-only because its price scope is not verified."
+                ),
+            )
+        )
+        hotel = None
+
+    only_sample = (
+        flight is not None
+        and hotel is not None
+        and flight.evidence.provider_id.startswith("sample_")
+        and hotel.evidence.provider_id.startswith("sample_")
+    )
+    if only_sample:
+        home_ccy = home_currency(spec)
+        external_lines: list[SpendLineItem] = []
+        legacy_flight = None
+        legacy_hotel = None
+        flight_assumptions: list[str] = []
+        hotel_assumptions: list[str] = []
+        if flight is not None:
+            flight_id = flight.evidence.provider_quote_id
+            legacy_flight = next(
+                (
+                    row
+                    for row in kb.sample_flights(
+                        spec.origin_city, spec.destination_city, flight.segments[0].cabin
+                    )
+                    if row.id == flight_id
+                ),
+                None,
+            )
+            external_lines.append(
+                SpendLineItem(
+                    id=f"flight:{flight_id}",
+                    label=f"{flight.segments[0].marketing_airline} round-trip flight",
+                    category=SpendCategory.FLIGHTS,
+                    amount_minor=price_in_home(flight.total_minor, flight.currency, home_ccy, kb)
+                    * spec.travelers,
+                    currency=home_ccy,
+                    available_channels=flight.purchasable_channels,
+                    merchant_hint=flight.segments[0].marketing_airline,
+                )
+            )
+            flight_assumptions.extend(flight.evidence.notes)
+        if hotel is not None:
+            legacy_hotel = next(
+                (
+                    row
+                    for row in kb.sample_hotels(destination_city(spec), spec.style)
+                    if row.id == hotel.property_id
+                ),
+                None,
+            )
+            external_lines.append(
+                SpendLineItem(
+                    id=f"hotel:{hotel.property_id}",
+                    label=f"{hotel.name} ({spec.nights} nights)",
+                    category=SpendCategory.HOTELS,
+                    amount_minor=price_in_home(
+                        hotel.total_minor // spec.nights, hotel.currency, home_ccy, kb
+                    )
+                    * spec.nights,
+                    currency=home_ccy,
+                    available_channels=hotel.purchasable_channels,
+                    merchant_hint=hotel.name,
+                )
+            )
+            hotel_assumptions.extend(hotel.evidence.notes)
+        poi, poi_assumptions = poi_lines(spec, itinerary, kb)
+        per_diem, per_diem_assumptions = per_diem_lines(spec, kb)
+        external_lines.extend([*poi, *per_diem])
+        estimate = EstimatorResult(
+            costed_trip=CostedTrip(
+                id=f"{spec.origin_city}-{spec.destination_city}-{spec.start_date.isoformat()}",
+                origin=spec.origin_city,
+                destination=spec.destination_city,
+                home_currency=home_ccy,
+                booking_date=booking_date,
+                trip_start_date=spec.start_date,
+                lines=external_lines,
+            ),
+            flight=legacy_flight,
+            hotel=legacy_hotel,
+            assumptions=[
+                *flight_assumptions,
+                *hotel_assumptions,
+                *poi_assumptions,
+                *per_diem_assumptions,
+            ],
+        )
+    else:
+        home_ccy = home_currency(spec)
+        admitted_lines: list[SpendLineItem] = []
+        if flight is not None and flight_scope is not None:
+            amount = price_in_home(flight.total_minor, flight.currency, home_ccy, kb)
+            if flight.evidence.provider_id.startswith("sample_"):
+                amount *= spec.travelers
+            admitted_lines.append(
+                SpendLineItem(
+                    id=f"flight:{flight.id}",
+                    label="Confirmed flight",
+                    category=SpendCategory.FLIGHTS,
+                    amount_minor=amount,
+                    currency=home_ccy,
+                    available_channels=flight.purchasable_channels,
+                )
+            )
+        if hotel is not None and hotel_scope is not None:
+            if hotel.evidence.provider_id.startswith("sample_"):
+                amount = (
+                    price_in_home(hotel.total_minor // spec.nights, hotel.currency, home_ccy, kb)
+                    * spec.nights
+                )
+            else:
+                amount = price_in_home(hotel.total_minor, hotel.currency, home_ccy, kb)
+            admitted_lines.append(
+                SpendLineItem(
+                    id=f"hotel:{hotel.id}",
+                    label=hotel.name,
+                    category=SpendCategory.HOTELS,
+                    amount_minor=amount,
+                    currency=home_ccy,
+                    available_channels=hotel.purchasable_channels,
+                )
+            )
+        poi, poi_assumptions = poi_lines(spec, itinerary, kb)
+        per_diem, per_diem_assumptions = per_diem_lines(spec, kb)
+        admitted_lines.extend([*poi, *per_diem])
+        estimate = EstimatorResult(
+            costed_trip=CostedTrip(
+                id=f"{spec.origin_city}-{spec.destination_city}-{spec.start_date.isoformat()}",
+                origin=spec.origin_city,
+                destination=spec.destination_city,
+                home_currency=home_ccy,
+                booking_date=booking_date,
+                trip_start_date=spec.start_date,
+                lines=admitted_lines,
+            ),
+            assumptions=[*poi_assumptions, *per_diem_assumptions],
+        )
+    selected_flight_summary = (
+        _summary_quote("flight", flight, selected=True, scope=flight_scope) if flight else None
+    )
+    selected_hotel_summary = (
+        _summary_quote("hotel", hotel, selected=True, scope=hotel_scope) if hotel else None
+    )
+    if selected_flight_summary is not None:
+        flight_line = next(
+            (line for line in estimate.costed_trip.lines if line.category is SpendCategory.FLIGHTS),
+            None,
+        )
+        if flight_line is not None:
+            selected_flight_summary = selected_flight_summary.model_copy(
+                update={"converted_amount_minor": flight_line.amount_minor}
+            )
+    if selected_hotel_summary is not None:
+        hotel_line = next(
+            (line for line in estimate.costed_trip.lines if line.category is SpendCategory.HOTELS),
+            None,
+        )
+        if hotel_line is not None:
+            selected_hotel_summary = selected_hotel_summary.model_copy(
+                update={"converted_amount_minor": hotel_line.amount_minor}
+            )
+    alternatives = [
+        *[
+            _summary_quote("flight", q, selected=False, scope=snapshot.flight_scopes[q.id])
+            for q in snapshot.flights
+            if flight is not None and q.id != flight.id and q.id in snapshot.flight_scopes
+        ],
+        *[
+            _summary_quote("hotel", q, selected=False, scope=snapshot.hotel_scopes[q.id])
+            for q in snapshot.hotels
+            if hotel is not None and q.id != hotel.id and q.id in snapshot.hotel_scopes
+        ],
+    ]
+    return GatewayEstimateResult(
+        estimate=estimate,
+        summary=TravelInventorySummary(
+            flight=selected_flight_summary,
+            hotel=selected_hotel_summary,
+            alternatives=alternatives,
+            diagnostics=diagnostics,
+            limitations=[
+                "Award guidance remains seed-backed reference only; verify "
+                "availability before transfer."
+            ],
+        ),
     )

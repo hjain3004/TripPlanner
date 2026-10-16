@@ -36,6 +36,48 @@ const regionCapabilitySchema = z.object({
   known_gaps: z.array(z.string()),
 });
 
+const priceScopeSchema = z.object({
+  basis: z.enum(["sample_per_traveler_trip", "sample_nightly_stay", "party_total", "unknown"]),
+  scope_verified: z.boolean(),
+  travelers: z.number().int().positive().optional().nullable(),
+  rooms: z.number().int().positive().optional().nullable(),
+});
+
+const inventoryQuoteSchema = z.object({
+  domain: z.enum(["flight", "hotel"]),
+  quote_id: z.string(),
+  provider_id: z.string(),
+  provider_quote_id: z.string().optional().nullable(),
+  status: z.enum(["live", "cached", "estimated", "stale", "verify_required"]),
+  needs_verification: z.boolean(),
+  source_url: z.string().url().optional().nullable(),
+  deep_link_url: z.string().url().optional().nullable(),
+  attribution: z.string().optional().nullable(),
+  retrieved_at: z.string(),
+  expires_at: z.string().optional().nullable(),
+  completeness: z.enum(["complete", "taxes_uncertain", "fees_uncertain", "partial"]),
+  source_amount_minor: z.number().int().nonnegative(),
+  source_currency: z.string().length(3),
+  converted_amount_minor: z.number().int().nonnegative().optional().nullable(),
+  price_scope: priceScopeSchema,
+  selected: z.boolean(),
+  alternative: z.boolean(),
+  limitations: z.array(z.string()),
+}).superRefine((quote, ctx) => {
+  if (quote.provider_id.startsWith("sample_") && quote.status === "live") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Sample evidence cannot claim live status" });
+  }
+});
+
+const travelInventorySchema = z.object({
+  flight: inventoryQuoteSchema.optional().nullable(),
+  hotel: inventoryQuoteSchema.optional().nullable(),
+  alternatives: z.array(inventoryQuoteSchema).optional(),
+  limitations: z.array(z.string()).optional(),
+  diagnostics: z.array(z.object({ code: z.string(), domain: z.enum(["flight", "hotel", "general"]), message: z.string(), provider_id: z.string().optional().nullable() })).optional(),
+  reference_only_awards: z.boolean().optional(),
+});
+
 const finalReportSchema = z.object({
   trace_id: z.string(),
   summary: z.string().optional(),
@@ -50,6 +92,7 @@ const finalReportSchema = z.object({
   status: z.enum(["needs_clarification", "ok", "error"]).optional(),
   region_capability: regionCapabilitySchema.nullable().optional(),
   freshness: sectionFreshnessSchema.optional(),
+  travel_inventory: travelInventorySchema.optional().nullable(),
 }).passthrough();
 
 export const planJobStatusSchema = z.object({

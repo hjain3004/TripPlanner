@@ -1,0 +1,60 @@
+{
+  "fixture_kind": "format_preserving_synthetic_excerpt_from_observed_live_response",
+  "captured_on": "2026-10-14",
+  "source_head": "5ffbbe85c0349b48098887b79e165139f08fe480",
+  "not_a_live_quote": true,
+  "needs_verification": true,
+  "not_a_complete_response": true,
+  "redactions": [
+    "Account-personalization preamble removed completely.",
+    "All opaque flight selection tokens replaced completely.",
+    "All links replaced by example.invalid URLs without query parameters.",
+    "Property identity, address, airline and monetary values are synthetic.",
+    "Only observed delimiters, labels and limitation wording are retained."
+  ],
+  "sdk_field_names": {
+    "tool": ["input_schema", "output_schema", "meta"],
+    "result": ["content", "is_error", "meta", "result_type", "structured_content"]
+  },
+  "observed_output_schema": {
+    "type": "object",
+    "properties": {"result": {"type": "string"}},
+    "required": ["result"]
+  },
+  "hotel": {
+    "tool": "search_hotels",
+    "request": {
+      "location": "Singapore",
+      "checkin": "2027-01-11",
+      "checkout": "2027-01-14",
+      "num_adults": 1
+    },
+    "observed_characters_before_redaction": 10089,
+    "observed_lines": 126,
+    "observed_meta_keys": [],
+    "observed_content_types": ["text"],
+    "excerpt": {
+      "result": "## Hotel Search Results (410 hotels found, showing top 20)\n\n### Sample Singapore Hotel (ID: 00000000)\n**Location:** Sample Address, Singapore, , SG | **City:** Singapore | **Stars:** 5.0 | **Guest Rating:** 9.0/10 (100 reviews)\n**Photos:** [Main photo](https://example.invalid/redacted-link)\n**Suite search signal:** USD 300.00 total | USD 80.00/night base. Cached search signal; verify prices and availability for your dates with a dated rate lookup. Eligibility may vary.\n**Cash: USD 90.00/night all-in** (total: USD 270.00)\n**Gondola Recommended**\n\n---\n*Use `get_hotel_details` with only hotel_id for content without waiting for rates. Present the returned property facts before requesting rates; room inventory is not dated availability.*\n*Use `get_hotel_rates` with a hotel ID and stay dates to see rooms, pricing, and booking options.*\n*Use `compare_rates` with multiple hotel IDs to compare cash vs points value side-by-side.*"
+    }
+  },
+  "flight": {
+    "tool": "search_flights",
+    "request": {
+      "origin": "DEL",
+      "destination": "SIN",
+      "departure_date": "2027-01-11",
+      "num_passengers": 1,
+      "cabin_class": "economy",
+      "points": false,
+      "test": false,
+      "page": 1
+    },
+    "observed_characters_before_redaction": 6819,
+    "observed_lines": 47,
+    "observed_meta_keys": [],
+    "observed_content_types": ["text"],
+    "excerpt": {
+      "result": "## Flight options — cash prices (8 found)\n_Source: Google Flights. These results cannot be booked through Gondola._\nShowing 1–8 of 8\n\n### 1. Sample Airline — USD 200\n**DEL -> SIN** (5h 40m) Nonstop · Economy\nMon Jan 11 21:45 -> Tue Jan 12 05:55\nselection_token: `[REDACTED_SELECTION_TOKEN]`\n\n[View more options](https://example.invalid/redacted-link)\n\n_These are cash fares. Gondola does not return award (points/miles) pricing for flights, so do not state or imply what this flight costs in miles — point the user at the airline's own award search instead._"
+    }
+  }
+}

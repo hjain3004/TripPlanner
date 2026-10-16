@@ -1,9 +1,10 @@
 # Current state
 
-**Evidence date:** 2026-10-09
-**Repository state:** reconciliation branch `codex/reconcile-cp2-japan`, with the CP2/Japan
-implementation and documentation baseline merged by a real merge commit. The exact final commit,
-test count, and gate output are recorded in `reports/cp2_japan_documentation_integration.md`.
+**Evidence date:** 2026-10-11
+**Repository state:** local development branch `codex/g3-4-confirmed-brief-gateway`, based on
+`eccb198` (CP2/Japan merged through PR #13). CP3 local/offline acceptance passed; verification is tracked in
+`reports/cp3_interview_assistance.md`; the prior baseline is recorded in
+`reports/cp2_japan_documentation_integration.md`.
 
 This page is the short, evidence-linked answer to “what is real right now?” It intentionally
 separates shipped code, disabled experiments, and plans.
@@ -21,6 +22,22 @@ separates shipped code, disabled experiments, and plans.
   session/audit state; it does not activate Gondola, Tripadvisor, crawling, booking, or payment.
 - The frontend's mock environment is the default. The browser API facade and MSW handlers supply
   deterministic fixture responses; live mode is an explicit environment choice.
+- CP3 adds the required adaptive interview checkpoint, optional free-text interpretation,
+  validated answer proposals, contradiction review and honest degraded assistance. Durable
+  SQLite CAS reservations cap the interview at two LLM calls across retries, concurrent clients,
+  backtracking and reopen. The hosted role remains disabled until an eligible zero-spend/local
+  configuration is explicitly confirmed; development and acceptance use offline fixtures.
+  Acceptance: backend **1326 passed, 1 skipped**, strict mypy **152 files**, frontend Vitest
+  **163 passed**, complete browser suite **458 passed, 74 existing skips**, clean-tree `make gate` passed.
+
+- G3.4 confirmed-brief integration is implemented in the isolated branch, pending the final
+  exact-tree gate. Confirmed sessions validate canonical facts before bounded inventory search,
+  use sample-only runtime construction with explicit price-scope/freshness checks, preserve
+  admitted costs through typed edits, and bind jobs/interactions to the authenticated owner and
+  planning session. The contract, generated client, MSW fixture, and resumable results UI are
+  synchronized. Live Gondola remains disabled and its structured responses remain unverified;
+  no provider credentials or paid services were used. See
+  `reports/g3_4_confirmed_brief_gateway.md`.
 
 ## Gateway and provider status
 
@@ -46,6 +63,9 @@ The frontend is implemented beyond the old F1 handover:
 - `/plan/conversation` and `/profile` are the CP2 conversational/profile surfaces. They use typed
   controls, authenticated API calls, server-owned session state, explicit confirmation, and no
   browser storage.
+- The conversational route renders personalized server questions and acknowledgements, previews
+  interpreted candidates before explicit answer saving, and blocks planning on unresolved
+  contradictions. Typed controls remain available when assistance fails or reaches its limit.
 - `/plan` contains the five-step wizard, MSW-backed job polling, report rendering, editable
   itinerary operations, deterministic recompute, prose refresh, freshness indicators, and card
   guidance. The editable itinerary work is evidenced by the F5/F5.1 reports and current source.
@@ -60,15 +80,13 @@ The frontend is implemented beyond the old F1 handover:
 
 ## Worktree and branch reality
 
-The CP2/Japan implementation is present in this checkout and has been reconciled with the three
-documentation commits from `origin/main`. Separate FI0 worktrees and the original main-worktree
-untracked files were not modified, moved, reset, or cleaned.
+CP2/Japan is merged on GitHub. CP3 is developed in its own local worktree from that merge.
+Separate FI0/Japan/CP2 worktrees and the primary checkout's untracked files remain preserved.
 
 ## What is explicitly not claimed
 
-- No CP3/G3.4 integration, financial-ingestion implementation, crawler SDK, credential, or live
-  provider/MCP/API call was added by this reconciliation. CP2/Japan code is included because it
-  was already present on the implementation branch being reconciled.
+- CP4 and financial-ingestion/crawler work are not included in G3.4. No credential, live
+  provider/MCP/LLM call, booking, payment or transfer execution was activated during development.
 - A report saying “complete” for an older milestone does not mean its later live activation or
   integration follow-up is complete.
 - The untracked plans and image directory are not canonical until deliberately committed.

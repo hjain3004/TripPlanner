@@ -138,6 +138,8 @@ export type {
   SpendCategory,
   SpendLineItem,
   TransferAdvice,
+  InventoryQuoteSummary,
+  TravelInventorySummary,
   TransferPlan,
   TransferStep,
   TransitSegment,
