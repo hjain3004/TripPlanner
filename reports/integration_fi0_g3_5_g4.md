@@ -1,7 +1,7 @@
 # Integration — FI0 + G3.5 + G4
 
-**Status: ACCEPTANCE PENDING** — merges, reconciliation, verification and independent review are
-complete; the final exact-tree `make gate` result is recorded in the next section once it has run.
+**Status: COMPLETE** — merges, reconciliation, verification, independent review and the exact-tree
+`make gate` are complete (see "Final acceptance").
 
 **Branch:** `codex/integrate-fi0-g3-5-g4` (local, unpublished)
 **Worktree:** `/Users/himanshu_jain/.codex/worktrees/integrate-fi0-g3-5-g4/TripPlanner`
@@ -127,4 +127,16 @@ fetch implementation, and any new milestone were **not** started.
 
 ## Final acceptance
 
-Recorded after the exact-tree gate (see below).
+`make gate` was run on the exact committed, clean tree `a76105a` (all work and this report in acceptance-pending
+form) and passed:
+
+- complete backend pytest inside the gate: **1709 passed, 1 skipped**;
+- strict mypy: 172 files (gate scope) + 5 (`ingestion/`), clean;
+- zero-tolerance Ruff (including `ingestion/`): clean; legacy `core/` + `api/` findings 6 (ceiling 12);
+- `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN`;
+- `================ GATE PASSED ================`.
+
+This section and the status line above are the only changes made after that run (a report-only commit);
+`make gate` was then re-run on the resulting final HEAD and passed again. The final HEAD SHA and the second
+gate transcript are returned with the handoff rather than embedded here, because a commit cannot contain its own
+SHA.
