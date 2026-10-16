@@ -14,7 +14,7 @@ dependencies = [
     "fastapi>=0.116",
     "argon2-cffi>=23.1",
     "ortools>=9.10",
-    "mcp>=1.2",
+    "mcp>=2.3,<3",
     "keyring>=25.0",
 ]
 
@@ -33,7 +33,8 @@ dev = [
 packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "accounts", "planning", "agents", "api", "evals",
             "gateway", "gateway.evidence", "gateway.places", "gateway.places.adapters",
             "gateway.catalog", "gateway.travel", "gateway.travel.adapters", "gateway.travel.fixtures",
-            "gateway.travel.adapters.gondola", "gateway.travel.adapters.gondola.scripts"]
+            "gateway.travel.adapters.gondola", "gateway.travel.adapters.gondola.scripts",
+            "gateway.weather", "gateway.weather.scripts"]
 
 [tool.setuptools.package-data]
 "core" = ["seeds/*.yaml"]
@@ -43,6 +44,7 @@ packages = ["core", "core.optimizer", "core.transfer", "core.itinerary", "accoun
 "gateway.catalog" = ["fixtures/*.json", "fixtures/*.yaml", "fixtures/hostile/*"]
 "gateway.travel" = ["fixtures/*.json"]
 "gateway.travel.adapters.gondola" = ["fixtures/*.json"]
+"gateway.weather" = ["fixtures/*.json", "upstream/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["evals"]
