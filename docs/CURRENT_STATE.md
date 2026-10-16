@@ -1,9 +1,14 @@
 # Current state
 
-**Evidence date:** 2026-10-11
-**Repository state:** local development branch `codex/g3-4-confirmed-brief-gateway`, based on
-`eccb198` (CP2/Japan merged through PR #13). CP3 local/offline acceptance passed; verification is tracked in
-`reports/cp3_interview_assistance.md`; the prior baseline is recorded in
+**Evidence date:** 2026-10-16
+**Repository state:** local, unpublished integration branch `codex/integrate-fi0-g3-5-g4`, based on
+`eccb198` (CP2/Japan merged through PR #13). It merges, with real non-fast-forward merges, the G3.5
+Gondola contract closure (stacked on the implemented G3.4 and CP3 work), the G4 Open-Meteo
+weather-context adapter, and the FI0 offline financial-ingestion foundation. Combined verification,
+review dispositions and gate evidence are in `reports/integration_fi0_g3_5_g4.md`; per-milestone
+evidence is in `reports/cp3_interview_assistance.md`, `reports/g3_4_confirmed_brief_gateway.md`,
+`reports/g3_5_gondola_contract_closure.md`, `reports/g4_open_meteo_weather_context.md` and
+`reports/fi0_financial_ingestion_foundation.md`. The earlier baseline is in
 `reports/cp2_japan_documentation_integration.md`.
 
 This page is the short, evidence-linked answer to “what is real right now?” It intentionally
@@ -47,7 +52,8 @@ separates shipped code, disabled experiments, and plans.
 | Reference importers and catalog gateway | `backend/gateway/reference/`, `catalog/`, G2 report | shipped, offline |
 | Gondola adapter and MCP transport | `backend/gateway/travel/adapters/gondola/`, PR #12, G3.1/G3.2 reports | code and fixtures shipped; registry-disabled by default; `/plan` not wired |
 | Tripadvisor Terra | `backend/gateway/places/adapters/tripadvisor/`, I8A.2.1 report | fixture path shipped; live transport disabled and activation pending |
-| Financial ingestion | no production implementation; only the untracked robust-ingestion plan | not started; do not start FI1 here |
+| Open-Meteo weather context | `backend/gateway/weather/`, G4 report | third-party `community_mcp`; disabled by default; contextual evidence only; not wired to `/plan`, OpenAPI or the UI; one bounded anonymous forecast probe, sanitized capture committed |
+| Financial ingestion | `backend/ingestion/`, FI0 report, `docs/superpowers/plans/2026-10-07-robust-financial-ingestion.md` | FI0 offline contracts, policy, SQLite queue and audit only; no crawler, network, scheduler or extraction LLM; FI1 not started |
 
 Gondola's live work is not equivalent to production activation. The report records verified tool
 argument shapes, safety boundaries, and a repeated unstructured response; it explicitly does not
@@ -80,12 +86,13 @@ The frontend is implemented beyond the old F1 handover:
 
 ## Worktree and branch reality
 
-CP2/Japan is merged on GitHub. CP3 is developed in its own local worktree from that merge.
-Separate FI0/Japan/CP2 worktrees and the primary checkout's untracked files remain preserved.
+CP2/Japan is merged on GitHub. CP3, G3.4 and G3.5 (one stacked line), G4 and FI0 were developed in their own local
+worktrees from that merge and are combined only on the local integration branch. All source branches and worktrees,
+and the primary checkout's untracked files, remain preserved.
 
 ## What is explicitly not claimed
 
-- CP4 and financial-ingestion/crawler work are not included in G3.4. No credential, live
+- CP4, FI1 and crawler work are not included in G3.4, G3.5, G4 or FI0. No credential, live
   provider/MCP/LLM call, booking, payment or transfer execution was activated during development.
 - A report saying “complete” for an older milestone does not mean its later live activation or
   integration follow-up is complete.

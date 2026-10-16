@@ -77,7 +77,7 @@ discovery, and credentials in frontend/LLM context are outside the boundary.
 - Gateway evidence stores keep source, artifact, claim, lineage, freshness, and invariant data
   separate from approved financial facts.
 - Raw/live provider content is not silently promoted into the financial knowledge base. Offline
-  financial ingestion remains a future human-reviewed proposal/approval workflow under spec 05.
+  financial ingestion (FI0 foundation under `backend/ingestion/`, offline contracts and a separate SQLite review queue only) remains a human-reviewed proposal/approval workflow under spec 05.
 - Account and planning persistence is user-scoped and uses the existing SQLite/CAS/audit patterns;
   it is separate from gateway quote/cache evidence. CP2 does not authorize provider activation or
   autonomous financial writes.
@@ -89,7 +89,8 @@ discovery, and credentials in frontend/LLM context are outside the boundary.
 | Frontend API | `NEXT_PUBLIC_API_MODE=mock`, MSW, no backend network | `NEXT_PUBLIC_API_MODE=live` with a reachable backend |
 | Travel gateway | sample/fixture evidence | registry/kill-switch and profile checks required; Gondola remains disabled by default |
 | Places gateway | sample/snapshot evidence | Tripadvisor requires explicit injected live transport, persistent billable ledger, and activation review |
-| Financial ingestion | absent | no activation path exists on `main` |
+| Weather context | disabled (`TRIPWISE_OPEN_METEO_ENABLED` unset); fixtures only | third-party `community_mcp`; operator-provisioned pinned server, `TRIPWISE_OPEN_METEO_KILL_SWITCH` always wins; not wired to planning |
+| Financial ingestion | offline FI0 contracts/queue only (`backend/ingestion/`) | no fetcher, crawler, scheduler or network exists; FI1 not started |
 
 ## Package boundaries
 
@@ -111,5 +112,5 @@ facade. It does not import Python packages or compute financial values.
   `reports/g3_4_confirmed_brief_gateway.md`.
 - Full structured Gondola response capture and normalization proof remain open in the G3.2 report.
 - Live Tripadvisor activation remains pending.
-- The robust financial-ingestion document is a plan only; FI1/Crawl4AI/Firecrawl work is not part
-  of this handoff.
+- FI0 (offline ingestion foundation) is implemented; the rest of the robust financial-ingestion plan
+  (FI1/Crawl4AI/Firecrawl) is not part of this handoff.

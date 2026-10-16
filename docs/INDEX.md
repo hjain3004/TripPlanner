@@ -47,10 +47,10 @@ commit. They remain invisible to a fresh clone until deliberately committed:
 | `docs/examples/` | User-owned or unclear image set | untouched and untracked |
 | `docs/superpowers/plans/2026-08-22-japan-philatelic-landing-handoff.md` | Valuable historical/planned Japan handoff | committed on this branch; retained as historical context, not current authority |
 | `docs/superpowers/plans/2026-08-22-japan-philatelic-split-landing.md` | Valuable historical/planned implementation plan | committed on this branch; useful for deferred plan-page work, not current authority |
-| `docs/superpowers/plans/2026-10-07-robust-financial-ingestion.md` | Valuable planned FI0–FI6 design input | untouched and untracked; no ingestion implementation is implied here |
+| `docs/superpowers/plans/2026-10-07-robust-financial-ingestion.md` | Valuable planned FI0–FI6 design input | committed; FI0 (offline foundation, `backend/ingestion/`) is implemented, FI1 onward is not started |
 
 This classification is intentional: the two Japan plans are already committed historical inputs;
-the image set and financial-ingestion plan remain user-owned/untracked and are not absorbed here.
+the image set remains user-owned/untracked and is not absorbed here; the financial-ingestion plan is committed with FI0.
 
 ## Historical and planned references
 
