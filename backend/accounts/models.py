@@ -297,6 +297,7 @@ class WalletEntry(AccountModel):
     opened_on: date | None = None
     points_balances: dict[str, int] = Field(default_factory=dict)
     added_at: datetime
+    version: int = Field(default=1, ge=1)
 
     @field_validator("last4")
     @classmethod

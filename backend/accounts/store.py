@@ -331,6 +331,7 @@ class AccountStore:
                     user_id=entry.user_id,
                     card_id=entry.card_id,
                     payload=entry.model_dump_json(),
+                    version=entry.version,
                 )
             )
             session.commit()

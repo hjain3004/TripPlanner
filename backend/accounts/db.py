@@ -43,6 +43,10 @@ class WalletEntryRow(AccountsBase):
     user_id: Mapped[str] = mapped_column(index=True)
     card_id: Mapped[str] = mapped_column(index=True)
     payload: Mapped[str] = mapped_column(Text)
+    # Optimistic-concurrency version. ``server_default`` is what makes adding
+    # this column migration-safe: a row written before A3 reads back as 1
+    # rather than NULL, and no existing account data is rewritten.
+    version: Mapped[int] = mapped_column(index=True, server_default="1", default=1)
 
 
 class SavedTripRow(AccountsBase):
