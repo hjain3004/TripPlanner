@@ -47,6 +47,7 @@ from accounts.models import (
     UserExport,
     UserProfile,
     WalletEntry,
+    WalletMutationEvent,
 )
 from accounts.models import (
     Session as SessionRecord,
@@ -753,6 +754,37 @@ class AccountStore:
                 )
         return removed
 
+    def wallet_mutation_events(self, user_id: str) -> list[WalletMutationEvent]:
+        """This user's recorded wallet mutations, ordered by ``client_event_id``.
+
+        Ordered by the event id rather than ``created_at`` because that column is
+        nullable advisory metadata (this package takes no ambient clock), so it
+        cannot provide a total order.
+        """
+        with Session(self._engine) as session:
+            rows = session.scalars(
+                select(WalletMutationEventRow).where(
+                    WalletMutationEventRow.user_id == user_id
+                )
+            ).all()
+            events = [
+                WalletMutationEvent(
+                    user_id=r.user_id,
+                    client_event_id=r.client_event_id,
+                    operation=r.operation,
+                    entry_id=r.entry_id,
+                    fingerprint=r.fingerprint,
+                    result_payload=r.result_payload,
+                    created_at=(
+                        datetime.fromisoformat(r.created_at)
+                        if r.created_at is not None
+                        else None
+                    ),
+                )
+                for r in rows
+            ]
+        return sorted(events, key=lambda e: e.client_event_id)
+
     def wallet_entries(self, user_id: str) -> list[WalletEntry]:
         """Every card the user holds, ordered by ``(card_id, id)``.
 
@@ -885,6 +917,7 @@ class AccountStore:
             user=user,
             profile=self.get_profile(user_id),
             wallet_entries=self.wallet_entries(user_id),
+            wallet_mutation_events=self.wallet_mutation_events(user_id),
             trips=trips,
             revisions=revisions,
             travel_preferences=self.get_travel_preferences(user_id),

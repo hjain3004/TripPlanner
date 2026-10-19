@@ -75,6 +75,27 @@ def test_core_never_imports_accounts() -> None:
     assert offenders == [], f"core/ must not import accounts/: {offenders}"
 
 
+def test_core_never_imports_gateway_ingestion_or_api() -> None:
+    """The kernel stays provider- and transport-free (A3 Task 10).
+
+    `core/` already provably does not import `accounts/`. The same one-way rule
+    holds for every outer layer: the gateway owns provider I/O, `ingestion/`
+    owns financial-rule intake, and `api/` owns transport. If any of them
+    became importable from `core/`, the deterministic kernel could acquire a
+    network dependency without a single test turning red.
+    """
+    backend_dir = Path(__file__).resolve().parents[1]
+    core_dir = backend_dir / "core"
+    forbidden = {"gateway", "ingestion", "api"}
+    offenders = [
+        f"{path.relative_to(backend_dir)} -> {sorted(forbidden & _first_party_imports(path))}"
+        for path in sorted(core_dir.rglob("*.py"))
+        if forbidden & _first_party_imports(path)
+    ]
+
+    assert offenders == [], f"core/ must not import gateway/ingestion/api: {offenders}"
+
+
 def test_accounts_never_imports_agents_or_api() -> None:
     """Accounts stores JSON snapshots, so it needs no pipeline types."""
     backend_dir = Path(__file__).resolve().parents[1]

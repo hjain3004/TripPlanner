@@ -440,12 +440,31 @@ class PlanningSessionSnapshot(AccountModel):
 # --------------------------------------------------------------------------- #
 
 
+class WalletMutationEvent(AccountModel):
+    """One recorded wallet mutation, for idempotency and subject-access export.
+
+    ``result_payload`` holds the outcome the original request returned (a
+    ``WalletEntry`` for a create/update, ``{"removed": bool}`` for a delete), so
+    a replay can answer identically. That makes it personal data, which is why
+    it appears in the export and is erased with the account.
+    """
+
+    user_id: str
+    client_event_id: str
+    operation: Literal["create", "update", "delete"]
+    entry_id: str | None = None
+    fingerprint: str
+    result_payload: str
+    created_at: datetime | None = None
+
+
 class UserExport(AccountModel):
     """Everything the system stores about one user, for subject-access export."""
 
     user: User
     profile: UserProfile | None = None
     wallet_entries: list[WalletEntry] = Field(default_factory=list)
+    wallet_mutation_events: list[WalletMutationEvent] = Field(default_factory=list)
     trips: list[SavedTrip] = Field(default_factory=list)
     revisions: list[TripRevision] = Field(default_factory=list)
     travel_preferences: TravelPreferenceProfile | None = None
