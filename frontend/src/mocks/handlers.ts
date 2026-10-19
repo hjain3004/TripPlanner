@@ -25,6 +25,9 @@ const conversationSession = {
   question_catalog: questionCatalog,
   suggested_question_ids: [],
   progress: { completed: 0, minimum_total: 8, maximum_total: 12, status: "interviewing" },
+  // The wallet the session will plan with, snapshotted server-side at session
+  // start (A3). The review step renders this, not a live account re-read.
+  wallet: { card_ids: ["hdfc-infinia"], points_balances: { "hdfc-reward-points": 100 } },
   answers: {},
   events: [{ id: "msw-event-001", kind: "assistant_question", question_id: "trip_essentials", text: "Where are you headed, and what are your travel dates?", created_at: "2026-08-29T00:00:00Z" }],
   assistance_status: "not_run",

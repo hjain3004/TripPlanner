@@ -2002,6 +2002,9 @@
             "type": "array",
             "title": "Pending Profile Updates"
           },
+          "wallet": {
+            "$ref": "#/components/schemas/UserWallet"
+          },
           "brief": {
             "anyOf": [
               {
@@ -2063,6 +2066,7 @@
           "events",
           "assistance_status",
           "pending_profile_updates",
+          "wallet",
           "job_id"
         ],
         "title": "ConfirmOut"
@@ -5963,6 +5967,9 @@
             "type": "array",
             "title": "Pending Profile Updates"
           },
+          "wallet": {
+            "$ref": "#/components/schemas/UserWallet"
+          },
           "brief": {
             "anyOf": [
               {
@@ -6019,7 +6026,8 @@
           "answers",
           "events",
           "assistance_status",
-          "pending_profile_updates"
+          "pending_profile_updates",
+          "wallet"
         ],
         "title": "SessionOut"
       },

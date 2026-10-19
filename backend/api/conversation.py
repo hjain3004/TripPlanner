@@ -294,6 +294,11 @@ class SessionOut(BaseModel):
     pending_answer: AnswerCandidate | None = None
     contradictions: list[InterviewContradiction] = Field(default_factory=list)
     pending_profile_updates: list[ProfileUpdateProposal]
+    # The wallet this session will actually plan with. Snapshotted from the
+    # account's wallet entries when the session started (A3) -- deliberately
+    # the session's copy rather than a live re-read, so the review step shows
+    # what confirmation will really use even if the account changed since.
+    wallet: UserWallet
     brief: TripBrief | None = None
     planning_job_id: str | None = None
     planning_error: str | None = None
@@ -474,6 +479,7 @@ def _session_out(session: PlanningSession) -> SessionOut:
         pending_answer=session.pending_answer,
         contradictions=session.contradictions,
         pending_profile_updates=session.pending_profile_updates,
+        wallet=session.wallet,
         brief=brief,
         planning_job_id=session.planning_job_id,
         planning_error=session.planning_error,

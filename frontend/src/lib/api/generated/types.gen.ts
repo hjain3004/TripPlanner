@@ -365,6 +365,7 @@ export type ConfirmOut = {
      * Pending Profile Updates
      */
     pending_profile_updates: Array<ProfileUpdateProposal>;
+    wallet: UserWallet;
     brief?: TripBrief | null;
     /**
      * Planning Job Id
@@ -2377,6 +2378,7 @@ export type SessionOut = {
      * Pending Profile Updates
      */
     pending_profile_updates: Array<ProfileUpdateProposal>;
+    wallet: UserWallet;
     brief?: TripBrief | null;
     /**
      * Planning Job Id

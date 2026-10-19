@@ -1,11 +1,22 @@
 "use client";
 
+import Link from "next/link";
 import { Check, ChevronRight, CircleAlert, Pencil, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { balanceSummary } from "@/components/product/wallet/wallet-policy";
+import type { UserWallet } from "@/lib/api";
 import { answerSourceLabel, type AnswerSource, type PendingProfileChange, type TripBriefPresentation } from "./conversational-types";
 
 interface ReviewTripBriefProps {
   brief: TripBriefPresentation;
+  /**
+   * The wallet this session will plan with, as the server snapshotted it when
+   * the session started. Passed down from `SessionOut.wallet` rather than
+   * fetched here: the account's current wallet can differ if it was edited
+   * mid-interview, and the traveler must see what confirmation will actually
+   * use, not what the account happens to hold right now.
+   */
+  wallet: UserWallet;
   isReady: boolean;
   readinessMessage?: string;
   onAmend: (sectionId: string) => void;
@@ -43,6 +54,7 @@ function ProfileChangeRow({ change, onApprove, disabled }: { change: PendingProf
 
 export function ReviewTripBrief({
   brief,
+  wallet,
   isReady,
   readinessMessage,
   onAmend,
@@ -122,6 +134,21 @@ export function ReviewTripBrief({
             </div>
           </div>
           {unresolved.length > 0 ? <ul className="mt-4 space-y-2 border-t border-border pt-4 text-xs text-text-muted">{unresolved.map((item) => <li key={item}>• {item}</li>)}</ul> : null}
+          <div className="mt-4 border-t border-border pt-4" data-testid="session-wallet-summary">
+            <h3 className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">Paying with</h3>
+            {wallet.card_ids.length === 0 ? (
+              <p className="mt-1 text-sm leading-5 text-text-muted" data-testid="session-wallet-empty">
+                No cards saved, so this trip will be priced as cash only.{" "}
+                <Link href="/wallet" className="border-b border-primary text-primary">Add a card</Link>
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 text-sm leading-5 text-text" data-testid="session-wallet-cards">{wallet.card_ids.join(", ")}</p>
+                <p className="mt-1 text-xs text-text-muted" data-testid="session-wallet-points">{balanceSummary(wallet.points_balances ?? {})}</p>
+                <Link href="/wallet" className="mt-1 inline-block text-xs border-b border-primary text-primary">Manage your wallet</Link>
+              </>
+            )}
+          </div>
           {error ? <p className="mt-4 border-t border-border pt-4 text-sm text-danger" role="alert">{error}</p> : null}
           <Button type="button" size="lg" className="mt-5 min-h-[48px] w-full" disabled={!isReady || confirming || actionsDisabled} onClick={onConfirm}>
             {confirming ? "Confirming…" : "Build my trip"}
