@@ -404,6 +404,65 @@ function createFailedStatus(jobId: string): PlanJobStatus {
   };
 }
 
+// --- A3 wallet: a small stateful mock so add/edit/remove actually round-trip.
+// Without state the /wallet route could not be exercised end to end in mock mode.
+type MswWalletEntry = {
+  id: string;
+  card_id: string;
+  nickname: string;
+  last4: string | null;
+  statement_day: number | null;
+  opened_on: string | null;
+  points_balances: Record<string, number>;
+  added_at: string;
+  version: number;
+};
+
+const MSW_CARD_PRODUCTS = [
+  { card_id: "axis-atlas", display_name: "Atlas", issuer: "Axis Bank", is_eligible: true },
+  { card_id: "hdfc-infinia", display_name: "Infinia Metal", issuer: "HDFC Bank", is_eligible: true },
+  { card_id: "icici-emeralde", display_name: "Emeralde Private Metal", issuer: "ICICI Bank", is_eligible: true },
+  { card_id: "sbi-cashback", display_name: "Cashback", issuer: "SBI Card", is_eligible: true },
+];
+
+let mswWallet: MswWalletEntry[] = [];
+let mswWalletSeq = 0;
+
+export function resetMswWallet(entries: MswWalletEntry[] = []): void {
+  mswWallet = [...entries];
+  mswWalletSeq = entries.length;
+}
+
+function mswWalletSorted(): MswWalletEntry[] {
+  return [...mswWallet].sort((a, b) =>
+    a.card_id === b.card_id ? a.id.localeCompare(b.id) : a.card_id.localeCompare(b.card_id),
+  );
+}
+
+// Mirrors accounts/projection.py: card ids de-duplicated and sorted, duplicate
+// points currencies collapsed by MAX (never summed).
+function mswProjection(): { card_ids: string[]; points_balances: Record<string, number> } {
+  const cardIds = [...new Set(mswWallet.map((e) => e.card_id))].sort();
+  const balances: Record<string, number> = {};
+  for (const entry of mswWallet) {
+    for (const [currency, amount] of Object.entries(entry.points_balances)) {
+      const current = balances[currency];
+      if (current === undefined || amount > current) balances[currency] = amount;
+    }
+  }
+  const ordered: Record<string, number> = {};
+  for (const key of Object.keys(balances).sort()) {
+    const value = balances[key];
+    if (value !== undefined) ordered[key] = value;
+  }
+  return { card_ids: cardIds, points_balances: ordered };
+}
+
+function walletConflict(code: string, message: string) {
+  return HttpResponse.json({ detail: { code, message } }, { status: 409 });
+}
+
+
 export const handlers = [
   http.post("*/auth/register", async ({ request }) => {
     const body = (await request.json()) as CredentialsIn;
@@ -653,6 +712,73 @@ export const handlers = [
   http.post("*/planning/sessions/:sessionId/profile-updates/:proposalId/approve", () => HttpResponse.json({ ...conversationSession, version: 1 })),
   http.post("*/planning/sessions/:sessionId/confirm", () => HttpResponse.json({ ...conversationSession, status: "planning", planning_job_id: "msw-job-001", job_id: "msw-job-001" }, { status: 202 })),
   http.get("*/planning/sessions/:sessionId/job", () => HttpResponse.json({ job_id: "msw-job-001", status: "complete", stage: "explaining", progress: 1 })),
+
+  // --- A3 authenticated wallet ---
+  http.get("*/account/card-products", () => HttpResponse.json(MSW_CARD_PRODUCTS)),
+
+  http.get("*/account/wallet", () => HttpResponse.json(mswWalletSorted())),
+
+  http.get("*/account/wallet/projection", () => HttpResponse.json(mswProjection())),
+
+  http.post("*/account/wallet", async ({ request }) => {
+    const body = (await request.json()) as Partial<MswWalletEntry> & { card_id?: string };
+    if (!MSW_CARD_PRODUCTS.some((p) => p.card_id === body.card_id)) {
+      return HttpResponse.json(
+        { detail: { code: "unknown_card_product", message: "That card product is not available." } },
+        { status: 422 },
+      );
+    }
+    mswWalletSeq += 1;
+    const entry: MswWalletEntry = {
+      id: `msw-wallet-${mswWalletSeq}`,
+      card_id: body.card_id as string,
+      nickname: body.nickname ?? "Card",
+      last4: body.last4 ?? null,
+      statement_day: body.statement_day ?? null,
+      opened_on: body.opened_on ?? null,
+      points_balances: body.points_balances ?? {},
+      added_at: new Date("2026-10-19T12:00:00Z").toISOString(),
+      version: 1,
+    };
+    mswWallet.push(entry);
+    return HttpResponse.json(entry, { status: 201 });
+  }),
+
+  http.patch("*/account/wallet/:entryId", async ({ request, params }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    const current = mswWallet.find((e) => e.id === params.entryId);
+    if (current === undefined) {
+      return HttpResponse.json(
+        { detail: { code: "wallet_entry_not_found", message: "No such wallet entry." } },
+        { status: 404 },
+      );
+    }
+    if (body.expected_version !== current.version) {
+      return walletConflict(
+        "wallet_version_conflict",
+        "This wallet entry changed since you loaded it. Reload and retry.",
+      );
+    }
+    const patched: MswWalletEntry = { ...current, version: current.version + 1 };
+    for (const field of ["nickname", "last4", "statement_day", "opened_on", "points_balances"] as const) {
+      if (field in body) (patched as Record<string, unknown>)[field] = body[field];
+    }
+    mswWallet = mswWallet.map((e) => (e.id === current.id ? patched : e));
+    return HttpResponse.json(patched);
+  }),
+
+  http.delete("*/account/wallet/:entryId", ({ params }) => {
+    const before = mswWallet.length;
+    mswWallet = mswWallet.filter((e) => e.id !== params.entryId);
+    if (mswWallet.length === before) {
+      return HttpResponse.json(
+        { detail: { code: "wallet_entry_not_found", message: "No such wallet entry." } },
+        { status: 404 },
+      );
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
+
 ];
 
 export const fixtureHandlers = {

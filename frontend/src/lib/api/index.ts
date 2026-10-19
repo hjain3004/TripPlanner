@@ -25,6 +25,12 @@ export {
   refreshProsePlanPlanRefreshProsePost,
   registerAuthRegisterPost,
   searchPlacesPlacesSearchPost,
+  createWalletEntryAccountWalletPost,
+  deleteWalletEntryAccountWalletEntryIdDelete,
+  getCardProductsAccountCardProductsGet,
+  getWalletAccountWalletGet,
+  getWalletProjectionAccountWalletProjectionGet,
+  patchWalletEntryAccountWalletEntryIdPatch,
 } from "./generated/sdk.gen";
 export type {
   AddItem,
@@ -146,7 +152,11 @@ export type {
   TripIntakeRequest,
   TripSpec,
   UserOut,
+  CardProductOut,
   UserWallet,
+  WalletEntryCreateIn,
+  WalletEntryOut,
+  WalletEntryPatchIn,
   ValidationError,
 } from "./generated/types.gen";
 import type {

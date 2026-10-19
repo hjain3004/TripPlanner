@@ -267,6 +267,30 @@ export type BudgetTotals = {
 };
 
 /**
+ * CardProductOut
+ *
+ * Display-safe view of one attachable card product.
+ */
+export type CardProductOut = {
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Issuer
+     */
+    issuer: string;
+    /**
+     * Is Eligible
+     */
+    is_eligible: boolean;
+};
+
+/**
  * Channel
  */
 export type Channel = 'direct_airline' | 'direct_hotel' | 'ota_generic' | 'bank_portal' | 'pos_abroad' | 'pos_domestic';
@@ -2903,6 +2927,126 @@ export type VersionRequest = {
     expected_version: number;
 };
 
+/**
+ * WalletEntryCreateIn
+ */
+export type WalletEntryCreateIn = {
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Nickname
+     */
+    nickname: string;
+    /**
+     * Last4
+     */
+    last4?: string | null;
+    /**
+     * Statement Day
+     */
+    statement_day?: number | null;
+    /**
+     * Opened On
+     */
+    opened_on?: string | null;
+    /**
+     * Points Balances
+     */
+    points_balances?: {
+        [key: string]: number;
+    } | null;
+    /**
+     * Client Event Id
+     */
+    client_event_id?: string | null;
+};
+
+/**
+ * WalletEntryOut
+ *
+ * Display-safe projection of one stored wallet row.
+ */
+export type WalletEntryOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Nickname
+     */
+    nickname: string;
+    /**
+     * Last4
+     */
+    last4: string | null;
+    /**
+     * Statement Day
+     */
+    statement_day: number | null;
+    /**
+     * Opened On
+     */
+    opened_on: string | null;
+    /**
+     * Points Balances
+     */
+    points_balances: {
+        [key: string]: number;
+    };
+    /**
+     * Added At
+     */
+    added_at: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * WalletEntryPatchIn
+ *
+ * Patch body. Omitted fields are left alone; explicit ``null`` clears one.
+ */
+export type WalletEntryPatchIn = {
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Nickname
+     */
+    nickname?: string | null;
+    /**
+     * Last4
+     */
+    last4?: string | null;
+    /**
+     * Statement Day
+     */
+    statement_day?: number | null;
+    /**
+     * Opened On
+     */
+    opened_on?: string | null;
+    /**
+     * Points Balances
+     */
+    points_balances?: {
+        [key: string]: number;
+    } | null;
+    /**
+     * Client Event Id
+     */
+    client_event_id?: string | null;
+};
+
 export type GetPreferencesPlanningPreferencesGetData = {
     body?: never;
     path?: never;
@@ -3378,6 +3522,148 @@ export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePos
 };
 
 export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponse = RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponses[keyof RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponses];
+
+export type GetCardProductsAccountCardProductsGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/card-products';
+};
+
+export type GetCardProductsAccountCardProductsGetResponses = {
+    /**
+     * Response Get Card Products Account Card Products Get
+     *
+     * Successful Response
+     */
+    200: Array<CardProductOut>;
+};
+
+export type GetCardProductsAccountCardProductsGetResponse = GetCardProductsAccountCardProductsGetResponses[keyof GetCardProductsAccountCardProductsGetResponses];
+
+export type GetWalletAccountWalletGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/wallet';
+};
+
+export type GetWalletAccountWalletGetResponses = {
+    /**
+     * Response Get Wallet Account Wallet Get
+     *
+     * Successful Response
+     */
+    200: Array<WalletEntryOut>;
+};
+
+export type GetWalletAccountWalletGetResponse = GetWalletAccountWalletGetResponses[keyof GetWalletAccountWalletGetResponses];
+
+export type CreateWalletEntryAccountWalletPostData = {
+    body: WalletEntryCreateIn;
+    path?: never;
+    query?: never;
+    url: '/account/wallet';
+};
+
+export type CreateWalletEntryAccountWalletPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateWalletEntryAccountWalletPostError = CreateWalletEntryAccountWalletPostErrors[keyof CreateWalletEntryAccountWalletPostErrors];
+
+export type CreateWalletEntryAccountWalletPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: WalletEntryOut;
+};
+
+export type CreateWalletEntryAccountWalletPostResponse = CreateWalletEntryAccountWalletPostResponses[keyof CreateWalletEntryAccountWalletPostResponses];
+
+export type GetWalletProjectionAccountWalletProjectionGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/wallet/projection';
+};
+
+export type GetWalletProjectionAccountWalletProjectionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserWallet;
+};
+
+export type GetWalletProjectionAccountWalletProjectionGetResponse = GetWalletProjectionAccountWalletProjectionGetResponses[keyof GetWalletProjectionAccountWalletProjectionGetResponses];
+
+export type DeleteWalletEntryAccountWalletEntryIdDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: {
+        /**
+         * Client Event Id
+         */
+        client_event_id?: string | null;
+    };
+    url: '/account/wallet/{entry_id}';
+};
+
+export type DeleteWalletEntryAccountWalletEntryIdDeleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteWalletEntryAccountWalletEntryIdDeleteError = DeleteWalletEntryAccountWalletEntryIdDeleteErrors[keyof DeleteWalletEntryAccountWalletEntryIdDeleteErrors];
+
+export type DeleteWalletEntryAccountWalletEntryIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteWalletEntryAccountWalletEntryIdDeleteResponse = DeleteWalletEntryAccountWalletEntryIdDeleteResponses[keyof DeleteWalletEntryAccountWalletEntryIdDeleteResponses];
+
+export type PatchWalletEntryAccountWalletEntryIdPatchData = {
+    body: WalletEntryPatchIn;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: never;
+    url: '/account/wallet/{entry_id}';
+};
+
+export type PatchWalletEntryAccountWalletEntryIdPatchErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PatchWalletEntryAccountWalletEntryIdPatchError = PatchWalletEntryAccountWalletEntryIdPatchErrors[keyof PatchWalletEntryAccountWalletEntryIdPatchErrors];
+
+export type PatchWalletEntryAccountWalletEntryIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: WalletEntryOut;
+};
+
+export type PatchWalletEntryAccountWalletEntryIdPatchResponse = PatchWalletEntryAccountWalletEntryIdPatchResponses[keyof PatchWalletEntryAccountWalletEntryIdPatchResponses];
 
 export type HealthHealthGetData = {
     body?: never;
