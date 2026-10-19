@@ -40,6 +40,7 @@ from api.auth import (
     set_session_cookies,
 )
 from api.conversation import router as conversation_router
+from api.wallet import router as wallet_router
 from api.job_manager import job_manager
 from core.db import DB_PATH, KnowledgeBase, load_kb, seed_database
 from gateway.catalog.regions import get_region
@@ -55,6 +56,7 @@ app = FastAPI(
     description="Kernel MVP API over local curated sample data.",
 )
 app.include_router(conversation_router)
+app.include_router(wallet_router)
 
 # Without this, a browser's preflight OPTIONS /plan gets 405 and the POST never
 # fires - exactly what happened the first time the real frontend talked to the
