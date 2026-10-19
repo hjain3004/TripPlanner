@@ -13,6 +13,7 @@ ACCOUNTS_TABLES = {
     "users",
     "user_profiles",
     "wallet_entries",
+    "wallet_mutation_events",
     "saved_trips",
     "trip_revisions",
     "user_credentials",

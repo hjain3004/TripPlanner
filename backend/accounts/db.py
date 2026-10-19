@@ -49,6 +49,34 @@ class WalletEntryRow(AccountsBase):
     version: Mapped[int] = mapped_column(index=True, server_default="1", default=1)
 
 
+class WalletMutationEventRow(AccountsBase):
+    """Durable idempotency record for one wallet mutation.
+
+    Owned by ``accounts`` rather than folded into a planning session: a create
+    has no pre-existing row to hold a processed-event list, wallet events target
+    different entries rather than one aggregate, and a replay must be able to
+    return the *original outcome* and detect a conflicting reuse — neither of
+    which a bare list of ids can express.
+
+    The composite primary key is what makes event identity ``(user_id,
+    client_event_id)``, so two users can reuse the same textual id without
+    colliding, and a genuine concurrent double-submit hits the key instead of
+    applying twice.
+    """
+
+    __tablename__ = "wallet_mutation_events"
+    user_id: Mapped[str] = mapped_column(primary_key=True)
+    client_event_id: Mapped[str] = mapped_column(primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(index=True)
+    operation: Mapped[str] = mapped_column()
+    entry_id: Mapped[str | None] = mapped_column(nullable=True)
+    result_payload: Mapped[str] = mapped_column(Text)
+    # Advisory only, and nullable: this package never reads an ambient clock,
+    # so it is set only when the caller supplies `now`. Event identity is
+    # (user_id, client_event_id) plus the fingerprint, never the timestamp.
+    created_at: Mapped[str | None] = mapped_column(index=True, nullable=True)
+
+
 class SavedTripRow(AccountsBase):
     __tablename__ = "saved_trips"
     id: Mapped[str] = mapped_column(primary_key=True)

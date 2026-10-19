@@ -12,12 +12,14 @@ caller — the same injection style the pipeline uses for ``booking_date``.
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy import Engine, delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from accounts import passwords
@@ -32,6 +34,7 @@ from accounts.db import (
     UserProfileRow,
     UserRow,
     WalletEntryRow,
+    WalletMutationEventRow,
     create_accounts_engine,
 )
 from accounts.models import (
@@ -80,6 +83,44 @@ class WalletEntryNotFoundError(ValueError):
 
 class StaleWalletEntryError(ValueError):
     """Raised when a compare-and-swap wallet version no longer matches."""
+
+
+class WalletIdempotencyConflictError(ValueError):
+    """Raised when a client event id is reused for a materially different request.
+
+    A genuine retry resends the same intent and replays. Reusing the same id for
+    a different operation, target, precondition or payload is a client bug, and
+    silently applying it would be a second unintended mutation.
+    """
+
+
+def wallet_event_fingerprint(
+    operation: str,
+    *,
+    entry_id: str | None = None,
+    expected_version: int | None = None,
+    fields: dict[str, object] | None = None,
+) -> str:
+    """Canonical identity of a wallet mutation request.
+
+    Deliberately excludes the caller's clock and any server-generated entry id:
+    a retry of the same intent arrives with a later ``now`` and would generate a
+    different uuid, and folding either in would make every honest retry look
+    like a conflict. For a create, ``entry_id`` is excluded for that reason; for
+    an update or delete it is part of the target and is included.
+    """
+    canonical = json.dumps(
+        {
+            "operation": operation,
+            "entry_id": entry_id,
+            "expected_version": expected_version,
+            "fields": fields or {},
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class _Unset:
@@ -325,6 +366,83 @@ class AccountStore:
 
     # -- wallet ------------------------------------------------------------- #
 
+    # -- wallet mutation idempotency ---------------------------------------- #
+
+    def _replay_wallet_event(
+        self,
+        session: Session,
+        *,
+        user_id: str,
+        client_event_id: str,
+        fingerprint: str,
+    ) -> str | None:
+        """Return the original result payload for a replayed event, else ``None``.
+
+        Raises on a reused id whose request fingerprint differs, because
+        applying it would be a second, unintended mutation.
+        """
+        row = session.get(WalletMutationEventRow, (user_id, client_event_id))
+        if row is None:
+            return None
+        if row.fingerprint != fingerprint:
+            raise WalletIdempotencyConflictError(
+                f"client event {client_event_id} was already used for a "
+                f"materially different wallet request"
+            )
+        return row.result_payload
+
+    def _record_wallet_event(
+        self,
+        session: Session,
+        *,
+        user_id: str,
+        client_event_id: str,
+        fingerprint: str,
+        operation: str,
+        entry_id: str | None,
+        result_payload: str,
+        now: datetime | None,
+    ) -> None:
+        """Stage the event alongside the mutation so both commit together.
+
+        Staging rather than committing separately is what keeps the promise that
+        a failed or stale operation is never recorded as a success: if the
+        mutation raises, this row never reaches the database.
+        """
+        session.add(
+            WalletMutationEventRow(
+                user_id=user_id,
+                client_event_id=client_event_id,
+                fingerprint=fingerprint,
+                operation=operation,
+                entry_id=entry_id,
+                result_payload=result_payload,
+                created_at=now.isoformat() if now is not None else None,
+            )
+        )
+
+    def _replay_after_race(
+        self, *, user_id: str, client_event_id: str, fingerprint: str
+    ) -> str:
+        """Resolve a composite-key collision from two concurrent identical requests.
+
+        The primary key, not the earlier read, is the real guard. When it fires
+        the other request already committed, so re-read and replay its result
+        rather than letting an IntegrityError reach the caller.
+        """
+        with Session(self._engine) as session:
+            payload = self._replay_wallet_event(
+                session,
+                user_id=user_id,
+                client_event_id=client_event_id,
+                fingerprint=fingerprint,
+            )
+        if payload is None:  # pragma: no cover - key fired but row absent
+            raise WalletIdempotencyConflictError(
+                f"client event {client_event_id} collided but could not be replayed"
+            )
+        return payload
+
     def add_wallet_entry(
         self,
         *,
@@ -337,7 +455,19 @@ class AccountStore:
         opened_on: date | None = None,
         points_balances: dict[str, int] | None = None,
         entry_id: str | None = None,
+        client_event_id: str | None = None,
     ) -> WalletEntry:
+        fingerprint = wallet_event_fingerprint(
+            "create",
+            fields={
+                "card_id": card_id,
+                "nickname": nickname,
+                "last4": last4,
+                "statement_day": statement_day,
+                "opened_on": opened_on,
+                "points_balances": dict(points_balances or {}),
+            },
+        )
         entry = WalletEntry(
             id=entry_id or uuid4().hex,
             user_id=user_id,
@@ -351,6 +481,15 @@ class AccountStore:
         )
         with Session(self._engine) as session:
             self._require_user(session, user_id)
+            if client_event_id is not None:
+                replayed = self._replay_wallet_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=client_event_id,
+                    fingerprint=fingerprint,
+                )
+                if replayed is not None:
+                    return WalletEntry.model_validate_json(replayed)
             session.add(
                 WalletEntryRow(
                     id=entry.id,
@@ -360,7 +499,30 @@ class AccountStore:
                     version=entry.version,
                 )
             )
-            session.commit()
+            if client_event_id is not None:
+                self._record_wallet_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=client_event_id,
+                    fingerprint=fingerprint,
+                    operation="create",
+                    entry_id=entry.id,
+                    result_payload=entry.model_dump_json(),
+                    now=now,
+                )
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                if client_event_id is None:
+                    raise
+                return WalletEntry.model_validate_json(
+                    self._replay_after_race(
+                        user_id=user_id,
+                        client_event_id=client_event_id,
+                        fingerprint=fingerprint,
+                    )
+                )
         return entry
 
     def set_points_balances(
@@ -404,6 +566,8 @@ class AccountStore:
         statement_day: int | None | _Unset = UNSET,
         opened_on: date | None | _Unset = UNSET,
         points_balances: dict[str, int] | None | _Unset = UNSET,
+        client_event_id: str | None = None,
+        now: datetime | None = None,
     ) -> WalletEntry:
         """Owner-scoped compare-and-swap patch of the safe metadata fields.
 
@@ -433,7 +597,29 @@ class AccountStore:
                 dict(points_balances) if points_balances is not None else {}
             )
 
+        fingerprint = wallet_event_fingerprint(
+            "update",
+            entry_id=entry_id,
+            expected_version=expected_version,
+            fields=dict(changes),
+        )
+
         with Session(self._engine) as session:
+            # The replay check precedes the existence and version checks on
+            # purpose. A retry of an update that already succeeded arrives with
+            # the *original* expected_version, which is now stale, and may even
+            # target a row since deleted. Checking staleness first would reject
+            # exactly the retry idempotency exists to absorb.
+            if client_event_id is not None:
+                replayed = self._replay_wallet_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=client_event_id,
+                    fingerprint=fingerprint,
+                )
+                if replayed is not None:
+                    return WalletEntry.model_validate_json(replayed)
+
             current_row = session.scalar(
                 select(WalletEntryRow).where(
                     WalletEntryRow.id == entry_id,
@@ -475,25 +661,97 @@ class AccountStore:
                     f"wallet entry {entry_id} was not at version {expected_version} "
                     f"for this user"
                 )
-            session.commit()
+            if client_event_id is not None:
+                self._record_wallet_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=client_event_id,
+                    fingerprint=fingerprint,
+                    operation="update",
+                    entry_id=entry_id,
+                    result_payload=updated.model_dump_json(),
+                    now=now,
+                )
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                if client_event_id is None:
+                    raise
+                return WalletEntry.model_validate_json(
+                    self._replay_after_race(
+                        user_id=user_id,
+                        client_event_id=client_event_id,
+                        fingerprint=fingerprint,
+                    )
+                )
         return updated
 
-    def remove_wallet_entry(self, *, user_id: str, entry_id: str) -> bool:
+    def remove_wallet_entry(
+        self,
+        *,
+        user_id: str,
+        entry_id: str,
+        client_event_id: str | None = None,
+        now: datetime | None = None,
+    ) -> bool:
         """Owner-scoped delete. Returns whether a row was actually removed.
 
         Returns ``False`` both when the entry does not exist and when it belongs
         to a different user — the two are deliberately indistinguishable so the
         API cannot be used to probe for another user's entry ids.
+
+        With a ``client_event_id``, a replay returns the *original* outcome: a
+        retried successful delete reports ``True`` again rather than the
+        ``False`` a genuine second delete would produce.
         """
+        fingerprint = wallet_event_fingerprint("delete", entry_id=entry_id)
+
         with Session(self._engine) as session:
+            if client_event_id is not None:
+                replayed = self._replay_wallet_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=client_event_id,
+                    fingerprint=fingerprint,
+                )
+                if replayed is not None:
+                    return bool(json.loads(replayed)["removed"])
+
             result = session.execute(
                 delete(WalletEntryRow).where(
                     WalletEntryRow.id == entry_id,
                     WalletEntryRow.user_id == user_id,
                 )
             )
-            session.commit()
-        return bool(result.rowcount == 1)  # type: ignore[attr-defined]
+            removed = bool(result.rowcount == 1)  # type: ignore[attr-defined]
+            if client_event_id is not None:
+                self._record_wallet_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=client_event_id,
+                    fingerprint=fingerprint,
+                    operation="delete",
+                    entry_id=entry_id,
+                    result_payload=json.dumps({"removed": removed}),
+                    now=now,
+                )
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                if client_event_id is None:
+                    raise
+                return bool(
+                    json.loads(
+                        self._replay_after_race(
+                            user_id=user_id,
+                            client_event_id=client_event_id,
+                            fingerprint=fingerprint,
+                        )
+                    )["removed"]
+                )
+        return removed
 
     def wallet_entries(self, user_id: str) -> list[WalletEntry]:
         """Every card the user holds, ordered by ``(card_id, id)``.
@@ -647,6 +905,11 @@ class AccountStore:
             session.execute(delete(SavedTripRow).where(SavedTripRow.user_id == user_id))
             session.execute(
                 delete(WalletEntryRow).where(WalletEntryRow.user_id == user_id)
+            )
+            session.execute(
+                delete(WalletMutationEventRow).where(
+                    WalletMutationEventRow.user_id == user_id
+                )
             )
             session.execute(
                 delete(UserProfileRow).where(UserProfileRow.user_id == user_id)
