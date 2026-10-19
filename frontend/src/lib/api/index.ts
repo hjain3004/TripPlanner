@@ -164,7 +164,7 @@ import type {
   ItineraryDayOutput,
   ItineraryItemOutput,
 } from "./generated/types.gen";
-export { apiClient } from './client-config';
+export { apiClient, csrfHeaders } from './client-config';
 export { parsePlanJobStatus, planJobStatusSchema, sectionFreshnessSchema } from './schemas';
 export type DraftItinerary = DraftItineraryOutput;
 export type ItineraryDay = ItineraryDayOutput;

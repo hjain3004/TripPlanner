@@ -9,9 +9,9 @@ import Link from "next/link";
  * one deliberate accent-4 (accent-4) use in this composition, well inside the <2%
  * surface budget.
  *
- * "Your wallet" / "How it works" render as plain text, not links: those routes do
- * not exist yet, and the reference marks them up as spans. Only real destinations
- * are interactive.
+ * "How it works" renders as plain text, not a link: that route does not exist
+ * yet, and the reference marks it up as a span. Only real destinations are
+ * interactive. "Your wallet" became a real link in A3 when /wallet shipped.
  */
 export function SiteHeader() {
   return (
@@ -25,7 +25,9 @@ export function SiteHeader() {
 
       <div className="flex gap-[30px] text-[12px] font-semibold text-text-muted max-[960px]:hidden">
         <span>Plan a trip</span>
-        <span>Your wallet</span>
+        <Link href="/wallet" className="text-text-muted hover:text-text transition-colors">
+          Your wallet
+        </Link>
         <span>How it works</span>
       </div>
 
