@@ -70,6 +70,32 @@ class StalePlanningSessionError(ValueError):
     """Raised when a compare-and-swap session version no longer matches."""
 
 
+class WalletEntryNotFoundError(ValueError):
+    """Raised when no wallet entry with that id is owned by this user.
+
+    Deliberately indistinguishable from "the entry exists but belongs to
+    someone else": the API must never disclose another user's entry ids.
+    """
+
+
+class StaleWalletEntryError(ValueError):
+    """Raised when a compare-and-swap wallet version no longer matches."""
+
+
+class _Unset:
+    """Sentinel distinguishing "field omitted" from "field set to null".
+
+    ``update_wallet_entry`` is a patch: an omitted ``last4`` must be left as it
+    is, while an explicit ``None`` clears it. ``None`` alone cannot express both.
+    """
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return "<unset>"
+
+
+UNSET = _Unset()
+
+
 MAX_FAILED_ATTEMPTS = 10
 LOCKOUT_DURATION = timedelta(minutes=15)
 SESSION_TTL = timedelta(days=14)
@@ -338,27 +364,136 @@ class AccountStore:
         return entry
 
     def set_points_balances(
-        self, entry_id: str, balances: dict[str, int]
+        self, *, user_id: str, entry_id: str, balances: dict[str, int]
     ) -> WalletEntry:
-        """Replace (not merge) the stored balance map for one wallet entry."""
+        """Replace (not merge) the stored balance map for one wallet entry.
+
+        Owner-scoped convenience wrapper over ``update_wallet_entry``. It reads
+        the current version and immediately writes, so it does **not** give the
+        caller compare-and-swap protection against a concurrent edit; the API
+        deliberately uses ``update_wallet_entry`` with an explicit
+        ``expected_version`` instead. Kept for internal callers and tests.
+        """
         with Session(self._engine) as session:
-            row = session.get(WalletEntryRow, entry_id)
+            row = session.scalar(
+                select(WalletEntryRow).where(
+                    WalletEntryRow.id == entry_id,
+                    WalletEntryRow.user_id == user_id,
+                )
+            )
             if row is None:
-                raise ValueError(f"no such wallet entry: {entry_id}")
-            entry = WalletEntry.model_validate_json(row.payload)
-            candidate = entry.model_copy(update={"points_balances": dict(balances)})
+                raise WalletEntryNotFoundError(
+                    f"no wallet entry {entry_id} for this user"
+                )
+            current_version = WalletEntry.model_validate_json(row.payload).version
+        return self.update_wallet_entry(
+            user_id=user_id,
+            entry_id=entry_id,
+            expected_version=current_version,
+            points_balances=balances,
+        )
+
+    def update_wallet_entry(
+        self,
+        *,
+        user_id: str,
+        entry_id: str,
+        expected_version: int,
+        nickname: str | _Unset = UNSET,
+        last4: str | None | _Unset = UNSET,
+        statement_day: int | None | _Unset = UNSET,
+        opened_on: date | None | _Unset = UNSET,
+        points_balances: dict[str, int] | None | _Unset = UNSET,
+    ) -> WalletEntry:
+        """Owner-scoped compare-and-swap patch of the safe metadata fields.
+
+        Mirrors ``put_planning_session_snapshot``: the ``WHERE`` carries the
+        entry id, the asserted owner, **and** the expected version, so a wrong
+        owner and a stale version both yield ``rowcount == 0`` instead of an
+        overwrite. Never retries and never falls back to a blind write — the
+        caller must re-read and resubmit.
+
+        ``id``, ``user_id``, ``card_id`` and ``added_at`` are immutable here.
+        Omitted fields are left alone; an explicit ``None`` clears a nullable one.
+        """
+        if expected_version < 1:
+            raise ValueError("expected_version must be >= 1")
+
+        changes: dict[str, object] = {}
+        if not isinstance(nickname, _Unset):
+            changes["nickname"] = nickname
+        if not isinstance(last4, _Unset):
+            changes["last4"] = last4
+        if not isinstance(statement_day, _Unset):
+            changes["statement_day"] = statement_day
+        if not isinstance(opened_on, _Unset):
+            changes["opened_on"] = opened_on
+        if not isinstance(points_balances, _Unset):
+            changes["points_balances"] = (
+                dict(points_balances) if points_balances is not None else {}
+            )
+
+        with Session(self._engine) as session:
+            current_row = session.scalar(
+                select(WalletEntryRow).where(
+                    WalletEntryRow.id == entry_id,
+                    WalletEntryRow.user_id == user_id,
+                )
+            )
+            if current_row is None:
+                raise WalletEntryNotFoundError(
+                    f"no wallet entry {entry_id} for this user"
+                )
+
+            current = WalletEntry.model_validate_json(current_row.payload)
+            if current.version != expected_version:
+                raise StaleWalletEntryError(
+                    f"wallet entry {entry_id} is at version {current.version}, "
+                    f"not {expected_version}"
+                )
+
+            candidate = current.model_copy(
+                update={**changes, "version": current.version + 1}
+            )
             # model_copy skips validators, so round-trip the JSON to re-validate.
+            # This raises *before* any write, so a rejected patch cannot advance
+            # the version.
             updated = WalletEntry.model_validate_json(candidate.model_dump_json())
-            row.payload = updated.model_dump_json()
+
+            result = session.execute(
+                update(WalletEntryRow)
+                .where(
+                    WalletEntryRow.id == entry_id,
+                    WalletEntryRow.user_id == user_id,
+                    WalletEntryRow.version == expected_version,
+                )
+                .values(payload=updated.model_dump_json(), version=updated.version)
+            )
+            if result.rowcount != 1:  # type: ignore[attr-defined]
+                session.rollback()
+                raise StaleWalletEntryError(
+                    f"wallet entry {entry_id} was not at version {expected_version} "
+                    f"for this user"
+                )
             session.commit()
         return updated
 
-    def remove_wallet_entry(self, entry_id: str) -> None:
+    def remove_wallet_entry(self, *, user_id: str, entry_id: str) -> bool:
+        """Owner-scoped delete. Returns whether a row was actually removed.
+
+        Returns ``False`` both when the entry does not exist and when it belongs
+        to a different user — the two are deliberately indistinguishable so the
+        API cannot be used to probe for another user's entry ids.
+        """
         with Session(self._engine) as session:
-            row = session.get(WalletEntryRow, entry_id)
-            if row is not None:
-                session.delete(row)
-                session.commit()
+            result = session.execute(
+                delete(WalletEntryRow).where(
+                    WalletEntryRow.id == entry_id,
+                    WalletEntryRow.user_id == user_id,
+                )
+            )
+            session.commit()
+        return bool(result.rowcount == 1)  # type: ignore[attr-defined]
 
     def wallet_entries(self, user_id: str) -> list[WalletEntry]:
         """Every card the user holds, ordered by ``(card_id, id)``.

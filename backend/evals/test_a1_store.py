@@ -177,7 +177,9 @@ def test_set_points_balances_replaces_the_stored_map(tmp_path: Path) -> None:
         entry_id="w1",
     )
 
-    updated = store.set_points_balances("w1", {"hdfc-reward-points": 250})
+    updated = store.set_points_balances(
+        user_id="u1", entry_id="w1", balances={"hdfc-reward-points": 250}
+    )
 
     assert updated.points_balances == {"hdfc-reward-points": 250}
     assert store.wallet_entries("u1")[0].points_balances == {"hdfc-reward-points": 250}
@@ -190,7 +192,9 @@ def test_set_points_balances_rejects_a_negative_balance(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError):
-        store.set_points_balances("w1", {"hdfc-reward-points": -5})
+        store.set_points_balances(
+            user_id="u1", entry_id="w1", balances={"hdfc-reward-points": -5}
+        )
 
 
 def test_remove_wallet_entry(tmp_path: Path) -> None:
@@ -199,7 +203,7 @@ def test_remove_wallet_entry(tmp_path: Path) -> None:
         user_id="u1", card_id="hdfc-infinia", nickname="A", now=NOW, entry_id="w1"
     )
 
-    store.remove_wallet_entry("w1")
+    assert store.remove_wallet_entry(user_id="u1", entry_id="w1") is True
 
     assert store.wallet_entries("u1") == []
 
