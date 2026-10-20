@@ -1,7 +1,6 @@
 # A3 — Persistent Wallet Product Wiring
 
-**Status:** ACCEPTANCE PENDING — review remediation is complete; final committed-tree gate closure is pending. This report is
-not a completion claim and must not be read as one until the status line changes.
+**Status:** COMPLETE — review remediation and the final committed-tree gate passed.
 
 **Source/base commit:** `a378d0b0b5e5728912fbbfd7ebceaff8ebb02c66` (`codex/integrate-fi0-g3-5-g4`)
 **Branch:** `codex/a3-wallet-product-wiring`
@@ -53,13 +52,13 @@ no endpoint that writes it.
 
 ---
 
-## Verification — measured on the post-review tree; final clean-commit gate pending
+## Verification — measured on the final committed clean tree
 
 Every number below was read from a run on this tree, not copied from an earlier report.
 
 | Check | Result |
 |---|---|
-| `make gate` | **GATE PASSED** (`GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN`) |
+| `make gate` | **GATE PASSED** (`GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN`) on commit `21950ff` |
 | Backend pytest | **1778 passed, 1 skipped** |
 | mypy `--strict` (`core accounts planning agents api gateway ingestion`) | clean, **179 source files** |
 | Ruff zero-tolerance (`accounts planning agents gateway evals`, and `ingestion`) | All checks passed |
@@ -196,5 +195,5 @@ including three corrections to the plan itself (errors co-located in `store.py` 
   precondition; and invalid-card validation before a conflicting create replay remains a harmless
   invalid-input ordering edge, not a successful mutation or data-loss path. These are recorded,
   but do not alter A3's authenticated wallet correctness boundary.
-- The final exact-tree backend gate and final committed report closure remain pending. The status
-  must not change to COMPLETE until that gate passes on the final clean commit.
+- The exact-tree backend gate passed on the clean remediation commit. This report status is now
+  COMPLETE; a final post-documentation gate will be run after this closure commit as required.
