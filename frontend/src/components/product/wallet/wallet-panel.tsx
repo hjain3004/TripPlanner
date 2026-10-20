@@ -22,10 +22,12 @@ import {
   type ApiFailure,
   balanceSummary,
   balancesFromInput,
+  editedBalances,
   failureOf,
   isConflict,
   last4FromInput,
   nicknameOr,
+  newClientEventId,
 } from "@/components/product/wallet/wallet-policy";
 import {
   type CardProductOut,
@@ -103,6 +105,7 @@ export function WalletPanel() {
       nickname: string;
       last4: string | null;
       points_balances: Record<string, number>;
+      client_event_id: string;
     }) => {
       const { data, error } = await createWalletEntryAccountWalletPost({
         client: apiClient,
@@ -125,6 +128,7 @@ export function WalletPanel() {
       expectedVersion: number;
       nickname: string;
       points_balances: Record<string, number>;
+      clientEventId: string;
     }) => {
       const { data, error } = await patchWalletEntryAccountWalletEntryIdPatch({
         client: apiClient,
@@ -134,6 +138,7 @@ export function WalletPanel() {
           expected_version: vars.expectedVersion,
           nickname: vars.nickname,
           points_balances: vars.points_balances,
+          client_event_id: vars.clientEventId,
         },
       });
       if (error) throw error;
@@ -148,11 +153,12 @@ export function WalletPanel() {
   });
 
   const removeCard = useMutation({
-    mutationFn: async (entryId: string) => {
+    mutationFn: async (vars: { entryId: string; clientEventId: string }) => {
       const { error } = await deleteWalletEntryAccountWalletEntryIdDelete({
         client: apiClient,
         headers: csrfHeaders(),
-        path: { entry_id: entryId },
+        path: { entry_id: vars.entryId },
+        query: { client_event_id: vars.clientEventId },
       });
       if (error) throw error;
     },
@@ -306,7 +312,12 @@ export function WalletPanel() {
                         data-testid="wallet-remove-confirm-yes"
                         variant="destructive"
                         disabled={removeCard.isPending}
-                        onClick={() => removeCard.mutate(entry.id)}
+                        onClick={() =>
+                          removeCard.mutate({
+                            entryId: entry.id,
+                            clientEventId: newClientEventId(),
+                          })
+                        }
                       >
                         Yes, remove it
                       </Button>
@@ -331,6 +342,7 @@ export function WalletPanel() {
                         expectedVersion: entry.version,
                         nickname,
                         points_balances: balances,
+                        clientEventId: newClientEventId(),
                       })
                     }
                   />
@@ -345,6 +357,8 @@ export function WalletPanel() {
       <AddCardForm
         products={products.data ?? []}
         loading={products.isLoading}
+        error={products.isError}
+        onRetry={() => void products.refetch()}
         pending={addCard.isPending}
         onSubmit={(body) => addCard.mutate(body)}
       />
@@ -362,6 +376,20 @@ export function WalletPanel() {
         </h2>
         {projection.isLoading ? (
           <Skeleton className="h-10 w-full" />
+        ) : projection.isError ? (
+          <Alert data-testid="wallet-projection-error" variant="destructive">
+            <AlertTitle>Planning wallet could not be loaded</AlertTitle>
+            <AlertDescription>
+              The saved wallet could not be confirmed. Retry before planning so the
+              wallet summary is not mistaken for a cash-only result.
+              <Button
+                data-testid="wallet-projection-retry"
+                onClick={() => void projection.refetch()}
+              >
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
         ) : (
           <div data-testid="wallet-projection" className="text-[13px] text-text-muted">
             {(projection.data?.card_ids.length ?? 0) === 0 ? (
@@ -389,17 +417,22 @@ export function WalletPanel() {
 function AddCardForm({
   products,
   loading,
+  error,
+  onRetry,
   pending,
   onSubmit,
 }: {
   products: CardProductOut[];
   loading: boolean;
+  error: boolean;
+  onRetry: () => void;
   pending: boolean;
   onSubmit: (body: {
     card_id: string;
     nickname: string;
     last4: string | null;
     points_balances: Record<string, number>;
+    client_event_id: string;
   }) => void;
 }) {
   const [cardId, setCardId] = useState("");
@@ -418,6 +451,16 @@ function AddCardForm({
 
       {loading ? (
         <Skeleton className="h-10 w-full" />
+      ) : error ? (
+        <Alert data-testid="wallet-products-error" variant="destructive">
+          <AlertTitle>Card products could not be loaded</AlertTitle>
+          <AlertDescription>
+            Approved card products are unavailable, so a card cannot be added safely.
+            <Button data-testid="wallet-products-retry" onClick={onRetry}>
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
       ) : (
         <form
           data-testid="wallet-add-form"
@@ -429,6 +472,7 @@ function AddCardForm({
               nickname: nicknameOr(nickname, "My card"),
               last4: last4FromInput(last4),
               points_balances: balancesFromInput(currency, amount),
+              client_event_id: newClientEventId(),
             });
           }}
         >
@@ -536,7 +580,10 @@ function EditCardForm({
       className="border border-border p-3 flex flex-col gap-3"
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit(nicknameOr(nickname, entry.nickname), balancesFromInput(currency, amount));
+        onSubmit(
+          nicknameOr(nickname, entry.nickname),
+          editedBalances(entry.points_balances, firstCurrency, currency, amount),
+        );
       }}
     >
       <div className="flex flex-col gap-1">

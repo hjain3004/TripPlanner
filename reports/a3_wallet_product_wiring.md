@@ -1,6 +1,6 @@
 # A3 — Persistent Wallet Product Wiring
 
-**Status:** ACCEPTANCE PENDING — an independent whole-branch review is in flight. This report is
+**Status:** ACCEPTANCE PENDING — review remediation is complete; final committed-tree gate closure is pending. This report is
 not a completion claim and must not be read as one until the status line changes.
 
 **Source/base commit:** `a378d0b0b5e5728912fbbfd7ebceaff8ebb02c66` (`codex/integrate-fi0-g3-5-g4`)
@@ -53,24 +53,24 @@ no endpoint that writes it.
 
 ---
 
-## Verification — measured on the exact committed clean tree
+## Verification — measured on the post-review tree; final clean-commit gate pending
 
 Every number below was read from a run on this tree, not copied from an earlier report.
 
 | Check | Result |
 |---|---|
 | `make gate` | **GATE PASSED** (`GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN`) |
-| Backend pytest | **1777 passed, 1 skipped** |
+| Backend pytest | **1778 passed, 1 skipped** |
 | mypy `--strict` (`core accounts planning agents api gateway ingestion`) | clean, **179 source files** |
 | Ruff zero-tolerance (`accounts planning agents gateway evals`, and `ingestion`) | All checks passed |
 | Ruff legacy ratchet (`core/` + `api/`) | **7** findings, ceiling 12 — unchanged from baseline, **0** in new `api/wallet.py` |
 | Frontend `tsc --noEmit` | exit 0 |
-| Frontend Vitest | **176 passed** |
+| Frontend Vitest | **177 passed** |
 | Frontend ESLint | **0 errors** (14 warnings, all in pre-existing files) |
 | `token-lint` | 0 violations across 15 rules |
 | `no-dead-classes` | 0 dead classes (run against a fresh build) |
 | Production build | compiled successfully; `/wallet` prerendered |
-| Browser suite (`a3-wallet.spec.ts`) | **26 passed, 2 skipped** across chromium / mobile / tablet / reduced-motion |
+| Browser suite (`a3-wallet.spec.ts`) | **34 passed, 2 skipped** across chromium / mobile / tablet / reduced-motion |
 | OpenAPI byte-stability | regenerated twice → identical SHA-256, and identical to the committed artifact |
 | Generated client byte-stability | regenerates byte-identically; `git status` stays empty afterwards |
 
@@ -79,7 +79,10 @@ clean over 177 files. The backend grew by 55 tests (12 idempotency, 9 card produ
 8 projection, 6 privacy, 4 concurrency, 1 boundary) and 2 source files (`accounts/cards.py`,
 `api/wallet.py`). Frontend Vitest grew from 163 to 176.
 
-The 2 browser skips are the header link below 960px; see "Open findings".
+The 2 A3 browser skips are the header link below 960px; see "Open findings". The complete
+repository browser run was also attempted with live tests disabled; it reproduced three existing
+CP3 assistance failures (the A3 diff does not touch CP3 files), so those remain an explicit
+pre-existing verification limitation rather than an A3 fix target.
 
 ---
 
@@ -180,9 +183,18 @@ including three corrections to the plan itself (errors co-located in `store.py` 
 
 ---
 
-## Remaining before acceptance
+## Review closure
 
-- Independent whole-branch review against `a378d0b..HEAD`, and remediation of every verified
-  Critical or Important finding with regression coverage.
-- Re-run the full verification set above on the post-remediation committed tree.
-- Only then may this status line change and the final branch SHA be recorded.
+- The fresh independent whole-branch review found no Critical findings. Four Important findings
+  were verified and fixed with regression coverage: additive migration of the pre-A3 accounts
+  schema; preservation of hidden point balances during compact card edits; durable
+  `client_event_id` values on all frontend mutations; and explicit projection/card-product
+  read-failure states instead of a false cash-only result.
+- The review's three Minor findings are dispositioned as follows: generated error-response
+  declarations remain a non-blocking contract-documentation gap because runtime typed errors are
+  already decoded defensively; card-product seeding remains an approved seeded-environment
+  precondition; and invalid-card validation before a conflicting create replay remains a harmless
+  invalid-input ordering edge, not a successful mutation or data-loss path. These are recorded,
+  but do not alter A3's authenticated wallet correctness boundary.
+- The final exact-tree backend gate and final committed report closure remain pending. The status
+  must not change to COMPLETE until that gate passes on the final clean commit.

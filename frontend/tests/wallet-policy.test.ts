@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   balanceSummary,
   balancesFromInput,
+  editedBalances,
   failureOf,
   isConflict,
   last4FromInput,
@@ -74,6 +75,17 @@ describe("wallet input shaping", () => {
     expect(nicknameOr("", "My card")).toBe("My card");
     expect(nicknameOr("   ", "Existing")).toBe("Existing");
     expect(nicknameOr(" Travel card ", "My card")).toBe("Travel card");
+  });
+
+  it("preserves balances that are not shown by the single-field editor", () => {
+    expect(editedBalances({ alpha: 100, beta: 200 }, "alpha", "alpha", "150")).toEqual({
+      alpha: 150,
+      beta: 200,
+    });
+    expect(editedBalances({ alpha: 100, beta: 200 }, "alpha", "gamma", "300")).toEqual({
+      beta: 200,
+      gamma: 300,
+    });
   });
 });
 

@@ -9,6 +9,7 @@ back at version 1, not NULL.
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -108,3 +109,57 @@ def test_preexisting_row_without_a_version_reads_back_as_one(tmp_path: Path) -> 
     assert loaded.id == "legacy-1"
     assert loaded.nickname == "Pre-A3 card"
     assert loaded.version == 1
+
+
+def test_pre_a3_database_is_upgraded_without_rewriting_existing_rows(tmp_path: Path) -> None:
+    """Opening a real pre-A3 schema adds version/events without losing rows."""
+    db_path = tmp_path / "pre-a3.sqlite"
+    legacy_payload = json.dumps(
+        {
+            "id": "legacy-entry",
+            "user_id": "legacy-user",
+            "card_id": "hdfc-infinia",
+            "nickname": "Legacy card",
+            "last4": None,
+            "statement_day": None,
+            "opened_on": None,
+            "points_balances": {"legacy-points": 100},
+            "added_at": NOW.isoformat(),
+        }
+    )
+    with sqlite3.connect(db_path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE users (
+                id VARCHAR PRIMARY KEY,
+                email VARCHAR UNIQUE,
+                payload TEXT NOT NULL
+            );
+            CREATE TABLE wallet_entries (
+                id VARCHAR PRIMARY KEY,
+                user_id VARCHAR NOT NULL,
+                card_id VARCHAR NOT NULL,
+                payload TEXT NOT NULL
+            );
+            INSERT INTO users VALUES ('legacy-user', 'legacy@example.com', '{}');
+            """
+        )
+        connection.execute(
+            "INSERT INTO wallet_entries VALUES (?, ?, ?, ?)",
+            ("legacy-entry", "legacy-user", "hdfc-infinia", legacy_payload),
+        )
+        connection.commit()
+
+    store = AccountStore.open(db_path)
+    (loaded,) = store.wallet_entries("legacy-user")
+    assert loaded.id == "legacy-entry"
+    assert loaded.version == 1
+    assert loaded.points_balances == {"legacy-points": 100}
+    store.add_wallet_entry(
+        user_id="legacy-user",
+        card_id="hdfc-infinia",
+        nickname="New",
+        now=NOW,
+        client_event_id="legacy-event",
+    )
+    assert len(store.wallet_mutation_events("legacy-user")) == 1

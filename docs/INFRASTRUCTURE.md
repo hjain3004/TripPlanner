@@ -79,8 +79,10 @@ discovery, and credentials in frontend/LLM context are outside the boundary.
 - Raw/live provider content is not silently promoted into the financial knowledge base. Offline
   financial ingestion (FI0 foundation under `backend/ingestion/`, offline contracts and a separate SQLite review queue only) remains a human-reviewed proposal/approval workflow under spec 05.
 - Account and planning persistence is user-scoped and uses the existing SQLite/CAS/audit patterns;
-  it is separate from gateway quote/cache evidence. CP2 does not authorize provider activation or
-  autonomous financial writes.
+  it is separate from gateway quote/cache evidence. A3 adds the authenticated wallet API/UI,
+  additive wallet-entry version migration, durable mutation idempotency, privacy export/delete and
+  session-snapshotted wallet projection. CP2/A3 do not authorize provider activation or autonomous
+  financial writes.
 
 ## Environment matrix
 

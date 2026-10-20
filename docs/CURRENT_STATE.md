@@ -25,6 +25,11 @@ separates shipped code, disabled experiments, and plans.
   `/planning/sessions` routes in `backend/api/main.py` and `backend/api/conversation.py`.
 - CP2 confirmation starts the existing non-live planning path exactly once and records durable
   session/audit state; it does not activate Gondola, Tripadvisor, crawling, booking, or payment.
+- A3 persistent wallet product wiring is complete on the isolated A3 branch: authenticated wallet
+  API/UI, seeded card-product selection, owner-scoped versioned mutations with durable idempotency,
+  privacy export/delete, and session-snapshotted wallet projection. Known limitations remain
+  documented in `reports/a3_wallet_product_wiring.md` (mobile header navigation, running-session
+  wallet reconciliation, missing KB card-to-loyalty mapping, and the internal non-CAS wrapper).
 - The frontend's mock environment is the default. The browser API facade and MSW handlers supply
   deterministic fixture responses; live mode is an explicit environment choice.
 - CP3 adds the required adaptive interview checkpoint, optional free-text interpretation,

@@ -67,7 +67,10 @@ async function mockWallet(page: Page, initial: Entry[] = []) {
       await route.fulfill({ json: state.entries });
       return;
     }
-    const body = request.postDataJSON() as Partial<Entry>;
+    const body = request.postDataJSON() as Partial<Entry> & { client_event_id?: unknown };
+    if (typeof body.client_event_id !== "string" || body.client_event_id.length === 0) {
+      throw new Error("wallet create must carry client_event_id");
+    }
     state.seq += 1;
     const entry: Entry = {
       id: `e2e-wallet-${state.seq}`,
@@ -105,11 +108,16 @@ async function mockWallet(page: Page, initial: Entry[] = []) {
       return;
     }
     if (request.method() === "DELETE") {
+      const eventId = new URL(request.url()).searchParams.get("client_event_id");
+      if (eventId === null || eventId === "") throw new Error("wallet delete must carry client_event_id");
       state.entries.splice(index, 1);
       await route.fulfill({ status: 204, body: "" });
       return;
     }
     const body = request.postDataJSON() as Record<string, unknown>;
+    if (typeof body.client_event_id !== "string" || body.client_event_id.length === 0) {
+      throw new Error("wallet patch must carry client_event_id");
+    }
     const current = state.entries[index];
     if (body.expected_version !== current.version) {
       await route.fulfill({
@@ -209,6 +217,38 @@ test.describe("A3: the authenticated wallet journey", () => {
     await expect(page.getByTestId("wallet-remove-confirm")).toHaveCount(0);
     await expect(page.getByTestId("wallet-entry")).toHaveCount(1);
     expect(state.entries).toHaveLength(1);
+  });
+
+  test("editing the visible balance preserves other stored balances", async ({ page }) => {
+    const state = await mockWallet(page, [
+      {
+        id: "e2e-wallet-multi",
+        card_id: "hdfc-infinia",
+        nickname: "Multi-balance",
+        last4: null,
+        statement_day: null,
+        opened_on: null,
+        points_balances: { alpha: 100, beta: 200 },
+        added_at: "2026-10-19T12:00:00Z",
+        version: 1,
+      },
+    ]);
+    await page.goto(`${BASE}/wallet`);
+    await page.getByTestId("wallet-edit-e2e-wallet-multi").click();
+    await page.getByTestId("wallet-edit-nickname").fill("Renamed");
+    await page.getByTestId("wallet-edit-save").click();
+    await expect(page.getByTestId("wallet-entry")).toContainText("Renamed");
+    expect(state.entries[0].points_balances).toEqual({ alpha: 100, beta: 200 });
+  });
+
+  test("a projection read failure is not presented as cash-only", async ({ page }) => {
+    await mockWallet(page);
+    await page.route("**/account/wallet/projection", (route) =>
+      route.fulfill({ status: 503, json: { detail: { code: "wallet_unavailable" } } }),
+    );
+    await page.goto(`${BASE}/wallet`);
+    await expect(page.getByTestId("wallet-projection-error")).toBeVisible();
+    await expect(page.getByTestId("wallet-projection-empty")).toHaveCount(0);
   });
 
   test("a stale edit surfaces a typed conflict instead of overwriting", async ({ page }) => {

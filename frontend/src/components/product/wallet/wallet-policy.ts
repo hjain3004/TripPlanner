@@ -63,6 +63,24 @@ export function balancesFromInput(
   return { [key]: parsed };
 }
 
+/** Replace the balance shown by the compact editor without dropping others. */
+export function editedBalances(
+  original: Record<string, number>,
+  originalCurrency: string,
+  currency: string,
+  amount: string,
+): Record<string, number> {
+  const next = { ...original };
+  if (originalCurrency !== "") delete next[originalCurrency];
+  const replacement = balancesFromInput(currency, amount);
+  return { ...next, ...replacement };
+}
+
+/** Each user mutation gets one retry-stable identity for the request attempt. */
+export function newClientEventId(): string {
+  return crypto.randomUUID();
+}
+
 /** Normalise the optional last4 input: blank means "not provided", not "". */
 export function last4FromInput(value: string): string | null {
   const trimmed = value.trim();
