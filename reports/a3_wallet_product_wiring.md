@@ -58,7 +58,7 @@ Every number below was read from a run on this tree, not copied from an earlier 
 
 | Check | Result |
 |---|---|
-| `make gate` | **GATE PASSED** (`GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN`) on commit `21950ff` |
+| `make gate` | **GATE PASSED** (`GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN`) on the final committed tree |
 | Backend pytest | **1778 passed, 1 skipped** |
 | mypy `--strict` (`core accounts planning agents api gateway ingestion`) | clean, **179 source files** |
 | Ruff zero-tolerance (`accounts planning agents gateway evals`, and `ingestion`) | All checks passed |
@@ -69,7 +69,7 @@ Every number below was read from a run on this tree, not copied from an earlier 
 | `token-lint` | 0 violations across 15 rules |
 | `no-dead-classes` | 0 dead classes (run against a fresh build) |
 | Production build | compiled successfully; `/wallet` prerendered |
-| Browser suite (`a3-wallet.spec.ts`) | **34 passed, 2 skipped** across chromium / mobile / tablet / reduced-motion |
+| Browser suite (complete, live tests disabled) | **492 passed, 76 skipped**; A3 wallet slice **34 passed, 2 skipped** across chromium / mobile / tablet / reduced-motion |
 | OpenAPI byte-stability | regenerated twice → identical SHA-256, and identical to the committed artifact |
 | Generated client byte-stability | regenerates byte-identically; `git status` stays empty afterwards |
 
@@ -78,10 +78,9 @@ clean over 177 files. The backend grew by 55 tests (12 idempotency, 9 card produ
 8 projection, 6 privacy, 4 concurrency, 1 boundary) and 2 source files (`accounts/cards.py`,
 `api/wallet.py`). Frontend Vitest grew from 163 to 176.
 
-The 2 A3 browser skips are the header link below 960px; see "Open findings". The complete
-repository browser run was also attempted with live tests disabled; it reproduced three existing
-CP3 assistance failures (the A3 diff does not touch CP3 files), so those remain an explicit
-pre-existing verification limitation rather than an A3 fix target.
+The 2 A3 browser skips are the header link below 960px; see "Open findings". The first complete
+browser run exposed three CP3 fixture failures because the A3 session contract added required
+`wallet` data; the shared CP3 fixture was synchronized and the complete rerun passed.
 
 ---
 
