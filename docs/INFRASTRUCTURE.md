@@ -84,6 +84,14 @@ discovery, and credentials in frontend/LLM context are outside the boundary.
   session-snapshotted wallet projection. CP2/A3 do not authorize provider activation or autonomous
   financial writes.
 
+## Deployment profile (D1)
+
+A production-like local stack (nginx same-origin proxy → FastAPI + Next.js standalone, named data volume, backend
+and frontend on a network with no outbound access) is defined in `deploy/compose.yaml` and documented in
+[DEPLOYMENT.md](DEPLOYMENT.md). It is **single-instance by design** (SQLite files, process-local planning jobs and
+locks) and runs sample mode only; every live provider is refused at startup in production. `make compose-up` builds
+and starts it; `make d1-smoke` drives a genuine browser → proxy → backend journey including a backend restart.
+
 ## Environment matrix
 
 | Surface | Default | Explicit live mode |

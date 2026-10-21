@@ -10,6 +10,7 @@ changing behavior.
    still planned.
 2. [Infrastructure](INFRASTRUCTURE.md) — runtime boundaries, persistence, provider profile, and
    verification surfaces.
+   Deployment (D1, single-instance sample-mode stack): [Deployment guide](DEPLOYMENT.md) and `reports/d1_deployment_foundation.md`.
 3. [Frontend architecture](../frontend/ARCHITECTURE.md) — the implemented Next.js structure and
    its backend contract boundary.
 4. [Fable handoff](../frontend/FABLE_HANDOFF.md) — the short execution brief for a fresh frontend
