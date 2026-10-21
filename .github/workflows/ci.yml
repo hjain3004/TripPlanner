@@ -65,7 +65,12 @@ jobs:
               if not m:
                   continue
               n = int(m.group(1)); total += n; lines.append(line)
-              if re.search(r"regional catalog artifacts|real catalogs? built", m.group(2)):
+              # Catalog-caused skips: the explicit marker reason, the older self-guards, and
+              # parametrisations over catalogs that do not exist (test_i7_gate: empty parameter set).
+              if re.search(
+                  r"regional catalog artifacts|real catalogs? built|empty parameter set for \(catalog_id",
+                  m.group(2),
+              ):
                   catalog += n
           other = total - catalog
           summary = (

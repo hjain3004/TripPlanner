@@ -386,3 +386,47 @@ class TestWorkflowShellAndSkipAccounting:
         )
         code, text = self._run_accounting(tmp_path, out)
         assert code != 0 and "unexpected skipped tests" in text
+
+    def test_the_real_github_runner_skip_output_is_accounted_correctly(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression for the first real CI run: test_i7_gate parametrises over activated
+        catalogs, so with none it produces 'got empty parameter set for (catalog_id, data)'
+        skips. Those are catalog-caused; only the CP1 merge-base skip is 'other'."""
+        guard = (
+            "regional catalog artifacts (backend/catalogs/active_*-core.json) are not "
+            "provisioned; see docs/DEPLOYMENT.md"
+        )
+        empty = "got empty parameter set for (catalog_id, data)"
+        rows = [
+            (5, "test_audit_regional_search.py:35", guard),
+            (6, "test_audit_taxonomy_retrieval.py:53", guard),
+            (
+                1,
+                "test_cp1_boundaries.py:74",
+                "CP1_MERGE_BASE is required for committed-diff assertions",
+            ),
+            (1, "test_i7_gate.py:47", "requires at least one real catalog built"),
+            (1, "test_i7_gate.py:54", empty),
+            (1, "test_i7_gate.py:62", empty),
+            (1, "test_i7_gate.py:67", empty),
+            (1, "test_i7_gate.py:78", empty),
+            (1, "test_i7_gate.py:102", "requires at least two real catalogs built"),
+            (
+                1,
+                "test_region_isolation.py:47",
+                "requires both real catalogs built (backend/catalogs)",
+            ),
+        ]
+        runner_output = "\n".join(f"SKIPPED [{n}] evals/{where}: {why}" for n, where, why in rows)
+        code, text = TestWorkflowShellAndSkipAccounting._run_accounting(tmp_path, runner_output)
+        assert code == 0, text
+        assert "skipped for any other reason: **1**" in text
+
+    def test_an_unrelated_empty_parameter_set_skip_is_still_flagged(self, tmp_path: Path) -> None:
+        out = (
+            "SKIPPED [1] evals/test_cp1_boundaries.py:74: CP1_MERGE_BASE is required\n"
+            "SKIPPED [1] evals/test_x.py:3: got empty parameter set for (case_id, payload)\n"
+        )
+        code, text = TestWorkflowShellAndSkipAccounting._run_accounting(tmp_path, out)
+        assert code != 0 and "unexpected skipped tests" in text
