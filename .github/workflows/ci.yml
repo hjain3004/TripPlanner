@@ -1,0 +1,169 @@
+# Required CI for pull requests and main.
+#
+# Hard rules for every workflow in this directory:
+#   * actions are pinned to full commit SHAs (the version is in the trailing comment);
+#   * permissions are read-only and no job writes to the repository or to the branch;
+#   * no secrets are referenced anywhere, and nothing here can reach a live provider or a
+#     paid service (the smoke stack runs on a Docker network with no outbound access);
+#   * generated artifacts are only ever COMPARED (scripts/check-contract-drift.sh),
+#     never regenerated-and-committed.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend - seed, tests, strict mypy, ruff
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.lock
+      - name: Install dependencies from the hashed lockfile
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/pip install --require-hashes -r backend/requirements-dev.lock
+      - name: Seed the knowledge base
+        run: make seed
+      - name: Complete backend suite
+        working-directory: backend
+        run: .venv/bin/pytest -q -rs -p no:cacheprovider 2>&1 | tee "$RUNNER_TEMP/pytest.txt"
+      - name: Account for skipped tests (visible, never silent)
+        run: |
+          python3 - <<'PY'
+          import os, re
+          text = open(os.path.join(os.environ["RUNNER_TEMP"], "pytest.txt")).read()
+          total = catalog = 0
+          lines = []
+          for line in text.splitlines():
+              m = re.match(r"SKIPPED \[(\d+)\] (.*)", line)
+              if not m:
+                  continue
+              n = int(m.group(1)); total += n; lines.append(line)
+              if "catalog" in line.lower():
+                  catalog += n
+          other = total - catalog
+          summary = (
+              f"### Skipped tests\n- total skipped: **{total}**\n"
+              f"- skipped because the untracked regional catalogs are not provisioned: **{catalog}** "
+              "(these assertions are verified by `make gate` on a provisioned machine, not by CI)\n"
+              f"- skipped for any other reason: **{other}**\n"
+          )
+          open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(summary)
+          print(summary)
+          print("\n".join(lines))
+          # One pre-existing unconditional skip is known; anything beyond it is a surprise.
+          if other > 1:
+              raise SystemExit("unexpected skipped tests that are not catalog-related")
+          PY
+      - name: Frozen artifacts untouched by the test run
+        run: |
+          git diff --exit-code -- backend/evals/golden/
+          cmp AGENTS.md CLAUDE.md
+      - name: Strict mypy (every source package)
+        working-directory: backend
+        run: |
+          .venv/bin/mypy --strict core/ accounts/ planning/ agents/ api/ gateway/
+          .venv/bin/mypy --strict ingestion/
+      - name: Ruff (zero-tolerance scope) and legacy ratchet
+        working-directory: backend
+        run: |
+          .venv/bin/ruff check accounts/ planning/ agents/ gateway/ evals/
+          .venv/bin/ruff check ingestion/
+          COUNT=$(.venv/bin/ruff check core/ api/ 2>/dev/null | grep -c '^[A-Z][0-9]' || true)
+          echo "core/ + api/ ruff findings: $COUNT (ceiling 12)"
+          test "$COUNT" -le 12
+
+  frontend:
+    name: Frontend - types, unit tests, lint, tokens, production build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Vitest (complete unit suite)
+        run: npx vitest run
+      - name: ESLint
+        run: npm run lint
+      - name: Design-token lint
+        run: node scripts/token-lint.mjs
+      - name: Production build
+        run: npm run build
+      - name: Dead-class check (against the fresh build)
+        run: node scripts/no-dead-classes.mjs
+
+  contract-drift:
+    name: OpenAPI and generated client drift
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.lock
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install backend and frontend dependencies
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/pip install --require-hashes -r backend/requirements-dev.lock
+          npm --prefix frontend ci
+      - name: Fail on any contract or client drift
+        run: scripts/check-contract-drift.sh
+
+  containers-and-smoke:
+    name: Container builds and production-like full-stack smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install the browser driver only (the app runs in containers)
+        run: |
+          npm --prefix frontend ci
+          npx --prefix frontend playwright install --with-deps chromium
+      - name: Build both production images
+        run: docker compose -p tripwise-d1 -f deploy/compose.yaml build
+      - name: Genuine smoke - live frontend to real backend, backend restart, persistence
+        run: scripts/d1-smoke.sh

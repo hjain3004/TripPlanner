@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+coverage
+test-results
+playwright-report
+e2e
+design
+tests
+**/*.png
+!public/**/*.png
+.env
+.env.*
+!.env.example
+*.log

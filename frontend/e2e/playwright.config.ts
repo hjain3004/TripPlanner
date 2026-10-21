@@ -2,6 +2,8 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: ".",
+  // The D1 live-stack smoke needs the Compose stack; it has its own config and runner.
+  testIgnore: "**/d1-live-stack-smoke.spec.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
