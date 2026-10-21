@@ -1,10 +1,10 @@
 """Liveness and readiness for process supervisors (container health checks).
 
 * ``/health/live``  - the process is up. Touches nothing.
-* ``/health/ready`` - local persistence can be opened: the data directory is
-  writable, the accounts database opens through its real schema path, and the seeded
-  knowledge base loads. Provider state is *reported* but can never make the
-  sample-mode application unready.
+* ``/health/ready`` - local persistence is usable: the data directory is writable and
+  the accounts database and seeded knowledge base exist and are readable (read-only
+  probes; the schema itself is created by the API lifespan at startup). Provider state
+  is *reported* but can never make the sample-mode application unready.
 
 Both are infrastructure endpoints and are intentionally kept out of the public
 OpenAPI contract. Failure bodies name checks only - never paths or exception text.
@@ -12,11 +12,12 @@ OpenAPI contract. Failure bodies name checks only - never paths or exception tex
 
 from __future__ import annotations
 
+import sqlite3
 import tempfile
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Response
-from sqlalchemy import text
 
 import accounts.db as accounts_db
 import core.db as core_db
@@ -40,23 +41,30 @@ def _check_data_dir() -> bool:
         return False
 
 
-def _check_accounts_db() -> bool:
+def _readonly_count(path: Path, table: str) -> int:
+    """Row count through a READ-ONLY connection: never creates a missing file, never
+    migrates, never holds a write lock - so a probe cannot mask a deleted database."""
+    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2.0)
     try:
-        engine = accounts_db.create_accounts_engine(accounts_db.ACCOUNTS_DB_PATH)
-        try:
-            with engine.connect() as connection:
-                connection.execute(text("SELECT 1 FROM users LIMIT 1"))
-            return True
-        finally:
-            engine.dispose()
+        row = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()  # noqa: S608 - constant
+        return int(row[0])
+    finally:
+        connection.close()
+
+
+def _check_accounts_db() -> bool:
+    # The schema is created/migrated once at startup by the API lifespan (the real
+    # path); readiness only confirms the file is still there and readable.
+    try:
+        _readonly_count(accounts_db.ACCOUNTS_DB_PATH, "users")
+        return True
     except Exception:
         return False
 
 
 def _check_knowledge_base() -> bool:
     try:
-        path = core_db.DB_PATH
-        return path.exists() and bool(core_db.load_kb(path).cards)
+        return _readonly_count(core_db.DB_PATH, "cards") > 0
     except Exception:
         return False
 

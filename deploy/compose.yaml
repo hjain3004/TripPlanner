@@ -25,9 +25,12 @@ services:
       TRIPWISE_DATA_DIR: /data
     volumes:
       - tripwise-data:/data
+    # uvicorn drains for up to 10 s on SIGTERM; give Docker longer than that before SIGKILL.
+    stop_grace_period: 30s
+    pids_limit: 256
     read_only: true
     tmpfs:
-      - /tmp
+      - /tmp:size=64m
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
@@ -49,10 +52,11 @@ services:
     image: tripwise-frontend:d1
     init: true
     restart: unless-stopped
+    pids_limit: 256
     read_only: true
     tmpfs:
-      - /tmp
-      - /app/.next/cache:uid=1000,gid=1000,mode=0755
+      - /tmp:size=64m
+      - /app/.next/cache:uid=1000,gid=1000,mode=0755,size=128m
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
@@ -78,9 +82,10 @@ services:
       - "127.0.0.1:${TRIPWISE_HTTP_PORT:-8080}:8080"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    pids_limit: 128
     read_only: true
     tmpfs:
-      - /tmp
+      - /tmp:size=16m
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true

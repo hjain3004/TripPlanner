@@ -9,6 +9,7 @@
 # tripwise.sqlite (the reference knowledge base) is NOT backed up: it is rebuilt from the
 # seeds baked into the image on every start. See docs/DEPLOYMENT.md - 'Backups'.
 set -euo pipefail
+umask 077   # the backup contains user data; never create it world/group readable
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="${COMPOSE_PROJECT:-tripwise-d1}"
@@ -33,6 +34,13 @@ print(f"backup verified: integrity ok, {users} users")
 PY
 # `docker cp` cannot read a container tmpfs, so stream the verified file out instead.
 docker exec "$CID" cat /tmp/accounts.backup.sqlite > "$OUT/accounts-$STAMP.sqlite"
+# A truncated stream must never leave a file that looks like a good backup: compare digests.
+WANT="$(docker exec "$CID" python -c "import hashlib; print(hashlib.sha256(open('/tmp/accounts.backup.sqlite','rb').read()).hexdigest())")"
+HAVE="$(python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$OUT/accounts-$STAMP.sqlite")"
+if [ "$WANT" != "$HAVE" ]; then
+  rm -f "$OUT/accounts-$STAMP.sqlite"
+  echo "FAIL: copied backup does not match the verified in-container copy" >&2
+  exit 1
+fi
 docker exec "$CID" rm -f /tmp/accounts.backup.sqlite
-chmod 600 "$OUT/accounts-$STAMP.sqlite"
-echo "wrote $OUT/accounts-$STAMP.sqlite (contains user data: protect it like a credential)"
+echo "wrote $OUT/accounts-$STAMP.sqlite sha256=$HAVE (contains user data: protect it like a credential)"

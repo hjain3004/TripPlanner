@@ -15,5 +15,5 @@ python -m core.db seed
 # 3. Exactly ONE worker. Planning jobs are held in process memory (api/job_manager.py) and
 #    the databases are SQLite files, so this profile is single-instance by design.
 exec uvicorn api.main:app \
-    --host 0.0.0.0 --port "${TRIPWISE_PORT:-8000}" \
+    --host 0.0.0.0 --port 8000 \
     --workers 1 --no-server-header --timeout-graceful-shutdown 10

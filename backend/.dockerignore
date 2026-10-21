@@ -9,11 +9,10 @@ catalogs
 raw_overture
 .work
 .traces
-**/*.sqlite
-**/*.sqlite3
-**/*.db
-.env
-.env.*
+**/*.sqlite*
+**/*.db*
+**/.env
+**/.env.*
 evals
 ingestion
 scripts

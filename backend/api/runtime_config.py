@@ -77,12 +77,19 @@ def _check_data_dir(raw: str) -> str | None:
 
 
 def _check_origin(origin: str) -> bool:
-    parsed = urlparse(origin)
+    """An origin is scheme://host[:port] - no path (not even a trailing slash, which
+    Starlette's exact-match CORS would never match), query, fragment or wildcard."""
+    try:
+        parsed = urlparse(origin)
+        parsed.port  # noqa: B018 - raises ValueError for a malformed port
+    except ValueError:
+        return False
     return (
-        parsed.scheme in {"http", "https"}
+        origin.isascii()
+        and parsed.scheme in {"http", "https"}
         and bool(parsed.hostname)
         and "*" not in origin
-        and parsed.path in {"", "/"}
+        and parsed.path == ""
         and not (parsed.params or parsed.query or parsed.fragment)
     )
 
@@ -117,17 +124,36 @@ def validate_runtime_config(env: Mapping[str, str] | None = None) -> list[Config
 
     max_calls = source.get("TRIPWISE_LLM_MAX_CALLS")
     if max_calls is not None:
-        if not max_calls.strip().isdigit() or int(max_calls) < 1:
+        text = max_calls.strip()
+        if not (text.isascii() and text.isdigit()) or int(text) < 1:
             issues.append(ConfigIssue("TRIPWISE_LLM_MAX_CALLS", "must be a positive integer"))
 
     if production:
+        flagged = flagged_live_providers(source)
         for provider_id, enable, _kill in LIVE_PROVIDER_FLAGS:
-            if provider_id in flagged_live_providers(source):
+            if provider_id in flagged:
                 issues.append(
                     ConfigIssue(
                         enable, "live providers are not activatable in the sample-mode profile"
                     )
                 )
+        # Other ways a live (network-reaching) capability would be switched on.
+        if source.get("TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED", "").strip() == "1":
+            issues.append(
+                ConfigIssue(
+                    "TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED",
+                    "the hosted interview LLM role is not activatable in the sample-mode profile",
+                )
+            )
+        if source.get("TRIPWISE_TRIPADVISOR_API_KEY", "").strip() and not _truthy(
+            source, "TRIPWISE_TRIPADVISOR_KILL_SWITCH"
+        ):
+            issues.append(
+                ConfigIssue(
+                    "TRIPWISE_TRIPADVISOR_API_KEY",
+                    "a Tripadvisor credential is not usable in the sample-mode profile",
+                )
+            )
     return issues
 
 

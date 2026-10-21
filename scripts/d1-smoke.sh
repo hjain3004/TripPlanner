@@ -12,6 +12,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# The smoke must be hermetic: a developer's deploy/.env would be injected into the backend by
+# Compose's env_file and change what is being tested. Refuse unless explicitly allowed.
+if [ -f deploy/.env ] && [ "${TRIPWISE_SMOKE_ALLOW_ENV:-0}" != "1" ]; then
+  echo "refusing: deploy/.env exists and would change the stack under test." >&2
+  echo "          Move it away, or set TRIPWISE_SMOKE_ALLOW_ENV=1 to test with it." >&2
+  exit 64
+fi
+
 PROJECT="tripwise-d1-smoke"
 PORT="${TRIPWISE_HTTP_PORT:-18080}"
 KEEP=0
@@ -57,8 +65,16 @@ BACKEND_ID="$("${COMPOSE[@]}" ps -q backend)"
 echo "backend user: $(docker exec "$BACKEND_ID" id -u) (expected non-root 10001)"
 [ "$(docker exec "$BACKEND_ID" id -u)" = "10001" ]
 curl -fsS "$TRIPWISE_STACK_URL/api/health/ready"; echo
-if docker exec "$BACKEND_ID" python -c "import urllib.request as u; u.urlopen('https://api.open-meteo.com', timeout=4)" >/dev/null 2>&1; then
-  echo "FAIL: the backend container has outbound network access" >&2
+EGRESS="$(docker exec "$BACKEND_ID" python -c "
+import urllib.request as u
+try:
+    u.urlopen('https://api.open-meteo.com', timeout=5)
+    print('OPEN')
+except OSError as exc:  # URLError / gaierror / timeout are all OSError: the network refused us
+    print('BLOCKED')
+" 2>&1 || true)"
+if [ "$EGRESS" != "BLOCKED" ]; then
+  echo "FAIL: expected the backend to have NO outbound network access, got: $EGRESS" >&2
   exit 1
 fi
 echo "backend has no outbound network access (no live provider can be reached)"
@@ -73,11 +89,11 @@ wait_ready
 echo "== 5/6 phase 2: persistence and honest limitations after restart"
 ( cd frontend && npx playwright test -c e2e/playwright.live-stack.config.ts --grep @phase2 )
 
-echo "== 6/6 no secrets or database files leaked into the images"
+echo "== 6/6 no secrets, databases or catalogs leaked into the images"
 for svc in backend frontend; do
   IMG="$("${COMPOSE[@]}" images -q "$svc" | head -n1)"
-  if docker run --rm --entrypoint sh "$IMG" -c 'find / -xdev \( -name "*.sqlite" -o -name ".env" -o -name ".env.*" \) -not -path "/proc/*" 2>/dev/null | grep -v "^/data/" | head -5' | grep -q .; then
-    echo "FAIL: database or env file found in the $svc image" >&2
+  if docker run --rm --entrypoint sh "$IMG" -c 'find / -xdev \( -name "*.sqlite*" -o -name "*.db" -o -name ".env" -o -name ".env.*" -o -name "active_*-core.json" \) -not -path "/proc/*" 2>/dev/null | grep -v "^/data/" | head -5' | grep -q .; then
+    echo "FAIL: database, catalog or env file found in the $svc image" >&2
     exit 1
   fi
 done

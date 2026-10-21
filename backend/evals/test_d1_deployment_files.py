@@ -75,7 +75,7 @@ class TestBackendImage:
 
     def test_dockerignore_excludes_state_secrets_and_catalogs(self) -> None:
         ignored = read(BACKEND / ".dockerignore")
-        for entry in ("catalogs", ".env", "**/*.sqlite", ".venv", "raw_overture"):
+        for entry in ("catalogs", "**/.env", "**/*.sqlite*", ".venv", "raw_overture"):
             assert entry in ignored
 
 
@@ -139,6 +139,13 @@ class TestCompose:
             assert service["cap_drop"] == ["ALL"], name
             assert "no-new-privileges:true" in service["security_opt"], name
 
+    def test_resource_limits_and_a_shutdown_grace_longer_than_uvicorns_drain(self) -> None:
+        for name, service in self.services.items():
+            assert service["pids_limit"] > 0, name
+            assert all("size=" in t for t in service["tmpfs"]), name
+        grace = int(self.services["backend"]["stop_grace_period"].rstrip("s"))
+        assert grace > 10  # uvicorn --timeout-graceful-shutdown 10
+
     def test_application_data_lives_on_a_named_volume(self) -> None:
         assert "tripwise-data:/data" in self.services["backend"]["volumes"]
         assert "tripwise-data" in self.compose["volumes"]
@@ -172,9 +179,21 @@ class TestProxy:
 
     def test_routes_api_with_prefix_stripped_and_everything_else_to_the_frontend(self) -> None:
         assert re.search(
-            r"location /api/ \{[^}]*proxy_pass http://tripwise_backend/;", self.conf, re.S
+            r"location /api/ \{[^}]*rewrite \^/api/\(\.\*\)\$ /\$1 break;[^}]*"
+            r"proxy_pass \$tripwise_backend;",
+            self.conf,
+            re.S,
         )
-        assert re.search(r"location / \{[^}]*proxy_pass http://tripwise_frontend;", self.conf, re.S)
+        assert re.search(r"location / \{[^}]*proxy_pass \$tripwise_frontend;", self.conf, re.S)
+
+    def test_upstreams_are_resolved_per_request_not_frozen_at_start(self) -> None:
+        assert "resolver 127.0.0.11" in self.conf
+        assert "set $tripwise_backend  http://backend:8000;" in self.conf
+        assert "set $tripwise_frontend http://frontend:3000;" in self.conf
+        assert "upstream " not in self.conf  # static upstream blocks resolve once, at start
+
+    def test_prefix_broken_interactive_docs_are_not_exposed(self) -> None:
+        assert re.search(r"location ~ \^/api/\(docs\|redoc\)\(/\|\$\) \{\s*return 404;", self.conf)
 
     def test_never_widens_cors_or_strips_cookie_security(self) -> None:
         assert "Access-Control-Allow-Origin" not in self.conf
@@ -199,17 +218,16 @@ class TestEnvironmentTemplate:
         missing = sorted(v for v in used if v not in documented)
         assert not missing, f"undocumented environment variables: {missing}"
 
-    def test_separates_the_four_kinds_of_configuration(self) -> None:
+    def test_separates_the_kinds_of_configuration(self) -> None:
         for heading in (
-            "Required production configuration",
-            "Optional local-development",
-            "Live-provider variables",
-            "Kill switches",
+            "1. Required production configuration",
+            "2. Compose-level settings",
+            "3. Optional application configuration",
+            "4. Optional local-development only",
+            "5. Live-provider variables",
+            "6. Kill switches",
         ):
-            assert (
-                heading.lower() in self.template.lower()
-                or heading.split()[0].lower() in self.template.lower()
-            )
+            assert heading in self.template, heading
 
 
 class TestLockfiles:
@@ -304,3 +322,67 @@ class TestMakefile:
             "d1-smoke:",
         ):
             assert target in self.text
+
+
+class TestWorkflowShellAndSkipAccounting:
+    """The Critical review finding: `pytest | tee` under GitHub's default `bash -e` (no
+    pipefail) reports tee's exit status, so a red suite would pass."""
+
+    files = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+
+    def test_every_job_runs_steps_under_bash_with_pipefail(self) -> None:
+        for path in self.files:
+            doc = yaml.safe_load(read(path))
+            workflow_shell = (doc.get("defaults") or {}).get("run", {}).get("shell")
+            for name, job in doc["jobs"].items():
+                job_shell = ((job.get("defaults") or {}).get("run") or {}).get("shell")
+                assert (job_shell or workflow_shell) == "bash", (path.name, name)
+
+    def test_no_step_overrides_the_shell_with_something_weaker(self) -> None:
+        for path in self.files:
+            doc = yaml.safe_load(read(path))
+            for job in doc["jobs"].values():
+                for step in job["steps"]:
+                    assert step.get("shell", "bash") == "bash", (path.name, step.get("name"))
+
+    @staticmethod
+    def _run_accounting(tmp_path: Path, pytest_output: str) -> tuple[int, str]:
+        import os
+        import subprocess
+        import sys
+
+        text = read(ROOT / ".github" / "workflows" / "ci.yml")
+        match = re.search(r"python3 - <<'PY'\n(.*?)\n\s*PY\n", text, re.S)
+        assert match
+        code = "\n".join(
+            line[10:] if line.startswith(" " * 10) else line for line in match.group(1).splitlines()
+        )
+        (tmp_path / "pytest.txt").write_text(pytest_output)
+        env = {
+            **os.environ,
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_STEP_SUMMARY": str(tmp_path / "summary.md"),
+        }
+        result = subprocess.run(
+            [sys.executable, "-c", code], env=env, capture_output=True, text=True
+        )
+        return result.returncode, result.stdout + result.stderr
+
+    def test_catalog_skips_are_recognised_by_their_reason(self, tmp_path: Path) -> None:
+        out = (
+            "SKIPPED [19] evals/test_audit_regional_search.py:36: regional catalog artifacts "
+            "(backend/catalogs/active_*-core.json) are not provisioned; see docs\n"
+            "SKIPPED [1] evals/test_region_isolation.py:47: requires both real catalogs built\n"
+            "SKIPPED [1] evals/test_cp1_boundaries.py:74: CP1_MERGE_BASE is required\n"
+        )
+        code, text = self._run_accounting(tmp_path, out)
+        assert code == 0, text
+        assert "skipped because the untracked regional catalogs are not provisioned: **20**" in text
+
+    def test_an_unrelated_skip_in_a_file_named_catalog_is_not_hidden(self, tmp_path: Path) -> None:
+        out = (
+            "SKIPPED [1] evals/test_cp1_boundaries.py:74: CP1_MERGE_BASE is required\n"
+            "SKIPPED [2] evals/test_catalog_cache.py:10: flaky on this runner\n"
+        )
+        code, text = self._run_accounting(tmp_path, out)
+        assert code != 0 and "unexpected skipped tests" in text

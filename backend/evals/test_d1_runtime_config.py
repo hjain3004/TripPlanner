@@ -80,6 +80,14 @@ class TestCorsOrigins:
         env = {"TRIPWISE_CORS_ORIGINS": "https://app.example, http://localhost:3000"}
         assert validate_runtime_config(env) == []
 
+    @pytest.mark.parametrize(
+        "value", ["http://localhost:3000/", "http://[::1", "http://a.example:99999"]
+    )
+    def test_trailing_slash_and_unparseable_origins_are_rejected_without_crashing(
+        self, value: str
+    ) -> None:
+        assert names({"TRIPWISE_CORS_ORIGINS": value}) == {"TRIPWISE_CORS_ORIGINS"}
+
 
 class TestLiveProvidersStayOff:
     @pytest.mark.parametrize(
@@ -98,12 +106,31 @@ class TestLiveProvidersStayOff:
         )
         assert validate_runtime_config(env) == []
 
+    def test_other_live_capable_switches_are_refused_in_production_too(
+        self, tmp_path: Path
+    ) -> None:
+        assert names(prod(tmp_path, TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED="1")) == {
+            "TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED"
+        }
+        assert names(prod(tmp_path, TRIPWISE_TRIPADVISOR_API_KEY="x")) == {
+            "TRIPWISE_TRIPADVISOR_API_KEY"
+        }
+        killed = prod(
+            tmp_path, TRIPWISE_TRIPADVISOR_API_KEY="x", TRIPWISE_TRIPADVISOR_KILL_SWITCH="1"
+        )
+        assert validate_runtime_config(killed) == []
+        # The CP3 flag is exactly "1"; any other value leaves the role off.
+        assert (
+            validate_runtime_config(prod(tmp_path, TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED="0"))
+            == []
+        )
+
     def test_development_may_enable_providers_for_offline_experiments(self) -> None:
         assert validate_runtime_config({"TRIPWISE_GONDOLA_LIVE_ENABLED": "1"}) == []
 
 
 class TestNumericSettings:
-    @pytest.mark.parametrize("value", ["abc", "0", "-1", "1.5"])
+    @pytest.mark.parametrize("value", ["abc", "0", "-1", "1.5", "²", "٣"])
     def test_llm_max_calls_must_be_a_positive_integer(self, value: str) -> None:
         assert "TRIPWISE_LLM_MAX_CALLS" in names({"TRIPWISE_LLM_MAX_CALLS": value})
 

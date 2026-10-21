@@ -10,7 +10,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
  *
  * Everything below is real: a real Chromium, the real built Next.js bundle in live API
  * mode, the real reverse proxy and the real FastAPI backend with real SQLite files.
- * There is no MSW and no page.route. Account creation goes through the real API because
+ * There is no MSW and no page.route; service workers are allowed so a mock-mode build
+ * would be caught. Account creation goes through the real API because
  * the product has no sign-in UI yet (a documented limitation in docs/DEPLOYMENT.md).
  */
 
@@ -98,6 +99,8 @@ test.describe("@phase1 fresh stack", () => {
     context,
   }) => {
     const stamp = Date.now();
+    const appRequests: string[] = [];
+    page.on("request", (request) => appRequests.push(request.url()));
     const email = `d1-smoke-${stamp}@example.com`;
     const password = `smoke-pass-${stamp}-long`;
     const nickname = `D1 smoke card ${stamp}`;
@@ -106,11 +109,14 @@ test.describe("@phase1 fresh stack", () => {
       const response = await page.goto("/");
       expect(response?.ok()).toBeTruthy();
       await expect(page.locator("body")).toBeVisible();
+      // Service workers are allowed in this config, so a mock-mode build WOULD register MSW
+      // here. Wait for the page (and MSWProvider's async effect) to settle first.
+      await page.waitForLoadState("networkidle");
       const mock = await page.evaluate(async () => ({
         worker: (globalThis as unknown as Record<string, unknown>).__msw_worker ?? null,
         registrations: (await navigator.serviceWorker?.getRegistrations?.())?.length ?? 0,
       }));
-      expect(mock).toEqual({ worker: null, registrations: 0 });
+      expect(mock, "no mock service worker in live mode").toEqual({ worker: null, registrations: 0 });
     });
 
     await test.step("sample mode is labelled and no live provider is enabled", async () => {
@@ -173,7 +179,13 @@ test.describe("@phase1 fresh stack", () => {
     });
 
     await test.step("the wallet page renders the persisted entry from the live backend", async () => {
+      // The APP (not this test) must call the real backend through the same-origin /api prefix.
+      // A mock-mode build would target the default http://localhost:8000 base instead.
+      const appWalletCall = page.waitForResponse(
+        (r) => new URL(r.url()).pathname === "/api/account/wallet" && r.request().method() === "GET",
+      );
       await page.goto("/wallet");
+      expect((await appWalletCall).status()).toBe(200);
       await expect(page.getByText(nickname).first()).toBeVisible();
     });
 
@@ -214,9 +226,14 @@ test.describe("@phase1 fresh stack", () => {
       expect(reread.json.interview_llm_calls).toBe(0);
     });
 
-    await test.step("the conversation page loads against the live backend while signed in", async () => {
+    await test.step("the conversation page talks to the live backend and shows the first question", async () => {
+      const appPlanningCall = page.waitForResponse((r) =>
+        new URL(r.url()).pathname.startsWith("/api/planning/"),
+      );
       const response = await page.goto("/plan/conversation");
       expect(response?.ok()).toBeTruthy();
+      expect((await appPlanningCall).ok()).toBeTruthy();
+      await expect(page.getByText(/Where are you headed/i).first()).toBeVisible();
       await expect(page.getByText(/Sign in to start your trip consultation/i)).toHaveCount(0);
     });
 
@@ -235,6 +252,11 @@ test.describe("@phase1 fresh stack", () => {
       const failed = await api(page, "GET", `/plan/${jobId}`, undefined, "none");
       expect(failed.json.error.message).toMatch(/not configured/i);
       expect(failed.json.report ?? null).toBeNull();
+    });
+
+    await test.step("the app only ever used the same-origin /api prefix (never the mock default base)", async () => {
+      expect(appRequests.some((u) => new URL(u).pathname.startsWith("/api/"))).toBe(true);
+      expect(appRequests.filter((u) => new URL(u).port === "8000")).toEqual([]);
     });
 
     await test.step("persist state for the post-restart phase", async () => {
@@ -265,7 +287,6 @@ test.describe("@phase2 after the backend container was restarted", () => {
     const state = readState();
     const restoredContext: BrowserContext = await browser.newContext({
       storageState: state.storageStatePath,
-      serviceWorkers: "block",
     });
     const page = await restoredContext.newPage();
     await page.goto("/");
@@ -287,7 +308,11 @@ test.describe("@phase2 after the backend container was restarted", () => {
       expect(found).toBeDefined();
       expect(found.nickname).toBe(state.nickname);
       expect(found.version).toBe(state.walletVersion);
+      const appWalletCall = page.waitForResponse(
+        (r) => new URL(r.url()).pathname === "/api/account/wallet" && r.request().method() === "GET",
+      );
       await page.goto("/wallet");
+      expect((await appWalletCall).status()).toBe(200);
       await expect(page.getByText(state.nickname).first()).toBeVisible();
     });
 
@@ -299,7 +324,7 @@ test.describe("@phase2 after the backend container was restarted", () => {
     });
 
     await test.step("a fresh sign-in with the same credentials still works", async () => {
-      const fresh = await browser.newContext({ serviceWorkers: "block" });
+      const fresh = await browser.newContext();
       const freshPage = await fresh.newPage();
       await freshPage.goto("/");
       const login = await api(

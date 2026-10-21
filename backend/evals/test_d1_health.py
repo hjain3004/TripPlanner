@@ -18,8 +18,10 @@ from api.runtime_config import ConfigError
 def stores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     kb = tmp_path / "tripwise.sqlite"
     core_db.seed_database(core_db.SEEDS_DIR, kb)
+    accounts = tmp_path / "accounts.sqlite"
+    accounts_db.create_accounts_engine(accounts).dispose()  # what the API lifespan does at startup
     monkeypatch.setattr(core_db, "DB_PATH", kb)
-    monkeypatch.setattr(accounts_db, "ACCOUNTS_DB_PATH", tmp_path / "accounts.sqlite")
+    monkeypatch.setattr(accounts_db, "ACCOUNTS_DB_PATH", accounts)
     return tmp_path
 
 
@@ -133,3 +135,18 @@ def test_open_meteo_flag_is_reported_without_importing_the_weather_package(
     assert "open_meteo" in body["live_providers_enabled"]
     monkeypatch.setenv("TRIPWISE_OPEN_METEO_KILL_SWITCH", "1")
     assert "open_meteo" not in TestClient(app).get("/health/ready").json()["live_providers_enabled"]
+
+
+def test_readiness_does_not_mask_a_deleted_accounts_database(stores: Path) -> None:
+    (stores / "accounts.sqlite").unlink()
+    response = TestClient(app).get("/health/ready")
+    assert response.status_code == 503
+    assert response.json()["checks"]["accounts_db"] == "failed"
+    assert not (stores / "accounts.sqlite").exists(), "a probe must never recreate the database"
+
+
+def test_readiness_probes_never_write(stores: Path) -> None:
+    before = {p.name: p.stat().st_mtime_ns for p in stores.iterdir()}
+    for _ in range(3):
+        assert TestClient(app).get("/health/ready").status_code == 200
+    assert {p.name: p.stat().st_mtime_ns for p in stores.iterdir()} == before

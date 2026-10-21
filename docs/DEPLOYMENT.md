@@ -32,7 +32,7 @@ replica. Section 11 lists what has to change before that can be true.
 
 ## 2. Clean-clone startup
 
-Prerequisites: Docker with Compose v2. (Node and Python are *not* needed to run the stack.)
+Prerequisites: Docker with Compose **>= 2.24** (the optional `env_file` form needs it). Node and Python are *not* needed to run the stack.
 
 ```bash
 git clone <this repository> && cd TripPlanner
@@ -71,13 +71,14 @@ kill switches. Summary:
 | `TRIPWISE_CORS_ORIGINS` | cross-origin allowlist | **leave unset** (production then allows none) |
 | `TRIPWISE_HTTP_PORT` | host loopback port of the proxy | optional (8080) |
 | `TRIPWISE_FRONTEND_API_MODE` | `live` (default) or `mock` build of the UI | optional, **build-time** |
-| `TRIPWISE_LLM_*`, `TRIPWISE_OLLAMA_*` | hosted/local LLM endpoint | optional; without them LLM planning fails honestly |
-| `TRIPWISE_*_ENABLED`, `TRIPWISE_*_KILL_SWITCH` | live-provider switches | **refused in production**; kill switches always win |
+| `TRIPWISE_LLM_*`, `TRIPWISE_OLLAMA_*` | hosted/local LLM endpoint (`TRIPWISE_LLM_MAX_CALLS` is a ceiling per LLM client instance, i.e. per request) | optional; without them LLM planning fails honestly |
+| live-provider switches | `TRIPWISE_GONDOLA_LIVE_ENABLED`, `TRIPWISE_OPEN_METEO_ENABLED`, `TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED=1`, `TRIPWISE_TRIPADVISOR_API_KEY` | **each refused at startup in production** (a Gondola/Open-Meteo/Tripadvisor kill switch makes its flag moot); kill switches always win |
 
 Startup validation (`python -m api.runtime_config`, run by the entrypoint and again by the API
 lifespan) rejects an unwritable/missing data directory, an unknown `TRIPWISE_ENV`, malformed or
-wildcard CORS origins, a non-positive `TRIPWISE_LLM_MAX_CALLS`, and any live-provider enable
-flag in production. **Errors name the variable and a fixed problem only, never a value.** A
+wildcard CORS origins (a trailing slash is also rejected: Starlette matches origins exactly), a
+non-positive-integer `TRIPWISE_LLM_MAX_CALLS`, and in production any of the four live-capable
+switches listed above. Validation never crashes on malformed input and never echoes it. **Errors name the variable and a fixed problem only, never a value.** A
 missing provider credential is never an error: sample mode starts with none.
 
 ## 4. Persistent paths
@@ -123,9 +124,12 @@ public build args and a test fails if a secret-shaped name appears.
 * `tp_session` is `HttpOnly; Secure; SameSite=Lax`; `tp_csrf` is readable by the SPA (by design),
   `Secure; SameSite=Lax`. State-changing requests need the matching `X-CSRF-Token` header.
   Verified in a real browser by the smoke (cookie attributes, missing/wrong token refused).
-* Nothing was weakened for convenience. Because the cookies are `Secure`, browsers accept them
-  over plain HTTP **only for `http://localhost`**. This local profile therefore binds the proxy to
+* Nothing was weakened for convenience. Because the cookies are `Secure`, Chromium and Firefox accept
+  them over plain HTTP **only for `http://localhost`**; Safari does not, so use a Chromium/Firefox
+  browser for this local profile (the smoke runs Chromium). This local profile therefore binds the proxy to
   loopback. **Any real hostname must be served over HTTPS** (TLS termination is not part of D1).
+* The proxy hides FastAPI's interactive docs (`/api/docs`, `/api/redoc`): they assume the site root and
+  are broken under the `/api` prefix. The machine-readable schema stays at `/api/openapi.json`.
 * `TRIPWISE_CORS_ORIGINS` is unnecessary in the supported same-origin arrangement. In production
   mode it defaults to an empty allowlist (the development default of `localhost:3000` no longer applies).
 
@@ -134,12 +138,13 @@ public build args and a test fails if a secret-shaped name appears.
 | Endpoint (via proxy) | Meaning |
 |---|---|
 | `GET /api/health/live` | the process is up; touches nothing |
-| `GET /api/health/ready` | data dir writable, accounts database opens through its real schema path, knowledge base loads. **Provider state is reported but can never make the sample app unready.** Returns 503 with check names only (no paths, no exception text) when not ready |
+| `GET /api/health/ready` | data dir writable; the accounts database and the knowledge base exist and are readable (cheap **read-only** probes: a probe never creates, migrates or recreates a database, so it cannot mask a deleted one; the schema is created once by the API lifespan at startup). **Provider state is reported but can never make the sample app unready.** Returns 503 with check names only (no paths, no exception text) when not ready |
 | `GET /api/health` | legacy constant `{"status":"ok"}` (unchanged) |
 | `GET /healthz` | the proxy itself |
 
-`/health/ready` also reports `"provider_mode": "sample"` and `"live_providers_enabled": []` -
-the explicit sample/no-live-provider label the smoke asserts. These endpoints are excluded from
+`/health/ready` also reports `"provider_mode": "sample"` (a fixed label of this profile) and
+`"live_providers_enabled": []` (computed from the real registries and flags - this is the field that
+carries information; the network isolation in section 1 is the stronger guarantee). These endpoints are excluded from
 the OpenAPI contract. Container health checks use readiness, so `docker compose up --wait` and
 the `depends_on: service_healthy` ordering mean "actually able to serve".
 
@@ -158,7 +163,8 @@ A legacy planning job in a deployment with no LLM configured fails *honestly* (`
 
 ## 10. Provider kill switches and live providers
 
-All live providers are disabled by default and **refused at startup in production**. Per
+All live providers are disabled by default and the four live-capable switches (section 3) are
+**refused at startup in production**. Per
 provider: Gondola (`TRIPWISE_GONDOLA_LIVE_ENABLED` / `_KILL_SWITCH`), Open-Meteo
 (`TRIPWISE_OPEN_METEO_ENABLED` / `_KILL_SWITCH`), Tripadvisor (`TRIPWISE_TRIPADVISOR_KILL_SWITCH`,
 live transport not wired), CP3 interview LLM (needs `TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED=1`).
@@ -200,18 +206,24 @@ Only `accounts.sqlite` is irreplaceable. Use the online-backup API, never `cp` o
 scripts/d1-backup.sh ./backups          # verified (integrity_check) copy, mode 600
 ```
 
-Restore onto a fresh data volume (tested): create the stack without starting it, copy the file in as
-the app user, then start:
+The script verifies SQLite integrity inside the container, streams the file out (`docker cp` cannot
+read a tmpfs), and compares SHA-256 digests so a truncated copy is deleted rather than kept.
+
+Restore onto a fresh data volume (tested on Docker Desktop): create the stack without starting it,
+copy the file in with a one-off **root** container that then hands ownership to the app user (this also
+works on Linux hosts whose uid is not 10001), then start:
 
 ```bash
 docker compose -p tripwise-d1 -f deploy/compose.yaml create
-docker run --rm --entrypoint cp -u 10001:10001 -v tripwise-d1_tripwise-data:/data \
-  -v "$PWD/backups:/backup:ro" tripwise-backend:d1 /backup/accounts-<STAMP>.sqlite /data/accounts.sqlite
+docker run --rm --entrypoint sh -u 0 -v tripwise-d1_tripwise-data:/data \
+  -v "$PWD/backups:/backup:ro" tripwise-backend:d1 -c \
+  'cp /backup/accounts-<STAMP>.sqlite /data/accounts.sqlite && chown 10001:10001 /data/accounts.sqlite && chmod 600 /data/accounts.sqlite'
 docker compose -p tripwise-d1 -f deploy/compose.yaml up -d --wait
 ```
 
-A backup contains user data and password hashes: treat it as a credential. Also back up nothing else
-you cannot recreate; there is no scheduled backup in D1.
+Restoring over an existing volume additionally requires stopping the backend first and removing any
+stale journal file next to the old database; that removal is left to the operator. A backup contains user
+data and password hashes: treat it as a credential. There is no scheduled backup in D1.
 
 ## 13. Regional catalogs
 
@@ -231,10 +243,13 @@ explicitly rather than hidden:
 
 | Workflow | Runs | Covers |
 |---|---|---|
-| `ci.yml` (required) | every PR and push to `main` | backend seed, complete pytest (catalog-less, skips accounted), strict mypy, ruff + legacy ceiling, frozen goldens/brief identity; frontend `tsc`, Vitest, ESLint, token lint, production build, dead classes; OpenAPI + generated-client drift; both container builds; the **genuine live-backend smoke** |
+| `ci.yml` (required; **has not yet run on GitHub** - verified by running each command locally) | every PR and push to `main` | backend seed, complete pytest (catalog-less, skips accounted), strict mypy, ruff + legacy ceiling, frozen goldens/brief identity; frontend `tsc`, Vitest, ESLint, token lint, production build, dead classes; OpenAPI + generated-client drift; both container builds; the **genuine live-backend smoke** |
 | `full-browser-suite.yml` (separate) | manual dispatch + weekly | the complete ~570-case Playwright suite in mock mode (too slow for every PR) |
 
-All actions are pinned to full commit SHAs, permissions are `contents: read`, no secrets are
+All steps run under `shell: bash` (which implies `pipefail`; GitHub's default `bash -e` would let
+`pytest | tee` hide a red suite - a test pins this). Skips are classified by their *reason* text, so an
+unrelated skip in a file merely named `*catalog*` still trips the guard. All actions are pinned to full
+commit SHAs, permissions are `contents: read`, no secrets are
 referenced, nothing is written back to the branch, and no live provider or paid service is reachable.
 Not in CI: `make gate`'s catalog-dependent assertions and its clean-tree check; run `make gate` locally on a provisioned machine.
 
@@ -243,7 +258,8 @@ Not in CI: `make gate`'s catalog-dependent assertions and its clean-tree check; 
 Not done and out of scope for D1: TLS and a real hostname/DNS; a cloud account and resources; a
 production secret store; a **sign-in/registration UI** (the product has none: accounts are created
 through the API only); authentication or rate-limiting on the legacy unauthenticated `/plan` and
-`/places/search` endpoints (an LLM key plus a public `/plan` is a cost-abuse risk); a Content-Security-Policy;
+`/places/search` endpoints (an LLM key plus a public `/plan` is a cost-abuse risk, and every `/plan` request writes a trace file
+to `/data/traces` with no retention, on the same volume as the accounts database - it can fill the disk); a Content-Security-Policy;
 log aggregation, metrics and alerting; scheduled backups and a tested off-site restore; abuse and
 privacy operations; image scanning and a patch cadence; dependency update automation; and the
 horizontal-scaling work in section 11.

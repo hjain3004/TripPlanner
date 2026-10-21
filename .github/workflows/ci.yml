@@ -17,6 +17,13 @@ on:
 permissions:
   contents: read
 
+# `shell: bash` makes GitHub run steps with `-eo pipefail`. Without it the default is
+# `bash -e` (no pipefail), and `pytest | tee` would report tee's exit status - a red test
+# suite would pass. A static test pins this for every job.
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -52,11 +59,13 @@ jobs:
           total = catalog = 0
           lines = []
           for line in text.splitlines():
-              m = re.match(r"SKIPPED \[(\d+)\] (.*)", line)
+              # "SKIPPED [n] path:line: reason" - classify on the REASON only, never the path
+              # (about ten eval files have "catalog" in their names).
+              m = re.match(r"SKIPPED \[(\d+)\] \S+?:\d+: (.*)", line)
               if not m:
                   continue
               n = int(m.group(1)); total += n; lines.append(line)
-              if "catalog" in line.lower():
+              if re.search(r"regional catalog artifacts|real catalogs? built", m.group(2)):
                   catalog += n
           other = total - catalog
           summary = (
@@ -96,6 +105,7 @@ jobs:
     timeout-minutes: 20
     defaults:
       run:
+        shell: bash
         working-directory: frontend
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
