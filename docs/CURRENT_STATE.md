@@ -1,6 +1,6 @@
 # Current state
 
-**Evidence date:** 2026-10-16
+**Evidence date:** 2026-10-21 (D1 deployment foundation added; see `docs/DEPLOYMENT.md` and `reports/d1_deployment_foundation.md`)
 **Repository state:** local, unpublished integration branch `codex/integrate-fi0-g3-5-g4`, based on
 `eccb198` (CP2/Japan merged through PR #13). It merges, with real non-fast-forward merges, the G3.5
 Gondola contract closure (stacked on the implemented G3.4 and CP3 work), the G4 Open-Meteo

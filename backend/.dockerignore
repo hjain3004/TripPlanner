@@ -1,0 +1,19 @@
+# Keep the build context minimal and free of anything mutable or secret.
+**/__pycache__
+**/*.pyc
+.venv
+.pytest_cache
+.mypy_cache
+.ruff_cache
+catalogs
+raw_overture
+.work
+.traces
+**/*.sqlite*
+**/*.db*
+**/.env
+**/.env.*
+evals
+ingestion
+scripts
+requirements-dev.lock

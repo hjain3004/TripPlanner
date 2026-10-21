@@ -1,0 +1,54 @@
+# The COMPLETE Playwright suite (4 projects, mock-API mode, ~570 cases, several minutes).
+#
+# Deliberately separate from the required CI workflow: it is too slow for every pull
+# request. Required CI keeps a representative live-backend smoke (ci.yml ->
+# containers-and-smoke). Run this one on demand before a release, and weekly to catch
+# rendering regressions. It does not need, and cannot reach, any live provider.
+name: Full browser suite (not required for PRs)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: full-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    name: Complete Playwright suite, live-provider tests disabled
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Complete suite (the config builds and starts the app itself)
+        # NEXT_PUBLIC_API_MODE is unset on purpose: the live-integration specs self-skip.
+        run: npx playwright test --config=e2e/playwright.config.ts --workers=2 --reporter=line
+      - name: Keep traces for failures
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-results
+          path: frontend/test-results
+          retention-days: 7

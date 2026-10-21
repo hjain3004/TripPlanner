@@ -45,9 +45,10 @@ from core.models import (
 from core.models import (
     Channel as ChannelEnum,
 )
+from core.runtime_paths import state_path
 
 SEEDS_DIR = Path(__file__).parent / "seeds"
-DB_PATH = Path(__file__).parent / "tripwise.sqlite"
+DB_PATH = state_path("tripwise.sqlite", Path(__file__).parent / "tripwise.sqlite")
 
 # --------------------------------------------------------------------------- #
 # SQLAlchemy schema                                                            #

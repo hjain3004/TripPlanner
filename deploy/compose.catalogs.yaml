@@ -1,0 +1,11 @@
+# Optional overlay: mount the (untracked) regional catalog artifacts read-only.
+#
+#   TRIPWISE_CATALOGS_DIR=/abs/path/to/backend/catalogs \
+#     docker compose -p tripwise-d1 -f deploy/compose.yaml -f deploy/compose.catalogs.yaml up -d
+#
+# Without it the backend starts normally in sample mode and honestly reports regions
+# without catalog coverage as unsupported - nothing is fabricated.
+services:
+  backend:
+    volumes:
+      - ${TRIPWISE_CATALOGS_DIR:?set TRIPWISE_CATALOGS_DIR to the directory holding active_*-core.json}:/app/catalogs:ro

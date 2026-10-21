@@ -51,6 +51,7 @@ def _categories(ctx) -> list[str]:  # noqa: ANN001
 
 
 @pytest.mark.parametrize("destination", DESTINATIONS)
+@pytest.mark.requires_regional_catalogs
 def test_real_catalog_interests_change_top_candidates(destination: str) -> None:
     kb = load_kb()
 
@@ -73,6 +74,7 @@ def test_real_catalog_interests_change_top_candidates(destination: str) -> None:
         ("LON", "attractions", {"attraction", "landmark"}),
     ],
 )
+@pytest.mark.requires_regional_catalogs
 def test_picker_visible_filters_return_real_catalog_matches(
     destination: str, category: str, expected_raw_categories: set[str]
 ) -> None:

@@ -308,3 +308,28 @@ def mock_active_catalog_path(
     def _mock(*args, **kwargs):
         raise FileNotFoundError("Mocked: catalog not found")
     monkeypatch.setattr("gateway.catalog.activate.active_catalog_path", _mock)
+
+
+# --- regional catalog handling (see evals/catalog_guard.py) ---------------------------
+def pytest_sessionstart(session: pytest.Session) -> None:
+    from evals.catalog_guard import REQUIRE_ENV, catalogs_required, missing_catalogs
+
+    if catalogs_required():
+        missing = missing_catalogs()
+        if missing:
+            pytest.exit(
+                f"{REQUIRE_ENV}=1 but regional catalog artifacts are missing: "
+                f"{', '.join(missing)}. Provision them (docs/DEPLOYMENT.md) or unset the variable.",
+                returncode=2,
+            )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    from evals.catalog_guard import SKIP_REASON, missing_catalogs
+
+    if not missing_catalogs():
+        return
+    skip = pytest.mark.skip(reason=SKIP_REASON)
+    for item in items:
+        if item.get_closest_marker("requires_regional_catalogs") is not None:
+            item.add_marker(skip)
