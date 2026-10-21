@@ -33,6 +33,7 @@ def _spec(destination: str) -> TripSpec:
 
 
 @pytest.mark.parametrize("destination", ["BOM", "DXB", "NYC", "LON", "PAR"])
+@pytest.mark.requires_regional_catalogs
 def test_regional_catalog_pois_use_geo_cell_areas(destination: str) -> None:
     ctx = retrieve_candidates(_spec(destination), load_kb(), limit=16)
 
@@ -44,6 +45,7 @@ def test_regional_catalog_pois_use_geo_cell_areas(destination: str) -> None:
     assert {poi.area for poi in located}.issubset({area.id for area in ctx.areas})
 
 
+@pytest.mark.requires_regional_catalogs
 def test_buckingham_palace_exact_search_avoids_cafe_or_distant_duplicate_first() -> None:
     resp = search_catalog_places(
         PlaceSearchRequest(destination="LON", query="Buckingham Palace", limit=5),
@@ -58,6 +60,7 @@ def test_buckingham_palace_exact_search_avoids_cafe_or_distant_duplicate_first()
     assert -0.16 <= first.lon <= -0.12
 
 
+@pytest.mark.requires_regional_catalogs
 def test_metropolitan_museum_exact_search_does_not_prioritize_airport_duplicate() -> None:
     resp = search_catalog_places(
         PlaceSearchRequest(destination="NYC", query="Metropolitan Museum", limit=5),

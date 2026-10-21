@@ -1,14 +1,21 @@
 # Tripwise — dev commands. Backend gate commands run from backend/ (spec 06 §5).
-# Usage: `make <target>`. Python venv assumed active (see `make install`).
+# Usage: `make <target>`. First time on a clean clone: `make setup`.
 
-PY ?= python
 BACKEND := backend
 FRONTEND := frontend
+# Interpreter for the non-gate targets, relative to backend/ (they `cd $(BACKEND)`).
+# Prefers the project venv, falls back to python3 - never the bare `python`, which does
+# not exist on many machines. Override with `make seed PY=/abs/path/to/python`.
+PY ?= $(if $(wildcard $(BACKEND)/.venv/bin/python),.venv/bin/python,python3)
+# Interpreter used only to create the venv in `make setup` (the lockfiles target 3.14).
+PYTHON ?= python3
+COMPOSE := docker compose -p tripwise-d1 -f deploy/compose.yaml
 
 .PHONY: help install seed demo demo-check test test-optimizer test-transfer \
         determinism typecheck typecheck-m2 lint float-audit gate-m1 gate-m1b \
         test-m2 test-m3 typecheck-m3 gate-m2 gate-m3 clean gate-f1 fe-lint \
-        fe-typecheck fe-token-lint fe-contrast fe-build fe-gate-shots
+        fe-typecheck fe-token-lint fe-contrast fe-build fe-gate-shots \
+        setup lock contract-check docker-build compose-up compose-down d1-smoke
 
 help:
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -40,7 +47,7 @@ demo-check: ## Assert demo output is byte-identical to the committed fixture
 ## ---------------------------------------------------------------------------
 gate: ## THE backend gate: tests + strict types + lint + frozen artifacts + clean tree
 	@echo "--- pytest (full suite) ---"
-	cd $(BACKEND) && .venv/bin/pytest -q
+	cd $(BACKEND) && TRIPWISE_REQUIRE_REGIONAL_CATALOGS=1 .venv/bin/pytest -q
 	@echo "--- mypy --strict (every source package) ---"
 	cd $(BACKEND) && .venv/bin/mypy --strict core/ accounts/ planning/ agents/ api/ gateway/
 	cd $(BACKEND) && .venv/bin/mypy --strict ingestion/
@@ -184,3 +191,33 @@ gate-f4: fe-lint fe-token-lint fe-contrast fe-typecheck fe-build fe-gate-shots \
 
 clean: ## Remove caches and the local seeded DB
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
+
+## ---------------------------------------------------------------------------
+## D1 - deployment foundation (see docs/DEPLOYMENT.md)
+## ---------------------------------------------------------------------------
+
+setup: ## Clean-clone bootstrap: backend/.venv from the hashed lockfile + frontend deps
+	$(PYTHON) -m venv $(BACKEND)/.venv
+	$(BACKEND)/.venv/bin/pip install --require-hashes -r $(BACKEND)/requirements-dev.lock
+	cd $(FRONTEND) && npm ci
+
+lock: ## Regenerate backend/requirements*.lock from pyproject.toml (needs uv)
+	cd $(BACKEND) && uv pip compile pyproject.toml --universal --python-version 3.14 \
+	  --generate-hashes --no-header -q -o requirements.lock
+	cd $(BACKEND) && uv pip compile pyproject.toml --extra dev --universal --python-version 3.14 \
+	  --generate-hashes --no-header -q -o requirements-dev.lock
+
+contract-check: ## Fail if contract/openapi.json or the generated client drift (writes nothing tracked)
+	scripts/check-contract-drift.sh
+
+docker-build: ## Build both production images (backend, frontend in live-API mode)
+	$(COMPOSE) build
+
+compose-up: ## Start the production-like single-instance stack on http://localhost:8080
+	$(COMPOSE) up -d --build --wait
+
+compose-down: ## Stop the stack (named volume with application data is kept)
+	$(COMPOSE) down
+
+d1-smoke: ## Genuine full-stack smoke against the production-like stack, incl. restart/persistence
+	scripts/d1-smoke.sh

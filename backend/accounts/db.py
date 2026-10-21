@@ -18,7 +18,9 @@ from typing import cast
 from sqlalchemy import Engine, Table, Text, create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-ACCOUNTS_DB_PATH = Path(__file__).parent / "accounts.sqlite"
+from core.runtime_paths import state_path
+
+ACCOUNTS_DB_PATH = state_path("accounts.sqlite", Path(__file__).parent / "accounts.sqlite")
 
 
 class AccountsBase(DeclarativeBase):

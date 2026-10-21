@@ -99,6 +99,7 @@ def _catalog_place_ids(catalog_id: str, count: int = 3) -> list[str]:
     return ids
 
 
+@pytest.mark.requires_regional_catalogs
 def test_catalog_poi_lookup_reuses_active_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -125,6 +126,7 @@ def test_catalog_poi_lookup_reuses_active_snapshot(
     assert read_count == 1
 
 
+@pytest.mark.requires_regional_catalogs
 def test_recompute_with_real_catalog_items_stays_fast() -> None:
     from agents.retrieval import get_catalog_poi
     from gateway.places.adapters.snapshot import clear_snapshot_catalog_cache

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import os
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 from typing import Annotated
@@ -11,6 +12,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+import accounts.db as accounts_db
 from accounts.models import User
 from accounts.store import AccountStore, DuplicateEmailError
 from agents.confirmed_trip import ConfirmedTripInput
@@ -40,23 +42,37 @@ from api.auth import (
     set_session_cookies,
 )
 from api.conversation import router as conversation_router
-from api.wallet import router as wallet_router
+from api.health import router as health_router
 from api.job_manager import job_manager
+from api.runtime_config import assert_valid_runtime_config
+from api.wallet import router as wallet_router
 from core.db import DB_PATH, KnowledgeBase, load_kb, seed_database
+from core.runtime_paths import state_path
 from gateway.catalog.regions import get_region
 from gateway.places.protocol import PlaceProviderAdapter
 from gateway.places.registry import ProviderRegistry, get_default_place_registry
 from gateway.travel.service import TravelInventoryService
 
-TRACE_DIR = Path(__file__).resolve().parents[1] / ".traces"
+TRACE_DIR = state_path("traces", Path(__file__).resolve().parents[1] / ".traces")
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Fail fast on unsafe configuration, then open the accounts database through its
+    real schema path (creates tables, applies additive migrations, never drops)."""
+    assert_valid_runtime_config()
+    accounts_db.create_accounts_engine(accounts_db.ACCOUNTS_DB_PATH).dispose()
+    yield
+
 
 app = FastAPI(
     title="TripPlanner Kernel API",
     version="0.3.0",
     description="Kernel MVP API over local curated sample data.",
+    lifespan=_lifespan,
 )
 app.include_router(conversation_router)
 app.include_router(wallet_router)
+app.include_router(health_router)
 
 # Without this, a browser's preflight OPTIONS /plan gets 405 and the POST never
 # fires - exactly what happened the first time the real frontend talked to the
@@ -66,14 +82,20 @@ app.include_router(wallet_router)
 # Explicit origins, not "*": the wildcard cannot be combined with credentials,
 # and this API will carry a session once spec 17 accounts land. Override with
 # TRIPWISE_CORS_ORIGINS (comma-separated) for other hosts.
-_DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
+_DEV_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
+
+
+def _cors_origins() -> list[str]:
+    """Explicit allowlist. Production defaults to NO cross-origin access: the supported
+    deployment serves the UI and the API from one origin behind a reverse proxy."""
+    production = os.getenv("TRIPWISE_ENV", "").strip().lower() == "production"
+    raw = os.getenv("TRIPWISE_CORS_ORIGINS", "" if production else _DEV_CORS_ORIGINS)
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        origin.strip()
-        for origin in os.getenv("TRIPWISE_CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",")
-        if origin.strip()
-    ],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", CSRF_HEADER],

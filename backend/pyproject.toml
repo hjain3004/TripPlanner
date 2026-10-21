@@ -16,6 +16,7 @@ dependencies = [
     "ortools>=9.10",
     "mcp>=2.3,<3",
     "keyring>=25.0",
+    "uvicorn>=0.34,<1",
 ]
 
 [project.optional-dependencies]
@@ -51,6 +52,7 @@ testpaths = ["evals"]
 python_files = ["test_*.py"]
 markers = [
     "allow_real_catalog: exempts a test from the autouse mock that blocks the real activated catalog",
+    "requires_regional_catalogs: asserts on the real (untracked) regional catalog artifacts in backend/catalogs/; skipped with an explicit reason when they are absent, and a hard session failure when TRIPWISE_REQUIRE_REGIONAL_CATALOGS=1 (set by make gate)",
 ]
 
 [tool.mypy]
