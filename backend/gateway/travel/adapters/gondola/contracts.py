@@ -12,9 +12,12 @@ treated as verified real Gondola wire format.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, Field
+
+from gateway.travel.errors import TravelGatewayError
 
 
 class GondolaHotelResult(BaseModel):
@@ -53,9 +56,23 @@ class GondolaFlightResult(BaseModel):
     raw_notes: list[str] = Field(default_factory=list)
 
 
-def parse_hotel_results(raw: list[dict[str, object]]) -> list[GondolaHotelResult]:
+def parse_hotel_results(raw: object) -> list[GondolaHotelResult]:
+    if not isinstance(raw, list):
+        if isinstance(raw, Mapping) and isinstance(raw.get("result"), str):
+            raise TravelGatewayError(
+                "invalid_response",
+                "Gondola returned provider Markdown discovery evidence, not hotel quotes",
+            )
+        raise TravelGatewayError("invalid_response", "Gondola hotel results are not a list")
     return [GondolaHotelResult.model_validate(item) for item in raw]
 
 
-def parse_flight_results(raw: list[dict[str, object]]) -> list[GondolaFlightResult]:
+def parse_flight_results(raw: object) -> list[GondolaFlightResult]:
+    if not isinstance(raw, list):
+        if isinstance(raw, Mapping) and isinstance(raw.get("result"), str):
+            raise TravelGatewayError(
+                "invalid_response",
+                "Gondola returned provider Markdown discovery evidence, not flight quotes",
+            )
+        raise TravelGatewayError("invalid_response", "Gondola flight results are not a list")
     return [GondolaFlightResult.model_validate(item) for item in raw]

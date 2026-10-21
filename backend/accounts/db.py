@@ -13,8 +13,9 @@ never destroy user data. Nothing in this module ever drops a table.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
-from sqlalchemy import Engine, Text, create_engine
+from sqlalchemy import Engine, Table, Text, create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 ACCOUNTS_DB_PATH = Path(__file__).parent / "accounts.sqlite"
@@ -43,6 +44,38 @@ class WalletEntryRow(AccountsBase):
     user_id: Mapped[str] = mapped_column(index=True)
     card_id: Mapped[str] = mapped_column(index=True)
     payload: Mapped[str] = mapped_column(Text)
+    # Optimistic-concurrency version. ``server_default`` is what makes adding
+    # this column migration-safe: a row written before A3 reads back as 1
+    # rather than NULL, and no existing account data is rewritten.
+    version: Mapped[int] = mapped_column(index=True, server_default="1", default=1)
+
+
+class WalletMutationEventRow(AccountsBase):
+    """Durable idempotency record for one wallet mutation.
+
+    Owned by ``accounts`` rather than folded into a planning session: a create
+    has no pre-existing row to hold a processed-event list, wallet events target
+    different entries rather than one aggregate, and a replay must be able to
+    return the *original outcome* and detect a conflicting reuse — neither of
+    which a bare list of ids can express.
+
+    The composite primary key is what makes event identity ``(user_id,
+    client_event_id)``, so two users can reuse the same textual id without
+    colliding, and a genuine concurrent double-submit hits the key instead of
+    applying twice.
+    """
+
+    __tablename__ = "wallet_mutation_events"
+    user_id: Mapped[str] = mapped_column(primary_key=True)
+    client_event_id: Mapped[str] = mapped_column(primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(index=True)
+    operation: Mapped[str] = mapped_column()
+    entry_id: Mapped[str | None] = mapped_column(nullable=True)
+    result_payload: Mapped[str] = mapped_column(Text)
+    # Advisory only, and nullable: this package never reads an ambient clock,
+    # so it is set only when the caller supplies `now`. Event identity is
+    # (user_id, client_event_id) plus the fingerprint, never the timestamp.
+    created_at: Mapped[str | None] = mapped_column(index=True, nullable=True)
 
 
 class SavedTripRow(AccountsBase):
@@ -65,7 +98,31 @@ def create_accounts_engine(db_path: Path = ACCOUNTS_DB_PATH) -> Engine:
     """Open (creating if needed) the accounts database. Never drops."""
     engine = create_engine(f"sqlite:///{db_path}")
     AccountsBase.metadata.create_all(engine)
+    _migrate_existing_accounts_schema(engine)
     return engine
+
+
+def _migrate_existing_accounts_schema(engine: Engine) -> None:
+    """Apply additive account-schema changes that ``create_all`` cannot apply.
+
+    SQLAlchemy's ``create_all`` creates missing tables but deliberately does not
+    alter an existing table. A3 added ``wallet_entries.version`` after account
+    databases could already exist, so add that column explicitly with a
+    non-null default. The idempotency table is already created by ``create_all``
+    when absent; this hook keeps its indexes in place for both old and new DBs.
+    """
+    columns = {column["name"] for column in inspect(engine).get_columns("wallet_entries")}
+    if "version" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE wallet_entries "
+                    "ADD COLUMN version INTEGER NOT NULL DEFAULT 1"
+                )
+            )
+    wallet_table = cast(Table, WalletEntryRow.__table__)
+    for index in wallet_table.indexes:
+        index.create(bind=engine, checkfirst=True)
 
 
 class UserCredentialRow(AccountsBase):

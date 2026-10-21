@@ -43,8 +43,10 @@ gate: ## THE backend gate: tests + strict types + lint + frozen artifacts + clea
 	cd $(BACKEND) && .venv/bin/pytest -q
 	@echo "--- mypy --strict (every source package) ---"
 	cd $(BACKEND) && .venv/bin/mypy --strict core/ accounts/ planning/ agents/ api/ gateway/
+	cd $(BACKEND) && .venv/bin/mypy --strict ingestion/
 	@echo "--- ruff (zero-tolerance scope) ---"
 	cd $(BACKEND) && .venv/bin/ruff check accounts/ planning/ agents/ gateway/ evals/
+	cd $(BACKEND) && .venv/bin/ruff check ingestion/
 	@echo "--- ruff (core/ + api/: legacy debt, ratcheted, must not grow) ---"
 	@cd $(BACKEND) && COUNT=$$(.venv/bin/ruff check core/ api/ 2>/dev/null \
 	  | grep -c '^[A-Z][0-9]' || true); \

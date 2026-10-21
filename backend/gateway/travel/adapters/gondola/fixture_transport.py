@@ -11,11 +11,17 @@ never reaches disk I/O.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from gateway.travel.adapters.gondola.discovery import (
+    DiscoveryTool,
+    GondolaDiscoveryEvidence,
+    parse_markdown_discovery,
+)
 from gateway.travel.adapters.gondola.tool_policy import assert_tool_allowed
+from gateway.travel.errors import TravelGatewayError
 from gateway.travel.fixtures.transport import FixtureTravelTransport
 
 GONDOLA_FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -28,3 +34,32 @@ class FixtureGondolaTransport:
     def call_tool(self, tool_name: str, fixture_name: str) -> dict[str, Any]:
         assert_tool_allowed(tool_name)
         return self._inner.load(fixture_name)
+
+    def load_discovery(
+        self, tool_name: DiscoveryTool, fixture_name: str
+    ) -> GondolaDiscoveryEvidence:
+        assert_tool_allowed(tool_name)
+        payload = self._inner.load(fixture_name)
+        captured_on = None
+        captured = payload.get("captured_on")
+        if isinstance(captured, str):
+            try:
+                captured_on = date.fromisoformat(captured)
+            except ValueError:
+                raise TravelGatewayError(
+                    "invalid_response", "Gondola discovery fixture has an invalid capture date"
+                ) from None
+        # The captured contract fixture keeps hotel and flight excerpts under
+        # separate top-level keys so one file can replay both searches.
+        if "result" not in payload:
+            branch = payload.get("hotel" if tool_name == "search_hotels" else "flight")
+            if isinstance(branch, dict) and isinstance(branch.get("excerpt"), dict):
+                payload = branch["excerpt"]
+        return parse_markdown_discovery(
+            payload,
+            tool=tool_name,
+            now=self._inner.now(),
+            provenance="synthetic_fixture",
+            captured_on=captured_on,
+            fixture_name=fixture_name,
+        )

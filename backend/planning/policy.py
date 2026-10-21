@@ -179,6 +179,14 @@ def _bump(session: PlanningSession, now: datetime, **changes: object) -> Plannin
     return PlanningSession.model_validate(candidate.model_dump())
 
 
+def applicable_adaptive_questions(session: PlanningSession) -> list[QuestionId]:
+    """Approved, unanswered follow-ups in deterministic fallback order."""
+    return [
+        question_id for question_id in _ADAPTIVE_BY_PRIORITY
+        if question_id not in session.answers and _adaptive_applicable(question_id, session)
+    ]
+
+
 def start_interview(
     *,
     user_id: str,

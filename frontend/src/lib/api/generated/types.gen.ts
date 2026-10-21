@@ -82,6 +82,17 @@ export type AmendRequest = {
 };
 
 /**
+ * AnswerCandidate
+ */
+export type AnswerCandidate = {
+    question_id: QuestionId;
+    /**
+     * Payload
+     */
+    payload: TripEssentialsPayload | PurposePartyPayload | BudgetObjectivePayload | FlightPreferencesPayload | StayPreferencesPayload | DailyRhythmPayload | ExperiencesFoodPayload | HardConstraintsPayload | AdaptiveDetailPayload;
+};
+
+/**
  * AnswerRequest
  */
 export type AnswerRequest = {
@@ -256,6 +267,30 @@ export type BudgetTotals = {
 };
 
 /**
+ * CardProductOut
+ *
+ * Display-safe view of one attachable card product.
+ */
+export type CardProductOut = {
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Issuer
+     */
+    issuer: string;
+    /**
+     * Is Eligible
+     */
+    is_eligible: boolean;
+};
+
+/**
  * Channel
  */
 export type Channel = 'direct_airline' | 'direct_hotel' | 'ota_generic' | 'bank_portal' | 'pos_abroad' | 'pos_domestic';
@@ -310,9 +345,27 @@ export type ConfirmOut = {
      */
     assistance_status: string;
     /**
+     * Interview Llm Calls
+     */
+    interview_llm_calls?: number;
+    /**
+     * Assistance Pending
+     */
+    assistance_pending?: boolean;
+    /**
+     * Assistance Diagnostics
+     */
+    assistance_diagnostics?: Array<'unavailable' | 'invalid_response' | 'budget_exhausted' | 'interrupted'>;
+    pending_answer?: AnswerCandidate | null;
+    /**
+     * Contradictions
+     */
+    contradictions?: Array<InterviewContradiction>;
+    /**
      * Pending Profile Updates
      */
     pending_profile_updates: Array<ProfileUpdateProposal>;
+    wallet: UserWallet;
     brief?: TripBrief | null;
     /**
      * Planning Job Id
@@ -345,6 +398,40 @@ export type ConfirmRequest = {
      * Client Event Id
      */
     client_event_id: string;
+};
+
+/**
+ * ConfirmedEditRequest
+ */
+export type ConfirmedEditRequest = {
+    /**
+     * Edit
+     */
+    edit: ({
+        op: 'move_item';
+    } & MoveItem) | ({
+        op: 'remove_item';
+    } & RemoveItem) | ({
+        op: 'reorder_day';
+    } & ReorderDay) | ({
+        op: 'add_item';
+    } & AddItem) | ({
+        op: 'replace_item';
+    } & ReplaceItem);
+    /**
+     * Expected Inventory Revision
+     */
+    expected_inventory_revision: number;
+};
+
+/**
+ * ConfirmedProseRequest
+ */
+export type ConfirmedProseRequest = {
+    /**
+     * Expected Inventory Revision
+     */
+    expected_inventory_revision: number;
 };
 
 /**
@@ -625,6 +712,7 @@ export type FinalReport = {
     status?: PipelineStatus;
     region_capability?: RegionCapability | null;
     freshness?: SectionFreshness;
+    travel_inventory?: TravelInventorySummary | null;
 };
 
 /**
@@ -667,6 +755,28 @@ export type FlightPreferencesPayload = {
      * Seat
      */
     seat?: 'aisle' | 'window' | 'middle' | 'no_preference';
+};
+
+/**
+ * GatewayDiagnostic
+ */
+export type GatewayDiagnostic = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Domain
+     */
+    domain: 'flight' | 'hotel' | 'general';
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Provider Id
+     */
+    provider_id?: string | null;
 };
 
 /**
@@ -754,6 +864,25 @@ export type InfeasiblePlan = {
 };
 
 /**
+ * InterpretRequest
+ */
+export type InterpretRequest = {
+    question_id: QuestionId;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+};
+
+/**
  * InterviewAnswer
  */
 export type InterviewAnswer = {
@@ -778,6 +907,99 @@ export type InterviewAnswer = {
      * Answered At
      */
     answered_at: string;
+};
+
+/**
+ * InterviewContradiction
+ */
+export type InterviewContradiction = {
+    /**
+     * Answer Ids
+     */
+    answer_ids: Array<QuestionId>;
+    /**
+     * Clarification
+     */
+    clarification: string;
+};
+
+/**
+ * InventoryQuoteSummary
+ */
+export type InventoryQuoteSummary = {
+    /**
+     * Domain
+     */
+    domain: 'flight' | 'hotel';
+    /**
+     * Quote Id
+     */
+    quote_id: string;
+    /**
+     * Provider Id
+     */
+    provider_id: string;
+    /**
+     * Provider Quote Id
+     */
+    provider_quote_id?: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Needs Verification
+     */
+    needs_verification: boolean;
+    /**
+     * Source Url
+     */
+    source_url?: string | null;
+    /**
+     * Deep Link Url
+     */
+    deep_link_url?: string | null;
+    /**
+     * Attribution
+     */
+    attribution?: string | null;
+    /**
+     * Retrieved At
+     */
+    retrieved_at: string;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
+    /**
+     * Completeness
+     */
+    completeness: string;
+    /**
+     * Source Amount Minor
+     */
+    source_amount_minor: number;
+    /**
+     * Source Currency
+     */
+    source_currency: string;
+    /**
+     * Converted Amount Minor
+     */
+    converted_amount_minor?: number | null;
+    price_scope: QuotePriceScope;
+    /**
+     * Selected
+     */
+    selected?: boolean;
+    /**
+     * Alternative
+     */
+    alternative?: boolean;
+    /**
+     * Limitations
+     */
+    limitations?: Array<string>;
 };
 
 /**
@@ -1722,6 +1944,28 @@ export type QuestionOut = {
 };
 
 /**
+ * QuotePriceScope
+ */
+export type QuotePriceScope = {
+    /**
+     * Basis
+     */
+    basis: 'sample_per_traveler_trip' | 'sample_nightly_stay' | 'party_total' | 'unknown';
+    /**
+     * Scope Verified
+     */
+    scope_verified?: boolean;
+    /**
+     * Travelers
+     */
+    travelers?: number | null;
+    /**
+     * Rooms
+     */
+    rooms?: number | null;
+};
+
+/**
  * Recommendation
  */
 export type Recommendation = {
@@ -2114,9 +2358,27 @@ export type SessionOut = {
      */
     assistance_status: string;
     /**
+     * Interview Llm Calls
+     */
+    interview_llm_calls?: number;
+    /**
+     * Assistance Pending
+     */
+    assistance_pending?: boolean;
+    /**
+     * Assistance Diagnostics
+     */
+    assistance_diagnostics?: Array<'unavailable' | 'invalid_response' | 'budget_exhausted' | 'interrupted'>;
+    pending_answer?: AnswerCandidate | null;
+    /**
+     * Contradictions
+     */
+    contradictions?: Array<InterviewContradiction>;
+    /**
      * Pending Profile Updates
      */
     pending_profile_updates: Array<ProfileUpdateProposal>;
+    wallet: UserWallet;
     brief?: TripBrief | null;
     /**
      * Planning Job Id
@@ -2358,6 +2620,34 @@ export type TransitSegment = {
      * Source
      */
     source: string;
+};
+
+/**
+ * TravelInventorySummary
+ */
+export type TravelInventorySummary = {
+    flight?: InventoryQuoteSummary | null;
+    hotel?: InventoryQuoteSummary | null;
+    /**
+     * Alternatives
+     */
+    alternatives?: Array<InventoryQuoteSummary>;
+    /**
+     * Diagnostics
+     */
+    diagnostics?: Array<GatewayDiagnostic>;
+    /**
+     * Limitations
+     */
+    limitations?: Array<string>;
+    /**
+     * Reference Only Awards
+     */
+    reference_only_awards?: boolean;
+    /**
+     * Inventory Revision
+     */
+    inventory_revision?: number;
 };
 
 /**
@@ -2639,6 +2929,126 @@ export type VersionRequest = {
     expected_version: number;
 };
 
+/**
+ * WalletEntryCreateIn
+ */
+export type WalletEntryCreateIn = {
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Nickname
+     */
+    nickname: string;
+    /**
+     * Last4
+     */
+    last4?: string | null;
+    /**
+     * Statement Day
+     */
+    statement_day?: number | null;
+    /**
+     * Opened On
+     */
+    opened_on?: string | null;
+    /**
+     * Points Balances
+     */
+    points_balances?: {
+        [key: string]: number;
+    } | null;
+    /**
+     * Client Event Id
+     */
+    client_event_id?: string | null;
+};
+
+/**
+ * WalletEntryOut
+ *
+ * Display-safe projection of one stored wallet row.
+ */
+export type WalletEntryOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Nickname
+     */
+    nickname: string;
+    /**
+     * Last4
+     */
+    last4: string | null;
+    /**
+     * Statement Day
+     */
+    statement_day: number | null;
+    /**
+     * Opened On
+     */
+    opened_on: string | null;
+    /**
+     * Points Balances
+     */
+    points_balances: {
+        [key: string]: number;
+    };
+    /**
+     * Added At
+     */
+    added_at: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * WalletEntryPatchIn
+ *
+ * Patch body. Omitted fields are left alone; explicit ``null`` clears one.
+ */
+export type WalletEntryPatchIn = {
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Nickname
+     */
+    nickname?: string | null;
+    /**
+     * Last4
+     */
+    last4?: string | null;
+    /**
+     * Statement Day
+     */
+    statement_day?: number | null;
+    /**
+     * Opened On
+     */
+    opened_on?: string | null;
+    /**
+     * Points Balances
+     */
+    points_balances?: {
+        [key: string]: number;
+    } | null;
+    /**
+     * Client Event Id
+     */
+    client_event_id?: string | null;
+};
+
 export type GetPreferencesPlanningPreferencesGetData = {
     body?: never;
     path?: never;
@@ -2841,6 +3251,36 @@ export type SkipSessionPlanningSessionsSessionIdSkipPostResponses = {
 
 export type SkipSessionPlanningSessionsSessionIdSkipPostResponse = SkipSessionPlanningSessionsSessionIdSkipPostResponses[keyof SkipSessionPlanningSessionsSessionIdSkipPostResponses];
 
+export type InterpretSessionPlanningSessionsSessionIdInterpretPostData = {
+    body: InterpretRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/interpret';
+};
+
+export type InterpretSessionPlanningSessionsSessionIdInterpretPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type InterpretSessionPlanningSessionsSessionIdInterpretPostError = InterpretSessionPlanningSessionsSessionIdInterpretPostErrors[keyof InterpretSessionPlanningSessionsSessionIdInterpretPostErrors];
+
+export type InterpretSessionPlanningSessionsSessionIdInterpretPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionOut;
+};
+
+export type InterpretSessionPlanningSessionsSessionIdInterpretPostResponse = InterpretSessionPlanningSessionsSessionIdInterpretPostResponses[keyof InterpretSessionPlanningSessionsSessionIdInterpretPostResponses];
+
 export type AmendSessionPlanningSessionsSessionIdAmendPostData = {
     body: AmendRequest;
     path: {
@@ -3018,16 +3458,214 @@ export type SessionJobPlanningSessionsSessionIdJobGetError = SessionJobPlanningS
 
 export type SessionJobPlanningSessionsSessionIdJobGetResponses = {
     /**
-     * Response Session Job Planning Sessions  Session Id  Job Get
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: PlanJobStatus;
 };
 
 export type SessionJobPlanningSessionsSessionIdJobGetResponse = SessionJobPlanningSessionsSessionIdJobGetResponses[keyof SessionJobPlanningSessionsSessionIdJobGetResponses];
+
+export type RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostData = {
+    body: ConfirmedEditRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/recompute';
+};
+
+export type RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostError = RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostErrors[keyof RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostErrors];
+
+export type RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FinalReport;
+};
+
+export type RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostResponse = RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostResponses[keyof RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostResponses];
+
+export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostData = {
+    body: ConfirmedProseRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/refresh-prose';
+};
+
+export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostError = RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostErrors[keyof RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostErrors];
+
+export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FinalReport;
+};
+
+export type RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponse = RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponses[keyof RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponses];
+
+export type GetCardProductsAccountCardProductsGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/card-products';
+};
+
+export type GetCardProductsAccountCardProductsGetResponses = {
+    /**
+     * Response Get Card Products Account Card Products Get
+     *
+     * Successful Response
+     */
+    200: Array<CardProductOut>;
+};
+
+export type GetCardProductsAccountCardProductsGetResponse = GetCardProductsAccountCardProductsGetResponses[keyof GetCardProductsAccountCardProductsGetResponses];
+
+export type GetWalletAccountWalletGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/wallet';
+};
+
+export type GetWalletAccountWalletGetResponses = {
+    /**
+     * Response Get Wallet Account Wallet Get
+     *
+     * Successful Response
+     */
+    200: Array<WalletEntryOut>;
+};
+
+export type GetWalletAccountWalletGetResponse = GetWalletAccountWalletGetResponses[keyof GetWalletAccountWalletGetResponses];
+
+export type CreateWalletEntryAccountWalletPostData = {
+    body: WalletEntryCreateIn;
+    path?: never;
+    query?: never;
+    url: '/account/wallet';
+};
+
+export type CreateWalletEntryAccountWalletPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateWalletEntryAccountWalletPostError = CreateWalletEntryAccountWalletPostErrors[keyof CreateWalletEntryAccountWalletPostErrors];
+
+export type CreateWalletEntryAccountWalletPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: WalletEntryOut;
+};
+
+export type CreateWalletEntryAccountWalletPostResponse = CreateWalletEntryAccountWalletPostResponses[keyof CreateWalletEntryAccountWalletPostResponses];
+
+export type GetWalletProjectionAccountWalletProjectionGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/wallet/projection';
+};
+
+export type GetWalletProjectionAccountWalletProjectionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserWallet;
+};
+
+export type GetWalletProjectionAccountWalletProjectionGetResponse = GetWalletProjectionAccountWalletProjectionGetResponses[keyof GetWalletProjectionAccountWalletProjectionGetResponses];
+
+export type DeleteWalletEntryAccountWalletEntryIdDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: {
+        /**
+         * Client Event Id
+         */
+        client_event_id?: string | null;
+    };
+    url: '/account/wallet/{entry_id}';
+};
+
+export type DeleteWalletEntryAccountWalletEntryIdDeleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteWalletEntryAccountWalletEntryIdDeleteError = DeleteWalletEntryAccountWalletEntryIdDeleteErrors[keyof DeleteWalletEntryAccountWalletEntryIdDeleteErrors];
+
+export type DeleteWalletEntryAccountWalletEntryIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteWalletEntryAccountWalletEntryIdDeleteResponse = DeleteWalletEntryAccountWalletEntryIdDeleteResponses[keyof DeleteWalletEntryAccountWalletEntryIdDeleteResponses];
+
+export type PatchWalletEntryAccountWalletEntryIdPatchData = {
+    body: WalletEntryPatchIn;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: never;
+    url: '/account/wallet/{entry_id}';
+};
+
+export type PatchWalletEntryAccountWalletEntryIdPatchErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PatchWalletEntryAccountWalletEntryIdPatchError = PatchWalletEntryAccountWalletEntryIdPatchErrors[keyof PatchWalletEntryAccountWalletEntryIdPatchErrors];
+
+export type PatchWalletEntryAccountWalletEntryIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: WalletEntryOut;
+};
+
+export type PatchWalletEntryAccountWalletEntryIdPatchResponse = PatchWalletEntryAccountWalletEntryIdPatchResponses[keyof PatchWalletEntryAccountWalletEntryIdPatchResponses];
 
 export type HealthHealthGetData = {
     body?: never;

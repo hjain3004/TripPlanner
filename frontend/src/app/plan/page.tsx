@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { parsePlanJobStatus } from "@/lib/api/schemas";
 import { apiClient } from "@/lib/api/client-config";
-import { getJobStatusPlanJobIdGet, planPlanPost } from "@/lib/api";
+import { getJobStatusPlanJobIdGet, planPlanPost, sessionJobPlanningSessionsSessionIdJobGet } from "@/lib/api";
 import type {
   AddItem,
   MoveItem,
@@ -40,6 +40,7 @@ import { BookingChecklist } from "@/components/product/booking-checklist";
 import { TrustChip } from "@/components/product/trust-chip";
 import { TripMap } from "@/components/product/trip-map";
 import { AssumptionsFooter } from "@/components/product/assumptions-footer";
+import { TravelInventory } from "@/components/product/travel-inventory";
 import dynamic from "next/dynamic";
 
 const GsapEntrance = dynamic(
@@ -92,6 +93,25 @@ export default function PlanPage() {
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const phaseRef = useRef<PagePhase>("form");
+
+  useEffect(() => {
+    const sessionId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("session");
+    if (!sessionId) return;
+    let active = true;
+    const poll = async () => {
+      const result = await sessionJobPlanningSessionsSessionIdJobGet({ client: apiClient, path: { session_id: sessionId } });
+      if (!active || result.error || !result.data) return;
+      const parsed = parsePlanJobStatus(result.data) as PlanJobStatus;
+      setJobStatus(parsed);
+      if (parsed.status === "complete") { setPhase("complete"); return; }
+      if (parsed.status === "needs_clarification") { setUnresolvedList(parsed.unresolved ?? []); setPhase("needs_clarification"); return; }
+      if (parsed.status === "failed") { setErrorMessage(parsed.error?.message ?? "Pipeline failed"); setPhase("failed"); return; }
+      setPhase("polling");
+      pollTimerRef.current = setTimeout(() => void poll(), POLL_INTERVAL);
+    };
+    void poll();
+    return () => { active = false; if (pollTimerRef.current) clearTimeout(pollTimerRef.current); };
+  }, []);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
 
@@ -641,6 +661,8 @@ function ResultsView({ report: initialReport, onRetry }: {
         {report.summary && (
           <p className="text-sm text-text-muted text-center -mt-4">{report.summary}</p>
         )}
+
+        {report.travel_inventory && <><hr className="border-border" /><TravelInventory inventory={report.travel_inventory} /></>}
 
         {report.freshness?.prose === "stale" && (
           <div className="flex flex-wrap items-center justify-center gap-2 -mt-4" data-testid="stale-prose-marker">

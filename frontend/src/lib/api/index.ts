@@ -25,6 +25,12 @@ export {
   refreshProsePlanPlanRefreshProsePost,
   registerAuthRegisterPost,
   searchPlacesPlacesSearchPost,
+  createWalletEntryAccountWalletPost,
+  deleteWalletEntryAccountWalletEntryIdDelete,
+  getCardProductsAccountCardProductsGet,
+  getWalletAccountWalletGet,
+  getWalletProjectionAccountWalletProjectionGet,
+  patchWalletEntryAccountWalletEntryIdPatch,
 } from "./generated/sdk.gen";
 export type {
   AddItem,
@@ -138,13 +144,19 @@ export type {
   SpendCategory,
   SpendLineItem,
   TransferAdvice,
+  InventoryQuoteSummary,
+  TravelInventorySummary,
   TransferPlan,
   TransferStep,
   TransitSegment,
   TripIntakeRequest,
   TripSpec,
   UserOut,
+  CardProductOut,
   UserWallet,
+  WalletEntryCreateIn,
+  WalletEntryOut,
+  WalletEntryPatchIn,
   ValidationError,
 } from "./generated/types.gen";
 import type {
@@ -152,7 +164,7 @@ import type {
   ItineraryDayOutput,
   ItineraryItemOutput,
 } from "./generated/types.gen";
-export { apiClient } from './client-config';
+export { apiClient, csrfHeaders } from './client-config';
 export { parsePlanJobStatus, planJobStatusSchema, sectionFreshnessSchema } from './schemas';
 export type DraftItinerary = DraftItineraryOutput;
 export type ItineraryDay = ItineraryDayOutput;

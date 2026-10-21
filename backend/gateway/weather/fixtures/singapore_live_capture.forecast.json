@@ -1,0 +1,71 @@
+{
+  "_fixture_meta": {
+    "origin": "sanitized_capture",
+    "description": "Sanitized capture of one real response from the pinned upstream open-meteo-mcp-server@0.4.1. Numeric weather data only.",
+    "captured_at": "2026-10-15T04:07:07.985690+00:00",
+    "upstream_version": "0.4.1",
+    "upstream_commit": "bff522070d90cdf99579a3d23a88e8c0e93324ee",
+    "sanitization": "whitelisted keys only; provider free text (notice, models) dropped; all values re-validated by the strict normalizer before saving",
+    "attribution": "Weather data by Open-Meteo.com (CC BY 4.0) — https://open-meteo.com/"
+  },
+  "tool": "openmeteo_get_forecast",
+  "payload": {
+    "latitude": 1.3708259,
+    "longitude": 103.80237,
+    "elevation": 39,
+    "timezone": "Asia/Singapore",
+    "utc_offset_seconds": 28800,
+    "current": {
+      "time": "2026-10-15T12:00",
+      "interval": 900,
+      "temperature_2m": 32.5,
+      "relative_humidity_2m": 61,
+      "precipitation": 0.1,
+      "weather_code": 51,
+      "wind_speed_10m": 5.9
+    },
+    "current_units": {
+      "time": "iso8601",
+      "interval": "seconds",
+      "temperature_2m": "°C",
+      "relative_humidity_2m": "%",
+      "precipitation": "mm",
+      "weather_code": "wmo code",
+      "wind_speed_10m": "km/h"
+    },
+    "daily": [
+      {
+        "time": "2026-10-15",
+        "weather_code": 80,
+        "temperature_2m_max": 33.2,
+        "temperature_2m_min": 25,
+        "precipitation_sum": 4,
+        "precipitation_probability_max": 84
+      },
+      {
+        "time": "2026-10-16",
+        "weather_code": 81,
+        "temperature_2m_max": 32.9,
+        "temperature_2m_min": 24,
+        "precipitation_sum": 7.8,
+        "precipitation_probability_max": 94
+      },
+      {
+        "time": "2026-10-17",
+        "weather_code": 80,
+        "temperature_2m_max": 31.6,
+        "temperature_2m_min": 24,
+        "precipitation_sum": 6.6,
+        "precipitation_probability_max": 95
+      }
+    ],
+    "daily_units": {
+      "time": "iso8601",
+      "weather_code": "wmo code",
+      "temperature_2m_max": "°C",
+      "temperature_2m_min": "°C",
+      "precipitation_sum": "mm",
+      "precipitation_probability_max": "%"
+    }
+  }
+}

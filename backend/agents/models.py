@@ -51,6 +51,7 @@ from core.trip_models import (
 from core.trip_models import (
     TripSpec as TripSpec,
 )
+from gateway.travel.product import TravelInventorySummary
 
 
 class PipelineStatus(str, Enum):
@@ -159,6 +160,7 @@ class FinalReport(BaseModel):
     status: PipelineStatus = PipelineStatus.OK
     region_capability: RegionCapability | None = None
     freshness: SectionFreshness = Field(default_factory=SectionFreshness)
+    travel_inventory: TravelInventorySummary | None = None
 
 
 class TripIntakeRequest(BaseModel):

@@ -112,13 +112,19 @@ function getCompiledUtilityClasses() {
   findCss(NEXT_DIR);
 
   const compiledClasses = new Set();
-  const utilClassRegex = /\.(text|bg|border|ring|fill|stroke|shadow|outline|divide|from|via|to|accent|caret|placeholder|decoration)-[^{},\s]+/g;
+  // Tailwind escapes opacity slashes and variant colons in CSS selectors.
+  // Compare the emitted utility portion with the source scanner's utility
+  // portion, not its CSS escape spelling or trailing :hover pseudo-class.
+  // Child-combinator utilities such as `.divide-y>:not(...)` are emitted with
+  // `>` immediately after the class name. Keep that combinator out of the
+  // captured utility so source and compiled names compare byte-for-byte.
+  const utilClassRegex = /\.(?:[\w-]+:)*((?:text|bg|border|ring|fill|stroke|shadow|outline|divide|from|via|to|accent|caret|placeholder|decoration)-[^{},\s:>]+)/g;
 
   for (const cssFile of cssFiles) {
-    const css = fs.readFileSync(cssFile, "utf-8");
+    const css = fs.readFileSync(cssFile, "utf-8").replace(/\\([:/])/g, "$1");
     let match;
     while ((match = utilClassRegex.exec(css)) !== null) {
-      compiledClasses.add(match[0].slice(1)); // strip leading '.'
+      compiledClasses.add(match[1]);
     }
   }
 
@@ -134,10 +140,10 @@ function getCompiledUtilityClasses() {
         const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
         let match;
         while ((match = styleRegex.exec(html)) !== null) {
-          const styleContent = match[1];
+          const styleContent = match[1].replace(/\\([:/])/g, "$1");
           let utilMatch;
           while ((utilMatch = utilClassRegex.exec(styleContent)) !== null) {
-            compiledClasses.add(utilMatch[0].slice(1));
+            compiledClasses.add(utilMatch[1]);
           }
         }
       }

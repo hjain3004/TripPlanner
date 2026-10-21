@@ -1,17 +1,29 @@
 "use client";
 
+import Link from "next/link";
 import { Check, ChevronRight, CircleAlert, Pencil, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { balanceSummary } from "@/components/product/wallet/wallet-policy";
+import type { UserWallet } from "@/lib/api";
 import { answerSourceLabel, type AnswerSource, type PendingProfileChange, type TripBriefPresentation } from "./conversational-types";
 
 interface ReviewTripBriefProps {
   brief: TripBriefPresentation;
+  /**
+   * The wallet this session will plan with, as the server snapshotted it when
+   * the session started. Passed down from `SessionOut.wallet` rather than
+   * fetched here: the account's current wallet can differ if it was edited
+   * mid-interview, and the traveler must see what confirmation will actually
+   * use, not what the account happens to hold right now.
+   */
+  wallet: UserWallet;
   isReady: boolean;
   readinessMessage?: string;
   onAmend: (sectionId: string) => void;
   onApproveProfileChange?: (changeId: string) => void;
   onConfirm: () => void;
   confirming?: boolean;
+  actionsDisabled?: boolean;
   error?: string;
 }
 
@@ -21,7 +33,7 @@ function SourceTag({ source, delegated }: { source: AnswerSource; delegated?: bo
   return <span className={`inline-flex min-h-[28px] items-center rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.05em] ${tone}`}>{label}</span>;
 }
 
-function ProfileChangeRow({ change, onApprove }: { change: PendingProfileChange; onApprove?: () => void }) {
+function ProfileChangeRow({ change, onApprove, disabled }: { change: PendingProfileChange; onApprove?: () => void; disabled?: boolean }) {
   return (
     <li className="flex flex-col gap-3 border-b border-border py-4 last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
       <div>
@@ -32,7 +44,7 @@ function ProfileChangeRow({ change, onApprove }: { change: PendingProfileChange;
       {change.approved ? (
         <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.08em] text-success-text"><Check aria-hidden="true" className="h-4 w-4" /> Approved</span>
       ) : onApprove ? (
-        <Button type="button" variant="outline" size="sm" className="min-h-[44px]" onClick={onApprove}>Save to profile</Button>
+        <Button type="button" variant="outline" size="sm" className="min-h-[44px]" onClick={onApprove} disabled={disabled}>Save to profile</Button>
       ) : (
         <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-muted">Review before saving</span>
       )}
@@ -42,12 +54,14 @@ function ProfileChangeRow({ change, onApprove }: { change: PendingProfileChange;
 
 export function ReviewTripBrief({
   brief,
+  wallet,
   isReady,
   readinessMessage,
   onAmend,
   onApproveProfileChange,
   onConfirm,
   confirming = false,
+  actionsDisabled = false,
   error,
 }: ReviewTripBriefProps) {
   const unresolved = brief.unresolvedRequirements ?? [];
@@ -71,7 +85,7 @@ export function ReviewTripBrief({
                   {section.description ? <p className="mt-1 text-xs leading-5 text-text-muted">{section.description}</p> : null}
                 </div>
                 {section.amendable !== false ? (
-                  <Button type="button" variant="ghost" size="sm" className="min-h-[44px]" onClick={() => onAmend(section.id)} aria-label={`Amend ${section.title}`}>
+                  <Button type="button" variant="ghost" size="sm" className="min-h-[44px]" onClick={() => onAmend(section.id)} aria-label={`Amend ${section.title}`} disabled={actionsDisabled || confirming}>
                     <Pencil aria-hidden="true" /> Amend
                   </Button>
                 ) : null}
@@ -99,7 +113,7 @@ export function ReviewTripBrief({
                   <p className="mt-1 text-sm leading-5 text-text-muted">Nothing changes in your saved profile until you approve it.</p>
                 </div>
               </div>
-              <ul className="mt-3"><>{profileChanges.map((change) => <ProfileChangeRow key={change.id} change={change} onApprove={onApproveProfileChange ? () => onApproveProfileChange(change.id) : undefined} />)}</></ul>
+              <ul className="mt-3"><>{profileChanges.map((change) => <ProfileChangeRow key={change.id} change={change} onApprove={onApproveProfileChange ? () => onApproveProfileChange(change.id) : undefined} disabled={actionsDisabled || confirming} />)}</></ul>
             </article>
           ) : null}
 
@@ -120,11 +134,26 @@ export function ReviewTripBrief({
             </div>
           </div>
           {unresolved.length > 0 ? <ul className="mt-4 space-y-2 border-t border-border pt-4 text-xs text-text-muted">{unresolved.map((item) => <li key={item}>• {item}</li>)}</ul> : null}
+          <div className="mt-4 border-t border-border pt-4" data-testid="session-wallet-summary">
+            <h3 className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">Paying with</h3>
+            {wallet.card_ids.length === 0 ? (
+              <p className="mt-1 text-sm leading-5 text-text-muted" data-testid="session-wallet-empty">
+                No cards saved, so this trip will be priced as cash only.{" "}
+                <Link href="/wallet" className="border-b border-primary text-primary">Add a card</Link>
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 text-sm leading-5 text-text" data-testid="session-wallet-cards">{wallet.card_ids.join(", ")}</p>
+                <p className="mt-1 text-xs text-text-muted" data-testid="session-wallet-points">{balanceSummary(wallet.points_balances ?? {})}</p>
+                <Link href="/wallet" className="mt-1 inline-block text-xs border-b border-primary text-primary">Manage your wallet</Link>
+              </>
+            )}
+          </div>
           {error ? <p className="mt-4 border-t border-border pt-4 text-sm text-danger" role="alert">{error}</p> : null}
-          <Button type="button" size="lg" className="mt-5 min-h-[48px] w-full" disabled={!isReady || confirming} onClick={onConfirm}>
+          <Button type="button" size="lg" className="mt-5 min-h-[48px] w-full" disabled={!isReady || confirming || actionsDisabled} onClick={onConfirm}>
             {confirming ? "Confirming…" : "Build my trip"}
           </Button>
-          <p className="mt-3 text-center font-mono text-[10px] uppercase tracking-[0.07em] text-text-faint">Planning starts only after confirmation</p>
+          <p className="mt-3 text-center font-mono text-[10px] uppercase tracking-[0.07em] text-text-muted">Planning starts only after confirmation</p>
         </aside>
       </div>
     </section>

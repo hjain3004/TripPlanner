@@ -323,6 +323,58 @@
         }
       }
     },
+    "/planning/sessions/{session_id}/interpret": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Interpret Session",
+        "operationId": "interpret_session_planning_sessions__session_id__interpret_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterpretRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/planning/sessions/{session_id}/amend": {
       "post": {
         "tags": [
@@ -606,12 +658,326 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Session Job Planning Sessions  Session Id  Job Get"
+                  "$ref": "#/components/schemas/PlanJobStatus"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/recompute": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Recompute Confirmed Session",
+        "operationId": "recompute_confirmed_session_planning_sessions__session_id__recompute_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmedEditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinalReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/refresh-prose": {
+      "post": {
+        "tags": [
+          "planning"
+        ],
+        "summary": "Refresh Confirmed Session Prose",
+        "operationId": "refresh_confirmed_session_prose_planning_sessions__session_id__refresh_prose_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmedProseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinalReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/card-products": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Get Card Products",
+        "operationId": "get_card_products_account_card_products_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CardProductOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Card Products Account Card Products Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/wallet": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Get Wallet",
+        "operationId": "get_wallet_account_wallet_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WalletEntryOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Wallet Account Wallet Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Create Wallet Entry",
+        "operationId": "create_wallet_entry_account_wallet_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletEntryCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/wallet/projection": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Get Wallet Projection",
+        "description": "Derive the kernel's ``UserWallet`` from stored rows. Never stored itself.",
+        "operationId": "get_wallet_projection_account_wallet_projection_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserWallet"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/wallet/{entry_id}": {
+      "patch": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Patch Wallet Entry",
+        "operationId": "patch_wallet_entry_account_wallet__entry_id__patch",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletEntryPatchIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Delete Wallet Entry",
+        "operationId": "delete_wallet_entry_account_wallet__entry_id__delete",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "client_event_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -1100,6 +1466,52 @@
         ],
         "title": "AmendRequest"
       },
+      "AnswerCandidate": {
+        "properties": {
+          "question_id": {
+            "$ref": "#/components/schemas/QuestionId"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TripEssentialsPayload"
+              },
+              {
+                "$ref": "#/components/schemas/PurposePartyPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BudgetObjectivePayload"
+              },
+              {
+                "$ref": "#/components/schemas/FlightPreferencesPayload"
+              },
+              {
+                "$ref": "#/components/schemas/StayPreferencesPayload"
+              },
+              {
+                "$ref": "#/components/schemas/DailyRhythmPayload"
+              },
+              {
+                "$ref": "#/components/schemas/ExperiencesFoodPayload"
+              },
+              {
+                "$ref": "#/components/schemas/HardConstraintsPayload"
+              },
+              {
+                "$ref": "#/components/schemas/AdaptiveDetailPayload"
+              }
+            ],
+            "title": "Payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question_id",
+          "payload"
+        ],
+        "title": "AnswerCandidate"
+      },
       "AnswerRequest": {
         "properties": {
           "question_id": {
@@ -1428,6 +1840,36 @@
         ],
         "title": "BudgetTotals"
       },
+      "CardProductOut": {
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "issuer": {
+            "type": "string",
+            "title": "Issuer"
+          },
+          "is_eligible": {
+            "type": "boolean",
+            "title": "Is Eligible"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "card_id",
+          "display_name",
+          "issuer",
+          "is_eligible"
+        ],
+        "title": "CardProductOut",
+        "description": "Display-safe view of one attachable card product."
+      },
       "Channel": {
         "type": "string",
         "enum": [
@@ -1513,12 +1955,55 @@
             "type": "string",
             "title": "Assistance Status"
           },
+          "interview_llm_calls": {
+            "type": "integer",
+            "title": "Interview Llm Calls",
+            "default": 0
+          },
+          "assistance_pending": {
+            "type": "boolean",
+            "title": "Assistance Pending",
+            "default": false
+          },
+          "assistance_diagnostics": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "unavailable",
+                "invalid_response",
+                "budget_exhausted",
+                "interrupted"
+              ]
+            },
+            "type": "array",
+            "title": "Assistance Diagnostics"
+          },
+          "pending_answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnswerCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contradictions": {
+            "items": {
+              "$ref": "#/components/schemas/InterviewContradiction"
+            },
+            "type": "array",
+            "title": "Contradictions"
+          },
           "pending_profile_updates": {
             "items": {
               "$ref": "#/components/schemas/ProfileUpdateProposal"
             },
             "type": "array",
             "title": "Pending Profile Updates"
+          },
+          "wallet": {
+            "$ref": "#/components/schemas/UserWallet"
           },
           "brief": {
             "anyOf": [
@@ -1581,6 +2066,7 @@
           "events",
           "assistance_status",
           "pending_profile_updates",
+          "wallet",
           "job_id"
         ],
         "title": "ConfirmOut"
@@ -1610,6 +2096,67 @@
           "client_event_id"
         ],
         "title": "ConfirmRequest"
+      },
+      "ConfirmedEditRequest": {
+        "properties": {
+          "edit": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MoveItem"
+              },
+              {
+                "$ref": "#/components/schemas/RemoveItem"
+              },
+              {
+                "$ref": "#/components/schemas/ReorderDay"
+              },
+              {
+                "$ref": "#/components/schemas/AddItem"
+              },
+              {
+                "$ref": "#/components/schemas/ReplaceItem"
+              }
+            ],
+            "title": "Edit",
+            "discriminator": {
+              "propertyName": "op",
+              "mapping": {
+                "add_item": "#/components/schemas/AddItem",
+                "move_item": "#/components/schemas/MoveItem",
+                "remove_item": "#/components/schemas/RemoveItem",
+                "reorder_day": "#/components/schemas/ReorderDay",
+                "replace_item": "#/components/schemas/ReplaceItem"
+              }
+            }
+          },
+          "expected_inventory_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Inventory Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "edit",
+          "expected_inventory_revision"
+        ],
+        "title": "ConfirmedEditRequest"
+      },
+      "ConfirmedProseRequest": {
+        "properties": {
+          "expected_inventory_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Inventory Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_inventory_revision"
+        ],
+        "title": "ConfirmedProseRequest"
       },
       "ConstraintPreferences": {
         "properties": {
@@ -2187,6 +2734,16 @@
           },
           "freshness": {
             "$ref": "#/components/schemas/SectionFreshness"
+          },
+          "travel_inventory": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TravelInventorySummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -2349,6 +2906,46 @@
         ],
         "title": "FlightPreferencesPayload"
       },
+      "GatewayDiagnostic": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "domain": {
+            "type": "string",
+            "enum": [
+              "flight",
+              "hotel",
+              "general"
+            ],
+            "title": "Domain"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "domain",
+          "message"
+        ],
+        "title": "GatewayDiagnostic"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2484,6 +3081,39 @@
         ],
         "title": "InfeasiblePlan"
       },
+      "InterpretRequest": {
+        "properties": {
+          "question_id": {
+            "$ref": "#/components/schemas/QuestionId"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question_id",
+          "expected_version",
+          "text",
+          "client_event_id"
+        ],
+        "title": "InterpretRequest"
+      },
       "InterviewAnswer": {
         "properties": {
           "question_id": {
@@ -2558,6 +3188,179 @@
           "answered_at"
         ],
         "title": "InterviewAnswer"
+      },
+      "InterviewContradiction": {
+        "properties": {
+          "answer_ids": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionId"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 2,
+            "title": "Answer Ids"
+          },
+          "clarification": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Clarification"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "answer_ids",
+          "clarification"
+        ],
+        "title": "InterviewContradiction"
+      },
+      "InventoryQuoteSummary": {
+        "properties": {
+          "domain": {
+            "type": "string",
+            "enum": [
+              "flight",
+              "hotel"
+            ],
+            "title": "Domain"
+          },
+          "quote_id": {
+            "type": "string",
+            "title": "Quote Id"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "provider_quote_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Quote Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "needs_verification": {
+            "type": "boolean",
+            "title": "Needs Verification"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "deep_link_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deep Link Url"
+          },
+          "attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution"
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Retrieved At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "completeness": {
+            "type": "string",
+            "title": "Completeness"
+          },
+          "source_amount_minor": {
+            "type": "integer",
+            "title": "Source Amount Minor"
+          },
+          "source_currency": {
+            "type": "string",
+            "title": "Source Currency"
+          },
+          "converted_amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Converted Amount Minor"
+          },
+          "price_scope": {
+            "$ref": "#/components/schemas/QuotePriceScope"
+          },
+          "selected": {
+            "type": "boolean",
+            "title": "Selected",
+            "default": false
+          },
+          "alternative": {
+            "type": "boolean",
+            "title": "Alternative",
+            "default": true
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "domain",
+          "quote_id",
+          "provider_id",
+          "status",
+          "needs_verification",
+          "retrieved_at",
+          "completeness",
+          "source_amount_minor",
+          "source_currency",
+          "price_scope"
+        ],
+        "title": "InventoryQuoteSummary"
       },
       "ItineraryDay-Input": {
         "properties": {
@@ -4373,6 +5176,55 @@
         ],
         "title": "QuestionOut"
       },
+      "QuotePriceScope": {
+        "properties": {
+          "basis": {
+            "type": "string",
+            "enum": [
+              "sample_per_traveler_trip",
+              "sample_nightly_stay",
+              "party_total",
+              "unknown"
+            ],
+            "title": "Basis"
+          },
+          "scope_verified": {
+            "type": "boolean",
+            "title": "Scope Verified",
+            "default": false
+          },
+          "travelers": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Travelers"
+          },
+          "rooms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rooms"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "basis"
+        ],
+        "title": "QuotePriceScope"
+      },
       "Recommendation": {
         "properties": {
           "kind": {
@@ -5068,12 +5920,55 @@
             "type": "string",
             "title": "Assistance Status"
           },
+          "interview_llm_calls": {
+            "type": "integer",
+            "title": "Interview Llm Calls",
+            "default": 0
+          },
+          "assistance_pending": {
+            "type": "boolean",
+            "title": "Assistance Pending",
+            "default": false
+          },
+          "assistance_diagnostics": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "unavailable",
+                "invalid_response",
+                "budget_exhausted",
+                "interrupted"
+              ]
+            },
+            "type": "array",
+            "title": "Assistance Diagnostics"
+          },
+          "pending_answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnswerCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contradictions": {
+            "items": {
+              "$ref": "#/components/schemas/InterviewContradiction"
+            },
+            "type": "array",
+            "title": "Contradictions"
+          },
           "pending_profile_updates": {
             "items": {
               "$ref": "#/components/schemas/ProfileUpdateProposal"
             },
             "type": "array",
             "title": "Pending Profile Updates"
+          },
+          "wallet": {
+            "$ref": "#/components/schemas/UserWallet"
           },
           "brief": {
             "anyOf": [
@@ -5131,7 +6026,8 @@
           "answers",
           "events",
           "assistance_status",
-          "pending_profile_updates"
+          "pending_profile_updates",
+          "wallet"
         ],
         "title": "SessionOut"
       },
@@ -5550,6 +6446,65 @@
           "source"
         ],
         "title": "TransitSegment"
+      },
+      "TravelInventorySummary": {
+        "properties": {
+          "flight": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventoryQuoteSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hotel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventoryQuoteSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryQuoteSummary"
+            },
+            "type": "array",
+            "title": "Alternatives"
+          },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/GatewayDiagnostic"
+            },
+            "type": "array",
+            "title": "Diagnostics"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          },
+          "reference_only_awards": {
+            "type": "boolean",
+            "title": "Reference Only Awards",
+            "default": true
+          },
+          "inventory_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Inventory Revision",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TravelInventorySummary"
       },
       "TravelPreferenceProfile": {
         "properties": {
@@ -6083,6 +7038,249 @@
           "expected_version"
         ],
         "title": "VersionRequest"
+      },
+      "WalletEntryCreateIn": {
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "nickname": {
+            "type": "string",
+            "title": "Nickname"
+          },
+          "last4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last4"
+          },
+          "statement_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement Day"
+          },
+          "opened_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened On"
+          },
+          "points_balances": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points Balances"
+          },
+          "client_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "card_id",
+          "nickname"
+        ],
+        "title": "WalletEntryCreateIn"
+      },
+      "WalletEntryOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "nickname": {
+            "type": "string",
+            "title": "Nickname"
+          },
+          "last4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last4"
+          },
+          "statement_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement Day"
+          },
+          "opened_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened On"
+          },
+          "points_balances": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Points Balances"
+          },
+          "added_at": {
+            "type": "string",
+            "title": "Added At"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "card_id",
+          "nickname",
+          "last4",
+          "statement_day",
+          "opened_on",
+          "points_balances",
+          "added_at",
+          "version"
+        ],
+        "title": "WalletEntryOut",
+        "description": "Display-safe projection of one stored wallet row."
+      },
+      "WalletEntryPatchIn": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "title": "Expected Version"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nickname"
+          },
+          "last4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last4"
+          },
+          "statement_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement Day"
+          },
+          "opened_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened On"
+          },
+          "points_balances": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points Balances"
+          },
+          "client_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_version"
+        ],
+        "title": "WalletEntryPatchIn",
+        "description": "Patch body. Omitted fields are left alone; explicit ``null`` clears one."
       }
     }
   }

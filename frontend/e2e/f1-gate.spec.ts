@@ -55,10 +55,13 @@ test.describe("F1 Gate: fonts", () => {
   test("Poiret One applied on display headings", async ({ page }) => {
     await page.goto(BASE + "/kitchen-sink", { waitUntil: "networkidle" });
     await selectPreview(page, "ui");
-    const h1 = page.locator("h1").first();
+    // The outgoing Proof view can retain its h1 during AnimatePresence's
+    // transition. Wait for the selected UI specimen, not a detaching node.
+    const h1 = page.getByRole("heading", { name: "Bodoni Moda Display", exact: true });
     await h1.waitFor({ state: "visible" });
-    const font = await h1.evaluate((el) => getComputedStyle(el).fontFamily);
-    expect(font.toLowerCase()).toContain("poiret");
+    await expect
+      .poll(async () => (await h1.evaluate((el) => getComputedStyle(el).fontFamily)).toLowerCase())
+      .toContain("poiret");
   });
 
   test("Roboto Mono on metadata elements", async ({ page }) => {

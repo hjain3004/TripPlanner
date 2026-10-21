@@ -1,0 +1,90 @@
+{
+  "_fixture_meta": {
+    "origin": "authored_synthetic",
+    "description": "Authored synthetic fixture. NOT provider output and NOT a captured response; shaped from the documented output schema of open-meteo-mcp-server@0.4.1 (commit bff522070d90cdf99579a3d23a88e8c0e93324ee). Numbers are invented.",
+    "authored_by": "Claude (G4 milestone)",
+    "authored_on": "2026-10-14"
+  },
+  "tool": "openmeteo_get_historical",
+  "payload": {
+    "latitude": 1.375,
+    "longitude": 103.75,
+    "elevation": 18.0,
+    "timezone": "Asia/Singapore",
+    "models": [
+      "era5"
+    ],
+    "date_range": {
+      "start": "2026-09-01",
+      "end": "2026-09-07"
+    },
+    "record_count": 7,
+    "daily": [
+      {
+        "time": "2026-09-01",
+        "weather_code": 61,
+        "temperature_2m_max": 30.4,
+        "temperature_2m_min": 25.0,
+        "precipitation_sum": 4.2,
+        "wind_speed_10m_max": 14.2
+      },
+      {
+        "time": "2026-09-02",
+        "weather_code": 3,
+        "temperature_2m_max": 30.9,
+        "temperature_2m_min": 25.3,
+        "precipitation_sum": 0.0,
+        "wind_speed_10m_max": 11.8
+      },
+      {
+        "time": "2026-09-03",
+        "weather_code": 80,
+        "temperature_2m_max": 31.4,
+        "temperature_2m_min": 25.6,
+        "precipitation_sum": 9.9,
+        "wind_speed_10m_max": 16.5
+      },
+      {
+        "time": "2026-09-04",
+        "weather_code": 95,
+        "temperature_2m_max": 31.9,
+        "temperature_2m_min": 25.0,
+        "precipitation_sum": 15.6,
+        "wind_speed_10m_max": 20.1
+      },
+      {
+        "time": "2026-09-05",
+        "weather_code": 2,
+        "temperature_2m_max": 30.4,
+        "temperature_2m_min": 25.3,
+        "precipitation_sum": 0.1,
+        "wind_speed_10m_max": 9.7
+      },
+      {
+        "time": "2026-09-06",
+        "weather_code": 3,
+        "temperature_2m_max": 30.9,
+        "temperature_2m_min": 25.6,
+        "precipitation_sum": 0.8,
+        "wind_speed_10m_max": 12.2
+      },
+      {
+        "time": "2026-09-07",
+        "weather_code": 61,
+        "temperature_2m_max": 31.4,
+        "temperature_2m_min": 25.0,
+        "precipitation_sum": 6.3,
+        "wind_speed_10m_max": 15.0
+      }
+    ],
+    "daily_units": {
+      "time": "iso8601",
+      "weather_code": "wmo code",
+      "temperature_2m_max": "°C",
+      "temperature_2m_min": "°C",
+      "precipitation_sum": "mm",
+      "wind_speed_10m_max": "km/h"
+    },
+    "truncated": false
+  }
+}

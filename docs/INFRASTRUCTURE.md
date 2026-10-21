@@ -38,6 +38,16 @@ Browser `/plan/conversation` or `/profile`
 The job manager is currently process-local; durable session state and the confirmation event are
 the recovery boundary, not a claim of a distributed queue.
 
+CP3's separate interview assistant uses `agents/interview_assistant.py` behind the authenticated
+session adapter. Every semantic call is reserved in SQLite before dispatch; failed/interrupted
+attempts retain their spent slot and identical client events reuse their request fingerprint.
+Typed controls make no semantic call except the adaptive checkpoint after the eighth core answer.
+The maximum is two calls: one adaptive review and at most one optional interpretation. Results
+remain user-reviewed proposals; contradictions must be reviewed before explicit confirmation.
+This role uses a separately configured model with no provider/schema retry. It is disabled unless
+`TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED=1` and declared cost is zero; see
+`backend/.env.example`. All automated CP3 acceptance uses scripted/replay clients.
+
 The request-time default uses seeded/sample data and the configured LLM call sites. The kernel is
 not allowed to import the gateway or reach the network. Provider I/O belongs behind
 `backend/gateway/`; the orchestrator must map normalized evidence into kernel inputs.
@@ -67,10 +77,12 @@ discovery, and credentials in frontend/LLM context are outside the boundary.
 - Gateway evidence stores keep source, artifact, claim, lineage, freshness, and invariant data
   separate from approved financial facts.
 - Raw/live provider content is not silently promoted into the financial knowledge base. Offline
-  financial ingestion remains a future human-reviewed proposal/approval workflow under spec 05.
+  financial ingestion (FI0 foundation under `backend/ingestion/`, offline contracts and a separate SQLite review queue only) remains a human-reviewed proposal/approval workflow under spec 05.
 - Account and planning persistence is user-scoped and uses the existing SQLite/CAS/audit patterns;
-  it is separate from gateway quote/cache evidence. CP2 does not authorize provider activation or
-  autonomous financial writes.
+  it is separate from gateway quote/cache evidence. A3 adds the authenticated wallet API/UI,
+  additive wallet-entry version migration, durable mutation idempotency, privacy export/delete and
+  session-snapshotted wallet projection. CP2/A3 do not authorize provider activation or autonomous
+  financial writes.
 
 ## Environment matrix
 
@@ -79,7 +91,8 @@ discovery, and credentials in frontend/LLM context are outside the boundary.
 | Frontend API | `NEXT_PUBLIC_API_MODE=mock`, MSW, no backend network | `NEXT_PUBLIC_API_MODE=live` with a reachable backend |
 | Travel gateway | sample/fixture evidence | registry/kill-switch and profile checks required; Gondola remains disabled by default |
 | Places gateway | sample/snapshot evidence | Tripadvisor requires explicit injected live transport, persistent billable ledger, and activation review |
-| Financial ingestion | absent | no activation path exists on `main` |
+| Weather context | disabled (`TRIPWISE_OPEN_METEO_ENABLED` unset); fixtures only | third-party `community_mcp`; operator-provisioned pinned server, `TRIPWISE_OPEN_METEO_KILL_SWITCH` always wins; not wired to planning |
+| Financial ingestion | offline FI0 contracts/queue only (`backend/ingestion/`) | no fetcher, crawler, scheduler or network exists; FI1 not started |
 
 ## Package boundaries
 
@@ -93,9 +106,13 @@ facade. It does not import Python packages or compute financial values.
 ## Operationally important gaps
 
 - `/plan` is not wired to Gondola; the gateway seam is proven separately.
-- CP3 bounded LLM interview assistance and G3.4 confirmed-brief gateway integration remain future
-  work.
+- G3.4 confirmed-brief gateway integration is implemented on the isolated branch with
+  sample-only runtime construction, explicit inventory price-scope/freshness validation, and
+  authenticated owner/session-bound job interactions. Its acceptance was closed on 2026-10-16 once the integrated tree
+  passed `make gate` with the approved catalogs; live Gondola structured responses are still
+  unverified and no live transport is enabled. Evidence is in
+  `reports/g3_4_confirmed_brief_gateway.md`.
 - Full structured Gondola response capture and normalization proof remain open in the G3.2 report.
 - Live Tripadvisor activation remains pending.
-- The robust financial-ingestion document is a plan only; FI1/Crawl4AI/Firecrawl work is not part
-  of this handoff.
+- FI0 (offline ingestion foundation) is implemented; the rest of the robust financial-ingestion plan
+  (FI1/Crawl4AI/Firecrawl) is not part of this handoff.

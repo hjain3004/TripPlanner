@@ -32,6 +32,7 @@ from gateway.travel.adapters.gondola.oauth import (
     KeychainTokenStore,
     OAuthTokens,
 )
+from gateway.travel.adapters.gondola.requests import build_flight_search_arguments
 
 MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp"
 LOOPBACK_HOST = "127.0.0.1"
@@ -194,11 +195,13 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
                     await session.initialize()
                     await session.call_tool(
                         "search_flights",
-                        {
-                            "origin": "DEL",
-                            "destination": "SIN",
-                            "adults": 1,
-                        },
+                        build_flight_search_arguments(
+                            origin="DEL",
+                            destination="SIN",
+                            departure_date=datetime.now(UTC).date() + timedelta(days=90),
+                            num_passengers=1,
+                            cabin_class="economy",
+                        ),
                     )
     finally:
         server.shutdown()
