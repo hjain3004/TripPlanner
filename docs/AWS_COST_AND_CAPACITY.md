@@ -51,7 +51,7 @@ earn.
 | EBS gp3 root | 20 GB | $0.08/GB-month | $1.600 | Estimated (example rate) | [EBS pricing](https://aws.amazon.com/ebs/pricing/) |
 | EBS gp3 data | 10 GB | $0.08/GB-month | $0.800 | Estimated (example rate) | same |
 | EBS snapshots | ~5 GB-month (7 daily, incremental) | $0.05/GB-month | $0.250 | Estimated; usage-dependent | same |
-| ECR storage | ≤ 3.3 GB (5 image pairs; compressed layers are smaller than the 1.09 GB uncompressed pair) | $0.10/GB-month | ≤ $0.330 | Estimated upper bound | [ECR pricing](https://aws.amazon.com/ecr/pricing/) |
+| ECR storage | ~3.3 GB (5 image pairs; assumes compressed, layer-shared storage well below the 5.45 GB uncompressed total) | $0.10/GB-month | ~$0.330 | Estimated; compressed size unmeasured | [ECR pricing](https://aws.amazon.com/ecr/pricing/) |
 | CloudWatch | logs, 1 dashboard, ≤ 10 alarms, agent metrics | — | $1.000 allowance | Free-Tier-dependent; likely $0 within 5 GB logs, 10 metrics, 10 alarms, 3 dashboards | [CloudWatch pricing](https://aws.amazon.com/cloudwatch/pricing/) |
 | Route 53 hosted zone | 1 | $0.50/zone-month | $0.500 | Exact; ALIAS queries to CloudFront free | [Route 53 pricing](https://aws.amazon.com/route53/pricing/) |
 | CloudFront (pay-as-you-go) | ≤ 1 TB out, ≤ 10 M requests | always-free tier | $0.000 | Free-Tier-dependent; usage-dependent above it | [pay-as-you-go](https://aws.amazon.com/cloudfront/pricing/pay-as-you-go/) |
@@ -95,7 +95,7 @@ about $30.
 
 | Months | Mode | Hosting ¹ | Images, backups, logs ² | Month total |
 |---|---|---|---|---|
-| 1–2 (D2–D4) | Private staging, instance running ~8 h/day | $10.58 | $1.58 | $12.16 |
+| 1–2 (D2–D4) | Private staging, instance running ~8 h/day (240 h/month) | $10.58 | $1.58 | $12.16 |
 | 3–6 (L1–D5) | Running 24 h/day | $18.81 | $1.58 | $20.39 |
 
 ¹ EC2 + IPv4 + EBS volumes + Route 53. ² ECR + snapshots + CloudWatch allowance.
@@ -106,10 +106,10 @@ Six-month total ≈ 2 × $12.16 + 4 × $20.39 = **$105.90** (Estimated).
 
 | Allocation | Amount | Covers |
 |---|---|---|
-| Hosting | $96 | Compute, IPv4, EBS, Route 53 over the schedule above |
-| Images, backups, logs | $10 | ECR, snapshots, S3, CloudWatch |
+| Hosting | $97 | Compute, IPv4, EBS, Route 53 over the schedule above ($96.40) |
+| Images, backups, logs | $10 | ECR, snapshots, S3, CloudWatch ($9.48) |
 | Drills | $5 | Temporary restore volumes, a second instance for a few hours, snapshot restores |
-| Emergency reserve | $14 | A memory-driven move to a larger instance for part of a month, WAF during an incident, or estimate error |
+| Emergency reserve | $13 | A memory-driven move to a larger instance for part of a month, WAF during an incident, or estimate error |
 | **Total** | **$125** | |
 
 On **Profile F**, the same schedule needs about $111 including drills, so it depends on earning at least
@@ -126,8 +126,8 @@ Cumulative planned spend from § 3.1. Compare it with the Billing console's cred
 | 165 | ≈ $96 | Final export verified off AWS. Freeze deploys. Profile P: decide with the human whether the unallocated buffer extends the period — only after confirming its balance and expiry in the console. |
 | ≤ 182 | ≈ $106 | **Teardown** (runbook). Profile F: the account closes six months after opening regardless. Profile P: nothing may run into net-of-credit charges. |
 
-Days count from account creation. Each D2–D4 month with the instance running 24 hours moves every date
-earlier by about 9 days.
+Days count from account creation. Each D2–D4 month with the instance running 24 hours adds about $8.23
+and moves every later date earlier by about 12 days.
 
 ## 4. GitHub Actions
 
@@ -167,34 +167,49 @@ Per call: `input_tokens = characters / k + overhead`; `output_tokens = character
 
 `cost = Σ calls × (uncached_in × p_in + cached_in × p_read + cache_write × p_write + out × p_out) / 10⁶`
 
-- `k` = characters per token. Anthropic's pricing page equates 1M tokens with about 2.5M Unicode
-  characters (`k = 2.5`). Conservative scenarios use `k = 2.0`.
-- `overhead` = 300 tokens per call for role framing and structured-output system content (assumed).
+- `k` = characters per token, an **assumption, not a published figure**. Anthropic states only that
+  Claude 4.7 and later tokenizers produce "approximately 30% more tokens for the same text" than earlier
+  models ([pricing](https://platform.claude.com/docs/en/about-claude/pricing)). Baseline uses `k = 2.5`
+  and conservative scenarios `k = 2.0`, both chosen low to bias token counts upward. L1 replaces `k`
+  with measured `usage` and the token-counting endpoint.
+- `overhead` = 300 tokens per call for role framing, the tool description, and structured-output
+  system content (assumed).
 - Routing per [plan § 22.2](AWS_DEPLOYMENT_PLAN.md#222-model-routing-fixed).
-- The pipeline makes one intake call, one planner call, at most two critic passes with one re-plan
-  between them (`MAX_CRITIC_REPLAN_LOOPS = 2` in `agents/pipeline.py`), and one explainer call, plus at
-  most one schema-repair retry per node.
+- **Call structure (from the code):** one intake call; the planner runs a bounded discovery loop per
+  draft — up to 3 rounds and 6 LLM calls (`agents/discovery/contracts.py`), each call returning either a
+  `SearchIntent` for the `search_places` tool or a `DraftItinerary`, with the prompt growing as
+  discovered candidates are appended; at most two critic passes with one re-plan between them
+  (`MAX_CRITIC_REPLAN_LOOPS = 2` in `agents/pipeline.py`), so at most two drafts; one explainer call.
+  The only overall bound today is the per-request ceiling `TRIPWISE_LLM_MAX_CALLS` (default 25).
+- `growth` = planner input multiplier for later discovery rounds (assumed 1.25 in conservative
+  scenarios; the recorded planner sizes come from only three samples).
 
 ### 5.4 Per-plan scenarios (Estimated)
 
 | Scenario | Assumptions | Sonnet in / out tokens | Cost per plan | Plans on $25 | Plans on $50 |
 |---|---|---|---|---|---|
-| **Baseline** | Median sizes; `k` 2.5; one call per role; no thinking | 10,613 / 1,647 | **$0.0380** | 658 | 1,316 |
-| **Conservative** | Max sizes; `k` 2.0; planner ×3 (two drafts plus one repair), critic ×2; +1,000 thinking tokens per Sonnet call | 33,171 / 10,036 | **$0.1672** | 150 | 299 |
-| **Optimized** | Baseline with 70% of Sonnet input read from cache (ignores the one-time write premium) | 10,613 / 1,647 | **$0.0239** | 1,046 | 2,093 |
-| Ceiling | 16 calls (intake 2, planner 6, critic 6, explainer 2), every output at `max_tokens` | 81,150 / 18,432 | $0.3511 | 71 | 142 |
+| **Baseline** | Median sizes; `k` 2.5; planner ×2 (one search round, one draft), critic ×1; no thinking | 15,258 / 2,378 | **$0.0546** | 458 | 916 |
+| **Conservative** | Max sizes; `k` 2.0; planner ×12 (full 6-call discovery for each of two drafts, input growth 1.25), critic ×2; +1,000 thinking tokens per Sonnet call | 105,723 / 27,275 | **$0.4847** | 52 | 103 |
+| **Optimized** | Baseline with 40% of Sonnet input read from cache (the stable prefix; the candidate block changes each round). Ignores the one-time write premium | 15,258 / 2,378 | **$0.0430** | 581 | 1,162 |
+| Ceiling, today's bound | 25 calls (`TRIPWISE_LLM_MAX_CALLS` default): intake 1, planner 21, critic 2, explainer 1; max sizes, growth 1.25; every output at `max_tokens` | 173,909 / 45,056 | $0.8006 | 31 | 62 |
+| Ceiling, planned L1 bound | 10 calls: intake 1, planner 6, critic 2, explainer 1; otherwise as above | 60,266 / 14,336 | $0.2661 | 93 | 187 |
 
-Sonnet planner and critic calls are about 97% of baseline cost; the Haiku roles are below $0.001 per
-plan. A prose refresh (one Haiku explainer call) costs about $0.0003.
+Sonnet planner and critic calls are over 99% of cost in every scenario; the Haiku roles are below
+$0.001 per plan. A prose refresh (one Haiku explainer call) costs about $0.0002. The conservative critic
+output (~1,145 tokens before thinking) exceeds the critic's current `max_tokens` of 1,024, so L1 raises
+that limit or the estimate is capped by truncation.
+
+**Implication.** Discovery dominates cost. L1 lowers the per-request ceiling from 25 to 10 calls (§ 7)
+and measures the real number of discovery rounds; until measured, budget on the conservative row.
 
 ### 5.5 Anthropic credit allocation ($50)
 
 | Allocation | Amount | Expected runs (baseline / conservative) |
 |---|---|---|
-| Native integration and bounded live verification (L1) | $5 | Capped at 20 live runs (≈ $0.76 / $3.34) |
-| Batch evaluation corpus | $10 | ≈ 526 batched baseline plans, run in small rounds |
-| Controlled demo traffic | $25 | 658 / 150 |
-| Acceptance and interview reserve | $10 | 263 / 60 |
+| Native integration and bounded live verification (L1) | $5 | Capped at 10 live runs (≈ $0.55 / $4.85) |
+| Batch evaluation corpus | $10 | ≈ 366 batched baseline plans, run in small rounds |
+| Controlled demo traffic | $25 | 458 / 52 |
+| Acceptance and interview reserve | $10 | 183 / 21 |
 
 Purchased Anthropic credits expire one year after purchase; check this grant's expiry in the Console.
 
@@ -209,7 +224,7 @@ Purchased Anthropic credits expire one year after purchase; check this grant's e
 | Visitors (unauthenticated page views) | Origin-bound, not edge-bound | CloudFront's free 10 M requests ≈ 330,000 page views at ~30 requests each; uncached HTML and API calls reach one 2-vCPU origin whose throughput is unmeasured |
 | Simultaneous browsing sessions | Unknown | D5 target: 20 concurrent scripted sessions with p95 below 1 s on non-LLM routes and no errors. A target, not a claim. |
 | Simultaneous planning jobs | **2** (hard cap) | One worker process on ~2 GiB; further jobs get a typed busy response |
-| Complete AI plans per day | **5.5** baseline, **1.25** conservative | Global ceiling: `plans/day = A / (D × c)`, with A = $25 demo allocation, D = 120 public days, c = cost per plan |
+| Complete AI plans per day | **3.8** baseline, **0.43** conservative | Global ceiling: `plans/day = A / (D × c)`, with A = $25 demo allocation, D = 120 public days, c = cost per plan |
 | Heavy re-planning users | Bounded by quota | Itinerary edits recompute deterministically without an LLM; only a new full plan or a prose refresh spends credit |
 
 With 50 users and a quota of 2 full plans per user per day, the **global daily ceiling binds first**.
@@ -227,8 +242,8 @@ All are D4 or L1 work; none exists today.
 | Global daily Claude cost ceiling | $0.21 (= $25 / 120 days) | Usage ledger, checked before each call |
 | Global lifetime Claude ceiling | The demo allocation | Usage ledger |
 | Maximum concurrent planning jobs | 2 | Job manager |
-| Maximum LLM calls per plan | The spec 03 bound (no new call sites) | Existing per-request ceiling, lowered from the default 25 |
-| Maximum output tokens per role | `agents/config.yaml`, raised only where thinking is enabled | Request parameters |
+| Maximum LLM calls per plan | 10 (no new call sites; discovery keeps its own 6-call per-draft budget inside this) | Existing per-request ceiling `TRIPWISE_LLM_MAX_CALLS`, lowered from the default 25 |
+| Maximum output tokens per role | `agents/config.yaml`; the critic's 1,024 raised to fit its measured output, and any role raised where thinking is enabled | Request parameters |
 | Typed degraded response | Deterministic planner fallback + template explainer | Existing fallback paths |
 | Kill switch | One environment flag that disables every LLM call | Startup and per-call check |
 | Anthropic structural stop | Prepaid credit, auto-reload off | Anthropic billing |

@@ -18,6 +18,11 @@ links to it rather than repeating it.
 - **Secrets:** no command may print, persist, or commit a secret. Never run
   `aws ssm get-parameter --with-decryption` in a terminal or an SSM session. Never pass a secret as a
   command-line argument. Enter secret values in the AWS or Anthropic console.
+- **SSM output is visible to GitHub logs** (the deploy role can read command output). SSM documents never
+  use shell tracing (`set -x`) and never print the environment file or a parameter value.
+- **Compose project name:** `tripwise-d1`, the name the Makefile and `scripts/d1-backup.sh` use
+  (`COMPOSE_PROJECT` overrides it in the backup script). Commands below written `docker compose …` mean
+  `docker compose -p tripwise-d1 -f deploy/compose.yaml -f deploy/compose.aws.yaml`.
 - **Destructive steps** (`delete`, `terminate`, `destroy`) appear only in teardown and incident
   procedures, and a human runs them after reading the target.
 - Each procedure ends with a **Verify** step: the check to run and the expected observation.
@@ -103,7 +108,8 @@ use.
    - `ssm:SendCommand` on the deploy document ARN and on instances tagged `tripwise:role=app`.
    - `ssm:GetCommandInvocation`, `ssm:ListCommandInvocations`.
 5. In GitHub, create the `production` environment restricted to `main`. Store the role ARN as an
-   environment variable (it is not sensitive).
+   environment variable (it is not sensitive). Both the build-and-push job and the deploy job declare
+   `environment: production`; pull-request jobs never request an AWS role.
 
 **Verify:** a dispatched workflow assumes the role (`aws sts get-caller-identity` prints the role ARN);
 the same role receives `AccessDenied` for `ec2:RunInstances`, `ssm:GetParameter`, and `s3:DeleteObject`.
@@ -121,7 +127,8 @@ tag again fails.
 1. **Network:** one VPC, one public subnet, an internet gateway; security group `tripwise-origin` with
    **no inbound rules** until D5 and outbound TCP 443 only.
 2. **Instance:** the type chosen by the selection gate (plan § 9); Amazon Linux 2023; standard CPU-credit
-   mode; IMDSv2 required; no key pair; tag `tripwise:role=app`; an instance profile with
+   mode; IMDSv2 required with a response hop limit of 1, so containers cannot reach instance credentials;
+   no key pair; tag `tripwise:role=app`; an instance profile with
    `AmazonSSMManagedInstanceCore`, the CloudWatch agent policy, `s3:PutObject` on
    `arn:aws:s3:::<bucket>-backups/backups/*`, read access to `/tripwise/prod/*` parameters, and ECR pull.
 3. **Volumes:** 20 GiB gp3 root; 10 GiB gp3 data volume mounted at `/srv/tripwise/data` by UUID in
@@ -132,8 +139,9 @@ tag again fails.
 6. **Snapshots:** a Data Lifecycle Manager policy on the data volume's tag, daily, keep 7.
 7. **Elastic IP** attached to the instance.
 
-**Verify:** `aws ec2 describe-instances --instance-ids <instance-id> --query "Reservations[].Instances[].MetadataOptions.HttpTokens"`
-returns `required`; `aws ec2 describe-security-groups --group-names tripwise-origin` shows no ingress
+**Verify:** `aws ec2 describe-instances --instance-ids <instance-id> --query "Reservations[].Instances[].MetadataOptions.[HttpTokens,HttpPutResponseHopLimit]"`
+returns `required` and `1`; from inside the `proxy` container, a request to `169.254.169.254` gets no
+token; `aws ec2 describe-security-groups --group-names tripwise-origin` shows no ingress
 rules; `findmnt /srv/tripwise/data` on the host shows the data volume.
 
 ## 7. Systems Manager access (D2)
@@ -150,7 +158,7 @@ exists; `docker compose version` succeeds in the session.
 Before ECR delivery exists, build on the instance from the commit under test:
 
 1. Clone the repository on the host and check out the commit by SHA.
-2. Build: `docker compose -p tripwise -f deploy/compose.yaml build` (on Graviton, a native
+2. Build: `docker compose -p tripwise-d1 -f deploy/compose.yaml build` (on Graviton, a native
    `linux/arm64` build).
 3. Start and check health per [DEPLOYMENT.md § 2](DEPLOYMENT.md#2-clean-clone-startup) and
    [§ 8](DEPLOYMENT.md#8-health-checks); run `make d1-smoke`.

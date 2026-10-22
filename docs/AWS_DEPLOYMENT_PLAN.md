@@ -41,12 +41,13 @@ The plan therefore defines two account profiles with the same architecture (sect
 
 | Profile | Account plan | AWS credit | Overage | Status |
 |---|---|---|---|---|
-| **P — recommended** | Paid | ~$125 promotional + $100 sign-up (+ up to $100 from activities) | Possible; bounded by controls, not prevented | **Requires an explicit human approval** recorded in `DEVIATIONS.md` before D2 |
-| **F — compliant fallback** | Free | $100 sign-up (+ up to $100 from activities); promotional credit unusable | Not possible; account closes at 6 months or when credits run out | Usable without an exception |
+| **F — default** | Free | $100 sign-up (+ up to $100 from activities); promotional credit unusable | Not possible; account closes at 6 months or when credits run out | Complies with the USD 0 rule as written; used unless the human chooses P |
+| **P — option for the human** | Paid | ~$125 promotional + $100 sign-up (+ up to $100 from activities) | Possible; bounded by controls, not prevented | **Requires an explicit human approval** recorded in `DEVIATIONS.md` before D2 |
 
-Profile P is recommended because it is the only way to use the credit the brief was written
-around, it does not close at six months, and it can use every service in this plan. It is not
-recommended unless the human accepts its residual risk in writing.
+Profile F is the default because the project's rules require the conservative option when a choice
+would otherwise need a paid-service exception. Profile P is the only way to use the credit the brief
+was written around; it does not close at six months and can use every service in this plan. Choosing
+it is the human's decision, together with written acceptance of its residual risk (section 4.2).
 
 Three further findings change the brief:
 
@@ -235,7 +236,8 @@ Restore is drilled (section 23).
 **Secrets (D3 / L1).** A human creates each secret as a Parameter Store Standard `SecureString`
 parameter encrypted with the AWS managed key. The instance role may read only its own parameter
 path. The deploy script writes them to a root-owned, mode-600 environment file that Compose reads.
-They never enter an image, a Git commit, a GitHub secret, a log, or Terraform state (section 16).
+They never enter an image, a Git commit, a GitHub secret, or a log, and never enter Terraform state
+except the CloudFront origin-header secret, which the distribution configuration requires (section 16).
 
 ## 7. Why one EC2 instance
 
@@ -344,7 +346,9 @@ limits, non-root users, health-gated startup, one backend worker) stays.
   and wait timers are unavailable; deployment-branch rules and environment secrets are available
   ([Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)).
   The approval step is therefore the **manual `workflow_dispatch`**, and the `production`
-  environment accepts only `main`.
+  environment accepts only `main`. Because the trust policy pins the `production` environment's
+  subject, the build-and-push job also declares `environment: production`; ordinary pull-request CI
+  never assumes an AWS role.
 - **Least privilege:** the deploy role may push to the two ECR repositories, call `ssm:SendCommand`
   only with the named deploy document against instances carrying the deployment tag, and read
   command results. It has no IAM, EC2-launch, S3-delete, or Parameter Store permissions. Terraform
@@ -374,6 +378,12 @@ limits, non-root users, health-gated startup, one backend worker) stays.
   bucket is therefore private, versioned, encrypted, and readable only by the human Terraform role.
 - Planned parameters: the origin-header secret (D5), the Anthropic API key (L1), and the ACME account
   key if section 18's DNS-01 path is used.
+- **Containers cannot use the instance role.** The instance requires IMDSv2 with a response hop limit of
+  1, so containers on the non-internal `edge` and `egress` networks cannot obtain instance credentials
+  and read these parameters; only host-level processes (the deploy script, the backup timer, the agents)
+  can.
+- The SSM deploy document never runs with shell tracing (`set -x`) and never prints the environment
+  file, because the deploy role can read command output into GitHub logs.
 
 ## 17. Observability (CloudWatch)
 
@@ -541,8 +551,17 @@ are configuration. Haiku 5.5 is not retired before 2027-10-07 and Sonnet 5.5 not
   `Field(ge=1, le=31)` stay enforced locally.
 - **No `temperature`:** Sonnet 5.5 and Haiku 5.5 reject non-default sampling parameters, so the
   `temperature` values in `agents/config.yaml` are not sent.
-- **No forced `tool_choice`:** `any` or `tool` returns a 400 on Sonnet 5.5. The Kernel call sites are
-  single structured-output calls and need no tools; any future tool uses `strict: true`.
+- **The planner is a bounded tool loop, not a single call.** Per draft it runs up to 3 discovery rounds
+  and 6 LLM calls (`agents/discovery/contracts.py`); each response is either a `SearchIntent` for the
+  existing `search_places` tool or a `DraftItinerary`, and discovered candidates are appended to the
+  next prompt. Today the tool is described inside the prompt text (`HostedFreeTier`). The native client
+  declares `search_places` as a real tool with `strict: true` and `tool_choice: {"type": "auto"}`, and
+  takes the draft from a structured-output final response; the existing `DraftItinerary | SearchIntent`
+  validation and the discovery budget stay unchanged. Intake, critic, and explainer remain single
+  structured-output calls.
+- **No forced `tool_choice`:** `any` or `tool` returns a 400 on Sonnet 5.5, so the planner uses `auto`.
+- **Per-request ceiling.** `TRIPWISE_LLM_MAX_CALLS` (default 25) is the only overall bound today; L1
+  lowers it to 10 ([cost model § 5.4](AWS_COST_AND_CAPACITY.md#54-per-plan-scenarios-estimated)).
 - **Thinking** is billed as output and counts toward `max_tokens`
   ([thinking](https://platform.claude.com/docs/en/build-with-claude/thinking)). Haiku roles send
   `thinking: {"type": "disabled"}` (accepted at effort `high` or below). Sonnet 5.5 rejects `disabled`;
@@ -574,7 +593,9 @@ compute) all stay. **No LLM-generated financial amount can reach the user.**
   today's system prompts are about 250 characters. L1 orders each prompt so stable content
   (instructions, schema, then the deterministic candidate block for a destination and interest set)
   comes first, with one breakpoint at the end of that prefix. Changing `output_config.format`
-  invalidates the cache, so schemas stay stable.
+  invalidates the cache, so schemas stay stable. Discovery appends new candidates each round, so only
+  the part of the prompt before the first appended candidate is reusable across rounds; the cost model
+  assumes 40% of planner input is cached, not more.
 - Default 5-minute TTL; the planner → critic → replan loop runs within it.
 - Success is verified with `usage.cache_read_input_tokens`; a persistent zero means the prefix is not
   stable.

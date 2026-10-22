@@ -36,8 +36,9 @@ EC2 rates were read from the public price file that AWS's own EC2 pricing page l
 ## Decisions
 
 1. **Account profile is a human decision.** Free account plans cannot redeem promotional credits; the
-   Paid plan charges beyond credits. Profile P (Paid, recommended if approved) and Profile F (Free,
-   compliant fallback) share one architecture. Nothing here approves the exception to the USD 0 rule.
+   Paid plan charges beyond credits. Profile F (Free) is the conservative default; Profile P (Paid, uses
+   the promotional credit) is an option only with recorded human approval. Both share one architecture.
+   Nothing here approves the exception to the USD 0 rule.
 2. **One EC2 instance running the D1 Compose stack**, because SQLite, process-local jobs and locks, and
    per-process budgets require exactly one backend replica.
 3. **2 GiB memory target.** `t4g.small` preferred if measured memory fits; `t3.small` if Arm fails;
@@ -55,10 +56,11 @@ EC2 rates were read from the public price file that AWS's own EC2 pricing page l
 
 ## Headline figures (estimates)
 
-- AWS: `t4g.small` stack ≈ $20.39/month; six-month schedule ≈ $105.90; allocation hosting $96, images,
-  backups, and logs $10, drills $5, reserve $14.
-- Claude: $0.0380 per plan baseline, $0.1672 conservative, $0.0239 optimized; $50 split $5 / $10 / $25
-  / $10; global ceiling ≈ 5.5 baseline plans per day.
+- AWS: `t4g.small` stack ≈ $20.39/month; six-month schedule ≈ $105.90; allocation hosting $97, images,
+  backups, and logs $10, drills $5, reserve $13.
+- Claude (planner modelled as its real discovery loop): $0.0546 per plan baseline, $0.4847
+  conservative, $0.0430 optimized; ceiling $0.80 at today's 25-call bound, $0.27 at the planned 10-call
+  bound. $50 split $5 / $10 / $25 / $10; global ceiling ≈ 3.8 baseline (0.43 conservative) plans per day.
 - Beta cap: 50 invited users, a policy limit pending the D5 load test. No capacity was measured.
 
 ## Known unknowns
@@ -70,7 +72,34 @@ Standard rates.
 
 ## Verification
 
-Filled in from the final committed tree; see the verification section appended below.
+- Relative links and heading anchors in all changed documents: 0 broken (scripted check).
+- Scan of the new documents for 12-digit account IDs, API-key and access-key patterns, and email
+  addresses: none found.
+- Scan for claims of high availability, horizontal scaling, zero downtime, provisioning, or deployment:
+  only explicit non-claims.
+- Changed files: the 8 documentation files listed above; no other path.
+- `make gate` on the first documentation commit `3a2b499`: GATE PASSED — 1,883 passed, 1 skipped;
+  mypy `--strict` clean (177 + 5 source files); ruff clean, legacy ratchet 6 of 12; `GOLDENS_OK`,
+  `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN`. The gate is run again on the final commit after the
+  review fixes; that result is reported in the hand-off.
+
+## Independent review
+
+One whole-branch review (separate agent, read-only, spot-checked against first-party pages). Critical: none.
+Important, all fixed:
+
+1. The planner is a bounded tool loop (up to 6 calls per draft), not one call — the cost model and the
+   native-client design (§ 22.3) were rewritten around it, and L1 lowers the per-request ceiling to 10.
+2. The characters-per-token ratio was mis-attributed to Anthropic — relabelled as an assumption.
+3. Containers could reach instance metadata — IMDSv2 hop limit 1 added to the plan and runbook.
+4. The plan contradicted itself on secrets in Terraform state — the origin-header exception is stated.
+5. Profile P was presented as recommended — Profile F is now the conservative default.
+
+Minor, fixed: checkpoint shift (12 days, not 9); Sonnet share (> 99%); hosting allocation ($97);
+staging hours stated; ECR figure relabelled as an estimate; critic `max_tokens` overflow noted; Compose
+project name `tripwise-d1`; build job declares `environment: production`; SSM output must not print
+secrets; this section replaces a dangling reference. Not changed: WAF and NAT prices appear in both the
+plan and the cost model, kept so each exclusion is self-explanatory.
 
 ## Confirmations
 
