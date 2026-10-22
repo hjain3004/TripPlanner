@@ -11,6 +11,8 @@ changing behavior.
 2. [Infrastructure](INFRASTRUCTURE.md) — runtime boundaries, persistence, provider profile, and
    verification surfaces.
    Deployment (D1, single-instance sample-mode stack): [Deployment guide](DEPLOYMENT.md) and `reports/d1_deployment_foundation.md`.
+   AWS deployment (planned, not provisioned): [AWS deployment plan](AWS_DEPLOYMENT_PLAN.md),
+   [AWS cost and capacity](AWS_COST_AND_CAPACITY.md), [AWS operations runbook](AWS_OPERATIONS_RUNBOOK.md).
 3. [Frontend architecture](../frontend/ARCHITECTURE.md) — the implemented Next.js structure and
    its backend contract boundary.
 4. [Fable handoff](../frontend/FABLE_HANDOFF.md) — the short execution brief for a fresh frontend

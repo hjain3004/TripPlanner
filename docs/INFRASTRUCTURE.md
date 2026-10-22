@@ -92,6 +92,10 @@ and frontend on a network with no outbound access) is defined in `deploy/compose
 locks) and runs sample mode only; every live provider is refused at startup in production. `make compose-up` builds
 and starts it; `make d1-smoke` drives a genuine browser → proxy → backend journey including a backend restart.
 
+**AWS (planned, not provisioned):** [AWS_DEPLOYMENT_PLAN.md](AWS_DEPLOYMENT_PLAN.md) plans this same stack on one
+EC2 instance behind CloudFront; [AWS_COST_AND_CAPACITY.md](AWS_COST_AND_CAPACITY.md) carries the estimates and
+[AWS_OPERATIONS_RUNBOOK.md](AWS_OPERATIONS_RUNBOOK.md) the unexecuted procedures. No cloud resource exists.
+
 ## Environment matrix
 
 | Surface | Default | Explicit live mode |

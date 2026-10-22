@@ -102,3 +102,6 @@ and the primary checkout's untracked files, remain preserved.
 - A report saying “complete” for an older milestone does not mean its later live activation or
   integration follow-up is complete.
 - The untracked plans and image directory are not canonical until deliberately committed.
+- AWS hosting is planned, not provisioned. [AWS_DEPLOYMENT_PLAN.md](AWS_DEPLOYMENT_PLAN.md) and its
+  companion cost and runbook documents describe future phases (D2–D5, L1); no AWS resource, Anthropic API
+  key, native Claude integration, or public deployment exists. D1 remains a verified local stack only.
