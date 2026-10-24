@@ -1369,6 +1369,23 @@ class AccountStore:
                 session.execute(
                     delete(TripRevisionRow).where(TripRevisionRow.trip_id == trip_id)
                 )
+                # The trip's own save/append/rerun outcomes carry its report, so
+                # they go with it. Delete events are kept (trip_id is already NULL)
+                # so a retried DELETE can still replay as "removed".
+                session.execute(
+                    delete(TripMutationEventRow).where(
+                        TripMutationEventRow.user_id == user_id,
+                        TripMutationEventRow.trip_id == trip_id,
+                    )
+                )
+                # A planning session attached to the trip is retained only *with*
+                # the trip (its expiry exemption); it dies with it.
+                session.execute(
+                    delete(PlanningSessionRow).where(
+                        PlanningSessionRow.user_id == user_id,
+                        PlanningSessionRow.saved_trip_id == trip_id,
+                    )
+                )
                 session.execute(
                     delete(SavedTripRow).where(
                         SavedTripRow.id == trip_id, SavedTripRow.user_id == user_id
@@ -1421,6 +1438,7 @@ class AccountStore:
             wallet_mutation_events=self.wallet_mutation_events(user_id),
             trips=trips,
             revisions=revisions,
+            trip_mutation_events=self.trip_mutation_events(user_id),
             travel_preferences=self.get_travel_preferences(user_id),
             planning_sessions=self.planning_session_snapshots(user_id),
             exported_at=now,
@@ -1437,6 +1455,9 @@ class AccountStore:
                     )
                 )
             session.execute(delete(SavedTripRow).where(SavedTripRow.user_id == user_id))
+            session.execute(
+                delete(TripMutationEventRow).where(TripMutationEventRow.user_id == user_id)
+            )
             session.execute(
                 delete(WalletEntryRow).where(WalletEntryRow.user_id == user_id)
             )
