@@ -457,7 +457,10 @@ def list_trips(
     store: Annotated[AccountStore, Depends(get_store)],
 ) -> list[TripSummaryOut]:
     """The caller's saved trips, newest first. Summaries only: no report bodies."""
-    return [TripSummaryOut.of(o.trip, o.revisions) for o in store.trip_overviews(user.id)]
+    listing: list[TripSummaryOut] = _handle(
+        lambda: [TripSummaryOut.of(o.trip, o.revisions) for o in store.trip_overviews(user.id)]
+    )
+    return listing
 
 
 @router.get("/{trip_id}", response_model=TripDetailOut)
