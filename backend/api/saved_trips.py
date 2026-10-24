@@ -20,15 +20,19 @@ changing an old one. Invariants the handlers exist to protect:
 from __future__ import annotations
 
 import json
-from datetime import date
-from typing import Annotated, Any, NoReturn
+import threading
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
+from typing import Annotated, Any, Literal, NoReturn
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, StringConstraints
 from sqlalchemy.exc import OperationalError
 
+import accounts.store as account_store
 from accounts.models import ACCOUNTS_SCHEMA_VERSION, SavedTrip, TripRevision, User
+from accounts.projection import build_user_wallet
 from accounts.store import (
     AccountStore,
     ReportTooLargeError,
@@ -45,8 +49,9 @@ from accounts.store import (
     trip_event_fingerprint,
 )
 from agents.confirmed_trip import compile_confirmed_input
-from agents.models import FinalReport
+from agents.models import FinalReport, JobError, TripIntakeRequest
 from api.auth import current_user, get_store, now_utc, require_csrf
+from api.confirmed_planning import build_travel_service
 from api.job_manager import job_manager
 from planning.contracts import PlanningSession
 from planning.repository import PlanningSessionRepository
@@ -484,3 +489,276 @@ def get_revision(
         lambda: RevisionOut.of_stored(store.get_revision(user.id, trip_id, revision))
     )
     return stored
+
+
+# --------------------------------------------------------------------------- #
+# Re-run: fresh prices, appended server-side as the next revision                #
+# --------------------------------------------------------------------------- #
+#
+# Jobs are process-local (``api.job_manager``), so everything below is too: after a
+# restart a status request for a lost job is a typed 404 and the trip is simply
+# unchanged. A revision is only ever appended by the worker once the job has
+# completed with a report, so a half-written revision is impossible.
+
+_MAX_REMEMBERED_RERUNS = 256
+_RERUN_LOCK = threading.Lock()
+
+
+@dataclass
+class _Rerun:
+    job_id: str
+    trip_id: str
+    user_id: str
+    revision: int | None = None
+    error: tuple[str, str] | None = None
+    finished: bool = False
+
+
+_RERUNS: dict[str, _Rerun] = {}
+_ACTIVE_BY_TRIP: dict[str, str] = {}
+# (user_id, client_event_id) -> (request fingerprint, job_id). In memory only: a
+# restart forgets the job anyway, so there is nothing durable to deduplicate.
+_START_EVENTS: dict[tuple[str, str], tuple[str, str]] = {}
+
+
+class RerunIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_event_id: EventId
+
+
+class RerunStartedOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    job_id: str
+
+
+class RerunErrorOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    message: str
+
+
+class RerunStatusOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    job_id: str
+    status: Literal["queued", "running", "complete", "failed", "needs_clarification"]
+    stage: str | None = None
+    revision: int | None = None
+    error: RerunErrorOut | None = None
+
+
+def _prune_reruns() -> None:
+    """Forget the oldest *finished* re-runs once too many are remembered (lock held)."""
+    if len(_RERUNS) <= _MAX_REMEMBERED_RERUNS:
+        return
+    for job_id in [j for j, r in _RERUNS.items() if r.finished]:
+        if len(_RERUNS) <= _MAX_REMEMBERED_RERUNS:
+            break
+        del _RERUNS[job_id]
+        for key in [k for k, (_, j) in _START_EVENTS.items() if j == job_id]:
+            del _START_EVENTS[key]
+
+
+def _release_rerun(record: _Rerun, event_key: tuple[str, str] | None = None) -> None:
+    with _RERUN_LOCK:
+        if _ACTIVE_BY_TRIP.get(record.trip_id) == record.job_id:
+            del _ACTIVE_BY_TRIP[record.trip_id]
+        if event_key is not None:
+            _START_EVENTS.pop(event_key, None)
+            _RERUNS.pop(record.job_id, None)
+
+
+def _append_error(exc: Exception) -> tuple[str, str]:
+    if isinstance(exc, UnknownTripError):
+        return "TRIP_NOT_FOUND", "The trip was deleted before the re-run finished."
+    if isinstance(exc, RevisionLimitReachedError):
+        return "REVISION_LIMIT_REACHED", "This trip has reached its maximum number of revisions."
+    if isinstance(exc, ReportTooLargeError):
+        return "REPORT_TOO_LARGE", "This plan is too large to store."
+    return "RERUN_NOT_SAVED", "The re-run finished but could not be saved."
+
+
+def _append_rerun_result(record: _Rerun, store: AccountStore) -> None:
+    """Append a completed re-run as the next revision, once, never raising.
+
+    Idempotent on the job id (``rerun:<job_id>``), so a completion that fires twice
+    appends one revision. A failed, clarification-needing or report-less job appends
+    nothing.
+    """
+    state = job_manager.get_job(record.job_id)
+    if state is None:
+        return
+    with state._lock:
+        report = state.report if state.status == "complete" else None
+    if report is None:
+        return
+    try:
+        revision = store.add_revision(
+            user_id=record.user_id,
+            trip_id=record.trip_id,
+            trace_id=report.trace_id,
+            report_json=report.model_dump_json(),
+            now=now_utc(),
+            client_event_id=f"rerun:{record.job_id}",
+            request_fingerprint=trip_event_fingerprint(
+                "rerun_complete", trip_id=record.trip_id, fields={"job_id": record.job_id}
+            ),
+            operation="rerun_complete",
+        )
+        record.revision = revision.revision
+    except Exception as exc:  # a worker thread must never die with an unrecorded outcome
+        record.error = _append_error(exc)
+
+
+def _rerun_worker(
+    record: _Rerun, store: AccountStore, run_args: tuple[Any, ...], run_kwargs: Any
+) -> None:
+    from api.main import _run_job
+
+    try:
+        _run_job(record.job_id, *run_args, **run_kwargs)
+        _append_rerun_result(record, store)
+    finally:
+        with _RERUN_LOCK:
+            record.finished = True
+            if _ACTIVE_BY_TRIP.get(record.trip_id) == record.job_id:
+                del _ACTIVE_BY_TRIP[record.trip_id]
+
+
+def _launch_rerun(store: AccountStore, user: User, record: _Rerun) -> None:
+    snapshot = store.planning_session_for_trip(user.id, record.trip_id)
+    session = (
+        PlanningSession.model_validate_json(snapshot.payload_json) if snapshot is not None else None
+    )
+    if session is None or not session.confirmed_briefs:
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            "TRIP_NOT_RERUNNABLE",
+            "This trip has no confirmed brief to plan again from.",
+        )
+    # Fresh prices means fresh inputs: the caller's *current* wallet replaces the one
+    # frozen in the brief; everything else about the confirmed brief is kept.
+    wallet = build_user_wallet(store.wallet_entries(user.id))
+    latest = session.confirmed_briefs[-1]
+    confirmed = compile_confirmed_input(
+        latest.model_copy(update={"brief": latest.brief.model_copy(update={"wallet": wallet})})
+    )
+    from api.main import (
+        get_booking_date,
+        get_kb,
+        get_llm,
+        get_place_registry,
+        get_trace_dir,
+    )
+
+    kb = get_kb()
+    service = build_travel_service(
+        kb,
+        plan_id=f"{session.id}:rerun:{record.job_id}",
+        country=session.home.home_country,
+        now=lambda: datetime.now(UTC),
+    )
+    request = TripIntakeRequest(raw_request=confirmed.raw_request, wallet=wallet)
+    job_manager.create_job(record.job_id, owner_id=user.id, session_id=session.id)
+    thread = threading.Thread(
+        target=_rerun_worker,
+        args=(
+            record,
+            store,
+            (request, kb, get_llm(), get_place_registry(), get_booking_date(), get_trace_dir()),
+            {"confirmed_input": confirmed, "inventory_service": service},
+        ),
+        daemon=True,
+    )
+    thread.start()
+
+
+@router.post("/{trip_id}/reruns", response_model=RerunStartedOut, status_code=202)
+def start_rerun(
+    request: Request,
+    trip_id: str,
+    payload: RerunIn,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+) -> RerunStartedOut:
+    """Plan a saved trip again with current prices; the result becomes the next revision."""
+    require_csrf(request)
+    overview: TripOverview = _handle(lambda: store.trip_overview(user.id, trip_id))
+    fingerprint = trip_event_fingerprint("rerun", trip_id=trip_id)
+    event_key = (user.id, payload.client_event_id)
+    record = _Rerun(job_id=uuid4().hex, trip_id=trip_id, user_id=user.id)
+    with _RERUN_LOCK:
+        prior = _START_EVENTS.get(event_key)
+        if prior is not None:
+            if prior[0] != fingerprint:
+                raise _error(
+                    status.HTTP_409_CONFLICT,
+                    "IDEMPOTENCY_KEY_REUSED",
+                    "This client event id was already used for a different request.",
+                )
+            return RerunStartedOut(job_id=prior[1])
+        if trip_id in _ACTIVE_BY_TRIP:
+            raise _error(
+                status.HTTP_409_CONFLICT,
+                "RERUN_IN_PROGRESS",
+                "This trip is already being planned again. Wait for it to finish.",
+            )
+        if len(overview.revisions) >= account_store.revision_limit():
+            raise _error(
+                status.HTTP_409_CONFLICT,
+                "REVISION_LIMIT_REACHED",
+                "This trip has reached its maximum number of revisions.",
+            )
+        _ACTIVE_BY_TRIP[trip_id] = record.job_id
+        _RERUNS[record.job_id] = record
+        _START_EVENTS[event_key] = (fingerprint, record.job_id)
+        _prune_reruns()
+    try:
+        _launch_rerun(store, user, record)
+    except BaseException:
+        _release_rerun(record, event_key)
+        raise
+    return RerunStartedOut(job_id=record.job_id)
+
+
+@router.get("/{trip_id}/reruns/{job_id}", response_model=RerunStatusOut)
+def rerun_status(
+    trip_id: str,
+    job_id: str,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+) -> RerunStatusOut:
+    """Progress of a re-run. After a restart the job is unknown (404); the trip is unchanged."""
+    _handle(lambda: store.get_trip(user.id, trip_id))
+    record = _RERUNS.get(job_id)
+    state = job_manager.get_job(job_id)
+    if record is None or state is None or record.user_id != user.id or record.trip_id != trip_id:
+        raise _error(status.HTTP_404_NOT_FOUND, "RERUN_NOT_FOUND", "No such re-run.")
+    with state._lock:
+        job_status = state.status
+        stage = state.stage
+        job_error = state.error
+    error: RerunErrorOut | None = None
+    if job_status == "failed" and job_error is not None:
+        # The job manager stores whatever the worker handed it (a dict), validated
+        # only when a status is built; do the same here.
+        typed = JobError.model_validate(job_error)
+        error = RerunErrorOut(code=typed.code, message=typed.message)
+    elif job_status == "failed":
+        error = RerunErrorOut(code="PIPELINE_ERROR", message="Planning failed.")
+    if job_status == "complete":
+        if not record.finished:
+            job_status = "running"  # computed, not yet saved as a revision
+        elif record.error is not None:
+            job_status = "failed"
+            error = RerunErrorOut(code=record.error[0], message=record.error[1])
+    return RerunStatusOut(
+        job_id=job_id,
+        status=job_status,
+        stage=stage,
+        revision=record.revision if job_status == "complete" else None,
+        error=error,
+    )

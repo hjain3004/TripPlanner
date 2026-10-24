@@ -105,6 +105,11 @@ class ReportTooLargeError(ValueError):
 TripOperation = Literal["save", "append_revision", "delete", "rerun_complete"]
 
 
+def revision_limit() -> int:
+    """The per-trip revision cap, read at call time (tests lower it)."""
+    return MAX_REVISIONS_PER_TRIP
+
+
 def trip_event_fingerprint(
     operation: str,
     *,
@@ -443,6 +448,21 @@ class AccountStore:
                 PlanningSessionSnapshot.model_validate_json(r.payload) for r in rows
             ]
         return sorted(snapshots, key=lambda s: (s.updated_at, s.id))
+
+    def planning_session_for_trip(
+        self, user_id: str, trip_id: str
+    ) -> PlanningSessionSnapshot | None:
+        """The planning session this user's trip was saved from, if it still exists."""
+        with Session(self._engine) as session:
+            row = session.scalar(
+                select(PlanningSessionRow).where(
+                    PlanningSessionRow.user_id == user_id,
+                    PlanningSessionRow.saved_trip_id == trip_id,
+                )
+            )
+            if row is None:
+                return None
+            return PlanningSessionSnapshot.model_validate_json(row.payload)
 
     def delete_expired_planning_sessions(self, *, now: datetime) -> int:
         """Hard-delete abandoned sessions past expiry. Returns how many were removed.
