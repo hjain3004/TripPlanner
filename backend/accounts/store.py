@@ -82,6 +82,10 @@ class TripRevisionConflictError(ValueError):
     """Raised when a revision number could not be allocated after one retry."""
 
 
+class UnknownRevisionError(ValueError):
+    """Raised when a trip the user owns has no revision with that number."""
+
+
 class TripIdempotencyConflictError(ValueError):
     """Raised when a client event id is reused for a materially different trip request."""
 
@@ -121,6 +125,33 @@ def trip_event_fingerprint(
         default=str,
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class RevisionMeta:
+    """A revision without its report: what a list or detail view needs."""
+
+    revision: int
+    trace_id: str
+    schema_version: str
+    created_at: datetime
+
+    @classmethod
+    def of(cls, revision: TripRevision) -> RevisionMeta:
+        return cls(
+            revision=revision.revision,
+            trace_id=revision.trace_id,
+            schema_version=revision.schema_version,
+            created_at=revision.created_at,
+        )
+
+
+@dataclass(frozen=True)
+class TripOverview:
+    """A saved trip and the metadata of its revisions, oldest first."""
+
+    trip: SavedTrip
+    revisions: list[RevisionMeta]
 
 
 @dataclass(frozen=True)
@@ -1303,6 +1334,76 @@ class AccountStore:
         raise TripRevisionConflictError(
             f"could not allocate a revision number for trip {trip_id}"
         )
+
+    def _revision_metas(
+        self, session: Session, trip_ids: list[str]
+    ) -> dict[str, list[RevisionMeta]]:
+        """Revision metadata for several trips without materialising any report.
+
+        A revision row's payload embeds the whole report (up to 2 MiB), so a list
+        view that parsed payloads would read every report a user has ever saved.
+        ``json_extract`` pulls just the small fields inside SQLite.
+        """
+        if not trip_ids:
+            return {}
+        rows = session.execute(
+            select(
+                TripRevisionRow.trip_id,
+                TripRevisionRow.revision,
+                func.json_extract(TripRevisionRow.payload, "$.trace_id"),
+                func.json_extract(TripRevisionRow.payload, "$.schema_version"),
+                func.json_extract(TripRevisionRow.payload, "$.created_at"),
+            ).where(TripRevisionRow.trip_id.in_(trip_ids))
+        ).all()
+        grouped: dict[str, list[RevisionMeta]] = {trip_id: [] for trip_id in trip_ids}
+        for trip_id, number, trace_id, schema_version, created_at in rows:
+            grouped[trip_id].append(
+                RevisionMeta(
+                    revision=int(number),
+                    trace_id=str(trace_id),
+                    schema_version=str(schema_version),
+                    created_at=datetime.fromisoformat(str(created_at)),
+                )
+            )
+        for metas in grouped.values():
+            metas.sort(key=lambda m: m.revision)
+        return grouped
+
+    def trip_overviews(self, user_id: str) -> list[TripOverview]:
+        """Every trip this user saved with revision metadata, newest trip first."""
+        with Session(self._engine) as session:
+            rows = session.scalars(
+                select(SavedTripRow).where(SavedTripRow.user_id == user_id)
+            ).all()
+            trips = sorted(
+                (SavedTrip.model_validate_json(r.payload) for r in rows),
+                key=lambda t: (t.created_at, t.id),
+                reverse=True,
+            )
+            metas = self._revision_metas(session, [t.id for t in trips])
+        return [TripOverview(trip=t, revisions=metas[t.id]) for t in trips]
+
+    def trip_overview(self, user_id: str, trip_id: str) -> TripOverview:
+        """One trip this user owns with revision metadata. Wrong owner reads as missing."""
+        with Session(self._engine) as session:
+            row = self._owned_trip_row(session, user_id, trip_id)
+            trip = SavedTrip.model_validate_json(row.payload)
+            metas = self._revision_metas(session, [trip_id])
+        return TripOverview(trip=trip, revisions=metas[trip_id])
+
+    def get_revision(self, user_id: str, trip_id: str, revision: int) -> TripRevision:
+        """One stored revision, verbatim. Ownership is proven before the row is read."""
+        with Session(self._engine) as session:
+            self._owned_trip_row(session, user_id, trip_id)
+            row = session.scalar(
+                select(TripRevisionRow).where(
+                    TripRevisionRow.trip_id == trip_id,
+                    TripRevisionRow.revision == revision,
+                )
+            )
+            if row is None:
+                raise UnknownRevisionError(f"no revision {revision} of trip {trip_id}")
+            return TripRevision.model_validate_json(row.payload)
 
     def trips(self, user_id: str) -> list[SavedTrip]:
         """Every saved trip for a user, ordered by ``(created_at, id)``."""

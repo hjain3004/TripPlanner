@@ -33,11 +33,14 @@ from accounts.store import (
     AccountStore,
     ReportTooLargeError,
     RevisionLimitReachedError,
+    RevisionMeta,
     SavedTripResult,
     StalePlanningSessionError,
     TripIdempotencyConflictError,
     TripLimitReachedError,
+    TripOverview,
     TripRevisionConflictError,
+    UnknownRevisionError,
     UnknownTripError,
     trip_event_fingerprint,
 )
@@ -93,6 +96,10 @@ def _handle(call: Any) -> Any:
         return call()
     except UnknownTripError as exc:
         raise _trip_not_found() from exc
+    except UnknownRevisionError as exc:
+        raise _error(
+            status.HTTP_404_NOT_FOUND, "REVISION_NOT_FOUND", "No such revision."
+        ) from exc
     except TripIdempotencyConflictError as exc:
         raise _error(
             status.HTTP_409_CONFLICT,
@@ -169,7 +176,7 @@ class RevisionSummaryOut(BaseModel):
     is_current_schema: bool
 
     @classmethod
-    def of(cls, revision: TripRevision) -> RevisionSummaryOut:
+    def of(cls, revision: RevisionMeta) -> RevisionSummaryOut:
         return cls(
             revision=revision.revision,
             computed_at=revision.created_at.isoformat(),
@@ -185,8 +192,8 @@ class RevisionOut(RevisionSummaryOut):
     report: dict[str, Any]
 
     @classmethod
-    def of(cls, revision: TripRevision) -> RevisionOut:
-        summary = RevisionSummaryOut.of(revision)
+    def of_stored(cls, revision: TripRevision) -> RevisionOut:
+        summary = RevisionSummaryOut.of(RevisionMeta.of(revision))
         return cls(**summary.model_dump(), report=json.loads(revision.report_json))
 
 
@@ -205,7 +212,7 @@ class TripSummaryOut(BaseModel):
     latest_computed_at: str
 
     @classmethod
-    def of(cls, trip: SavedTrip, revisions: list[TripRevision]) -> TripSummaryOut:
+    def of(cls, trip: SavedTrip, revisions: list[RevisionMeta]) -> TripSummaryOut:
         latest = revisions[-1]
         return cls(
             id=trip.id,
@@ -224,6 +231,14 @@ class TripSummaryOut(BaseModel):
 class TripDetailOut(TripSummaryOut):
     revisions: list[RevisionSummaryOut]
 
+    @classmethod
+    def detail(cls, overview: TripOverview) -> TripDetailOut:
+        summary = TripSummaryOut.of(overview.trip, overview.revisions)
+        return cls(
+            **summary.model_dump(),
+            revisions=[RevisionSummaryOut.of(m) for m in overview.revisions],
+        )
+
 
 class SavedTripCreatedOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -234,8 +249,8 @@ class SavedTripCreatedOut(BaseModel):
 
 def _created(result: SavedTripResult) -> SavedTripCreatedOut:
     return SavedTripCreatedOut(
-        trip=TripSummaryOut.of(result.trip, [result.revision]),
-        revision=RevisionOut.of(result.revision),
+        trip=TripSummaryOut.of(result.trip, [RevisionMeta.of(result.revision)]),
+        revision=RevisionOut.of_stored(result.revision),
     )
 
 
@@ -401,7 +416,7 @@ def append_revision(
             request_fingerprint=fingerprint,
         )
         if replay is not None:
-            return RevisionOut.of(TripRevision.model_validate_json(replay))
+            return RevisionOut.of_stored(TripRevision.model_validate_json(replay))
 
         session = _owned_session(store, user, payload.session_id)
         if session.saved_trip_id != trip_id:
@@ -420,7 +435,52 @@ def append_revision(
             client_event_id=payload.client_event_id,
             request_fingerprint=fingerprint,
         )
-        return RevisionOut.of(revision)
+        return RevisionOut.of_stored(revision)
 
     appended: RevisionOut = _handle(call)
     return appended
+
+
+# --------------------------------------------------------------------------- #
+# Read routes                                                                   #
+# --------------------------------------------------------------------------- #
+
+
+@router.get("", response_model=list[TripSummaryOut])
+def list_trips(
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+) -> list[TripSummaryOut]:
+    """The caller's saved trips, newest first. Summaries only: no report bodies."""
+    return [TripSummaryOut.of(o.trip, o.revisions) for o in store.trip_overviews(user.id)]
+
+
+@router.get("/{trip_id}", response_model=TripDetailOut)
+def get_trip(
+    trip_id: str,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+) -> TripDetailOut:
+    detail: TripDetailOut = _handle(
+        lambda: TripDetailOut.detail(store.trip_overview(user.id, trip_id))
+    )
+    return detail
+
+
+@router.get("/{trip_id}/revisions/{revision}", response_model=RevisionOut)
+def get_revision(
+    trip_id: str,
+    revision: int,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+) -> RevisionOut:
+    """One stored revision, with its report returned exactly as it was stored.
+
+    The report is parsed as a plain JSON object and **not** validated through
+    ``FinalReport``: a snapshot written under an older schema must read back as it
+    was computed, flagged by ``is_current_schema``, not silently reshaped.
+    """
+    stored: RevisionOut = _handle(
+        lambda: RevisionOut.of_stored(store.get_revision(user.id, trip_id, revision))
+    )
+    return stored
