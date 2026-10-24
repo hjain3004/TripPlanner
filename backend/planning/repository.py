@@ -36,6 +36,11 @@ class PlanningSessionRepository:
     def __init__(self, store: AccountStore) -> None:
         self._store = store
 
+    @staticmethod
+    def snapshot_of(session: PlanningSession) -> PlanningSessionSnapshot:
+        """The account-side row for ``session``, for callers that write it atomically."""
+        return _to_snapshot(session)
+
     def create(self, session: PlanningSession) -> PlanningSession:
         self._store.create_planning_session_snapshot(_to_snapshot(session))
         return session
