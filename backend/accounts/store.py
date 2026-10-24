@@ -63,7 +63,16 @@ class UnknownUserError(ValueError):
 
 
 class UnknownTripError(ValueError):
-    """Raised when an operation names a saved trip id that does not exist."""
+    """Raised when no saved trip with that id is owned by this user.
+
+    Deliberately indistinguishable from "the trip exists but belongs to someone
+    else", and the message carries no owner information, so the API can never be
+    used to probe for another user's trip ids.
+    """
+
+
+class TripRevisionConflictError(ValueError):
+    """Raised when a revision number could not be allocated after one retry."""
 
 
 class PlanningSessionExistsError(ValueError):
@@ -839,46 +848,83 @@ class AccountStore:
             session.commit()
         return trip
 
+    def get_trip(self, user_id: str, trip_id: str) -> SavedTrip:
+        """One trip, scoped to its owner. Wrong owner reads as missing."""
+        with Session(self._engine) as session:
+            row = self._owned_trip_row(session, user_id, trip_id)
+            return SavedTrip.model_validate_json(row.payload)
+
+    @staticmethod
+    def _owned_trip_row(session: Session, user_id: str, trip_id: str) -> SavedTripRow:
+        row = session.scalar(
+            select(SavedTripRow).where(
+                SavedTripRow.id == trip_id, SavedTripRow.user_id == user_id
+            )
+        )
+        if row is None:
+            raise UnknownTripError(f"no saved trip {trip_id} for this user")
+        return row
+
+    @staticmethod
+    def _highest_revision(session: Session, trip_id: str) -> int:
+        highest = session.scalar(
+            select(func.max(TripRevisionRow.revision)).where(
+                TripRevisionRow.trip_id == trip_id
+            )
+        )
+        return int(highest or 0)
+
     def add_revision(
         self,
         *,
+        user_id: str,
         trip_id: str,
         trace_id: str,
         report_json: str,
         now: datetime,
         revision_id: str | None = None,
     ) -> TripRevision:
-        """Append a computed result. Never mutates an existing revision.
+        """Append a computed result to a trip this user owns. Never mutates one.
 
         Saved trips are immutable: re-running a trip produces revision N+1 so the
         provenance and ``last_verified`` values of every earlier run survive intact.
+
+        Numbering is serialised: the highest revision is read and the new row
+        inserted inside one ``BEGIN IMMEDIATE`` transaction, so a second writer
+        waits instead of computing the same ``max + 1``. The unique
+        ``(trip_id, revision)`` index is the backstop; on the rare collision the
+        attempt is retried once, then surfaces as a typed error — a raw driver
+        exception never leaves the store.
         """
-        with Session(self._engine) as session:
-            if session.get(SavedTripRow, trip_id) is None:
-                raise UnknownTripError(f"no such saved trip: {trip_id}")
-            highest = session.scalar(
-                select(func.max(TripRevisionRow.revision)).where(
-                    TripRevisionRow.trip_id == trip_id
+        for _attempt in range(2):
+            with Session(self._engine) as session:
+                session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+                self._owned_trip_row(session, user_id, trip_id)
+                revision = TripRevision(
+                    id=revision_id or uuid4().hex,
+                    trip_id=trip_id,
+                    revision=self._highest_revision(session, trip_id) + 1,
+                    trace_id=trace_id,
+                    report_json=report_json,
+                    created_at=now,
                 )
-            )
-            revision = TripRevision(
-                id=revision_id or uuid4().hex,
-                trip_id=trip_id,
-                revision=(highest or 0) + 1,
-                trace_id=trace_id,
-                report_json=report_json,
-                created_at=now,
-            )
-            session.add(
-                TripRevisionRow(
-                    id=revision.id,
-                    trip_id=revision.trip_id,
-                    revision=revision.revision,
-                    payload=revision.model_dump_json(),
+                session.add(
+                    TripRevisionRow(
+                        id=revision.id,
+                        trip_id=revision.trip_id,
+                        revision=revision.revision,
+                        payload=revision.model_dump_json(),
+                    )
                 )
-            )
-            session.commit()
-        return revision
+                try:
+                    session.commit()
+                except IntegrityError:
+                    session.rollback()
+                    continue
+            return revision
+        raise TripRevisionConflictError(
+            f"could not allocate a revision number for trip {trip_id}"
+        )
 
     def trips(self, user_id: str) -> list[SavedTrip]:
         """Every saved trip for a user, ordered by ``(created_at, id)``."""
@@ -889,8 +935,14 @@ class AccountStore:
             trips = [SavedTrip.model_validate_json(r.payload) for r in rows]
         return sorted(trips, key=lambda t: (t.created_at, t.id))
 
-    def revisions(self, trip_id: str) -> list[TripRevision]:
-        """Every revision for a trip, oldest first."""
+    def revisions(self, user_id: str, trip_id: str) -> list[TripRevision]:
+        """Every revision of a trip this user owns, oldest first."""
+        with Session(self._engine) as session:
+            self._owned_trip_row(session, user_id, trip_id)
+        return self._revisions_of_trip(trip_id)
+
+    def _revisions_of_trip(self, trip_id: str) -> list[TripRevision]:
+        """Unscoped read. Internal: callers must already have proved ownership."""
         with Session(self._engine) as session:
             rows = session.scalars(
                 select(TripRevisionRow).where(TripRevisionRow.trip_id == trip_id)
@@ -898,9 +950,30 @@ class AccountStore:
             revisions = [TripRevision.model_validate_json(r.payload) for r in rows]
         return sorted(revisions, key=lambda r: r.revision)
 
-    def latest_revision(self, trip_id: str) -> TripRevision | None:
-        stored = self.revisions(trip_id)
+    def latest_revision(self, user_id: str, trip_id: str) -> TripRevision | None:
+        stored = self.revisions(user_id, trip_id)
         return stored[-1] if stored else None
+
+    def delete_trip(self, user_id: str, trip_id: str) -> bool:
+        """Hard-delete one trip and its revisions. ``False`` if not this user's."""
+        with Session(self._engine) as session:
+            owned = session.scalar(
+                select(SavedTripRow.id).where(
+                    SavedTripRow.id == trip_id, SavedTripRow.user_id == user_id
+                )
+            )
+            if owned is None:
+                return False
+            session.execute(
+                delete(TripRevisionRow).where(TripRevisionRow.trip_id == trip_id)
+            )
+            session.execute(
+                delete(SavedTripRow).where(
+                    SavedTripRow.id == trip_id, SavedTripRow.user_id == user_id
+                )
+            )
+            session.commit()
+        return True
 
     # -- privacy ------------------------------------------------------------ #
 
@@ -912,7 +985,7 @@ class AccountStore:
         trips = self.trips(user_id)
         revisions: list[TripRevision] = []
         for trip in trips:
-            revisions.extend(self.revisions(trip.id))
+            revisions.extend(self._revisions_of_trip(trip.id))
         return UserExport(
             user=user,
             profile=self.get_profile(user_id),

@@ -12,13 +12,16 @@ never destroy user data. Nothing in this module ever drops a table.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import cast
 
-from sqlalchemy import Engine, Table, Text, create_engine, inspect, text
+from sqlalchemy import Engine, Index, Table, Text, create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from core.runtime_paths import state_path
+
+logger = logging.getLogger(__name__)
 
 ACCOUNTS_DB_PATH = state_path("accounts.sqlite", Path(__file__).parent / "accounts.sqlite")
 
@@ -90,6 +93,12 @@ class SavedTripRow(AccountsBase):
 
 class TripRevisionRow(AccountsBase):
     __tablename__ = "trip_revisions"
+    # One revision number per trip, enforced by the database. The store also
+    # serialises numbering with BEGIN IMMEDIATE; this index is the backstop that
+    # makes a duplicate number impossible rather than merely unlikely.
+    __table_args__ = (
+        Index("uq_trip_revisions_trip_revision", "trip_id", "revision", unique=True),
+    )
     id: Mapped[str] = mapped_column(primary_key=True)
     trip_id: Mapped[str] = mapped_column(index=True)
     revision: Mapped[int] = mapped_column(index=True)
@@ -125,6 +134,36 @@ def _migrate_existing_accounts_schema(engine: Engine) -> None:
     wallet_table = cast(Table, WalletEntryRow.__table__)
     for index in wallet_table.indexes:
         index.create(bind=engine, checkfirst=True)
+    _ensure_unique_revision_index(engine)
+
+
+def _ensure_unique_revision_index(engine: Engine) -> None:
+    """Add the A4 ``(trip_id, revision)`` unique index to a pre-A4 database.
+
+    Additive and idempotent. Rows are never rewritten: if an old database already
+    holds duplicate numbers (possible only through the pre-A4 race), the index is
+    skipped with a warning rather than failing startup or renumbering a stored
+    revision. Numbering stays serialised by the store either way.
+    """
+    with engine.begin() as connection:
+        duplicates = connection.execute(
+            text(
+                "SELECT 1 FROM trip_revisions GROUP BY trip_id, revision "
+                "HAVING COUNT(*) > 1 LIMIT 1"
+            )
+        ).first()
+        if duplicates is not None:
+            logger.warning(
+                "trip_revisions holds duplicate (trip_id, revision) rows; "
+                "the unique revision index was not created"
+            )
+            return
+        connection.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_trip_revisions_trip_revision "
+                "ON trip_revisions (trip_id, revision)"
+            )
+        )
 
 
 class UserCredentialRow(AccountsBase):
