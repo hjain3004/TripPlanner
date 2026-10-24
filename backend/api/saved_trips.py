@@ -26,7 +26,7 @@ from datetime import UTC, date, datetime
 from typing import Annotated, Any, Literal, NoReturn
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, ConfigDict, StringConstraints
 from sqlalchemy.exc import OperationalError
 
@@ -470,6 +470,34 @@ def get_trip(
         lambda: TripDetailOut.detail(store.trip_overview(user.id, trip_id))
     )
     return detail
+
+
+@router.delete("/{trip_id}", status_code=204)
+def delete_trip(
+    request: Request,
+    trip_id: str,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+    client_event_id: Annotated[EventId | None, Query()] = None,
+) -> Response:
+    """Hard-delete a trip, all its revisions and the planning session attached to it.
+
+    There is no tombstone. With a ``client_event_id`` a retried delete replays as 204
+    rather than reporting the 404 a genuine second delete gets.
+    """
+    require_csrf(request)
+    removed: bool = _handle(
+        lambda: store.delete_trip(
+            user.id,
+            trip_id,
+            client_event_id=client_event_id,
+            request_fingerprint=trip_event_fingerprint("delete", trip_id=trip_id),
+            now=now_utc(),
+        )
+    )
+    if not removed:
+        raise _trip_not_found()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{trip_id}/revisions/{revision}", response_model=RevisionOut)
