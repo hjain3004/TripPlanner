@@ -26,6 +26,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # snapshot it did not write.
 ACCOUNTS_SCHEMA_VERSION = "1"
 
+# Saved-trip storage bounds (A4, DEVIATIONS D11). They bound disk use and the size
+# of a privacy export; they are product limits, not security boundaries.
+MAX_SAVED_TRIPS = 50
+MAX_REVISIONS_PER_TRIP = 25
+MAX_REPORT_BYTES = 2 * 1024 * 1024
+
 # Field names that may never appear on a stored account model. ``password_hash``
 # is deliberately absent — the (separate, later) auth plan owns credential storage
 # and will add it to ``User``. ``password`` in the clear is forbidden forever.
@@ -458,6 +464,23 @@ class WalletMutationEvent(AccountModel):
     created_at: datetime | None = None
 
 
+class TripMutationEvent(AccountModel):
+    """One recorded saved-trip mutation, for idempotency and subject-access export.
+
+    ``result_payload`` is the outcome the original request returned (a saved trip
+    and first revision, a revision, or ``{"removed": bool}``), so it is personal
+    data: it appears in the export and is erased with the account.
+    """
+
+    user_id: str
+    client_event_id: str
+    operation: Literal["save", "append_revision", "delete", "rerun_complete"]
+    trip_id: str | None = None
+    fingerprint: str
+    result_payload: str
+    created_at: datetime | None = None
+
+
 class UserExport(AccountModel):
     """Everything the system stores about one user, for subject-access export."""
 
@@ -467,6 +490,7 @@ class UserExport(AccountModel):
     wallet_mutation_events: list[WalletMutationEvent] = Field(default_factory=list)
     trips: list[SavedTrip] = Field(default_factory=list)
     revisions: list[TripRevision] = Field(default_factory=list)
+    trip_mutation_events: list[TripMutationEvent] = Field(default_factory=list)
     travel_preferences: TravelPreferenceProfile | None = None
     planning_sessions: list[PlanningSessionSnapshot] = Field(default_factory=list)
     exported_at: datetime

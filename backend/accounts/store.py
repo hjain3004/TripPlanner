@@ -14,8 +14,10 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 from sqlalchemy import Engine, delete, func, select, update
@@ -29,6 +31,7 @@ from accounts.db import (
     SavedTripRow,
     SessionRow,
     TravelPreferenceRow,
+    TripMutationEventRow,
     TripRevisionRow,
     UserCredentialRow,
     UserProfileRow,
@@ -38,9 +41,13 @@ from accounts.db import (
     create_accounts_engine,
 )
 from accounts.models import (
+    MAX_REPORT_BYTES,
+    MAX_REVISIONS_PER_TRIP,
+    MAX_SAVED_TRIPS,
     PlanningSessionSnapshot,
     SavedTrip,
     TravelPreferenceProfile,
+    TripMutationEvent,
     TripRevision,
     User,
     UserCredential,
@@ -73,6 +80,55 @@ class UnknownTripError(ValueError):
 
 class TripRevisionConflictError(ValueError):
     """Raised when a revision number could not be allocated after one retry."""
+
+
+class TripIdempotencyConflictError(ValueError):
+    """Raised when a client event id is reused for a materially different trip request."""
+
+
+class TripLimitReachedError(ValueError):
+    """Raised when a user already holds the maximum number of saved trips."""
+
+
+class RevisionLimitReachedError(ValueError):
+    """Raised when a trip already holds the maximum number of revisions."""
+
+
+class ReportTooLargeError(ValueError):
+    """Raised when a report to be stored exceeds the per-revision size bound."""
+
+
+TripOperation = Literal["save", "append_revision", "delete", "rerun_complete"]
+
+
+def trip_event_fingerprint(
+    operation: str,
+    *,
+    trip_id: str | None = None,
+    fields: dict[str, object] | None = None,
+) -> str:
+    """Canonical identity of a saved-trip mutation request.
+
+    Callers that know the *intent* of the request (the API, which sees a session id
+    and a title rather than the report it will compute) pass their own fingerprint,
+    because a retry of the same intent legitimately arrives with a different report.
+    The clock and server-generated ids are never part of it.
+    """
+    canonical = json.dumps(
+        {"operation": operation, "trip_id": trip_id, "fields": fields or {}},
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class SavedTripResult:
+    """A newly saved trip together with its first revision."""
+
+    trip: SavedTrip
+    revision: TripRevision
 
 
 class PlanningSessionExistsError(ValueError):
@@ -807,6 +863,104 @@ class AccountStore:
             entries = [WalletEntry.model_validate_json(r.payload) for r in rows]
         return sorted(entries, key=lambda e: (e.card_id, e.id))
 
+    # -- saved-trip idempotency ---------------------------------------------- #
+
+    @staticmethod
+    def _begin_write(session: Session) -> None:
+        """Take SQLite's write lock up front so check-then-write is atomic.
+
+        Replay, limit and numbering decisions all read before they write; under
+        deferred locking two writers could both pass the same check. Acquiring the
+        lock first makes the second writer wait, then see the first one's rows.
+        """
+        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+
+    @staticmethod
+    def _replay_trip_event(
+        session: Session, *, user_id: str, client_event_id: str, fingerprint: str
+    ) -> str | None:
+        row = session.get(TripMutationEventRow, (user_id, client_event_id))
+        if row is None:
+            return None
+        if row.fingerprint != fingerprint:
+            raise TripIdempotencyConflictError(
+                f"client event {client_event_id} was already used for a "
+                f"materially different saved-trip request"
+            )
+        return row.result_payload
+
+    @staticmethod
+    def _record_trip_event(
+        session: Session,
+        *,
+        user_id: str,
+        client_event_id: str,
+        fingerprint: str,
+        operation: TripOperation,
+        trip_id: str | None,
+        result_payload: str,
+        now: datetime | None,
+    ) -> None:
+        session.add(
+            TripMutationEventRow(
+                user_id=user_id,
+                client_event_id=client_event_id,
+                fingerprint=fingerprint,
+                operation=operation,
+                trip_id=trip_id,
+                result_payload=result_payload,
+                created_at=now.isoformat() if now is not None else None,
+            )
+        )
+
+    def trip_event_result(
+        self, *, user_id: str, client_event_id: str, request_fingerprint: str
+    ) -> str | None:
+        """The stored outcome of a previously applied event, else ``None``.
+
+        Lets the API recognise an honest retry *before* it applies state checks that
+        the original success has since changed (for example "this session is already
+        saved"). Raises on a reused id whose fingerprint differs.
+        """
+        with Session(self._engine) as session:
+            return self._replay_trip_event(
+                session,
+                user_id=user_id,
+                client_event_id=client_event_id,
+                fingerprint=request_fingerprint,
+            )
+
+    def trip_mutation_events(self, user_id: str) -> list[TripMutationEvent]:
+        """This user's recorded saved-trip mutations, ordered by ``client_event_id``."""
+        with Session(self._engine) as session:
+            rows = session.scalars(
+                select(TripMutationEventRow).where(TripMutationEventRow.user_id == user_id)
+            ).all()
+            events = [
+                TripMutationEvent(
+                    user_id=r.user_id,
+                    client_event_id=r.client_event_id,
+                    operation=r.operation,
+                    trip_id=r.trip_id,
+                    fingerprint=r.fingerprint,
+                    result_payload=r.result_payload,
+                    created_at=(
+                        datetime.fromisoformat(r.created_at)
+                        if r.created_at is not None
+                        else None
+                    ),
+                )
+                for r in rows
+            ]
+        return sorted(events, key=lambda e: e.client_event_id)
+
+    @staticmethod
+    def _check_report_size(report_json: str) -> None:
+        if len(report_json.encode("utf-8")) > MAX_REPORT_BYTES:
+            raise ReportTooLargeError(
+                f"report exceeds the {MAX_REPORT_BYTES}-byte storage limit"
+            )
+
     # -- saved trips (append-only) ------------------------------------------ #
 
     def save_trip(
@@ -848,6 +1002,178 @@ class AccountStore:
             session.commit()
         return trip
 
+    def save_trip_with_revision(
+        self,
+        *,
+        user_id: str,
+        title: str,
+        origin_city: str,
+        destination_city: str,
+        start_date: date,
+        end_date: date,
+        raw_request: str,
+        trip_spec_json: str,
+        trace_id: str,
+        report_json: str,
+        now: datetime,
+        trip_id: str | None = None,
+        attach_session: PlanningSessionSnapshot | None = None,
+        expected_session_version: int | None = None,
+        client_event_id: str | None = None,
+        request_fingerprint: str | None = None,
+    ) -> SavedTripResult:
+        """Create a trip and its first revision, atomically and idempotently.
+
+        One transaction covers the replay check, the size and count limits, the
+        trip, revision 1, the optional compare-and-swap attach of the originating
+        planning session, and the idempotency record. If the session was advanced by
+        someone else the whole save rolls back, so a lost race never leaves a trip
+        the session does not point at.
+        """
+        fingerprint = request_fingerprint or trip_event_fingerprint(
+            "save",
+            fields={
+                "title": title,
+                "origin_city": origin_city,
+                "destination_city": destination_city,
+                "start_date": start_date,
+                "end_date": end_date,
+                "raw_request": raw_request,
+                "trip_spec_json": trip_spec_json,
+                "report_sha256": hashlib.sha256(report_json.encode("utf-8")).hexdigest(),
+            },
+        )
+        trip = SavedTrip(
+            id=trip_id or uuid4().hex,
+            user_id=user_id,
+            title=title,
+            origin_city=origin_city,
+            destination_city=destination_city,
+            start_date=start_date,
+            end_date=end_date,
+            raw_request=raw_request,
+            trip_spec_json=trip_spec_json,
+            created_at=now,
+        )
+        revision = TripRevision(
+            id=uuid4().hex,
+            trip_id=trip.id,
+            revision=1,
+            trace_id=trace_id,
+            report_json=report_json,
+            created_at=now,
+        )
+        if attach_session is not None:
+            if (
+                expected_session_version is None
+                or attach_session.user_id != user_id
+                or attach_session.saved_trip_id != trip.id
+                or attach_session.version != expected_session_version + 1
+            ):
+                raise ValueError("attach_session must point at the new trip and advance by one")
+        result_payload = json.dumps(
+            {
+                "trip": json.loads(trip.model_dump_json()),
+                "revision": json.loads(revision.model_dump_json()),
+            }
+        )
+
+        def replayed(payload: str) -> SavedTripResult:
+            data = json.loads(payload)
+            return SavedTripResult(
+                trip=SavedTrip.model_validate(data["trip"]),
+                revision=TripRevision.model_validate(data["revision"]),
+            )
+
+        with Session(self._engine) as session:
+            self._begin_write(session)
+            if client_event_id is not None:
+                prior = self._replay_trip_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=client_event_id,
+                    fingerprint=fingerprint,
+                )
+                if prior is not None:
+                    return replayed(prior)
+            self._check_report_size(report_json)
+            self._require_user(session, user_id)
+            held = session.scalar(
+                select(func.count())
+                .select_from(SavedTripRow)
+                .where(SavedTripRow.user_id == user_id)
+            )
+            if int(held or 0) >= MAX_SAVED_TRIPS:
+                raise TripLimitReachedError(
+                    f"at most {MAX_SAVED_TRIPS} saved trips are kept per user"
+                )
+            if attach_session is not None:
+                outcome = session.execute(
+                    update(PlanningSessionRow)
+                    .where(
+                        PlanningSessionRow.id == attach_session.id,
+                        PlanningSessionRow.user_id == user_id,
+                        PlanningSessionRow.version == expected_session_version,
+                    )
+                    .values(
+                        status=attach_session.status,
+                        version=attach_session.version,
+                        updated_at=attach_session.updated_at.isoformat(),
+                        expires_at=attach_session.expires_at.isoformat(),
+                        saved_trip_id=attach_session.saved_trip_id,
+                        payload=attach_session.model_dump_json(),
+                    )
+                )
+                if outcome.rowcount != 1:  # type: ignore[attr-defined]
+                    raise StalePlanningSessionError(
+                        f"planning session {attach_session.id} was not at version "
+                        f"{expected_session_version} for this user"
+                    )
+            session.add(
+                SavedTripRow(
+                    id=trip.id,
+                    user_id=trip.user_id,
+                    created_at=trip.created_at.isoformat(),
+                    payload=trip.model_dump_json(),
+                )
+            )
+            session.add(
+                TripRevisionRow(
+                    id=revision.id,
+                    trip_id=revision.trip_id,
+                    revision=revision.revision,
+                    payload=revision.model_dump_json(),
+                )
+            )
+            if client_event_id is not None:
+                self._record_trip_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=client_event_id,
+                    fingerprint=fingerprint,
+                    operation="save",
+                    trip_id=trip.id,
+                    result_payload=result_payload,
+                    now=now,
+                )
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                if client_event_id is None:
+                    raise
+                with Session(self._engine) as again:
+                    prior = self._replay_trip_event(
+                        again,
+                        user_id=user_id,
+                        client_event_id=client_event_id,
+                        fingerprint=fingerprint,
+                    )
+                if prior is None:
+                    raise
+                return replayed(prior)
+        return SavedTripResult(trip=trip, revision=revision)
+
     def get_trip(self, user_id: str, trip_id: str) -> SavedTrip:
         """One trip, scoped to its owner. Wrong owner reads as missing."""
         with Session(self._engine) as session:
@@ -883,23 +1209,54 @@ class AccountStore:
         report_json: str,
         now: datetime,
         revision_id: str | None = None,
+        client_event_id: str | None = None,
+        request_fingerprint: str | None = None,
+        operation: Literal["append_revision", "rerun_complete"] = "append_revision",
     ) -> TripRevision:
         """Append a computed result to a trip this user owns. Never mutates one.
 
         Saved trips are immutable: re-running a trip produces revision N+1 so the
         provenance and ``last_verified`` values of every earlier run survive intact.
 
-        Numbering is serialised: the highest revision is read and the new row
-        inserted inside one ``BEGIN IMMEDIATE`` transaction, so a second writer
-        waits instead of computing the same ``max + 1``. The unique
-        ``(trip_id, revision)`` index is the backstop; on the rare collision the
-        attempt is retried once, then surfaces as a typed error — a raw driver
+        Everything happens in one ``BEGIN IMMEDIATE`` transaction, in this order:
+        replay, size, ownership, revision limit, numbering, insert. Replay comes
+        first so a retried append that already succeeded is never rejected by the
+        limit it consumed. A second writer waits for the lock instead of computing
+        the same ``max + 1``; the unique ``(trip_id, revision)`` index is the
+        backstop, retried once and then surfaced as a typed error — a raw driver
         exception never leaves the store.
         """
+        fingerprint = request_fingerprint or trip_event_fingerprint(
+            operation,
+            trip_id=trip_id,
+            fields={
+                "trace_id": trace_id,
+                "report_sha256": hashlib.sha256(report_json.encode("utf-8")).hexdigest(),
+            },
+        )
         for _attempt in range(2):
             with Session(self._engine) as session:
-                session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+                self._begin_write(session)
+                if client_event_id is not None:
+                    prior = self._replay_trip_event(
+                        session,
+                        user_id=user_id,
+                        client_event_id=client_event_id,
+                        fingerprint=fingerprint,
+                    )
+                    if prior is not None:
+                        return TripRevision.model_validate_json(prior)
+                self._check_report_size(report_json)
                 self._owned_trip_row(session, user_id, trip_id)
+                held = session.scalar(
+                    select(func.count())
+                    .select_from(TripRevisionRow)
+                    .where(TripRevisionRow.trip_id == trip_id)
+                )
+                if int(held or 0) >= MAX_REVISIONS_PER_TRIP:
+                    raise RevisionLimitReachedError(
+                        f"at most {MAX_REVISIONS_PER_TRIP} revisions are kept per trip"
+                    )
                 revision = TripRevision(
                     id=revision_id or uuid4().hex,
                     trip_id=trip_id,
@@ -916,10 +1273,31 @@ class AccountStore:
                         payload=revision.model_dump_json(),
                     )
                 )
+                if client_event_id is not None:
+                    self._record_trip_event(
+                        session,
+                        user_id=user_id,
+                        client_event_id=client_event_id,
+                        fingerprint=fingerprint,
+                        operation=operation,
+                        trip_id=trip_id,
+                        result_payload=revision.model_dump_json(),
+                        now=now,
+                    )
                 try:
                     session.commit()
                 except IntegrityError:
                     session.rollback()
+                    if client_event_id is not None:
+                        with Session(self._engine) as again:
+                            prior = self._replay_trip_event(
+                                again,
+                                user_id=user_id,
+                                client_event_id=client_event_id,
+                                fingerprint=fingerprint,
+                            )
+                        if prior is not None:
+                            return TripRevision.model_validate_json(prior)
                     continue
             return revision
         raise TripRevisionConflictError(
@@ -954,26 +1332,76 @@ class AccountStore:
         stored = self.revisions(user_id, trip_id)
         return stored[-1] if stored else None
 
-    def delete_trip(self, user_id: str, trip_id: str) -> bool:
-        """Hard-delete one trip and its revisions. ``False`` if not this user's."""
+    def delete_trip(
+        self,
+        user_id: str,
+        trip_id: str,
+        *,
+        client_event_id: str | None = None,
+        request_fingerprint: str | None = None,
+        now: datetime | None = None,
+    ) -> bool:
+        """Hard-delete one trip and its revisions. ``False`` if not this user's.
+
+        With a ``client_event_id`` a replay returns the *original* outcome, so a
+        retried successful delete reports ``True`` again rather than the ``False`` a
+        genuine second delete would produce.
+        """
+        fingerprint = request_fingerprint or trip_event_fingerprint("delete", trip_id=trip_id)
         with Session(self._engine) as session:
+            self._begin_write(session)
+            if client_event_id is not None:
+                prior = self._replay_trip_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=client_event_id,
+                    fingerprint=fingerprint,
+                )
+                if prior is not None:
+                    return bool(json.loads(prior)["removed"])
             owned = session.scalar(
                 select(SavedTripRow.id).where(
                     SavedTripRow.id == trip_id, SavedTripRow.user_id == user_id
                 )
             )
-            if owned is None:
-                return False
-            session.execute(
-                delete(TripRevisionRow).where(TripRevisionRow.trip_id == trip_id)
-            )
-            session.execute(
-                delete(SavedTripRow).where(
-                    SavedTripRow.id == trip_id, SavedTripRow.user_id == user_id
+            removed = owned is not None
+            if removed:
+                session.execute(
+                    delete(TripRevisionRow).where(TripRevisionRow.trip_id == trip_id)
                 )
-            )
-            session.commit()
-        return True
+                session.execute(
+                    delete(SavedTripRow).where(
+                        SavedTripRow.id == trip_id, SavedTripRow.user_id == user_id
+                    )
+                )
+            if client_event_id is not None:
+                self._record_trip_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=client_event_id,
+                    fingerprint=fingerprint,
+                    operation="delete",
+                    trip_id=None,
+                    result_payload=json.dumps({"removed": removed}),
+                    now=now,
+                )
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                if client_event_id is None:
+                    raise
+                with Session(self._engine) as again:
+                    prior = self._replay_trip_event(
+                        again,
+                        user_id=user_id,
+                        client_event_id=client_event_id,
+                        fingerprint=fingerprint,
+                    )
+                if prior is None:
+                    raise
+                return bool(json.loads(prior)["removed"])
+        return removed
 
     # -- privacy ------------------------------------------------------------ #
 

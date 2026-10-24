@@ -83,6 +83,26 @@ class WalletMutationEventRow(AccountsBase):
     created_at: Mapped[str | None] = mapped_column(index=True, nullable=True)
 
 
+class TripMutationEventRow(AccountsBase):
+    """Durable idempotency record for one saved-trip mutation (A4).
+
+    Same shape and reasoning as ``WalletMutationEventRow``: the composite primary
+    key makes event identity ``(user_id, client_event_id)``, so two users may reuse
+    a textual id and a genuine concurrent double-submit hits the key instead of
+    applying twice. ``result_payload`` is the original outcome, so a replay answers
+    identically. ``trip_id`` is nullable because a delete event outlives its trip.
+    """
+
+    __tablename__ = "trip_mutation_events"
+    user_id: Mapped[str] = mapped_column(primary_key=True)
+    client_event_id: Mapped[str] = mapped_column(primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(index=True)
+    operation: Mapped[str] = mapped_column()
+    trip_id: Mapped[str | None] = mapped_column(index=True, nullable=True)
+    result_payload: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str | None] = mapped_column(index=True, nullable=True)
+
+
 class SavedTripRow(AccountsBase):
     __tablename__ = "saved_trips"
     id: Mapped[str] = mapped_column(primary_key=True)
