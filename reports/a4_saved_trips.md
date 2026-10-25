@@ -122,6 +122,10 @@ the replay-before-limit ordering tests fail if the order is swapped by construct
 
 ### Deferred Minor review findings (not fixed, for a human to decide)
 
+> **Update:** items 3 (error contract), 4 (mock drift), 5 (`rerun:` prefix collision), 6 (pruning
+> untested) and 7 (lock outside the mapper in `_launch_rerun`) were closed afterwards — see
+> `reports/a4_closure.md`. `STALE_SESSION` and `TRIP_NOT_RERUNNABLE` are also covered there.
+
 1. `GET /account/trips` would 500 on a revisionless trip (reachable only through the legacy A1 `save_trip`).
 2. The catch-all `ValueError → 422` also covers server-side `ValueError`s.
 3. OpenAPI documents no 404/409/413/503 bodies (`ApiErrorBody` is unused), so generated client error types
