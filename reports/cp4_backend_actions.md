@@ -63,7 +63,8 @@ conflict/unrelated merge, all four execution classes, and explanation output.
 - The frontend workspace remains deferred; this is backend contract delivery only.
 - Live provider/model activation remains disabled; provider-invalidating approval uses
   only the existing sample-only runtime construction and makes no live calls.
-- Final `make gate` on commit `360c30d` passed: full backend tests, strict mypy,
-  zero-tolerance Ruff, frozen goldens, contract checks, brief identity, and clean-tree
-  verification. The report is committed separately below and the gate is rerun once
-  more on that final documentation commit.
+- Final `make gate` on commit `bfbde32093e9208f7e7607eb8d8a9904f064e4d5` passed:
+  full backend tests, strict mypy, zero-tolerance Ruff, frozen goldens, contract
+  checks, brief identity, and clean-tree verification. The fetched `origin/main`
+  (`cef3a4d4acad1b46eb3642efa013510f509fab79`) was already an ancestor, so the
+  normal integration merge was a no-op and no conflict resolution was required.
