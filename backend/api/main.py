@@ -43,8 +43,8 @@ from api.auth import (
 )
 from api.conversation import router as conversation_router
 from api.health import router as health_router
-from api.post_plan import router as post_plan_router
 from api.job_manager import job_manager
+from api.post_plan import router as post_plan_router
 from api.runtime_config import assert_valid_runtime_config
 from api.saved_trips import router as saved_trips_router
 from api.wallet import router as wallet_router
@@ -56,6 +56,7 @@ from gateway.places.registry import ProviderRegistry, get_default_place_registry
 from gateway.travel.service import TravelInventoryService
 
 TRACE_DIR = state_path("traces", Path(__file__).resolve().parents[1] / ".traces")
+
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -287,6 +288,9 @@ def _run_job(
             if state is not None and hasattr(result, "summary"):
                 with state._lock:
                     state.inventory_summary = result.summary
+                    snapshot = getattr(result, "snapshot", None)
+                    if snapshot is not None:
+                        state.inventory_snapshot = snapshot.model_copy(deep=True)
 
         result = run_pipeline(
             request.raw_request,

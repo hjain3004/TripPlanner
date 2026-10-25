@@ -1162,6 +1162,9 @@ class AccountStore:
         trip_id: str | None = None,
         attach_session: PlanningSessionSnapshot | None = None,
         expected_session_version: int | None = None,
+        post_plan_session_id: str | None = None,
+        expected_post_plan_workspace_version: int | None = None,
+        source_result_id: str | None = None,
         client_event_id: str | None = None,
         request_fingerprint: str | None = None,
     ) -> SavedTripResult:
@@ -1242,6 +1245,20 @@ class AccountStore:
                     return replayed(prior)
             self._check_report_size(report_json)
             self._require_user(session, user_id)
+            if post_plan_session_id is not None:
+                workspace_row = session.get(PostPlanWorkspaceRow, post_plan_session_id)
+                if (
+                    workspace_row is None
+                    or workspace_row.user_id != user_id
+                    or expected_post_plan_workspace_version is None
+                    or source_result_id is None
+                    or workspace_row.version != expected_post_plan_workspace_version
+                    or workspace_row.current_result_id != source_result_id
+                ):
+                    raise StalePostPlanWorkspaceError(
+                        "the selected post-plan result changed",
+                        current_version=workspace_row.version if workspace_row else -1,
+                    )
             held = session.scalar(
                 select(func.count())
                 .select_from(SavedTripRow)
@@ -1355,6 +1372,9 @@ class AccountStore:
         revision_id: str | None = None,
         client_event_id: str | None = None,
         system_event_id: str | None = None,
+        post_plan_session_id: str | None = None,
+        expected_post_plan_workspace_version: int | None = None,
+        source_result_id: str | None = None,
         request_fingerprint: str | None = None,
         operation: Literal["append_revision", "rerun_complete"] = "append_revision",
     ) -> TripRevision:
@@ -1394,6 +1414,20 @@ class AccountStore:
                         return TripRevision.model_validate_json(prior)
                 self._check_report_size(report_json)
                 self._owned_trip_row(session, user_id, trip_id)
+                if post_plan_session_id is not None:
+                    workspace_row = session.get(PostPlanWorkspaceRow, post_plan_session_id)
+                    if (
+                        workspace_row is None
+                        or workspace_row.user_id != user_id
+                        or expected_post_plan_workspace_version is None
+                        or source_result_id is None
+                        or workspace_row.version != expected_post_plan_workspace_version
+                        or workspace_row.current_result_id != source_result_id
+                    ):
+                        raise StalePostPlanWorkspaceError(
+                            "the selected post-plan result changed",
+                            current_version=workspace_row.version if workspace_row else -1,
+                        )
                 held = session.scalar(
                     select(func.count())
                     .select_from(TripRevisionRow)

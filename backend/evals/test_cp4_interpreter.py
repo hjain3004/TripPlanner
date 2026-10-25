@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -122,6 +123,24 @@ def test_secrets_are_redacted_and_length_is_bounded_not_truncated() -> None:
         sanitize_command_text("x" * (MAX_COMMAND_CHARS + 1))
     with pytest.raises(PostPlanInputError):
         sanitize_command_text("   ")
+
+
+def test_model_cannot_target_an_unmentioned_valid_day() -> None:
+    response = deepcopy(CORPUS["accepted"][0]["response"])
+    response["action"]["affected_dates"] = ["2026-11-03"]
+    with pytest.raises(PostPlanInterpretationError, match="date"):
+        PostPlanInterpreter(ScriptedLLMClient({POST_PLAN_NODE: [response]})).interpret(
+            routing_context(), CORPUS["accepted"][0]["text"]
+        )
+
+
+def test_model_cannot_invent_a_small_numeric_constraint() -> None:
+    response = deepcopy(CORPUS["accepted"][2]["response"])
+    response["action"]["patch"]["entries"][0]["payload"]["max_stops"] = 1
+    with pytest.raises(PostPlanInterpretationError, match="number"):
+        PostPlanInterpreter(ScriptedLLMClient({POST_PLAN_NODE: [response]})).interpret(
+            routing_context(), CORPUS["accepted"][2]["text"]
+        )
 
 
 def test_hosted_dispatch_needs_explicit_zero_spend_confirmation(

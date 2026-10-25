@@ -2809,10 +2809,7 @@
               "TRIP_LIMIT_REACHED",
               "TRIP_NOT_FOUND",
               "TRIP_NOT_RERUNNABLE",
-              "TRIP_REVISION_CONFLICT",
-              "WORKSPACE_REVIEW_REQUIRED",
-              "STALE_WORKSPACE",
-              "WORKSPACE_REBUILD_REQUIRED"
+              "TRIP_REVISION_CONFLICT"
             ],
             "title": "Code"
           },

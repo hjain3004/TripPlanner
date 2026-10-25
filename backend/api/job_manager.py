@@ -4,7 +4,7 @@ import threading
 from uuid import uuid4
 
 from agents.models import PIPELINE_STAGES, FinalReport, JobError, PlanJobStatus
-from gateway.travel.product import TravelInventorySummary
+from gateway.travel.product import TravelInventorySnapshot, TravelInventorySummary
 
 
 class JobState:
@@ -19,6 +19,7 @@ class JobState:
         self.report: FinalReport | None = None
         self.error: JobError | None = None
         self.inventory_summary: TravelInventorySummary | None = None
+        self.inventory_snapshot: TravelInventorySnapshot | None = None
         self._lock = threading.Lock()
 
     def to_status(self, job_id: str) -> PlanJobStatus:

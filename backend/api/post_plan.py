@@ -31,7 +31,9 @@ from accounts.store import (
 from agents.post_plan_interpreter import (
     PostPlanInterpretationError,
     PostPlanInterpreter,
+    UnsafeCommandText,
     get_post_plan_llm,
+    sanitize_command_text,
 )
 from api.auth import current_user, get_store, now_utc, require_csrf
 from api.post_plan_service import (
@@ -40,12 +42,15 @@ from api.post_plan_service import (
     initialize_from_job,
     initialize_from_saved_revision,
     load_workspace,
+    mark_active,
+    mark_finished,
     recover_interrupted,
 )
 from planning.contracts import PlanningSession
 from planning.post_plan import (
     ExplainableRef,
     PostPlanAction,
+    PostPlanInputError,
     RoutingContext,
     RoutingDay,
     RoutingItem,
@@ -292,13 +297,24 @@ def propose_action(
     try:
         loaded = _loaded(store, user, session_id)
         context = _routing_context(loaded.report)
+        clean_text: str | None = None
+        if body.text is not None:
+            try:
+                clean_text = sanitize_command_text(body.text)
+            except UnsafeCommandText as exc:
+                raise _error("UNSAFE_INPUT", str(exc), 422) from None
+            except PostPlanInputError as exc:
+                code = 413 if len(body.text) > 2000 else 422
+                raise _error(
+                    "INPUT_TOO_LARGE" if code == 413 else "INVALID_ACTION", str(exc), code
+                ) from None
         action: PostPlanAction
         if body.action is not None or (
-            body.text is not None and classify_command(body.text, context) is not None
+            clean_text is not None and classify_command(clean_text, context) is not None
         ):
-            action = _proposal_action(body, context)
+            action = _proposal_action(body.model_copy(update={"text": clean_text}), context)
         else:
-            if body.text is None:
+            if clean_text is None:
                 raise _error("INVALID_ACTION", "An action or text is required.")
             operation = _reserve(
                 store,
@@ -308,10 +324,11 @@ def propose_action(
                 kind="propose",
                 action_kind=None,
                 interpreter_calls=1,
-                payload={"text": body.text},
+                payload={"text": clean_text},
             )
+            mark_active(operation.operation_id)
             try:
-                action = PostPlanInterpreter(get_post_plan_llm()).interpret(context, body.text)
+                action = PostPlanInterpreter(get_post_plan_llm()).interpret(context, clean_text)
                 validate_action_references(action, context)
             except PostPlanInterpretationError as exc:
                 store.fail_post_plan_operation(
@@ -337,6 +354,8 @@ def propose_action(
                     updated_at=now_utc(),
                 )
                 raise
+            finally:
+                mark_finished(operation.operation_id)
         after = _after_brief(loaded.workspace.brief, action, store, user)
         impact = compute_impact(
             loaded.workspace.brief,
@@ -358,7 +377,8 @@ def propose_action(
                     "impact": impact.model_dump(mode="json"),
                 },
             )
-            if body.action is not None or classify_command(body.text or "", context) is not None
+            if body.action is not None
+            or (clean_text is not None and classify_command(clean_text, context) is not None)
             else store.get_post_plan_operation(user_id=user.id, event_id=body.client_event_id)
         )
         assert operation is not None
@@ -481,40 +501,66 @@ def _decision(
         payload={"proposal_id": proposal_id},
         proposal_id=proposal_id,
     )
-    current = store.get_planning_session_snapshot(user_id=user.id, session_id=session_id)
-    assert current is not None
-    now = now_utc()
-    workspace = loaded.snapshot.model_copy(update={"updated_at": now})
-    report_json = None
-    if approve and action.kind == "deterministic_edit":
-        from agents.post_plan_execution import recompute_confirmed_edit
-        from api.main import get_kb
+    mark_active(operation.operation_id)
+    try:
+        if approve and action.kind in {
+            "scoped_itinerary_replan",
+            "provider_invalidating_change",
+            "wallet_or_objective_change",
+            "profile_update_proposal",
+        }:
+            store.fail_post_plan_operation(
+                user_id=user.id,
+                session_id=session_id,
+                event_id=body.client_event_id,
+                fingerprint=operation.fingerprint,
+                expected_workspace_version=operation.reserved_workspace_version
+                or loaded.snapshot.version,
+                error_code="ACTION_EXECUTION_UNAVAILABLE",
+                updated_at=now_utc(),
+            )
+            raise _error(
+                "ACTION_EXECUTION_UNAVAILABLE",
+                "This approved action needs a supported offline execution path.",
+                503,
+            ) from None
+        current = store.get_planning_session_snapshot(user_id=user.id, session_id=session_id)
+        assert current is not None
+        now = now_utc()
+        workspace = loaded.snapshot.model_copy(update={"updated_at": now})
+        report_json = None
+        if approve and action.kind == "deterministic_edit":
+            from agents.post_plan_execution import recompute_confirmed_edit
+            from api.main import get_kb
 
-        report = recompute_confirmed_edit(loaded.report, action.edit, kb=get_kb(), now=now)
-        report_json = report.model_dump_json()
-        workspace = workspace.model_copy(update={"current_result_id": uuid4().hex})
-    finished = store.commit_post_plan_operation(
-        user_id=user.id,
-        session_id=session_id,
-        event_id=body.client_event_id,
-        fingerprint=operation.fingerprint,
-        expected_workspace_version=operation.reserved_workspace_version or loaded.snapshot.version,
-        workspace=workspace,
-        session=current.model_copy(update={"version": current.version + 1, "updated_at": now}),
-        report_json=report_json,
-        outcome_json=json.dumps(
-            {"proposal_id": proposal_id, "decision": "approved" if approve else "rejected"},
-            sort_keys=True,
-        ),
-        updated_at=now,
-    )
-    return {
-        "operation_id": finished.operation_id,
-        "proposal_id": proposal_id,
-        "status": finished.status,
-        "decision": "approved" if approve else "rejected",
-        "result_id": finished.result_id,
-    }
+            report = recompute_confirmed_edit(loaded.report, action.edit, kb=get_kb(), now=now)
+            report_json = report.model_dump_json()
+            workspace = workspace.model_copy(update={"current_result_id": uuid4().hex})
+        finished = store.commit_post_plan_operation(
+            user_id=user.id,
+            session_id=session_id,
+            event_id=body.client_event_id,
+            fingerprint=operation.fingerprint,
+            expected_workspace_version=operation.reserved_workspace_version
+            or loaded.snapshot.version,
+            workspace=workspace,
+            session=current.model_copy(update={"version": current.version + 1, "updated_at": now}),
+            report_json=report_json,
+            outcome_json=json.dumps(
+                {"proposal_id": proposal_id, "decision": "approved" if approve else "rejected"},
+                sort_keys=True,
+            ),
+            updated_at=now,
+        )
+        return {
+            "operation_id": finished.operation_id,
+            "proposal_id": proposal_id,
+            "status": finished.status,
+            "decision": "approved" if approve else "rejected",
+            "result_id": finished.result_id,
+        }
+    finally:
+        mark_finished(operation.operation_id)
 
 
 @router.post("/actions/{proposal_id}/approve")

@@ -1133,6 +1133,12 @@ def recompute_confirmed_session(
 ) -> Any:
     require_csrf(request)
     session = _get_session(_repo(store), user, session_id)
+    if store.get_post_plan_workspace(user_id=user.id, session_id=session_id) is not None:
+        raise _error(
+            409,
+            "WORKSPACE_REVIEW_REQUIRED",
+            "This session is controlled by its post-plan workspace; use its versioned actions.",
+        )
     state, report = _owned_job_report(session, user)
     current_revision = report.travel_inventory.inventory_revision
     if body.expected_inventory_revision != current_revision:
@@ -1171,6 +1177,12 @@ def refresh_confirmed_session_prose(
 ) -> FinalReport:
     require_csrf(request)
     session = _get_session(_repo(store), user, session_id)
+    if store.get_post_plan_workspace(user_id=user.id, session_id=session_id) is not None:
+        raise _error(
+            409,
+            "WORKSPACE_REVIEW_REQUIRED",
+            "This session is controlled by its post-plan workspace; use its versioned actions.",
+        )
     state, report = _owned_job_report(session, user)
     if body.expected_inventory_revision != report.travel_inventory.inventory_revision:
         raise _error(

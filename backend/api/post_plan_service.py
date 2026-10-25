@@ -130,6 +130,7 @@ def _initial_state(
     now: datetime,
     new_id: Callable[[], str],
     brief_override_wallet: bool,
+    inventory_snapshot_json: str | None = None,
 ) -> tuple[PostPlanWorkspaceSnapshot, PostPlanResult, PostPlanOperation]:
     confirmed = session.confirmed_briefs[-1]
     brief = confirmed.brief
@@ -147,6 +148,7 @@ def _initial_state(
             flight_fingerprint=flight_fingerprint(brief),
             hotel_fingerprint=hotel_fingerprint(brief, hotel_area_id=area),
             retained_hotel_area_id=area,
+            snapshot_json=inventory_snapshot_json,
         ),
         report_schema_fingerprint=report_schema_fingerprint(),
         created_at=now,
@@ -202,6 +204,12 @@ def initialize_from_job(
     """Create the workspace from this session's finished job. Calls nothing external."""
     report = owned_finished_report(session, user_id)
     assert session.planning_job_id is not None
+    job = job_manager.get_job(session.planning_job_id)
+    inventory_snapshot_json = (
+        job.inventory_snapshot.model_dump_json()
+        if job is not None and job.inventory_snapshot is not None
+        else None
+    )
     source = WorkspaceSource(kind="job", job_id=session.planning_job_id)
     snapshot, result, operation = _initial_state(
         user_id=user_id,
@@ -212,6 +220,7 @@ def initialize_from_job(
         now=now,
         new_id=new_id,
         brief_override_wallet=False,
+        inventory_snapshot_json=inventory_snapshot_json,
     )
     return store.create_post_plan_workspace(
         workspace=snapshot, result=result, operation=operation

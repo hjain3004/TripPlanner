@@ -177,7 +177,7 @@ _NUMBER_WORDS = {
 }
 # Money and derived totals are never taken from a model or inferred from its output.
 _MONEY_FIELDS = frozenset({"budget_minor"})
-_DERIVED_FIELDS = frozenset({"travelers"})
+_DERIVED_FIELDS: frozenset[str] = frozenset()
 
 
 def _typed_numbers(text: str) -> set[str]:
@@ -214,6 +214,19 @@ def _patch_entries(action: PostPlanAction) -> list[PatchEntry]:
 def _check_text_support(action: PostPlanAction, context: RoutingContext, text: str) -> None:
     """Every changed number and date a model proposes must be one the traveler typed."""
     numbers = _typed_numbers(text)
+    if isinstance(action, ScopedItineraryReplan):
+        for affected in action.affected_dates:
+            day_number = next(
+                (index + 1 for index, day in enumerate(context.days) if day.date == affected),
+                None,
+            )
+            explicitly_named = affected.isoformat() in text or (
+                day_number is not None and re.search(rf"\bday\s+{day_number}\b", text, re.I)
+            )
+            if not explicitly_named:
+                raise PostPlanInterpretationError(
+                    "invalid", "a proposed date was not stated in the request"
+                )
     for entry in _patch_entries(action):
         current = _current_section(context, entry) or {}
         for field, value in entry.payload.model_dump().items():
@@ -229,9 +242,9 @@ def _check_text_support(action: PostPlanAction, context: RoutingContext, text: s
                 if isinstance(leaf, bool) or leaf is None:
                     continue
                 if isinstance(leaf, date):
-                    supported = leaf.isoformat() in text or str(leaf.day) in numbers
+                    supported = leaf.isoformat() in text
                 elif isinstance(leaf, int):
-                    supported = leaf <= 1 or str(leaf) in numbers
+                    supported = str(leaf) in numbers
                 else:
                     continue
                 if not supported:

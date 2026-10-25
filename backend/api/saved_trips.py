@@ -40,6 +40,7 @@ from accounts.store import (
     RevisionMeta,
     SavedTripResult,
     StalePlanningSessionError,
+    StalePostPlanWorkspaceError,
     TripIdempotencyConflictError,
     TripLimitReachedError,
     TripOverview,
@@ -201,6 +202,12 @@ def _handle(call: Any) -> Any:
             status.HTTP_409_CONFLICT,
             "TRIP_REVISION_CONFLICT",
             "This trip changed while it was being updated. Please retry.",
+        ) from exc
+    except StalePostPlanWorkspaceError as exc:
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            cast(SavedTripErrorCode, "STALE_WORKSPACE"),
+            "The selected post-plan result changed. Reload before saving.",
         ) from exc
     except ReportTooLargeError as exc:
         raise _error(
@@ -388,42 +395,51 @@ def _selected_report(
     *,
     source_result_id: str | None,
     expected_workspace_version: int | None,
-) -> FinalReport:
+) -> tuple[FinalReport, str]:
     """Select an accepted CP4 result when a workspace exists; never fall back silently."""
     snapshot = store.get_post_plan_workspace(user_id=user.id, session_id=session.id)
     if snapshot is None:
-        return _finished_report(session, user)
+        report = _finished_report(session, user)
+        return report, report.model_dump_json()
     if source_result_id is None or expected_workspace_version is None:
-        raise _error(
+        raise HTTPException(
             status.HTTP_409_CONFLICT,
-            cast(SavedTripErrorCode, "WORKSPACE_REVIEW_REQUIRED"),
-            "Select the accepted post-plan result before saving.",
+            detail={
+                "code": "WORKSPACE_REVIEW_REQUIRED",
+                "message": "Select the accepted post-plan result before saving.",
+            },
         )
     if (
         snapshot.version != expected_workspace_version
         or snapshot.current_result_id != source_result_id
     ):
-        raise _error(
+        raise HTTPException(
             status.HTTP_409_CONFLICT,
-            cast(SavedTripErrorCode, "STALE_WORKSPACE"),
-            "The accepted post-plan result changed. Reload before saving.",
+            detail={
+                "code": "STALE_WORKSPACE",
+                "message": "The accepted post-plan result changed. Reload before saving.",
+            },
         )
     result = store.get_post_plan_result(
         user_id=user.id, session_id=session.id, result_id=source_result_id
     )
     if result is None:
-        raise _error(
+        raise HTTPException(
             status.HTTP_409_CONFLICT,
-            cast(SavedTripErrorCode, "WORKSPACE_REVIEW_REQUIRED"),
-            "Accepted result is unavailable.",
+            detail={
+                "code": "WORKSPACE_REVIEW_REQUIRED",
+                "message": "Accepted result is unavailable.",
+            },
         )
     try:
-        return FinalReport.model_validate_json(result.report_json)
+        return FinalReport.model_validate_json(result.report_json), result.report_json
     except ValidationError as exc:
-        raise _error(
+        raise HTTPException(
             status.HTTP_409_CONFLICT,
-            cast(SavedTripErrorCode, "WORKSPACE_REBUILD_REQUIRED"),
-            "Accepted result needs rebuilding.",
+            detail={
+                "code": "WORKSPACE_REBUILD_REQUIRED",
+                "message": "Accepted result needs rebuilding.",
+            },
         ) from exc
 
 
@@ -466,7 +482,13 @@ def save_trip(
     # The fingerprint is the request's *intent*. The report it will store can differ
     # between honest retries (the user edited in between), so it must not be part of it.
     fingerprint = trip_event_fingerprint(
-        "save", fields={"session_id": payload.session_id, "title": payload.title}
+        "save",
+        fields={
+            "session_id": payload.session_id,
+            "title": payload.title,
+            "source_result_id": payload.source_result_id,
+            "expected_workspace_version": payload.expected_workspace_version,
+        },
     )
 
     def call() -> SavedTripCreatedOut:
@@ -481,7 +503,7 @@ def save_trip(
         session = _owned_session(store, user, payload.session_id)
         if session.saved_trip_id is not None:
             raise _already_saved(session.saved_trip_id)
-        report = _selected_report(
+        report, report_json = _selected_report(
             store,
             user,
             session,
@@ -513,10 +535,13 @@ def save_trip(
                 raw_request=compile_confirmed_input(session.confirmed_briefs[-1]).raw_request,
                 trip_spec_json=spec.model_dump_json(),
                 trace_id=report.trace_id,
-                report_json=report.model_dump_json(),
+                report_json=report_json,
                 now=now,
                 attach_session=PlanningSessionRepository.snapshot_of(attached),
                 expected_session_version=session.version,
+                post_plan_session_id=session.id if payload.source_result_id is not None else None,
+                expected_post_plan_workspace_version=payload.expected_workspace_version,
+                source_result_id=payload.source_result_id,
                 client_event_id=payload.client_event_id,
                 request_fingerprint=fingerprint,
             )
@@ -553,7 +578,13 @@ def append_revision(
     """Append the attached session's *current* plan to the trip as the next revision."""
     require_csrf(request)
     fingerprint = trip_event_fingerprint(
-        "append_revision", trip_id=trip_id, fields={"session_id": payload.session_id}
+        "append_revision",
+        trip_id=trip_id,
+        fields={
+            "session_id": payload.session_id,
+            "source_result_id": payload.source_result_id,
+            "expected_workspace_version": payload.expected_workspace_version,
+        },
     )
 
     def call() -> RevisionOut:
@@ -573,7 +604,7 @@ def append_revision(
                 "SESSION_NOT_ATTACHED",
                 "That planning session is not the one this trip was saved from.",
             )
-        report = _selected_report(
+        report, report_json = _selected_report(
             store,
             user,
             session,
@@ -584,9 +615,12 @@ def append_revision(
             user_id=user.id,
             trip_id=trip_id,
             trace_id=report.trace_id,
-            report_json=report.model_dump_json(),
+            report_json=report_json,
             now=now_utc(),
             client_event_id=payload.client_event_id,
+            post_plan_session_id=session.id if payload.source_result_id is not None else None,
+            expected_post_plan_workspace_version=payload.expected_workspace_version,
+            source_result_id=payload.source_result_id,
             request_fingerprint=fingerprint,
         )
         return RevisionOut.of_stored(revision)
