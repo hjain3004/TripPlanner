@@ -40,7 +40,27 @@ branch removed, the test fails, the branch restored):
 
 ## Verification — measured on the final committed clean tree
 
-VERIFICATION_PLACEHOLDER
+Measured in this session on the committed tree `6731f40` (clean `git status`, regional catalogs copied in
+and never committed). The report-only commit that records them changes no code; the gate was re-run on it
+(see the last row).
+
+| Check | Before the pass (`d3536f5`) | After |
+|---|---|---|
+| `make gate` | GATE PASSED | **GATE PASSED** (`GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN`) |
+| Backend pytest | 1991 passed, 1 skipped | **2006 passed, 1 skipped** (+15) |
+| mypy `--strict` | 178 + 5 files clean | 178 + 5 files clean |
+| Ruff, zero-tolerance scope | clean | clean |
+| Ruff `core/` + `api/` legacy ratchet | 6 (ceiling 12) | 6 (ceiling 12) |
+| `scripts/check-contract-drift.sh` | `CONTRACT_DRIFT_OK` | `CONTRACT_DRIFT_OK`, run twice |
+| Frontend `tsc --noEmit` | exit 0 | exit 0 |
+| Frontend Vitest | 204 passed (12 files) | **218 passed (12 files)** (+14) |
+| Frontend ESLint | 14 warnings, 0 errors | 14 warnings, 0 errors |
+
+The one skipped backend test is the pre-existing `CP1_MERGE_BASE` guard.
+
+A4 test files after the pass (sum 123 = 2006 − 1883 baseline): `test_a4_trip_scoping` 15,
+`test_a4_trip_idempotency` 16, `test_a4_trip_privacy` 12, `test_a4_save_api` 25, `test_a4_read_api` 10,
+`test_a4_rerun` 22, `test_a4_boundaries` 21, `test_a4_contention` 2 (new).
 
 ---
 
