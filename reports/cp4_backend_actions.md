@@ -25,9 +25,17 @@ It does not claim UI acceptance, live activation, provider activation, or deploy
 - Frontend: TypeScript passed; 12 Vitest files / 218 tests passed; ESLint reported
   only existing warnings; production build passed.
 - Contract drift: `CONTRACT_DRIFT_OK`.
-- Full backend suite after the compatibility fix: 2193 passed, 1 skipped.
-- Strict mypy: clean across 161 backend source files. Zero-tolerance Ruff scopes:
-  clean. Focused CP4/A4 regressions after review fixes: 120 passed.
+- Full backend suite on the committed CP4 tree: 2195 passed, 1 skipped.
+- Strict mypy: clean across 185 backend source files plus 5 ingestion files.
+  Zero-tolerance Ruff scopes: clean. Focused CP4/A4 regressions after review fixes:
+  120 passed.
+- Frontend checks: TypeScript passed; 12 Vitest files / 218 tests passed; ESLint
+  reported 0 errors and 14 existing warnings; production build passed.
+- Browser suite with live tests disabled: 568 tests collected, 471 passed, 76
+  skipped, and 21 timed out during the long single-worker run. A fresh-server
+  rerun of the representative offline happy-path test passed. The 76 skips
+  include the three disabled F4 live-integration tests; generated visual captures
+  were removed and checked-in baselines were restored.
 
 ## Independent review
 
@@ -50,4 +58,5 @@ regression set passed after the fixes.
 - Provider-invalidating, scoped-replan, and profile-approval execution remain
   explicitly fail-closed until their offline deterministic execution paths are wired;
   they never report a false successful approval or make provider calls.
-- Exact-clean-tree `make gate` remains pending.
+- `make gate` passed on the exact committed clean tree before this report update;
+  it is being rerun after this final evidence update.
