@@ -474,6 +474,10 @@ class TripMutationEvent(AccountModel):
 
     user_id: str
     client_event_id: str
+    # "client" ids come from a request; "system" ids are minted internally (the
+    # re-run completion). They live in separate namespaces, so a caller can never
+    # choose an id that blocks an internal event.
+    source: Literal["client", "system"] = "client"
     operation: Literal["save", "append_revision", "delete", "rerun_complete"]
     trip_id: str | None = None
     fingerprint: str

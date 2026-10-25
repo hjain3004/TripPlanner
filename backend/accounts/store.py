@@ -105,6 +105,33 @@ class ReportTooLargeError(ValueError):
 TripOperation = Literal["save", "append_revision", "delete", "rerun_complete"]
 
 
+EventSource = Literal["client", "system"]
+
+
+def _event_key(source: EventSource, event_id: str) -> str:
+    """The stored identity of an event: its namespace plus the raw id."""
+    return f"{source}:{event_id}"
+
+
+def _split_event_key(key: str) -> tuple[EventSource, str]:
+    source, _, rest = key.partition(":")
+    if source == "system":
+        return "system", rest
+    if source == "client":
+        return "client", rest
+    return "client", key  # defensive: an un-namespaced legacy row is a client id
+
+
+def _resolve_event_key(client_event_id: str | None, system_event_id: str | None) -> str | None:
+    if client_event_id is not None and system_event_id is not None:
+        raise ValueError("a mutation names at most one of client_event_id and system_event_id")
+    if client_event_id is not None:
+        return _event_key("client", client_event_id)
+    if system_event_id is not None:
+        return _event_key("system", system_event_id)
+    return None
+
+
 def revision_limit() -> int:
     """The per-trip revision cap, read at call time (tests lower it)."""
     return MAX_REVISIONS_PER_TRIP
@@ -977,7 +1004,7 @@ class AccountStore:
             return self._replay_trip_event(
                 session,
                 user_id=user_id,
-                client_event_id=client_event_id,
+                client_event_id=_event_key("client", client_event_id),
                 fingerprint=request_fingerprint,
             )
 
@@ -987,10 +1014,12 @@ class AccountStore:
             rows = session.scalars(
                 select(TripMutationEventRow).where(TripMutationEventRow.user_id == user_id)
             ).all()
+            keyed = [(r, *_split_event_key(r.client_event_id)) for r in rows]
             events = [
                 TripMutationEvent(
                     user_id=r.user_id,
-                    client_event_id=r.client_event_id,
+                    client_event_id=raw_id,
+                    source=source,
                     operation=r.operation,
                     trip_id=r.trip_id,
                     fingerprint=r.fingerprint,
@@ -1001,9 +1030,9 @@ class AccountStore:
                         else None
                     ),
                 )
-                for r in rows
+                for r, source, raw_id in keyed
             ]
-        return sorted(events, key=lambda e: e.client_event_id)
+        return sorted(events, key=lambda e: (e.source, e.client_event_id))
 
     @staticmethod
     def _check_report_size(report_json: str) -> None:
@@ -1094,6 +1123,7 @@ class AccountStore:
                 "report_sha256": hashlib.sha256(report_json.encode("utf-8")).hexdigest(),
             },
         )
+        event_key = _resolve_event_key(client_event_id, None)
         trip = SavedTrip(
             id=trip_id or uuid4().hex,
             user_id=user_id,
@@ -1138,11 +1168,11 @@ class AccountStore:
 
         with Session(self._engine) as session:
             self._begin_write(session)
-            if client_event_id is not None:
+            if event_key is not None:
                 prior = self._replay_trip_event(
                     session,
                     user_id=user_id,
-                    client_event_id=client_event_id,
+                    client_event_id=event_key,
                     fingerprint=fingerprint,
                 )
                 if prior is not None:
@@ -1196,11 +1226,11 @@ class AccountStore:
                     payload=revision.model_dump_json(),
                 )
             )
-            if client_event_id is not None:
+            if event_key is not None:
                 self._record_trip_event(
                     session,
                     user_id=user_id,
-                    client_event_id=client_event_id,
+                    client_event_id=event_key,
                     fingerprint=fingerprint,
                     operation="save",
                     trip_id=trip.id,
@@ -1211,13 +1241,13 @@ class AccountStore:
                 session.commit()
             except IntegrityError:
                 session.rollback()
-                if client_event_id is None:
+                if event_key is None:
                     raise
                 with Session(self._engine) as again:
                     prior = self._replay_trip_event(
                         again,
                         user_id=user_id,
-                        client_event_id=client_event_id,
+                        client_event_id=event_key,
                         fingerprint=fingerprint,
                     )
                 if prior is None:
@@ -1261,6 +1291,7 @@ class AccountStore:
         now: datetime,
         revision_id: str | None = None,
         client_event_id: str | None = None,
+        system_event_id: str | None = None,
         request_fingerprint: str | None = None,
         operation: Literal["append_revision", "rerun_complete"] = "append_revision",
     ) -> TripRevision:
@@ -1285,14 +1316,15 @@ class AccountStore:
                 "report_sha256": hashlib.sha256(report_json.encode("utf-8")).hexdigest(),
             },
         )
+        event_key = _resolve_event_key(client_event_id, system_event_id)
         for _attempt in range(2):
             with Session(self._engine) as session:
                 self._begin_write(session)
-                if client_event_id is not None:
+                if event_key is not None:
                     prior = self._replay_trip_event(
                         session,
                         user_id=user_id,
-                        client_event_id=client_event_id,
+                        client_event_id=event_key,
                         fingerprint=fingerprint,
                     )
                     if prior is not None:
@@ -1324,11 +1356,11 @@ class AccountStore:
                         payload=revision.model_dump_json(),
                     )
                 )
-                if client_event_id is not None:
+                if event_key is not None:
                     self._record_trip_event(
                         session,
                         user_id=user_id,
-                        client_event_id=client_event_id,
+                        client_event_id=event_key,
                         fingerprint=fingerprint,
                         operation=operation,
                         trip_id=trip_id,
@@ -1339,12 +1371,12 @@ class AccountStore:
                     session.commit()
                 except IntegrityError:
                     session.rollback()
-                    if client_event_id is not None:
+                    if event_key is not None:
                         with Session(self._engine) as again:
                             prior = self._replay_trip_event(
                                 again,
                                 user_id=user_id,
-                                client_event_id=client_event_id,
+                                client_event_id=event_key,
                                 fingerprint=fingerprint,
                             )
                         if prior is not None:
@@ -1469,13 +1501,14 @@ class AccountStore:
         genuine second delete would produce.
         """
         fingerprint = request_fingerprint or trip_event_fingerprint("delete", trip_id=trip_id)
+        event_key = _resolve_event_key(client_event_id, None)
         with Session(self._engine) as session:
             self._begin_write(session)
-            if client_event_id is not None:
+            if event_key is not None:
                 prior = self._replay_trip_event(
                     session,
                     user_id=user_id,
-                    client_event_id=client_event_id,
+                    client_event_id=event_key,
                     fingerprint=fingerprint,
                 )
                 if prior is not None:
@@ -1512,11 +1545,11 @@ class AccountStore:
                         SavedTripRow.id == trip_id, SavedTripRow.user_id == user_id
                     )
                 )
-            if client_event_id is not None:
+            if event_key is not None:
                 self._record_trip_event(
                     session,
                     user_id=user_id,
-                    client_event_id=client_event_id,
+                    client_event_id=event_key,
                     fingerprint=fingerprint,
                     operation="delete",
                     trip_id=None,
@@ -1527,13 +1560,13 @@ class AccountStore:
                 session.commit()
             except IntegrityError:
                 session.rollback()
-                if client_event_id is None:
+                if event_key is None:
                     raise
                 with Session(self._engine) as again:
                     prior = self._replay_trip_event(
                         again,
                         user_id=user_id,
-                        client_event_id=client_event_id,
+                        client_event_id=event_key,
                         fingerprint=fingerprint,
                     )
                 if prior is None:

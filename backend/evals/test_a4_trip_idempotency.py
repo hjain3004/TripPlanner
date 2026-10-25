@@ -181,7 +181,7 @@ def test_a_rerun_completion_that_fires_twice_appends_once(tmp_path: Path) -> Non
             trace_id="trace-rerun",
             report_json='{"summary":"rerun"}',
             now=NOW,
-            client_event_id="rerun:job-1",
+            system_event_id="rerun:job-1",
             request_fingerprint="rerun-fp",
             operation="rerun_complete",
         ).revision
@@ -191,7 +191,7 @@ def test_a_rerun_completion_that_fires_twice_appends_once(tmp_path: Path) -> Non
     (event,) = [
         e for e in store.trip_mutation_events("u-alice") if e.client_event_id == "rerun:job-1"
     ]
-    assert event.operation == "rerun_complete"
+    assert event.operation == "rerun_complete" and event.source == "system"
 
 
 def test_a_replayed_delete_reports_the_original_outcome(tmp_path: Path) -> None:
@@ -333,3 +333,52 @@ def test_a_lost_session_race_leaves_no_trip_revision_or_event_behind(
     assert store.trip_mutation_events("u-alice") == []
     still = store.get_planning_session_snapshot(user_id="u-alice", session_id="s1")
     assert still is not None and still.saved_trip_id is None and still.version == 3
+
+
+def test_a_client_event_id_can_never_shadow_an_internal_completion_event(
+    tmp_path: Path,
+) -> None:
+    """Caller-supplied and internal event ids live in separate namespaces."""
+    store = _store(tmp_path)
+    trip_id = _save(store).trip.id
+    common: dict[str, Any] = {
+        "user_id": "u-alice",
+        "trip_id": trip_id,
+        "trace_id": "t",
+        "now": NOW,
+    }
+    # A client happens to send the exact id the internal completion will use.
+    store.add_revision(
+        **common,
+        report_json='{"by":"client"}',
+        client_event_id="rerun:job-9",
+        request_fingerprint="client-fp",
+    )
+
+    completed = store.add_revision(
+        **common,
+        report_json='{"by":"rerun"}',
+        system_event_id="rerun:job-9",
+        request_fingerprint="system-fp",
+        operation="rerun_complete",
+    )
+
+    assert completed.revision == 3
+    sources = {(e.source, e.client_event_id) for e in store.trip_mutation_events("u-alice")}
+    assert ("client", "rerun:job-9") in sources and ("system", "rerun:job-9") in sources
+
+
+def test_a_mutation_names_at_most_one_event_namespace(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    trip_id = _save(store).trip.id
+
+    with pytest.raises(ValueError):
+        store.add_revision(
+            user_id="u-alice",
+            trip_id=trip_id,
+            trace_id="t",
+            report_json="{}",
+            now=NOW,
+            client_event_id="a",
+            system_event_id="b",
+        )

@@ -205,7 +205,7 @@ def test_a_rerun_appends_revision_two_with_the_callers_current_wallet(
     assert detail["report"]["trip_spec"]["wallet"]["card_ids"] == ["hdfc-infinia"]
     assert detail["report"]["summary"] == "Second run summary."
     events = [e for e in store.trip_mutation_events(user_id) if e.operation == "rerun_complete"]
-    assert [e.client_event_id for e in events] == [f"rerun:{job_id}"]
+    assert [(e.source, e.client_event_id) for e in events] == [("system", f"rerun:{job_id}")]
 
 
 def test_revision_one_is_unchanged_when_reference_data_changes(
@@ -446,3 +446,30 @@ def test_no_account_identity_reaches_the_llm_during_a_rerun(
     assert prompts, "the rerun should have called the LLM"
     for secret in ("traveler@example.com", "Zaphod", "4242", "Beeblebrox"):
         assert secret not in joined, secret
+
+
+def test_a_caller_cannot_block_a_rerun_by_reusing_its_internal_event_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A client request carrying ``rerun:<job_id>`` must not stop that rerun saving."""
+    client, store, kit, trip_id = _saved_trip(tmp_path, monkeypatch)
+    # A saved trip's attached session is what append reads from.
+    attached = store.planning_session_for_trip(_user_id(client), trip_id)
+    assert attached is not None
+    entered, release = _hold_intake(kit)
+    kit.queue_run(summary="Completed despite the collision.")
+    job_id = _rerun(client, trip_id).json()["job_id"]
+    assert entered.wait(timeout=30)
+
+    squatter = client.post(
+        f"/account/trips/{trip_id}/revisions",
+        headers=csrf(client),
+        json={"session_id": attached.id, "client_event_id": f"rerun:{job_id}"},
+    )
+    release.set()
+    done = _wait(client, trip_id, job_id)
+
+    assert squatter.status_code == 201
+    assert done["status"] == "complete" and done["error"] is None
+    assert done["revision"] == 3  # revision 2 is the squatter's own append
+    assert len(store.revisions(_user_id(client), trip_id)) == 3

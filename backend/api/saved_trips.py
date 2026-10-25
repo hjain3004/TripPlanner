@@ -637,7 +637,7 @@ def _append_rerun_result(record: _Rerun, store: AccountStore) -> None:
             trace_id=report.trace_id,
             report_json=report.model_dump_json(),
             now=now_utc(),
-            client_event_id=f"rerun:{record.job_id}",
+            system_event_id=f"rerun:{record.job_id}",
             request_fingerprint=trip_event_fingerprint(
                 "rerun_complete", trip_id=record.trip_id, fields={"job_id": record.job_id}
             ),
