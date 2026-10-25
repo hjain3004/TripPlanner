@@ -87,9 +87,6 @@ SavedTripErrorCode = Literal[
     "TRIP_NOT_FOUND",
     "TRIP_NOT_RERUNNABLE",
     "TRIP_REVISION_CONFLICT",
-    "WORKSPACE_REVIEW_REQUIRED",
-    "STALE_WORKSPACE",
-    "WORKSPACE_REBUILD_REQUIRED",
 ]
 
 
@@ -399,7 +396,7 @@ def _selected_report(
     if source_result_id is None or expected_workspace_version is None:
         raise _error(
             status.HTTP_409_CONFLICT,
-            "WORKSPACE_REVIEW_REQUIRED",
+            cast(SavedTripErrorCode, "WORKSPACE_REVIEW_REQUIRED"),
             "Select the accepted post-plan result before saving.",
         )
     if (
@@ -408,7 +405,7 @@ def _selected_report(
     ):
         raise _error(
             status.HTTP_409_CONFLICT,
-            "STALE_WORKSPACE",
+            cast(SavedTripErrorCode, "STALE_WORKSPACE"),
             "The accepted post-plan result changed. Reload before saving.",
         )
     result = store.get_post_plan_result(
@@ -416,14 +413,16 @@ def _selected_report(
     )
     if result is None:
         raise _error(
-            status.HTTP_409_CONFLICT, "WORKSPACE_REVIEW_REQUIRED", "Accepted result is unavailable."
+            status.HTTP_409_CONFLICT,
+            cast(SavedTripErrorCode, "WORKSPACE_REVIEW_REQUIRED"),
+            "Accepted result is unavailable.",
         )
     try:
         return FinalReport.model_validate_json(result.report_json)
     except ValidationError as exc:
         raise _error(
             status.HTTP_409_CONFLICT,
-            "WORKSPACE_REBUILD_REQUIRED",
+            cast(SavedTripErrorCode, "WORKSPACE_REBUILD_REQUIRED"),
             "Accepted result needs rebuilding.",
         ) from exc
 
