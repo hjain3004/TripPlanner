@@ -48,6 +48,11 @@ This role uses a separately configured model with no provider/schema retry. It i
 `TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED=1` and declared cost is zero; see
 `backend/.env.example`. All automated CP3 acceptance uses scripted/replay clients.
 
+CP4's post-plan interpreter follows the same guarded pattern with separate
+`TRIPWISE_POST_PLAN_LLM_*` variables. It allows one semantic call with no tools, fallback model,
+transport retry, or automatic repair. It remains disabled by default and is rejected by the
+production sample-mode startup guard; all CP4 acceptance uses scripted/replay clients.
+
 The request-time default uses seeded/sample data and the configured LLM call sites. The kernel is
 not allowed to import the gateway or reach the network. Provider I/O belongs behind
 `backend/gateway/`; the orchestrator must map normalized evidence into kernel inputs.

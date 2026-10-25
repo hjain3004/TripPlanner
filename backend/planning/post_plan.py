@@ -744,6 +744,62 @@ def _edit_dates(edit: ItineraryEdit, context: ImpactContext) -> list[date]:
     return [at(edit.day_index)]  # AddItem
 
 
+def impact_context_from_routing(context: RoutingContext) -> ImpactContext:
+    """The reference facts of a routing context, as an impact context (no fingerprints)."""
+    return ImpactContext(
+        itinerary_dates=[day.date for day in context.days],
+        items=[
+            ImpactItem(poi_id=item.poi_id, day_index=index)
+            for index, day in enumerate(context.days)
+            for item in day.items
+        ],
+    )
+
+
+def validate_action_references(action: PostPlanAction, context: RoutingContext) -> None:
+    """Reject an action that names anything the workspace does not contain.
+
+    Applies to every source of actions (typed controls, deterministic routing, a model):
+    ids, dates, positions and explanation targets must exist in ``context``; patches
+    must apply cleanly to the current brief. Raises ``ValueError`` with a plain reason.
+    """
+    if isinstance(action, DeterministicEdit):
+        edit = action.edit
+        impact = impact_context_from_routing(context)
+        _edit_dates(edit, impact)  # existing items, in-range days
+        candidates = {c.poi_id for c in context.candidates}
+        if isinstance(edit, AddItem):
+            if edit.poi_id not in candidates:
+                raise ValueError("that place is not an approved suggestion")
+            if edit.position > len(context.days[edit.day_index].items):
+                raise ValueError("that position is past the end of the day")
+        elif isinstance(edit, ReplaceItem):
+            if edit.new_poi_id not in candidates:
+                raise ValueError("that place is not an approved suggestion")
+        elif isinstance(edit, MoveItem):
+            target = len(context.days[edit.to_day_index].items)
+            if edit.from_day_index == edit.to_day_index:
+                target -= 1
+            if edit.position > max(target, 0):
+                raise ValueError("that position is past the end of the day")
+    elif isinstance(action, ScopedItineraryReplan):
+        dates = [day.date for day in context.days]
+        if any(d not in dates for d in action.affected_dates):
+            raise ValueError("a replan names a date outside this itinerary")
+        if action.scope == "trip" and sorted(action.affected_dates) != dates:
+            raise ValueError("a trip-wide replan must name every itinerary date")
+        if action.patch is not None:
+            apply_brief_patch(context.brief, action.patch)
+    elif isinstance(action, ProviderInvalidatingChange):
+        apply_brief_patch(context.brief, action.patch)
+    elif isinstance(action, WalletOrObjectiveChange):
+        objective_patch(context.brief, action)
+    elif isinstance(action, ExplanationRequest):
+        known = {(ref.kind, ref.ref_id) for ref in context.explainable}
+        if (action.target_kind, action.target_id) not in known:
+            raise ValueError("that is not something this plan can explain")
+
+
 def _no_brief_change(before: TripBrief, after: TripBrief, what: str) -> None:
     if before != after:
         raise ValueError(f"{what} cannot change the brief")

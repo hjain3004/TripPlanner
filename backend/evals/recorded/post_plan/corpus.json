@@ -1,0 +1,97 @@
+{
+  "note": "Synthetic, hand-written model responses. No live call produced them. Each case is a request plus the one response a model may return for it.",
+  "accepted": [
+    {
+      "name": "slow_museum_day",
+      "text": "I'd love a slow museum day on day 2",
+      "kind": "scoped_itinerary_replan",
+      "response": {"action": {"kind": "scoped_itinerary_replan", "scope": "dates", "affected_dates": ["2026-11-02"], "day_theme": "slow museum day"}}
+    },
+    {
+      "name": "why_this_flight",
+      "text": "why did you pick that Singapore Airlines flight?",
+      "kind": "explanation_request",
+      "response": {"action": {"kind": "explanation_request", "target_kind": "cost_line", "target_id": "flight:SQ", "topic": "why_chosen"}}
+    },
+    {
+      "name": "fly_business",
+      "text": "can we fly business class instead",
+      "kind": "provider_invalidating_change",
+      "response": {"action": {"kind": "provider_invalidating_change", "patch": {"entries": [{"question_id": "flight_preferences", "payload": {"cabin": "business", "max_stops": 0, "schedule": "no_preference"}}]}}}
+    },
+    {
+      "name": "add_jewel_to_last_day",
+      "text": "put the Jewel Changi stop on the last day",
+      "kind": "deterministic_edit",
+      "response": {"action": {"kind": "deterministic_edit", "edit": {"op": "add_item", "poi_id": "poi:jewel", "day_index": 3, "position": 0}}}
+    },
+    {
+      "name": "ambiguous_ask",
+      "text": "make it better",
+      "kind": "clarification_required",
+      "response": {"action": {"kind": "clarification_required", "reason": "needs_detail", "question": "What would you like to improve: the days, the flights or the stay?", "choices": [{"id": "days", "label": "The daily plans"}, {"id": "stay", "label": "The hotel"}]}}
+    }
+  ],
+  "rejected": [
+    {
+      "name": "unknown_poi",
+      "text": "add Marina Sands",
+      "reason": "invalid",
+      "response": {"action": {"kind": "deterministic_edit", "edit": {"op": "add_item", "poi_id": "poi:invented", "day_index": 0, "position": 0}}}
+    },
+    {
+      "name": "date_outside_trip",
+      "text": "slow museum day on 9",
+      "reason": "invalid",
+      "response": {"action": {"kind": "scoped_itinerary_replan", "scope": "dates", "affected_dates": ["2026-12-09"], "day_theme": "slow museum day"}}
+    },
+    {
+      "name": "invented_number",
+      "text": "we need more rooms",
+      "reason": "invalid",
+      "response": {"action": {"kind": "provider_invalidating_change", "patch": {"entries": [{"question_id": "stay_preferences", "payload": {"room_count": 4, "location_price_tradeoff": "balanced"}}]}}}
+    },
+    {
+      "name": "model_sets_budget",
+      "text": "keep it cheaper",
+      "reason": "invalid",
+      "response": {"action": {"kind": "provider_invalidating_change", "patch": {"entries": [{"question_id": "budget_and_objective", "payload": {"budget_minor": 5000000, "currency": "INR", "travel_style": "balanced", "objective": "balanced", "points_priority": "best_value"}}]}}}
+    },
+    {
+      "name": "model_proposes_profile_write",
+      "text": "remember I like aisle seats",
+      "reason": "invalid",
+      "response": {"action": {"kind": "profile_update_proposal", "section": "flight", "candidate": {"cabin": "economy", "max_stops": 0, "schedule": "no_preference", "seat": "aisle"}}}
+    },
+    {
+      "name": "fiscal_claim_in_clarification",
+      "text": "make it better",
+      "reason": "invalid",
+      "response": {"action": {"kind": "clarification_required", "reason": "needs_detail", "question": "Business class costs about double, is that fine?"}}
+    },
+    {
+      "name": "claims_it_booked",
+      "text": "make it better",
+      "reason": "invalid",
+      "response": {"action": {"kind": "clarification_required", "reason": "needs_detail", "question": "I have booked that for you. Anything else?"}}
+    },
+    {
+      "name": "domains_chosen_by_model",
+      "text": "fly business class",
+      "reason": "invalid",
+      "response": {"action": {"kind": "provider_invalidating_change", "invalidated_domains": ["flight"], "patch": {"entries": [{"question_id": "flight_preferences", "payload": {"cabin": "business", "max_stops": 0, "schedule": "no_preference"}}]}}}
+    },
+    {
+      "name": "unknown_explain_target",
+      "text": "why is that so pricey",
+      "reason": "invalid",
+      "response": {"action": {"kind": "explanation_request", "target_kind": "cost_line", "target_id": "flight:XX", "topic": "how_priced"}}
+    },
+    {
+      "name": "not_an_action",
+      "text": "hello",
+      "reason": "invalid",
+      "response": {"hello": "world"}
+    }
+  ]
+}

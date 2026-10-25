@@ -145,6 +145,13 @@ def validate_runtime_config(env: Mapping[str, str] | None = None) -> list[Config
                     "the hosted interview LLM role is not activatable in the sample-mode profile",
                 )
             )
+        if source.get("TRIPWISE_POST_PLAN_LLM_ZERO_SPEND_CONFIRMED", "").strip() == "1":
+            issues.append(
+                ConfigIssue(
+                    "TRIPWISE_POST_PLAN_LLM_ZERO_SPEND_CONFIRMED",
+                    "the hosted post-plan LLM role is not activatable in the sample-mode profile",
+                )
+            )
         if source.get("TRIPWISE_TRIPADVISOR_API_KEY", "").strip() and not _truthy(
             source, "TRIPWISE_TRIPADVISOR_KILL_SWITCH"
         ):
