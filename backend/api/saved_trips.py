@@ -752,7 +752,9 @@ def start_rerun(
         _START_EVENTS[event_key] = (fingerprint, record.job_id)
         _prune_reruns()
     try:
-        _launch_rerun(store, user, record)
+        # Its store reads (attached session, wallet) are database work like any other:
+        # a locked database must be the typed 503, not an unmapped 500.
+        _handle(lambda: _launch_rerun(store, user, record))
     except BaseException:
         _release_rerun(record, event_key)
         raise
