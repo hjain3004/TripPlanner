@@ -29,6 +29,7 @@ from core.db import KnowledgeBase
 from core.itinerary.compose import build_final_schedule, fallback_itinerary
 from core.itinerary.edits import apply_edit
 from core.models import CostedTrip, OptimizationPrefs, SpendCategory, SpendLineItem
+from core.travel_taxonomy import TravelCategory, canonical_travel_category
 from core.trip_models import ItineraryEdit, TripSpec
 from gateway.travel.product import TravelInventorySnapshot, TravelInventorySummary
 from gateway.travel.service import TravelInventoryService
@@ -123,7 +124,17 @@ def replan_scoped_itinerary(
     """Build a local deterministic candidate and splice only approved dates."""
     spec = spec_for_brief(report.trip_spec, brief)
     retrieval = retrieve_candidates(spec, kb)
-    candidate = fallback_itinerary(spec, retrieval)
+    candidate_spec = spec
+    if action.day_theme:
+        theme_interests = [
+            token
+            for token in action.day_theme.split()
+            if canonical_travel_category(token) != TravelCategory.OTHER
+        ]
+        if theme_interests:
+            candidate_spec = spec.model_copy(update={"interests": theme_interests})
+            retrieval = retrieve_candidates(candidate_spec, kb)
+    candidate = fallback_itinerary(candidate_spec, retrieval)
     affected = set(action.affected_dates)
     candidate_by_date = {day.date: day for day in candidate.days}
     days = [
@@ -146,6 +157,7 @@ def refresh_provider_inventory(
     kb: KnowledgeBase,
     now: datetime,
     inventory_service: TravelInventoryService,
+    requested_domains: set[str],
 ) -> PostPlanExecutionResult:
     """Refresh only server-derived invalidated domains through the sample gateway."""
     del action
@@ -161,11 +173,19 @@ def refresh_provider_inventory(
     # The route supplies a sample-only TravelInventoryService. The object protocol
     # keeps this module independent from API construction and makes raising test
     # transports straightforward.
-    requested = {"flight", "hotel"}
+    requested = set(requested_domains)
+    if not requested <= {"flight", "hotel"} or not requested:
+        raise ValueError("provider invalidation must name at least one inventory domain")
     if retained_snapshot is not None:
-        if flight_request == retained_snapshot.flight_request:
+        if "flight" not in requested and flight_request != retained_snapshot.flight_request:
+            raise ValueError("retained flight evidence does not match the confirmed request")
+        if "hotel" not in requested and hotel_request != retained_snapshot.hotel_request:
+            raise ValueError("retained hotel evidence does not match the confirmed request")
+        if not retained_snapshot.is_current(now) and requested != {"flight", "hotel"}:
+            raise ValueError("retained inventory evidence has expired")
+        if flight_request == retained_snapshot.flight_request and "flight" not in requested:
             requested.discard("flight")
-        if hotel_request == retained_snapshot.hotel_request:
+        if hotel_request == retained_snapshot.hotel_request and "hotel" not in requested:
             requested.discard("hotel")
     fresh = asyncio.run(inventory_service.search(flight_request, hotel_request, domains=requested))
     if retained_snapshot is not None:

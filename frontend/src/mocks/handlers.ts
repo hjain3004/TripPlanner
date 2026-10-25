@@ -73,6 +73,7 @@ type Cp4ProposalFixture = {
 };
 
 const cp4Proposals = new Map<string, Cp4ProposalFixture>();
+const cp4RevisionEvents = new Map<string, { trip_id: string; revision: number; result_id: string }>();
 
 const STAGES: PlanJobStatus["stage"][] = [
   "intake",
@@ -942,7 +943,25 @@ export const handlers = [
     cp4Workspace.version += 1;
     return HttpResponse.json({ operation_id: `msw-reject-${params.proposalId}`, proposal_id: params.proposalId, status: "complete", decision: "rejected", result_id: cp4Workspace.current_result_id });
   }),
-  http.post("*/planning/sessions/:sessionId/workspace/revisions", () => HttpResponse.json({ trip_id: "msw-trip-001", revision: cp4Workspace.version, result_id: cp4Workspace.current_result_id }, { status: 201 })),
+  http.post("*/planning/sessions/:sessionId/workspace/revisions", async ({ request }) => {
+    const body = await request.json() as { client_event_id?: string; expected_workspace_version?: number };
+    const eventId = body.client_event_id ?? "revision-1";
+    const replay = cp4RevisionEvents.get(eventId);
+    if (replay) return HttpResponse.json(replay, { status: 201 });
+    if (body.expected_workspace_version !== cp4Workspace.version) {
+      return HttpResponse.json(
+        { detail: { code: "STALE_WORKSPACE", message: "The accepted result changed." } },
+        { status: 409 },
+      );
+    }
+    const result = {
+      trip_id: "msw-trip-001",
+      revision: cp4Workspace.version,
+      result_id: cp4Workspace.current_result_id,
+    };
+    cp4RevisionEvents.set(eventId, result);
+    return HttpResponse.json(result, { status: 201 });
+  }),
 
   // --- A3 authenticated wallet ---
   http.get("*/account/card-products", () => HttpResponse.json(MSW_CARD_PRODUCTS)),

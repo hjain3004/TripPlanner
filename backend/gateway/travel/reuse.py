@@ -27,7 +27,7 @@ class PinnedInventoryService:
         hotel: HotelSearchRequest,
         domains: set[str] | None = None,
     ) -> TravelInventorySnapshot:
-        requested = domains or {"flight", "hotel"}
+        requested = {"flight", "hotel"} if domains is None else set(domains)
         if not requested <= {"flight", "hotel"}:
             raise InventoryReuseRequired("unsupported inventory domain")
         if "flight" in requested and flight != self._snapshot.flight_request:

@@ -176,6 +176,60 @@ def test_scoped_replan_approves_without_provider_dispatch(
     assert result["decision"] == "approved"
 
 
+def test_approval_replay_returns_original_outcome_before_stale_versions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _store, session = _plan_and_workspace(tmp_path, monkeypatch)
+    proposal, proposed_workspace, proposed_session = _propose_only(
+        client,
+        str(session["id"]),
+        {"kind": "wallet_or_objective_change", "adopt_current_wallet": True},
+        event="replay",
+    )
+    first = client.post(  # type: ignore[union-attr]
+        f"/planning/sessions/{session['id']}/actions/{proposal['proposal_id']}/approve",
+        headers=csrf(client),  # type: ignore[arg-type]
+        json={
+            "client_event_id": "replay-approve",
+            "expected_session_version": proposed_session["version"],
+            "expected_workspace_version": proposed_workspace["version"],
+        },
+    )
+    assert first.status_code == 200, first.text
+    second = client.post(  # type: ignore[union-attr]
+        f"/planning/sessions/{session['id']}/actions/{proposal['proposal_id']}/approve",
+        headers=csrf(client),  # type: ignore[arg-type]
+        json={
+            "client_event_id": "replay-approve",
+            "expected_session_version": 0,
+            "expected_workspace_version": 1,
+        },
+    )
+    assert second.status_code == 200, second.text
+    assert second.json() == first.json()
+
+
+def test_explanation_approval_returns_a_deterministic_artifact_reference(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _store, session = _plan_and_workspace(tmp_path, monkeypatch)
+    report_lines = _workspace(client, str(session["id"]))["report"]["costed_trip"]["lines"]
+    target_id = report_lines[0]["id"]  # type: ignore[index]
+    result = _propose_and_approve(
+        client,
+        str(session["id"]),
+        {
+            "kind": "explanation_request",
+            "target_kind": "cost_line",
+            "target_id": target_id,
+            "topic": "how_priced",
+        },
+        event="explain",
+    )
+    assert "explanation" in result
+    assert "minor units" in str(result["explanation"])
+
+
 def test_provider_invalidating_change_uses_sample_gateway_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

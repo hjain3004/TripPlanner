@@ -58,7 +58,9 @@ from planning.brief import profile_group_from_answer
 from planning.contracts import PlanningSession
 from planning.post_plan import (
     DayOverride,
+    ActionImpact,
     ExplainableRef,
+    ExplanationRequest,
     PostPlanAction,
     PostPlanInputError,
     RoutingContext,
@@ -90,7 +92,8 @@ class ActionIn(BaseModel):
     client_event_id: str = Field(min_length=1, max_length=128)
     expected_session_version: int = Field(ge=0)
     expected_workspace_version: int = Field(ge=1)
-    text: str | None = Field(default=None, max_length=2000)
+    # Accept oversized text here so the route can return its typed 413 response.
+    text: str | None = None
     action: dict[str, Any] | None = None
 
     def model_post_init(self, __context: Any) -> None:
@@ -124,6 +127,12 @@ class PostPlanError(BaseModel):
     message: str
 
 
+_POST_PLAN_ERRORS: dict[int | str, dict[str, Any]] = {
+    status: {"model": PostPlanError}
+    for status in (401, 403, 404, 409, 410, 413, 422, 429, 503)
+}
+
+
 class PostPlanWorkspaceOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
     session_id: str
@@ -142,6 +151,71 @@ class ActionProposalOut(BaseModel):
     action: dict[str, Any]
     impact: dict[str, Any]
     decision: str | None
+
+
+def _replayed_proposal(operation: PostPlanOperation) -> ActionProposalOut:
+    if operation.status != "complete":
+        raise _error(
+            "OPERATION_NOT_REPLAYABLE",
+            operation.error_code or "The original operation did not complete.",
+            409,
+        )
+    payload = json.loads(operation.payload_json)
+    action = _ACTION.validate_python(payload["action"])
+    impact = ActionImpact.model_validate(payload["impact"])
+    return ActionProposalOut(
+        proposal_id=operation.operation_id,
+        operation_id=operation.operation_id,
+        status=operation.status,
+        action=action.model_dump(mode="json"),
+        impact=impact.model_dump(mode="json"),
+        decision=operation.decision,
+    )
+
+
+def _replayed_decision(operation: PostPlanOperation) -> dict[str, Any]:
+    if operation.status != "complete":
+        raise _error(
+            "OPERATION_NOT_REPLAYABLE",
+            operation.error_code or "The original operation did not complete.",
+            409,
+        )
+    outcome = json.loads(operation.payload_json)
+    return {
+        "operation_id": operation.operation_id,
+        "proposal_id": operation.proposal_id,
+        "status": operation.status,
+        "decision": operation.decision,
+        "result_id": operation.result_id,
+        **outcome,
+    }
+
+
+def _explanation_for(report: Any, action: ExplanationRequest) -> str:
+    """Return a deterministic explanation anchored to the accepted report."""
+    if action.target_kind == "cost_line":
+        line = next(line for line in report.costed_trip.lines if line.id == action.target_id)
+        if action.topic == "how_priced":
+            return f"{line.label} is recorded at {line.amount_minor} {line.currency} minor units."
+        return f"{line.label} is part of the accepted costed trip because it is in the report."
+    if action.target_kind == "itinerary_item":
+        item = next(
+            item
+            for day in report.itinerary.days
+            for item in day.items
+            if item.poi_id == action.target_id
+        )
+        return f"{item.name or item.poi_id} is scheduled in the accepted itinerary."
+    if action.target_kind == "payment_assignment":
+        assignment = next(
+            row
+            for row in report.optimizer_result.assignments
+            if row.line.id == action.target_id
+        )
+        return f"{assignment.line.label} is assigned to {assignment.card_id} via {assignment.channel}."
+    if action.target_kind == "transfer_recommendation":
+        return "The transfer recommendation is the accepted kernel output for this trip."
+    return "The inventory quote is part of the accepted evidence snapshot for this trip."
 
 
 def _error(code: str, message: str, code_status: int = 422) -> HTTPException:
@@ -287,7 +361,7 @@ def _workspace_out(store: AccountStore, user: User, session_id: str) -> PostPlan
     )
 
 
-@router.post("/workspace", response_model=PostPlanWorkspaceOut)
+@router.post("/workspace", response_model=PostPlanWorkspaceOut, responses=_POST_PLAN_ERRORS)
 def initialize_workspace(
     session_id: str,
     payload: WorkspaceInitIn,
@@ -318,7 +392,7 @@ def initialize_workspace(
         raise _map_error(exc) from exc
 
 
-@router.get("/workspace", response_model=PostPlanWorkspaceOut)
+@router.get("/workspace", response_model=PostPlanWorkspaceOut, responses=_POST_PLAN_ERRORS)
 def get_workspace(
     session_id: str,
     user: Annotated[User, Depends(current_user)],
@@ -334,7 +408,7 @@ def get_workspace(
         raise _map_error(exc) from exc
 
 
-@router.post("/actions", response_model=ActionProposalOut)
+@router.post("/actions", response_model=ActionProposalOut, responses=_POST_PLAN_ERRORS)
 def propose_action(
     session_id: str,
     body: ActionIn,
@@ -375,6 +449,8 @@ def propose_action(
                 interpreter_calls=1,
                 payload={"text": clean_text},
             )
+            if operation.status != "reserved":
+                return _replayed_proposal(operation)
             mark_active(operation.operation_id)
             try:
                 action = PostPlanInterpreter(get_post_plan_llm()).interpret(context, clean_text)
@@ -447,6 +523,8 @@ def propose_action(
             else store.get_post_plan_operation(user_id=user.id, event_id=body.client_event_id)
         )
         assert operation is not None
+        if operation.status != "reserved":
+            return _replayed_proposal(operation)
         current = store.get_planning_session_snapshot(user_id=user.id, session_id=session_id)
         assert current is not None
         committed = loaded.snapshot.model_copy(update={"updated_at": now_utc()})
@@ -501,8 +579,6 @@ def _reserve(
             "action_kind": action_kind,
             "proposal_id": proposal_id,
             "payload": payload,
-            "workspace": body.expected_workspace_version,
-            "session": body.expected_session_version,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -563,6 +639,8 @@ def _decision(
         payload={"proposal_id": proposal_id},
         proposal_id=proposal_id,
     )
+    if operation.status != "reserved":
+        return _replayed_decision(operation)
     mark_active(operation.operation_id)
     try:
         current = store.get_planning_session_snapshot(user_id=user.id, session_id=session_id)
@@ -575,6 +653,9 @@ def _decision(
         profile_section = None
         profile_base_fingerprint = None
         execution = None
+        explanation = None
+        if approve and isinstance(action, ExplanationRequest):
+            explanation = _explanation_for(loaded.report, action)
         if approve and action.kind == "wallet_or_objective_change":
             expected_wallet = data.get("wallet_fingerprint")
             actual_wallet = hashlib.sha256(
@@ -618,6 +699,7 @@ def _decision(
                 and loaded.workspace.inventory.snapshot_json is not None
                 else None
             )
+            impact = ActionImpact.model_validate(data["impact"])
             service = build_travel_service(
                 get_kb(),
                 plan_id=f"{session_id}:cp4",
@@ -632,6 +714,7 @@ def _decision(
                 kb=get_kb(),
                 now=now,
                 inventory_service=service,
+                requested_domains=set(impact.refetch_domains),
             )
         elif approve and action.kind == "profile_update_proposal":
             profile_update, profile_base_fingerprint = _profile_candidate(
@@ -670,6 +753,29 @@ def _decision(
             workspace_domain = workspace_domain.model_copy(
                 update={"brief": execution.brief, "updated_at": now}
             )
+            if approve and isinstance(action, ScopedItineraryReplan) and action.scope == "dates":
+                workspace_domain = workspace_domain.model_copy(
+                    update={
+                        "day_overrides": [
+                            *workspace_domain.day_overrides,
+                            *[
+                                DayOverride(
+                                    date=d,
+                                    question_ids=(
+                                        sorted(
+                                            action.patch.question_ids,
+                                            key=lambda question_id: question_id.value,
+                                        )
+                                        if action.patch
+                                        else []
+                                    ),
+                                    day_theme=action.day_theme,
+                                )
+                                for d in action.affected_dates
+                            ],
+                        ],
+                    }
+                )
             if execution.inventory_snapshot is not None:
                 retained_inventory = workspace_domain.inventory or RetainedInventory()
                 workspace_domain = workspace_domain.model_copy(
@@ -683,21 +789,7 @@ def _decision(
                 update={"payload_json": workspace_domain.model_dump_json()}
             )
         elif approve and isinstance(action, ScopedItineraryReplan) and action.scope == "dates":
-            workspace_domain = workspace_domain.model_copy(
-                update={
-                    "day_overrides": [
-                        *workspace_domain.day_overrides,
-                        *[
-                            DayOverride(
-                                date=d,
-                                question_ids=action.patch.question_ids if action.patch else [],
-                            )
-                            for d in action.affected_dates
-                        ],
-                    ],
-                    "updated_at": now,
-                }
-            )
+            workspace_domain = workspace_domain.model_copy(update={"updated_at": now})
             workspace = workspace.model_copy(
                 update={"payload_json": workspace_domain.model_dump_json()}
             )
@@ -706,6 +798,12 @@ def _decision(
             if profile_update is not None
             else _advance_session_snapshot(store, user.id, session_id, now=now)
         )
+        outcome_payload: dict[str, Any] = {
+            "proposal_id": proposal_id,
+            "decision": "approved" if approve else "rejected",
+        }
+        if explanation is not None:
+            outcome_payload["explanation"] = explanation
         finished = store.commit_post_plan_operation(
             user_id=user.id,
             session_id=session_id,
@@ -716,27 +814,27 @@ def _decision(
             workspace=workspace,
             session=commit_session,
             report_json=report_json,
-            outcome_json=json.dumps(
-                {"proposal_id": proposal_id, "decision": "approved" if approve else "rejected"},
-                sort_keys=True,
-            ),
+            outcome_json=json.dumps(outcome_payload, sort_keys=True),
             updated_at=now,
             profile_update=profile_update,
             profile_section=profile_section,
             profile_base_fingerprint=profile_base_fingerprint,
         )
-        return {
+        outcome = {
             "operation_id": finished.operation_id,
             "proposal_id": proposal_id,
             "status": finished.status,
             "decision": "approved" if approve else "rejected",
             "result_id": finished.result_id,
         }
+        if explanation is not None:
+            outcome["explanation"] = explanation
+        return outcome
     finally:
         mark_finished(operation.operation_id)
 
 
-@router.post("/actions/{proposal_id}/approve")
+@router.post("/actions/{proposal_id}/approve", responses=_POST_PLAN_ERRORS)
 def approve_action(
     session_id: str,
     proposal_id: str,
@@ -755,7 +853,7 @@ def approve_action(
         raise _map_error(exc) from exc
 
 
-@router.post("/actions/{proposal_id}/reject")
+@router.post("/actions/{proposal_id}/reject", responses=_POST_PLAN_ERRORS)
 def reject_action(
     session_id: str,
     proposal_id: str,
@@ -774,7 +872,12 @@ def reject_action(
         raise _map_error(exc) from exc
 
 
-@router.post("/workspace/revisions", response_model=WorkspaceRevisionOut, status_code=201)
+@router.post(
+    "/workspace/revisions",
+    response_model=WorkspaceRevisionOut,
+    status_code=201,
+    responses=_POST_PLAN_ERRORS,
+)
 def save_workspace_revision(
     session_id: str,
     body: WorkspaceRevisionIn,

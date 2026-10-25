@@ -15,8 +15,15 @@ It does not claim UI acceptance, live activation, provider activation, or deploy
   domain selection. The existing default remains both domains and sample-only; the
   admitted snapshot is now captured on gateway job completion for future workspace
   retention.
+- Task 7 executes all four approved action classes offline: wallet/objective approval
+  recomputes from the stored wallet, scoped replans splice only affected dates and
+  persist local overrides, provider-invalidating approval refreshes only server-derived
+  domains through the sample gateway with request/expiry checks, and profile approval
+  atomically merges one preference section with same-section conflict detection.
+  Explanation approval returns deterministic report-anchored text; approvals never
+  autosave a trip revision.
 - OpenAPI and the generated client are synchronized; repeated generation is byte-stable.
-  MSW has stateful workspace/proposal fixtures and no CP4 UI screen was added.
+  MSW has stateful workspace/proposal/revision fixtures and no CP4 UI screen was added.
 
 ## Verification so far
 
@@ -25,38 +32,36 @@ It does not claim UI acceptance, live activation, provider activation, or deploy
 - Frontend: TypeScript passed; 12 Vitest files / 218 tests passed; ESLint reported
   only existing warnings; production build passed.
 - Contract drift: `CONTRACT_DRIFT_OK`.
-- Full backend suite on the committed CP4 tree: 2195 passed, 1 skipped.
+- Full backend suite after execution-path changes: 2201 passed, 1 skipped, 3 warnings.
 - Strict mypy: clean across 185 backend source files plus 5 ingestion files.
   Zero-tolerance Ruff scopes: clean. Focused CP4/A4 regressions after review fixes:
   120 passed.
 - Frontend checks: TypeScript passed; 12 Vitest files / 218 tests passed; ESLint
   reported 0 errors and 14 existing warnings; production build passed.
-- Browser suite with live tests disabled: 568 tests collected, 471 passed, 76
-  skipped, and 21 timed out during the long single-worker run. A fresh-server
-  rerun of the representative offline happy-path test passed. The 76 skips
-  include the three disabled F4 live-integration tests; generated visual captures
-  were removed and checked-in baselines were restored.
+- Browser suite with live tests disabled: 568 tests collected, 492 passed and 76
+  skipped, with no failures. The 76 skips include the three disabled F4
+  live-integration tests; generated visual captures were removed and checked-in
+  baselines were restored.
 
 ## Independent review
 
 The independent whole-branch review found one Critical and seven Important findings.
-Verified fixes include: fail-closed unsupported approvals instead of reporting success,
-sanitized semantic text before durable reservation, active-operation marking around
-interpreter/recompute work, exact accepted-result bytes for A4 selection, fingerprints
-bound to result/version selection, atomic workspace checks inside A4 store transactions,
-strict number/date grounding, legacy recompute blocking once CP4 owns a session, and
-contract regeneration after removing runtime-only error-code casts. The retained
-admitted snapshot is captured from gateway job completion, and A4 store methods
-re-check result/version selection inside their write transactions. Reviewer's focused
-regression set passed after the fixes.
+The Critical replay/redispatch finding was fixed by making operation fingerprints
+independent of stale expected versions and returning the stored terminal outcome before
+dispatch. Verified Important fixes add day-theme-aware deterministic scoped selection
+and persisted day overrides, server-derived provider domains with request/expiry checks,
+deterministic explanation artifacts, explicit post-plan error responses, and stateful
+MSW revision replay/conflict behavior. The alleged revision race was not verified:
+`add_revision()` already re-checks the selected workspace result/version inside its
+single write transaction. Regression tests cover replay, stale wallet, profile-section
+conflict/unrelated merge, all four execution classes, and explanation output.
 
 ## Boundaries and limitations
 
 - No live provider, model, OAuth, credential, paid service, booking, transfer, or
   external network activation was used.
 - The frontend workspace remains deferred; this is backend contract delivery only.
-- Provider-invalidating, scoped-replan, and profile-approval execution remain
-  explicitly fail-closed until their offline deterministic execution paths are wired;
-  they never report a false successful approval or make provider calls.
-- `make gate` passed on the exact committed clean tree before this report update;
-  it is being rerun after this final evidence update.
+- Live provider/model activation remains disabled; provider-invalidating approval uses
+  only the existing sample-only runtime construction and makes no live calls.
+- `make gate` remains pending until this final report and the post-review fixes are
+  committed and the gate is rerun on that exact clean tree.

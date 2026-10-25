@@ -433,7 +433,24 @@ class DayOverride(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     date: date
-    question_ids: Annotated[list[QuestionId], Field(min_length=1)]
+    question_ids: list[QuestionId] = Field(default_factory=list)
+    day_theme: str | None = None
+
+    @field_validator("day_theme")
+    @classmethod
+    def theme_is_bounded_plain_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = " ".join(value.casefold().split())
+        if len(normalized) > MAX_DAY_THEME_CHARS or not _THEME_PATTERN.match(normalized):
+            raise ValueError("a day theme is 3-60 plain lowercase letters")
+        return normalized
+
+    @model_validator(mode="after")
+    def has_override(self) -> DayOverride:
+        if not self.question_ids and self.day_theme is None:
+            raise ValueError("a day override needs a question or a day theme")
+        return self
 
 
 class ImpactItem(BaseModel):

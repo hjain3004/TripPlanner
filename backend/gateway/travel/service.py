@@ -67,7 +67,7 @@ class TravelInventoryService:
         *,
         domains: set[str] | None = None,
     ) -> TravelInventorySnapshot:
-        requested = domains or {"flight", "hotel"}
+        requested = {"flight", "hotel"} if domains is None else set(domains)
         if not requested <= {"flight", "hotel"}:
             raise ValueError("unsupported inventory domain")
         retrieved = self.now()

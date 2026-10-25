@@ -1635,6 +1635,20 @@ export type PlanJobStatus = {
 export type PlanningSessionStatus = 'interviewing' | 'awaiting_assistant' | 'reviewing' | 'confirmed' | 'planning' | 'complete' | 'failed' | 'abandoned';
 
 /**
+ * PostPlanError
+ */
+export type PostPlanError = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
  * PostPlanWorkspaceOut
  */
 export type PostPlanWorkspaceOut = {
@@ -4585,9 +4599,41 @@ export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetData = {
 
 export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
 };
 
 export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetError = GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors[keyof GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors];
@@ -4615,9 +4661,41 @@ export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostData = {
 
 export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
 };
 
 export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostError = InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors[keyof InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors];
@@ -4645,9 +4723,41 @@ export type ProposeActionPlanningSessionsSessionIdActionsPostData = {
 
 export type ProposeActionPlanningSessionsSessionIdActionsPostErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
 };
 
 export type ProposeActionPlanningSessionsSessionIdActionsPostError = ProposeActionPlanningSessionsSessionIdActionsPostErrors[keyof ProposeActionPlanningSessionsSessionIdActionsPostErrors];
@@ -4679,9 +4789,41 @@ export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostDa
 
 export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
 };
 
 export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostError = ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors[keyof ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors];
@@ -4717,9 +4859,41 @@ export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostData
 
 export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
 };
 
 export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostError = RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors[keyof RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors];
@@ -4751,9 +4925,41 @@ export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPost
 
 export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
 };
 
 export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostError = SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors[keyof SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors];
