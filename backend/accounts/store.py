@@ -28,6 +28,9 @@ from accounts import passwords
 from accounts.db import (
     ACCOUNTS_DB_PATH,
     PlanningSessionRow,
+    PostPlanOperationRow,
+    PostPlanResultRow,
+    PostPlanWorkspaceRow,
     SavedTripRow,
     SessionRow,
     TravelPreferenceRow,
@@ -41,10 +44,16 @@ from accounts.db import (
     create_accounts_engine,
 )
 from accounts.models import (
+    MAX_INTERPRETER_CALLS_PER_SESSION,
+    MAX_POST_PLAN_RECORDS_PER_SESSION,
     MAX_REPORT_BYTES,
     MAX_REVISIONS_PER_TRIP,
     MAX_SAVED_TRIPS,
+    MAX_SCOPED_REPLANS_PER_SESSION,
     PlanningSessionSnapshot,
+    PostPlanOperation,
+    PostPlanResult,
+    PostPlanWorkspaceSnapshot,
     SavedTrip,
     TravelPreferenceProfile,
     TripMutationEvent,
@@ -100,6 +109,50 @@ class RevisionLimitReachedError(ValueError):
 
 class ReportTooLargeError(ValueError):
     """Raised when a report to be stored exceeds the per-revision size bound."""
+
+
+class UnknownPlanningSessionError(ValueError):
+    """No planning session with that id is owned by this user (same as missing)."""
+
+
+class PostPlanWorkspaceNotFoundError(ValueError):
+    """No post-plan workspace for this user and session. Wrong owner reads as missing."""
+
+
+class StalePostPlanWorkspaceError(ValueError):
+    """The workspace is no longer at the version the caller expected."""
+
+    def __init__(self, message: str, *, current_version: int | None = None) -> None:
+        super().__init__(message)
+        self.current_version = current_version
+
+
+class StalePostPlanBaseError(ValueError):
+    """The proposal was made against a result that is no longer the current one."""
+
+
+class PostPlanOperationConflictError(ValueError):
+    """An event id was reused for a materially different post-plan request."""
+
+
+class PostPlanOperationInProgressError(ValueError):
+    """Another operation on this workspace is still reserved (running)."""
+
+
+class PostPlanOperationNotReservedError(ValueError):
+    """The operation is not (or is no longer) reserved: a late or duplicate completion."""
+
+
+class PostPlanProposalStateError(ValueError):
+    """The proposal is unknown, or already has its single terminal decision."""
+
+
+class PostPlanQuotaError(ValueError):
+    """A per-session post-plan budget is exhausted."""
+
+    def __init__(self, quota: str, message: str) -> None:
+        super().__init__(message)
+        self.quota = quota
 
 
 TripOperation = Literal["save", "append_revision", "delete", "rerun_complete"]
@@ -499,6 +552,16 @@ class AccountStore:
         of its own ``expires_at``.
         """
         with Session(self._engine) as session:
+            expired = list(
+                session.scalars(
+                    select(PlanningSessionRow.id).where(
+                        PlanningSessionRow.expires_at < now.isoformat(),
+                        PlanningSessionRow.saved_trip_id.is_(None),
+                    )
+                )
+            )
+            # A workspace follows its parent session: it is swept with it.
+            self._delete_post_plan_rows(session, user_id=None, session_ids=expired)
             result = session.execute(
                 delete(PlanningSessionRow).where(
                     PlanningSessionRow.expires_at < now.isoformat(),
@@ -1534,6 +1597,15 @@ class AccountStore:
                 )
                 # A planning session attached to the trip is retained only *with*
                 # the trip (its expiry exemption); it dies with it.
+                attached = list(
+                    session.scalars(
+                        select(PlanningSessionRow.id).where(
+                            PlanningSessionRow.user_id == user_id,
+                            PlanningSessionRow.saved_trip_id == trip_id,
+                        )
+                    )
+                )
+                self._delete_post_plan_rows(session, user_id=None, session_ids=attached)
                 session.execute(
                     delete(PlanningSessionRow).where(
                         PlanningSessionRow.user_id == user_id,
@@ -1574,7 +1646,586 @@ class AccountStore:
                 return bool(json.loads(prior)["removed"])
         return removed
 
+    # -- post-plan workspace (CP4) -------------------------------------------- #
+    #
+    # Every method here runs in one BEGIN IMMEDIATE transaction, checks idempotent
+    # replay before any version or quota check, and never inserts when a parent row is
+    # missing: a late completion can therefore neither overwrite newer state nor
+    # recreate data that was deleted while it ran.
+
+    @staticmethod
+    def _workspace_row(
+        session: Session, user_id: str, session_id: str
+    ) -> PostPlanWorkspaceRow:
+        row = session.get(PostPlanWorkspaceRow, session_id)
+        if row is None or row.user_id != user_id:
+            raise PostPlanWorkspaceNotFoundError("no post-plan workspace for this session")
+        return row
+
+    @staticmethod
+    def _operation_key(operation: PostPlanOperation) -> str:
+        return _event_key(operation.event_source, operation.event_id)
+
+    @staticmethod
+    def _store_operation(row: PostPlanOperationRow, operation: PostPlanOperation) -> None:
+        row.status = operation.status
+        row.proposal_id = operation.proposal_id
+        row.decision = operation.decision
+        row.action_kind = operation.action_kind
+        row.interpreter_calls = operation.interpreter_calls
+        row.planner_calls = operation.planner_calls
+        row.provider_calls = operation.provider_calls
+        row.payload = operation.model_dump_json()
+
+    @staticmethod
+    def _new_operation_row(operation: PostPlanOperation) -> PostPlanOperationRow:
+        row = PostPlanOperationRow(
+            user_id=operation.user_id,
+            event_key=_event_key(operation.event_source, operation.event_id),
+            operation_id=operation.operation_id,
+            session_id=operation.session_id,
+            kind=operation.kind,
+            status=operation.status,
+            proposal_id=operation.proposal_id,
+            decision=operation.decision,
+            action_kind=operation.action_kind,
+            interpreter_calls=operation.interpreter_calls,
+            planner_calls=operation.planner_calls,
+            provider_calls=operation.provider_calls,
+            payload=operation.model_dump_json(),
+        )
+        return row
+
+    def get_post_plan_workspace(
+        self, *, user_id: str, session_id: str
+    ) -> PostPlanWorkspaceSnapshot | None:
+        with Session(self._engine) as session:
+            row = session.get(PostPlanWorkspaceRow, session_id)
+            if row is None or row.user_id != user_id:
+                return None
+            return PostPlanWorkspaceSnapshot.model_validate_json(row.payload)
+
+    def get_post_plan_result(
+        self, *, user_id: str, session_id: str, result_id: str
+    ) -> PostPlanResult | None:
+        """One accepted report, only if it belongs to this user's session."""
+        with Session(self._engine) as session:
+            row = session.get(PostPlanResultRow, result_id)
+            if row is None or row.user_id != user_id or row.session_id != session_id:
+                return None
+            return PostPlanResult.model_validate_json(row.payload)
+
+    def get_post_plan_operation(
+        self,
+        *,
+        user_id: str,
+        event_id: str,
+        event_source: Literal["client", "system"] = "client",
+    ) -> PostPlanOperation | None:
+        with Session(self._engine) as session:
+            row = session.get(PostPlanOperationRow, (user_id, _event_key(event_source, event_id)))
+            return None if row is None else PostPlanOperation.model_validate_json(row.payload)
+
+    def get_post_plan_operation_by_id(
+        self, *, user_id: str, session_id: str, operation_id: str
+    ) -> PostPlanOperation | None:
+        with Session(self._engine) as session:
+            row = session.scalar(
+                select(PostPlanOperationRow).where(
+                    PostPlanOperationRow.operation_id == operation_id,
+                    PostPlanOperationRow.user_id == user_id,
+                    PostPlanOperationRow.session_id == session_id,
+                )
+            )
+            return None if row is None else PostPlanOperation.model_validate_json(row.payload)
+
+    def post_plan_operations(self, *, user_id: str, session_id: str) -> list[PostPlanOperation]:
+        """This session's operations, oldest first."""
+        with Session(self._engine) as session:
+            rows = session.scalars(
+                select(PostPlanOperationRow).where(
+                    PostPlanOperationRow.user_id == user_id,
+                    PostPlanOperationRow.session_id == session_id,
+                )
+            ).all()
+            operations = [PostPlanOperation.model_validate_json(r.payload) for r in rows]
+        return sorted(operations, key=lambda o: (o.created_at, o.operation_id))
+
+    def create_post_plan_workspace(
+        self,
+        *,
+        workspace: PostPlanWorkspaceSnapshot,
+        result: PostPlanResult,
+        operation: PostPlanOperation,
+    ) -> tuple[PostPlanWorkspaceSnapshot, bool]:
+        """Create a session's workspace with its first accepted result, exactly once.
+
+        Returns ``(workspace, created)``. A replayed event, or a second initialisation
+        of a session that already has a workspace, returns the existing one untouched.
+        """
+        user_id, session_id = workspace.user_id, workspace.session_id
+        if not (
+            result.user_id == user_id == operation.user_id
+            and result.session_id == session_id == operation.session_id
+            and workspace.current_result_id == result.result_id
+            and operation.kind == "initialize"
+        ):
+            raise ValueError("workspace, first result and initialise operation must agree")
+        self._check_report_size(result.report_json)
+        with Session(self._engine) as session:
+            self._begin_write(session)
+            prior = session.get(PostPlanOperationRow, (user_id, self._operation_key(operation)))
+            if prior is not None:
+                if PostPlanOperation.model_validate_json(prior.payload).fingerprint != (
+                    operation.fingerprint
+                ):
+                    raise PostPlanOperationConflictError(
+                        f"event {operation.event_id} was already used for a different request"
+                    )
+                existing = self._workspace_row(session, user_id, session_id)
+                return PostPlanWorkspaceSnapshot.model_validate_json(existing.payload), False
+            current = session.get(PostPlanWorkspaceRow, session_id)
+            if current is not None:
+                if current.user_id != user_id:
+                    raise UnknownPlanningSessionError(f"no planning session {session_id}")
+                return PostPlanWorkspaceSnapshot.model_validate_json(current.payload), False
+            self._require_user(session, user_id)
+            owner = session.get(PlanningSessionRow, session_id)
+            if owner is None or owner.user_id != user_id:
+                raise UnknownPlanningSessionError(f"no planning session {session_id}")
+            session.add(
+                PostPlanResultRow(
+                    result_id=result.result_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    report_sha256=result.report_sha256,
+                    payload=result.model_dump_json(),
+                )
+            )
+            session.add(
+                PostPlanWorkspaceRow(
+                    session_id=session_id,
+                    user_id=user_id,
+                    version=workspace.version,
+                    current_result_id=workspace.current_result_id,
+                    expires_at=workspace.expires_at.isoformat(),
+                    saved_trip_id=workspace.saved_trip_id,
+                    payload=workspace.model_dump_json(),
+                )
+            )
+            first = operation.model_copy(
+                update={"status": "complete", "result_id": result.result_id}
+            )
+            session.add(self._new_operation_row(first))
+            session.commit()
+        return workspace, True
+
+    def reserve_post_plan_operation(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        operation: PostPlanOperation,
+        expected_workspace_version: int,
+        expected_session_version: int,
+    ) -> PostPlanOperation:
+        """Reserve an operation (and its call budget) before anything is dispatched.
+
+        In one write transaction: replay an identical earlier request (before any stale
+        check), verify the workspace and session versions, refuse a second concurrent
+        operation, enforce the per-session budgets, record the single terminal decision
+        on the proposal an approve/reject targets, and advance the workspace version.
+        """
+        if operation.user_id != user_id or operation.session_id != session_id:
+            raise ValueError("operation identity does not match the request")
+        if operation.status != "reserved":
+            raise ValueError("only a reserved operation can be reserved")
+        with Session(self._engine) as session:
+            self._begin_write(session)
+            prior = session.get(PostPlanOperationRow, (user_id, self._operation_key(operation)))
+            if prior is not None:
+                stored = PostPlanOperation.model_validate_json(prior.payload)
+                if stored.fingerprint != operation.fingerprint:
+                    raise PostPlanOperationConflictError(
+                        f"event {operation.event_id} was already used for a different request"
+                    )
+                return stored
+            workspace_row = self._workspace_row(session, user_id, session_id)
+            if workspace_row.version != expected_workspace_version:
+                raise StalePostPlanWorkspaceError(
+                    f"workspace is at version {workspace_row.version}, not "
+                    f"{expected_workspace_version}",
+                    current_version=workspace_row.version,
+                )
+            owner = session.get(PlanningSessionRow, session_id)
+            if owner is None or owner.user_id != user_id:
+                raise UnknownPlanningSessionError(f"no planning session {session_id}")
+            if owner.version != expected_session_version:
+                raise StalePlanningSessionError(
+                    f"planning session {session_id} is at version {owner.version}, not "
+                    f"{expected_session_version}"
+                )
+            running = session.scalar(
+                select(func.count())
+                .select_from(PostPlanOperationRow)
+                .where(
+                    PostPlanOperationRow.user_id == user_id,
+                    PostPlanOperationRow.session_id == session_id,
+                    PostPlanOperationRow.status == "reserved",
+                )
+            )
+            if int(running or 0) > 0:
+                raise PostPlanOperationInProgressError(
+                    "another operation on this workspace is still running"
+                )
+            self._enforce_post_plan_budgets(session, user_id, session_id, operation)
+            if operation.kind in {"approve", "reject"}:
+                self._claim_proposal(session, user_id, session_id, operation, workspace_row)
+            snapshot = PostPlanWorkspaceSnapshot.model_validate_json(workspace_row.payload)
+            advanced = snapshot.model_copy(
+                update={"version": snapshot.version + 1, "updated_at": operation.created_at}
+            )
+            workspace_row.version = advanced.version
+            workspace_row.payload = advanced.model_dump_json()
+            reserved = operation.model_copy(
+                update={
+                    "reserved_workspace_version": advanced.version,
+                    "expected_workspace_version": expected_workspace_version,
+                    "expected_session_version": expected_session_version,
+                    "base_result_id": operation.base_result_id or snapshot.current_result_id,
+                }
+            )
+            session.add(self._new_operation_row(reserved))
+            session.commit()
+        return reserved
+
+    @staticmethod
+    def _enforce_post_plan_budgets(
+        session: Session, user_id: str, session_id: str, operation: PostPlanOperation
+    ) -> None:
+        scope = (
+            PostPlanOperationRow.user_id == user_id,
+            PostPlanOperationRow.session_id == session_id,
+        )
+        records = int(
+            session.scalar(select(func.count()).select_from(PostPlanOperationRow).where(*scope))
+            or 0
+        )
+        if records >= MAX_POST_PLAN_RECORDS_PER_SESSION:
+            raise PostPlanQuotaError("records", "this session has reached its post-plan record cap")
+        if operation.interpreter_calls:
+            used = int(
+                session.scalar(
+                    select(
+                        func.coalesce(func.sum(PostPlanOperationRow.interpreter_calls), 0)
+                    ).where(*scope)
+                )
+                or 0
+            )
+            if used + operation.interpreter_calls > MAX_INTERPRETER_CALLS_PER_SESSION:
+                raise PostPlanQuotaError(
+                    "interpreter_calls", "this session has used its interpretation budget"
+                )
+        if operation.kind == "approve" and operation.action_kind == "scoped_itinerary_replan":
+            replans = int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(PostPlanOperationRow)
+                    .where(
+                        *scope,
+                        PostPlanOperationRow.kind == "approve",
+                        PostPlanOperationRow.action_kind == "scoped_itinerary_replan",
+                    )
+                )
+                or 0
+            )
+            if replans >= MAX_SCOPED_REPLANS_PER_SESSION:
+                raise PostPlanQuotaError(
+                    "scoped_replans", "this session has used its scoped-replan budget"
+                )
+
+    @staticmethod
+    def _claim_proposal(
+        session: Session,
+        user_id: str,
+        session_id: str,
+        operation: PostPlanOperation,
+        workspace_row: PostPlanWorkspaceRow,
+    ) -> None:
+        """Record the proposal's single terminal decision (approve or reject), atomically."""
+        proposal_row = session.scalar(
+            select(PostPlanOperationRow).where(
+                PostPlanOperationRow.operation_id == operation.proposal_id,
+                PostPlanOperationRow.user_id == user_id,
+                PostPlanOperationRow.session_id == session_id,
+                PostPlanOperationRow.kind == "propose",
+            )
+        )
+        if proposal_row is None:
+            raise PostPlanProposalStateError("no such proposal")
+        proposal = PostPlanOperation.model_validate_json(proposal_row.payload)
+        if proposal.status != "complete" or proposal.decision != "pending":
+            raise PostPlanProposalStateError("this proposal has already been decided")
+        if proposal.base_result_id != workspace_row.current_result_id:
+            raise StalePostPlanBaseError("the plan changed since this proposal was made")
+        decision: Literal["approved", "rejected"] = (
+            "approved" if operation.kind == "approve" else "rejected"
+        )
+        decided = proposal.model_copy(update={"decision": decision})
+        proposal_row.decision = decision
+        proposal_row.payload = decided.model_dump_json()
+
+    def commit_post_plan_operation(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        event_id: str,
+        event_source: Literal["client", "system"] = "client",
+        fingerprint: str,
+        expected_workspace_version: int,
+        workspace: PostPlanWorkspaceSnapshot,
+        session: PlanningSessionSnapshot,
+        report_json: str | None,
+        outcome_json: str = "{}",
+        updated_at: datetime | None = None,
+    ) -> PostPlanOperation:
+        """Complete a reserved operation: workspace, session, result and outcome, atomically.
+
+        ``expected_workspace_version`` is the version the reservation returned. If anything
+        else has happened to the workspace since (a recovery marking it interrupted, a
+        deletion, another writer) the commit fails and writes nothing, so a late
+        completion can never replace newer state. A duplicate completion of an already
+        complete operation returns it unchanged.
+        """
+        key = _event_key(event_source, event_id)
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            operation_row = db.get(PostPlanOperationRow, (user_id, key))
+            if operation_row is None or operation_row.session_id != session_id:
+                raise PostPlanOperationNotReservedError("no such operation")
+            operation = PostPlanOperation.model_validate_json(operation_row.payload)
+            if operation.fingerprint != fingerprint:
+                raise PostPlanOperationConflictError(
+                    f"event {event_id} was already used for a different request"
+                )
+            if operation.status == "complete":
+                return operation
+            if operation.status != "reserved":
+                raise PostPlanOperationNotReservedError(
+                    f"the operation is {operation.status}; a late completion cannot apply"
+                )
+            workspace_row = self._workspace_row(db, user_id, session_id)
+            if (
+                workspace_row.version != expected_workspace_version
+                or operation.reserved_workspace_version != expected_workspace_version
+            ):
+                raise StalePostPlanWorkspaceError(
+                    "the workspace changed while this operation ran",
+                    current_version=workspace_row.version,
+                )
+            if (
+                session.user_id != user_id
+                or session.id != session_id
+                or workspace.user_id != user_id
+                or workspace.session_id != session_id
+                or session.version != operation.expected_session_version + 1
+            ):
+                raise ValueError(
+                    "commit identity or session version does not match the reservation"
+                )
+            outcome = db.execute(
+                update(PlanningSessionRow)
+                .where(
+                    PlanningSessionRow.id == session_id,
+                    PlanningSessionRow.user_id == user_id,
+                    PlanningSessionRow.version == operation.expected_session_version,
+                )
+                .values(
+                    status=session.status,
+                    version=session.version,
+                    updated_at=session.updated_at.isoformat(),
+                    expires_at=session.expires_at.isoformat(),
+                    saved_trip_id=session.saved_trip_id,
+                    payload=session.model_dump_json(),
+                )
+            )
+            if outcome.rowcount != 1:  # type: ignore[attr-defined]
+                raise StalePlanningSessionError(
+                    f"planning session {session_id} changed while this operation ran"
+                )
+            result_id = workspace_row.current_result_id
+            if report_json is not None:
+                self._check_report_size(report_json)
+                result_id = workspace.current_result_id
+                if result_id == workspace_row.current_result_id:
+                    raise ValueError("a new report needs a new result id")
+                db.add(
+                    PostPlanResultRow(
+                        result_id=result_id,
+                        user_id=user_id,
+                        session_id=session_id,
+                        report_sha256=hashlib.sha256(report_json.encode("utf-8")).hexdigest(),
+                        payload=PostPlanResult(
+                            result_id=result_id,
+                            user_id=user_id,
+                            session_id=session_id,
+                            created_at=workspace.updated_at,
+                            report_sha256=hashlib.sha256(report_json.encode("utf-8")).hexdigest(),
+                            report_json=report_json,
+                        ).model_dump_json(),
+                    )
+                )
+            elif workspace.current_result_id != workspace_row.current_result_id:
+                raise ValueError("a commit without a report cannot change the current result")
+            committed = workspace.model_copy(update={"version": expected_workspace_version + 1})
+            workspace_row.version = committed.version
+            workspace_row.current_result_id = committed.current_result_id
+            workspace_row.expires_at = committed.expires_at.isoformat()
+            workspace_row.saved_trip_id = committed.saved_trip_id
+            workspace_row.payload = committed.model_dump_json()
+            finished = operation.model_copy(
+                update={
+                    "status": "complete",
+                    "result_id": result_id,
+                    "payload_json": outcome_json,
+                    "decision": "pending" if operation.kind == "propose" else operation.decision,
+                    "updated_at": updated_at or workspace.updated_at,
+                }
+            )
+            self._store_operation(operation_row, finished)
+            db.commit()
+        return finished
+
+    def fail_post_plan_operation(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        event_id: str,
+        event_source: Literal["client", "system"] = "client",
+        fingerprint: str,
+        expected_workspace_version: int,
+        error_code: str,
+        updated_at: datetime,
+        status: Literal["failed", "interrupted"] = "failed",
+    ) -> PostPlanOperation:
+        """End a reserved operation without a result. Its consumed budget is kept."""
+        key = _event_key(event_source, event_id)
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            operation_row = db.get(PostPlanOperationRow, (user_id, key))
+            if operation_row is None or operation_row.session_id != session_id:
+                raise PostPlanOperationNotReservedError("no such operation")
+            operation = PostPlanOperation.model_validate_json(operation_row.payload)
+            if operation.fingerprint != fingerprint:
+                raise PostPlanOperationConflictError("fingerprint does not match the operation")
+            if operation.status != "reserved":
+                return operation
+            workspace_row = self._workspace_row(db, user_id, session_id)
+            if workspace_row.version != expected_workspace_version:
+                raise StalePostPlanWorkspaceError(
+                    "the workspace changed while this operation ran",
+                    current_version=workspace_row.version,
+                )
+            snapshot = PostPlanWorkspaceSnapshot.model_validate_json(workspace_row.payload)
+            advanced = snapshot.model_copy(
+                update={"version": snapshot.version + 1, "updated_at": updated_at}
+            )
+            workspace_row.version = advanced.version
+            workspace_row.payload = advanced.model_dump_json()
+            ended = operation.model_copy(
+                update={"status": status, "error_code": error_code, "updated_at": updated_at}
+            )
+            self._store_operation(operation_row, ended)
+            db.commit()
+        return ended
+
+    def interrupt_stale_post_plan_operations(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        active_operation_ids: frozenset[str],
+        updated_at: datetime,
+    ) -> list[PostPlanOperation]:
+        """Mark reserved operations this process is not running as interrupted.
+
+        A reservation that outlived its worker (a restart) must never be dispatched
+        again. It keeps its consumed budget; the traveler retries with a *new* action.
+        """
+        interrupted: list[PostPlanOperation] = []
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            rows = db.scalars(
+                select(PostPlanOperationRow).where(
+                    PostPlanOperationRow.user_id == user_id,
+                    PostPlanOperationRow.session_id == session_id,
+                    PostPlanOperationRow.status == "reserved",
+                )
+            ).all()
+            stale = [
+                r for r in rows if r.operation_id not in active_operation_ids
+            ]
+            if not stale:
+                return []
+            workspace_row = self._workspace_row(db, user_id, session_id)
+            snapshot = PostPlanWorkspaceSnapshot.model_validate_json(workspace_row.payload)
+            for row in stale:
+                operation = PostPlanOperation.model_validate_json(row.payload)
+                ended = operation.model_copy(
+                    update={
+                        "status": "interrupted",
+                        "error_code": "OPERATION_INTERRUPTED",
+                        "updated_at": updated_at,
+                    }
+                )
+                self._store_operation(row, ended)
+                interrupted.append(ended)
+            advanced = snapshot.model_copy(
+                update={"version": snapshot.version + 1, "updated_at": updated_at}
+            )
+            workspace_row.version = advanced.version
+            workspace_row.payload = advanced.model_dump_json()
+            db.commit()
+        return interrupted
+
+    @staticmethod
+    def _delete_post_plan_rows(
+        session: Session, *, user_id: str | None, session_ids: list[str]
+    ) -> None:
+        """Hard-delete workspaces, results and operations for sessions (or a whole user)."""
+        for model in (PostPlanOperationRow, PostPlanResultRow, PostPlanWorkspaceRow):
+            if user_id is not None:
+                session.execute(delete(model).where(model.user_id == user_id))
+            elif session_ids:
+                session.execute(delete(model).where(model.session_id.in_(session_ids)))
+
     # -- privacy ------------------------------------------------------------ #
+
+    def _export_post_plan_workspaces(self, user_id: str) -> list[PostPlanWorkspaceSnapshot]:
+        with Session(self._engine) as db:
+            rows = db.scalars(
+                select(PostPlanWorkspaceRow).where(PostPlanWorkspaceRow.user_id == user_id)
+            ).all()
+            items = [PostPlanWorkspaceSnapshot.model_validate_json(r.payload) for r in rows]
+        return sorted(items, key=lambda w: w.session_id)
+
+    def _export_post_plan_results(self, user_id: str) -> list[PostPlanResult]:
+        with Session(self._engine) as db:
+            rows = db.scalars(
+                select(PostPlanResultRow).where(PostPlanResultRow.user_id == user_id)
+            ).all()
+            items = [PostPlanResult.model_validate_json(r.payload) for r in rows]
+        return sorted(items, key=lambda r: (r.session_id, r.created_at, r.result_id))
+
+    def _export_post_plan_operations(self, user_id: str) -> list[PostPlanOperation]:
+        with Session(self._engine) as db:
+            rows = db.scalars(
+                select(PostPlanOperationRow).where(PostPlanOperationRow.user_id == user_id)
+            ).all()
+            items = [PostPlanOperation.model_validate_json(r.payload) for r in rows]
+        return sorted(items, key=lambda o: (o.session_id, o.created_at, o.operation_id))
 
     def export_user(self, user_id: str, *, now: datetime) -> UserExport:
         """Every row held about a user, in the layer's deterministic order."""
@@ -1593,6 +2244,9 @@ class AccountStore:
             trips=trips,
             revisions=revisions,
             trip_mutation_events=self.trip_mutation_events(user_id),
+            post_plan_workspaces=self._export_post_plan_workspaces(user_id),
+            post_plan_results=self._export_post_plan_results(user_id),
+            post_plan_operations=self._export_post_plan_operations(user_id),
             travel_preferences=self.get_travel_preferences(user_id),
             planning_sessions=self.planning_session_snapshots(user_id),
             exported_at=now,
@@ -1632,6 +2286,7 @@ class AccountStore:
                     TravelPreferenceRow.user_id == user_id
                 )
             )
+            self._delete_post_plan_rows(session, user_id=user_id, session_ids=[])
             session.execute(
                 delete(PlanningSessionRow).where(
                     PlanningSessionRow.user_id == user_id

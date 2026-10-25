@@ -103,6 +103,49 @@ class TripMutationEventRow(AccountsBase):
     created_at: Mapped[str | None] = mapped_column(index=True, nullable=True)
 
 
+class PostPlanWorkspaceRow(AccountsBase):
+    """Current working state of a planning session (one row per session, CAS-updated)."""
+
+    __tablename__ = "post_plan_workspaces"
+    session_id: Mapped[str] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(index=True)
+    version: Mapped[int] = mapped_column()
+    current_result_id: Mapped[str] = mapped_column()
+    expires_at: Mapped[str] = mapped_column(index=True)  # ISO datetime, for sweeping
+    saved_trip_id: Mapped[str | None] = mapped_column(index=True, nullable=True)
+    payload: Mapped[str] = mapped_column(Text)
+
+
+class PostPlanResultRow(AccountsBase):
+    """An accepted report. Insert-only: the store exposes no update or delete for it."""
+
+    __tablename__ = "post_plan_results"
+    result_id: Mapped[str] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(index=True)
+    session_id: Mapped[str] = mapped_column(index=True)
+    report_sha256: Mapped[str] = mapped_column()
+    payload: Mapped[str] = mapped_column(Text)
+
+
+class PostPlanOperationRow(AccountsBase):
+    """A reservation / terminal outcome. ``(user_id, event_key)`` is the idempotency key."""
+
+    __tablename__ = "post_plan_operations"
+    user_id: Mapped[str] = mapped_column(primary_key=True)
+    event_key: Mapped[str] = mapped_column(primary_key=True)
+    operation_id: Mapped[str] = mapped_column(unique=True, index=True)
+    session_id: Mapped[str] = mapped_column(index=True)
+    kind: Mapped[str] = mapped_column(index=True)
+    status: Mapped[str] = mapped_column(index=True)
+    proposal_id: Mapped[str | None] = mapped_column(index=True, nullable=True)
+    decision: Mapped[str | None] = mapped_column(nullable=True)
+    action_kind: Mapped[str | None] = mapped_column(nullable=True)
+    interpreter_calls: Mapped[int] = mapped_column(default=0)
+    planner_calls: Mapped[int] = mapped_column(default=0)
+    provider_calls: Mapped[int] = mapped_column(default=0)
+    payload: Mapped[str] = mapped_column(Text)
+
+
 class SavedTripRow(AccountsBase):
     __tablename__ = "saved_trips"
     id: Mapped[str] = mapped_column(primary_key=True)
