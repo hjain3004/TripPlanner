@@ -524,7 +524,13 @@ function refreshSummary(record: MswTripRecord): void {
 function mswTripDetail(record: MswTripRecord): TripDetailOut {
   return {
     ...record.summary,
-    revisions: record.revisions.map(({ report: _report, ...summary }) => summary),
+    revisions: record.revisions.map((r) => ({
+      revision: r.revision,
+      computed_at: r.computed_at,
+      trace_id: r.trace_id,
+      schema_version: r.schema_version,
+      is_current_schema: r.is_current_schema,
+    })),
   };
 }
 
