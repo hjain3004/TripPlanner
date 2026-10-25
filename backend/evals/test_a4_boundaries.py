@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+import typing
 from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
@@ -321,3 +322,76 @@ def test_the_legacy_unauthenticated_plan_has_no_saved_trip_side_effect(tmp_path:
     assert job["report"]["trip_spec"]["wallet"]["card_ids"] == ["hdfc-infinia"]  # caller-supplied
     assert owner.get("/account/trips").json() == []
     assert store.trip_mutation_events(owner.get("/auth/me").json()["id"]) == []
+
+
+# --- the contract tells the truth about failures ---------------------------------------------- #
+
+DECLARED_ERRORS: dict[tuple[str, str], set[str]] = {
+    ("POST", "/account/trips"): {"401", "403", "404", "409", "410", "413", "422", "503"},
+    ("GET", "/account/trips"): {"401", "503"},
+    ("GET", "/account/trips/{trip_id}"): {"401", "404", "422", "503"},
+    ("DELETE", "/account/trips/{trip_id}"): {"401", "403", "404", "409", "422", "503"},
+    ("POST", "/account/trips/{trip_id}/revisions"): {
+        "401", "403", "404", "409", "410", "413", "422", "503",
+    },
+    ("GET", "/account/trips/{trip_id}/revisions/{revision}"): {"401", "404", "422", "503"},
+    ("POST", "/account/trips/{trip_id}/reruns"): {"401", "403", "404", "409", "422", "503"},
+    ("GET", "/account/trips/{trip_id}/reruns/{job_id}"): {"401", "404", "422", "503"},
+}
+
+
+def _declared(method: str, path: str) -> dict[str, Any]:
+    operation = app.openapi()["paths"][path][method.lower()]
+    return {k: v for k, v in operation["responses"].items() if not k.startswith("2")}
+
+
+def test_every_route_declares_exactly_its_failure_statuses() -> None:
+    assert set(DECLARED_ERRORS) == EXPECTED_ROUTES
+    for (method, path), statuses in DECLARED_ERRORS.items():
+        assert set(_declared(method, path)) == statuses, (method, path)
+
+
+def test_declared_failure_bodies_use_the_real_error_shapes() -> None:
+    schemas = app.openapi()["components"]["schemas"]
+    assert {"SavedTripErrorResponse", "AuthErrorResponse"} <= set(schemas)
+    # The code field is a closed enum, so a generated client can switch on it.
+    code = schemas["ApiErrorBody"]["properties"]["code"]
+    assert set(code["enum"]) == set(typing.get_args(saved_trips.SavedTripErrorCode))
+    assert len(code["enum"]) == 19
+    for (method, path) in DECLARED_ERRORS:
+        for status, response in _declared(method, path).items():
+            ref = str(response["content"]["application/json"]["schema"])
+            if status in {"401", "403"}:
+                assert "AuthErrorResponse" in ref, (method, path, status)
+            elif status == "422":
+                assert "SavedTripErrorResponse" in ref and "RequestValidationErrorResponse" in ref
+            else:
+                assert "SavedTripErrorResponse" in ref, (method, path, status)
+
+
+def test_real_failures_validate_against_the_declared_models(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from api.saved_trips import (
+        AuthErrorResponse,
+        RequestValidationErrorResponse,
+        SavedTripErrorResponse,
+    )
+
+    client, _store, session, trip_id = _saved(tmp_path, monkeypatch)
+    headers = csrf(client)
+    body = {"session_id": session["id"], "client_event_id": "again"}
+
+    already_saved = client.post("/account/trips", headers=headers, json=body)
+    not_found = client.get("/account/trips/no-such-trip")
+    invalid_body = client.post("/account/trips", headers=headers, json={"nope": 1})
+    csrf_rejected = client.post("/account/trips", json=body)
+    with TestClient(app) as anonymous:
+        unauthenticated = anonymous.get("/account/trips")
+
+    parsed = SavedTripErrorResponse.model_validate(already_saved.json())
+    assert parsed.detail.code == "SESSION_ALREADY_SAVED" and parsed.detail.trip_id == trip_id
+    assert SavedTripErrorResponse.model_validate(not_found.json()).detail.code == "TRIP_NOT_FOUND"
+    assert RequestValidationErrorResponse.model_validate(invalid_body.json()).detail
+    assert AuthErrorResponse.model_validate(csrf_rejected.json()).detail
+    assert AuthErrorResponse.model_validate(unauthenticated.json()).detail == "Not authenticated"

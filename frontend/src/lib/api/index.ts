@@ -41,6 +41,11 @@ export {
   rerunStatusAccountTripsTripIdRerunsJobIdGet,
 } from "./generated/sdk.gen";
 export type {
+  ApiErrorBody,
+  AuthErrorResponse,
+  RequestValidationErrorResponse,
+  SavedTripErrorResponse,
+  ValidationIssue,
   AppendRevisionIn,
   RerunErrorOut,
   RerunIn,

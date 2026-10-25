@@ -1014,6 +1014,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -1045,12 +1065,90 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/AuthErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Content Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SavedTripErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                    }
+                  ],
+                  "title": "Response 422 Save Trip Account Trips Post"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
                 }
               }
             }
@@ -1098,15 +1196,93 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/AuthErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SavedTripErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                    }
+                  ],
+                  "title": "Response 422 Append Revision Account Trips  Trip Id  Revisions Post"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       }
@@ -1140,15 +1316,53 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/AuthErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SavedTripErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                    }
+                  ],
+                  "title": "Response 422 Get Trip Account Trips  Trip Id  Get"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       },
@@ -1192,15 +1406,73 @@
           "204": {
             "description": "Successful Response"
           },
-          "422": {
-            "description": "Validation Error",
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/AuthErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SavedTripErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                    }
+                  ],
+                  "title": "Response 422 Delete Trip Account Trips  Trip Id  Delete"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       }
@@ -1244,15 +1516,53 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/AuthErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SavedTripErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                    }
+                  ],
+                  "title": "Response 422 Get Revision Account Trips  Trip Id  Revisions  Revision  Get"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       }
@@ -1297,15 +1607,73 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/AuthErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SavedTripErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                    }
+                  ],
+                  "title": "Response 422 Start Rerun Account Trips  Trip Id  Reruns Post"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       }
@@ -1349,15 +1717,53 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/AuthErrorResponse"
                 }
               }
-            }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SavedTripErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                    }
+                  ],
+                  "title": "Response 422 Rerun Status Account Trips  Trip Id  Reruns  Job Id  Get"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       }
@@ -1957,6 +2363,58 @@
         ],
         "title": "AnswerRequest"
       },
+      "ApiErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "IDEMPOTENCY_KEY_REUSED",
+              "PLAN_RESULT_UNAVAILABLE",
+              "REPORT_TOO_LARGE",
+              "RERUN_IN_PROGRESS",
+              "RERUN_NOT_FOUND",
+              "REVISION_LIMIT_REACHED",
+              "REVISION_NOT_FOUND",
+              "SAVED_TRIP_INVALID",
+              "SAVED_TRIPS_UNAVAILABLE",
+              "SESSION_ALREADY_SAVED",
+              "SESSION_EXPIRED",
+              "SESSION_NOT_ATTACHED",
+              "SESSION_NOT_CONFIRMED",
+              "SESSION_NOT_FOUND",
+              "STALE_SESSION",
+              "TRIP_LIMIT_REACHED",
+              "TRIP_NOT_FOUND",
+              "TRIP_NOT_RERUNNABLE",
+              "TRIP_REVISION_CONFLICT"
+            ],
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ApiErrorBody",
+        "description": "The ``detail`` of every typed saved-trip failure.\n\n``code`` is a closed set, so a generated client can switch on it exhaustively.\n``trip_id`` is present only on ``SESSION_ALREADY_SAVED``."
+      },
       "AppendRevisionIn": {
         "properties": {
           "session_id": {
@@ -2005,6 +2463,21 @@
           "stacking_class"
         ],
         "title": "AppliedOffer"
+      },
+      "AuthErrorResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "AuthErrorResponse",
+        "description": "401 (no or expired session) and 403 (CSRF check) carry a plain-string detail."
       },
       "AwardChartEntry": {
         "properties": {
@@ -5899,6 +6372,23 @@
         ],
         "title": "ReplaceItem"
       },
+      "RequestValidationErrorResponse": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssue"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "RequestValidationErrorResponse",
+        "description": "FastAPI's own 422 for a malformed request (before any handler runs)."
+      },
       "RerunErrorOut": {
         "properties": {
           "code": {
@@ -6372,6 +6862,20 @@
           "revision"
         ],
         "title": "SavedTripCreatedOut"
+      },
+      "SavedTripErrorResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/ApiErrorBody"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "SavedTripErrorResponse",
+        "description": "A typed saved-trip failure as it goes over the wire (FastAPI wraps it in ``detail``)."
       },
       "SectionFreshness": {
         "properties": {
@@ -7777,6 +8281,39 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "ValidationIssue": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Loc"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Msg"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationIssue"
       },
       "VersionRequest": {
         "properties": {

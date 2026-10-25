@@ -120,6 +120,29 @@ export type AnswerRequest = {
 };
 
 /**
+ * ApiErrorBody
+ *
+ * The ``detail`` of every typed saved-trip failure.
+ *
+ * ``code`` is a closed set, so a generated client can switch on it exhaustively.
+ * ``trip_id`` is present only on ``SESSION_ALREADY_SAVED``.
+ */
+export type ApiErrorBody = {
+    /**
+     * Code
+     */
+    code: 'IDEMPOTENCY_KEY_REUSED' | 'PLAN_RESULT_UNAVAILABLE' | 'REPORT_TOO_LARGE' | 'RERUN_IN_PROGRESS' | 'RERUN_NOT_FOUND' | 'REVISION_LIMIT_REACHED' | 'REVISION_NOT_FOUND' | 'SAVED_TRIP_INVALID' | 'SAVED_TRIPS_UNAVAILABLE' | 'SESSION_ALREADY_SAVED' | 'SESSION_EXPIRED' | 'SESSION_NOT_ATTACHED' | 'SESSION_NOT_CONFIRMED' | 'SESSION_NOT_FOUND' | 'STALE_SESSION' | 'TRIP_LIMIT_REACHED' | 'TRIP_NOT_FOUND' | 'TRIP_NOT_RERUNNABLE' | 'TRIP_REVISION_CONFLICT';
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Trip Id
+     */
+    trip_id?: string | null;
+};
+
+/**
  * AppendRevisionIn
  */
 export type AppendRevisionIn = {
@@ -149,6 +172,18 @@ export type AppliedOffer = {
      * Stacking Class
      */
     stacking_class: 'bank_offer' | 'coupon' | 'card_linked';
+};
+
+/**
+ * AuthErrorResponse
+ *
+ * 401 (no or expired session) and 403 (CSRF check) carry a plain-string detail.
+ */
+export type AuthErrorResponse = {
+    /**
+     * Detail
+     */
+    detail: string;
 };
 
 /**
@@ -2140,6 +2175,18 @@ export type ReplaceItem = {
 };
 
 /**
+ * RequestValidationErrorResponse
+ *
+ * FastAPI's own 422 for a malformed request (before any handler runs).
+ */
+export type RequestValidationErrorResponse = {
+    /**
+     * Detail
+     */
+    detail: Array<ValidationIssue>;
+};
+
+/**
  * RerunErrorOut
  */
 export type RerunErrorOut = {
@@ -2407,6 +2454,15 @@ export type SaveTripIn = {
 export type SavedTripCreatedOut = {
     trip: TripSummaryOut;
     revision: RevisionOut;
+};
+
+/**
+ * SavedTripErrorResponse
+ *
+ * A typed saved-trip failure as it goes over the wire (FastAPI wraps it in ``detail``).
+ */
+export type SavedTripErrorResponse = {
+    detail: ApiErrorBody;
 };
 
 /**
@@ -3173,6 +3229,24 @@ export type ValidationError = {
 };
 
 /**
+ * ValidationIssue
+ */
+export type ValidationIssue = {
+    /**
+     * Loc
+     */
+    loc: Array<string | number>;
+    /**
+     * Msg
+     */
+    msg: string;
+    /**
+     * Type
+     */
+    type: string;
+};
+
+/**
  * VersionRequest
  */
 export type VersionRequest = {
@@ -3927,6 +4001,19 @@ export type ListTripsAccountTripsGetData = {
     url: '/account/trips';
 };
 
+export type ListTripsAccountTripsGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
+};
+
+export type ListTripsAccountTripsGetError = ListTripsAccountTripsGetErrors[keyof ListTripsAccountTripsGetErrors];
+
 export type ListTripsAccountTripsGetResponses = {
     /**
      * Response List Trips Account Trips Get
@@ -3947,9 +4034,39 @@ export type SaveTripAccountTripsPostData = {
 
 export type SaveTripAccountTripsPostErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: AuthErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Conflict
+     */
+    409: SavedTripErrorResponse;
+    /**
+     * Gone
+     */
+    410: SavedTripErrorResponse;
+    /**
+     * Content Too Large
+     */
+    413: SavedTripErrorResponse;
+    /**
+     * Response 422 Save Trip Account Trips Post
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
 };
 
 export type SaveTripAccountTripsPostError = SaveTripAccountTripsPostErrors[keyof SaveTripAccountTripsPostErrors];
@@ -3977,9 +4094,39 @@ export type AppendRevisionAccountTripsTripIdRevisionsPostData = {
 
 export type AppendRevisionAccountTripsTripIdRevisionsPostErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: AuthErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Conflict
+     */
+    409: SavedTripErrorResponse;
+    /**
+     * Gone
+     */
+    410: SavedTripErrorResponse;
+    /**
+     * Content Too Large
+     */
+    413: SavedTripErrorResponse;
+    /**
+     * Response 422 Append Revision Account Trips  Trip Id  Revisions Post
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
 };
 
 export type AppendRevisionAccountTripsTripIdRevisionsPostError = AppendRevisionAccountTripsTripIdRevisionsPostErrors[keyof AppendRevisionAccountTripsTripIdRevisionsPostErrors];
@@ -4012,9 +4159,31 @@ export type DeleteTripAccountTripsTripIdDeleteData = {
 
 export type DeleteTripAccountTripsTripIdDeleteErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: AuthErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Conflict
+     */
+    409: SavedTripErrorResponse;
+    /**
+     * Response 422 Delete Trip Account Trips  Trip Id  Delete
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
 };
 
 export type DeleteTripAccountTripsTripIdDeleteError = DeleteTripAccountTripsTripIdDeleteErrors[keyof DeleteTripAccountTripsTripIdDeleteErrors];
@@ -4042,9 +4211,23 @@ export type GetTripAccountTripsTripIdGetData = {
 
 export type GetTripAccountTripsTripIdGetErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Response 422 Get Trip Account Trips  Trip Id  Get
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
 };
 
 export type GetTripAccountTripsTripIdGetError = GetTripAccountTripsTripIdGetErrors[keyof GetTripAccountTripsTripIdGetErrors];
@@ -4076,9 +4259,23 @@ export type GetRevisionAccountTripsTripIdRevisionsRevisionGetData = {
 
 export type GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Response 422 Get Revision Account Trips  Trip Id  Revisions  Revision  Get
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
 };
 
 export type GetRevisionAccountTripsTripIdRevisionsRevisionGetError = GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors[keyof GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors];
@@ -4106,9 +4303,31 @@ export type StartRerunAccountTripsTripIdRerunsPostData = {
 
 export type StartRerunAccountTripsTripIdRerunsPostErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: AuthErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Conflict
+     */
+    409: SavedTripErrorResponse;
+    /**
+     * Response 422 Start Rerun Account Trips  Trip Id  Reruns Post
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
 };
 
 export type StartRerunAccountTripsTripIdRerunsPostError = StartRerunAccountTripsTripIdRerunsPostErrors[keyof StartRerunAccountTripsTripIdRerunsPostErrors];
@@ -4140,9 +4359,23 @@ export type RerunStatusAccountTripsTripIdRerunsJobIdGetData = {
 
 export type RerunStatusAccountTripsTripIdRerunsJobIdGetErrors = {
     /**
-     * Validation Error
+     * Unauthorized
      */
-    422: HttpValidationError;
+    401: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Response 422 Rerun Status Account Trips  Trip Id  Reruns  Job Id  Get
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
 };
 
 export type RerunStatusAccountTripsTripIdRerunsJobIdGetError = RerunStatusAccountTripsTripIdRerunsJobIdGetErrors[keyof RerunStatusAccountTripsTripIdRerunsJobIdGetErrors];

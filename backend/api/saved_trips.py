@@ -67,15 +67,92 @@ TripTitle = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1
 # --------------------------------------------------------------------------- #
 
 
-class ApiErrorBody(BaseModel):
-    """The ``detail`` of every typed saved-trip failure."""
+SavedTripErrorCode = Literal[
+    "IDEMPOTENCY_KEY_REUSED",
+    "PLAN_RESULT_UNAVAILABLE",
+    "REPORT_TOO_LARGE",
+    "RERUN_IN_PROGRESS",
+    "RERUN_NOT_FOUND",
+    "REVISION_LIMIT_REACHED",
+    "REVISION_NOT_FOUND",
+    "SAVED_TRIP_INVALID",
+    "SAVED_TRIPS_UNAVAILABLE",
+    "SESSION_ALREADY_SAVED",
+    "SESSION_EXPIRED",
+    "SESSION_NOT_ATTACHED",
+    "SESSION_NOT_CONFIRMED",
+    "SESSION_NOT_FOUND",
+    "STALE_SESSION",
+    "TRIP_LIMIT_REACHED",
+    "TRIP_NOT_FOUND",
+    "TRIP_NOT_RERUNNABLE",
+    "TRIP_REVISION_CONFLICT",
+]
 
-    code: str
+
+class ApiErrorBody(BaseModel):
+    """The ``detail`` of every typed saved-trip failure.
+
+    ``code`` is a closed set, so a generated client can switch on it exhaustively.
+    ``trip_id`` is present only on ``SESSION_ALREADY_SAVED``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: SavedTripErrorCode
     message: str
     trip_id: str | None = None
 
 
-def _error(status_code: int, code: str, message: str, **extra: str) -> HTTPException:
+class SavedTripErrorResponse(BaseModel):
+    """A typed saved-trip failure as it goes over the wire (FastAPI wraps it in ``detail``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    detail: ApiErrorBody
+
+
+class AuthErrorResponse(BaseModel):
+    """401 (no or expired session) and 403 (CSRF check) carry a plain-string detail."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    detail: str
+
+
+class ValidationIssue(BaseModel):
+    loc: list[str | int]
+    msg: str
+    type: str
+
+
+class RequestValidationErrorResponse(BaseModel):
+    """FastAPI's own 422 for a malformed request (before any handler runs)."""
+
+    detail: list[ValidationIssue]
+
+
+_ERROR_MODELS: dict[int, Any] = {
+    401: AuthErrorResponse,
+    403: AuthErrorResponse,
+    404: SavedTripErrorResponse,
+    409: SavedTripErrorResponse,
+    410: SavedTripErrorResponse,
+    413: SavedTripErrorResponse,
+    # A malformed request is FastAPI's shape; a well-formed but rejected one is ours.
+    422: SavedTripErrorResponse | RequestValidationErrorResponse,
+    503: SavedTripErrorResponse,
+}
+
+
+def _errors(*statuses: int) -> dict[int | str, dict[str, Any]]:
+    """The ``responses=`` declaration for a route's documented failure statuses."""
+    return {status_code: {"model": _ERROR_MODELS[status_code]} for status_code in statuses}
+
+
+def _error(
+    status_code: int, code: SavedTripErrorCode, message: str, **extra: str
+) -> HTTPException:
     return HTTPException(
         status_code=status_code, detail={"code": code, "message": message, **extra}
     )
@@ -326,7 +403,12 @@ def _already_saved(trip_id: str) -> HTTPException:
 # --------------------------------------------------------------------------- #
 
 
-@router.post("", response_model=SavedTripCreatedOut, status_code=201)
+@router.post(
+    "",
+    response_model=SavedTripCreatedOut,
+    status_code=201,
+    responses=_errors(401, 403, 404, 409, 410, 413, 422, 503),
+)
 def save_trip(
     request: Request,
     payload: SaveTripIn,
@@ -403,7 +485,12 @@ def save_trip(
     return created
 
 
-@router.post("/{trip_id}/revisions", response_model=RevisionOut, status_code=201)
+@router.post(
+    "/{trip_id}/revisions",
+    response_model=RevisionOut,
+    status_code=201,
+    responses=_errors(401, 403, 404, 409, 410, 413, 422, 503),
+)
 def append_revision(
     request: Request,
     trip_id: str,
@@ -455,7 +542,7 @@ def append_revision(
 # --------------------------------------------------------------------------- #
 
 
-@router.get("", response_model=list[TripSummaryOut])
+@router.get("", response_model=list[TripSummaryOut], responses=_errors(401, 503))
 def list_trips(
     user: Annotated[User, Depends(current_user)],
     store: Annotated[AccountStore, Depends(get_store)],
@@ -467,7 +554,9 @@ def list_trips(
     return listing
 
 
-@router.get("/{trip_id}", response_model=TripDetailOut)
+@router.get(
+    "/{trip_id}", response_model=TripDetailOut, responses=_errors(401, 404, 422, 503)
+)
 def get_trip(
     trip_id: str,
     user: Annotated[User, Depends(current_user)],
@@ -479,7 +568,9 @@ def get_trip(
     return detail
 
 
-@router.delete("/{trip_id}", status_code=204)
+@router.delete(
+    "/{trip_id}", status_code=204, responses=_errors(401, 403, 404, 409, 422, 503)
+)
 def delete_trip(
     request: Request,
     trip_id: str,
@@ -507,7 +598,11 @@ def delete_trip(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/{trip_id}/revisions/{revision}", response_model=RevisionOut)
+@router.get(
+    "/{trip_id}/revisions/{revision}",
+    response_model=RevisionOut,
+    responses=_errors(401, 404, 422, 503),
+)
 def get_revision(
     trip_id: str,
     revision: int,
@@ -711,7 +806,12 @@ def _launch_rerun(store: AccountStore, user: User, record: _Rerun) -> None:
     thread.start()
 
 
-@router.post("/{trip_id}/reruns", response_model=RerunStartedOut, status_code=202)
+@router.post(
+    "/{trip_id}/reruns",
+    response_model=RerunStartedOut,
+    status_code=202,
+    responses=_errors(401, 403, 404, 409, 422, 503),
+)
 def start_rerun(
     request: Request,
     trip_id: str,
@@ -761,7 +861,11 @@ def start_rerun(
     return RerunStartedOut(job_id=record.job_id)
 
 
-@router.get("/{trip_id}/reruns/{job_id}", response_model=RerunStatusOut)
+@router.get(
+    "/{trip_id}/reruns/{job_id}",
+    response_model=RerunStatusOut,
+    responses=_errors(401, 404, 422, 503),
+)
 def rerun_status(
     trip_id: str,
     job_id: str,
