@@ -196,6 +196,22 @@ def run_interview(client: TestClient) -> dict[str, Any]:
         )
         assert response.status_code == 200, response.text
         session = response.json()
+    # A richer wallet can add optional adaptive questions (for example the points
+    # strategy). They are skippable by design; delegate them until the brief is ready.
+    for extra in range(4):
+        if session.get("brief") is not None or session.get("current_question") is None:
+            break
+        response = client.post(
+            f"/planning/sessions/{session['id']}/skip",
+            headers=headers,
+            json={
+                "question_id": session["current_question"]["id"],
+                "expected_version": session["version"],
+                "client_event_id": f"skip-{extra}",
+            },
+        )
+        assert response.status_code == 200, response.text
+        session = response.json()
     return session
 
 

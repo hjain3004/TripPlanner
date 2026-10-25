@@ -1141,39 +1141,14 @@ def recompute_confirmed_session(
             "INVENTORY_REVIEW_REQUIRED",
             "Inventory evidence changed; review the current report",
         )
-    from agents.recompute import recompute_itinerary
+    from agents.post_plan_execution import recompute_confirmed_edit
 
-    updated = recompute_itinerary(
-        report.trip_spec,
-        report.itinerary,
-        body.edit,
-        get_kb_for_conversation(),
-        booking_date=report.costed_trip.booking_date,
-        trace_id=report.trace_id,
-        previous_freshness=report.freshness,
-    )
-    # The admitted flight/hotel evidence remains authoritative across typed
-    # itinerary edits. Only the deterministic itinerary/POI work is replaced.
-    updated = updated.model_copy(
-        update={
-            "travel_inventory": report.travel_inventory.model_copy(
-                update={"inventory_revision": current_revision + 1}
-            ),
-            "costed_trip": report.costed_trip.model_copy(
-                update={
-                    "lines": [
-                        line
-                        for line in updated.costed_trip.lines
-                        if line.category.value not in {"flights", "hotels"}
-                    ]
-                    + [
-                        line
-                        for line in report.costed_trip.lines
-                        if line.category.value in {"flights", "hotels"}
-                    ]
-                }
-            ),
-        }
+    # Flight/hotel lines were admitted from provider evidence when the job completed.
+    # Rebuild the report from those exact lines and run the kernel once on the final
+    # costed trip, so every total, allocation and transfer recommendation matches
+    # the prices the user sees.
+    updated = recompute_confirmed_edit(
+        report, body.edit, kb=get_kb_for_conversation(), now=now_utc()
     )
     with state._lock:
         state.report = updated
