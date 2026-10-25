@@ -1,4 +1,4 @@
-# CP4 backend actions — ACCEPTANCE PENDING
+# CP4 BACKEND COMPLETE; UI ACCEPTANCE PENDING
 
 This report records the CP4 backend checkpoint on `codex/cp4-backend-actions`.
 It does not claim UI acceptance, live activation, provider activation, or deployment.
@@ -32,10 +32,10 @@ It does not claim UI acceptance, live activation, provider activation, or deploy
 - Frontend: TypeScript passed; 12 Vitest files / 218 tests passed; ESLint reported
   only existing warnings; production build passed.
 - Contract drift: `CONTRACT_DRIFT_OK`.
-- Full backend suite after execution-path changes: 2201 passed, 1 skipped, 3 warnings.
+- Full backend suite on the final tree: 2203 passed, 1 skipped, 3 warnings.
 - Strict mypy: clean across 185 backend source files plus 5 ingestion files.
   Zero-tolerance Ruff scopes: clean. Focused CP4/A4 regressions after review fixes:
-  120 passed.
+  Complete focused CP4 suite: 197 passed.
 - Frontend checks: TypeScript passed; 12 Vitest files / 218 tests passed; ESLint
   reported 0 errors and 14 existing warnings; production build passed.
 - Browser suite with live tests disabled: 568 tests collected, 492 passed and 76
@@ -63,5 +63,7 @@ conflict/unrelated merge, all four execution classes, and explanation output.
 - The frontend workspace remains deferred; this is backend contract delivery only.
 - Live provider/model activation remains disabled; provider-invalidating approval uses
   only the existing sample-only runtime construction and makes no live calls.
-- `make gate` remains pending until this final report and the post-review fixes are
-  committed and the gate is rerun on that exact clean tree.
+- Final `make gate` on commit `360c30d` passed: full backend tests, strict mypy,
+  zero-tolerance Ruff, frozen goldens, contract checks, brief identity, and clean-tree
+  verification. The report is committed separately below and the gate is rerun once
+  more on that final documentation commit.
