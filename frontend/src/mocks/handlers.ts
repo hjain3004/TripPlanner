@@ -5,6 +5,11 @@ import type {
   PlanJobStatus,
   RecomputeRequest,
   RefreshProseRequest,
+  RerunStatusOut,
+  RevisionOut,
+  SaveTripIn,
+  TripDetailOut,
+  TripSummaryOut,
   UserOut,
 } from "@/lib/api";
 import { createJapanVisualReport } from "./japan-visual-fixture";
@@ -466,6 +471,111 @@ function walletConflict(code: string, message: string) {
 }
 
 
+// --- A4 saved trips (stateful mock; mirrors api/saved_trips.py) ---------------
+//
+// Reports are returned verbatim as stored, never re-derived: the mock keeps the
+// exact object it saved, as the real API does.
+
+interface MswTripRecord {
+  summary: TripSummaryOut;
+  revisions: RevisionOut[];
+}
+
+let mswTrips: MswTripRecord[] = [];
+let mswTripSeq = 0;
+let mswTripEvents = new Map<string, unknown>();
+let mswReruns = new Map<string, { tripId: string; appended: boolean }>();
+
+export function resetMswTrips(): void {
+  mswTrips = [];
+  mswTripSeq = 0;
+  mswTripEvents = new Map();
+  mswReruns = new Map();
+}
+
+function tripError(status: number, code: string, message: string, extra: Record<string, string> = {}) {
+  return HttpResponse.json({ detail: { code, message, ...extra } }, { status });
+}
+
+const tripNotFound = () => tripError(404, "TRIP_NOT_FOUND", "No such saved trip.");
+
+function mswRevision(n: number, report: Record<string, unknown>): RevisionOut {
+  return {
+    revision: n,
+    computed_at: "2026-10-24T12:00:00+00:00",
+    trace_id: `msw-trace-${n}`,
+    schema_version: "1",
+    is_current_schema: true,
+    report,
+  };
+}
+
+function refreshSummary(record: MswTripRecord): void {
+  const latest = record.revisions[record.revisions.length - 1];
+  if (latest === undefined) return;
+  record.summary = {
+    ...record.summary,
+    revision_count: record.revisions.length,
+    latest_revision: latest.revision,
+    latest_computed_at: latest.computed_at,
+  };
+}
+
+function mswTripDetail(record: MswTripRecord): TripDetailOut {
+  return {
+    ...record.summary,
+    revisions: record.revisions.map(({ report: _report, ...summary }) => summary),
+  };
+}
+
+/** Typed error responses for every documented saved-trip failure (status + code). */
+export const SAVED_TRIP_ERROR_FIXTURES = {
+  unauthenticated: { status: 401, detail: "Not authenticated" },
+  csrf: { status: 403, detail: "CSRF check failed" },
+  TRIP_NOT_FOUND: { status: 404, code: "TRIP_NOT_FOUND" },
+  SESSION_NOT_FOUND: { status: 404, code: "SESSION_NOT_FOUND" },
+  REVISION_NOT_FOUND: { status: 404, code: "REVISION_NOT_FOUND" },
+  RERUN_NOT_FOUND: { status: 404, code: "RERUN_NOT_FOUND" },
+  PLAN_RESULT_UNAVAILABLE: { status: 409, code: "PLAN_RESULT_UNAVAILABLE" },
+  SESSION_NOT_CONFIRMED: { status: 409, code: "SESSION_NOT_CONFIRMED" },
+  SESSION_ALREADY_SAVED: { status: 409, code: "SESSION_ALREADY_SAVED", trip_id: "msw-trip-1" },
+  SESSION_NOT_ATTACHED: { status: 409, code: "SESSION_NOT_ATTACHED" },
+  RERUN_IN_PROGRESS: { status: 409, code: "RERUN_IN_PROGRESS" },
+  TRIP_LIMIT_REACHED: { status: 409, code: "TRIP_LIMIT_REACHED" },
+  REVISION_LIMIT_REACHED: { status: 409, code: "REVISION_LIMIT_REACHED" },
+  IDEMPOTENCY_KEY_REUSED: { status: 409, code: "IDEMPOTENCY_KEY_REUSED" },
+  TRIP_REVISION_CONFLICT: { status: 409, code: "TRIP_REVISION_CONFLICT" },
+  REPORT_TOO_LARGE: { status: 413, code: "REPORT_TOO_LARGE" },
+  SAVED_TRIP_INVALID: { status: 422, code: "SAVED_TRIP_INVALID" },
+  SAVED_TRIPS_UNAVAILABLE: { status: 503, code: "SAVED_TRIPS_UNAVAILABLE" },
+} as const;
+
+export type SavedTripErrorFixture = keyof typeof SAVED_TRIP_ERROR_FIXTURES;
+
+/** A one-off handler that answers the given route with a documented failure. */
+export function savedTripErrorHandler(
+  method: "get" | "post" | "delete",
+  path: string,
+  fixture: SavedTripErrorFixture,
+) {
+  const spec = SAVED_TRIP_ERROR_FIXTURES[fixture] as {
+    status: number;
+    code?: string;
+    detail?: string;
+    trip_id?: string;
+  };
+  return http[method](path, () =>
+    spec.code === undefined
+      ? HttpResponse.json({ detail: spec.detail }, { status: spec.status })
+      : tripError(
+          spec.status,
+          spec.code,
+          "Mocked saved-trip failure.",
+          spec.trip_id === undefined ? {} : { trip_id: spec.trip_id },
+        ),
+  );
+}
+
 export const handlers = [
   http.post("*/auth/register", async ({ request }) => {
     const body = (await request.json()) as CredentialsIn;
@@ -780,6 +890,109 @@ export const handlers = [
       );
     }
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  // --- A4 saved trips ---
+  http.get("*/account/trips", () =>
+    HttpResponse.json([...mswTrips].reverse().map((t) => t.summary)),
+  ),
+
+  http.post("*/account/trips", async ({ request }) => {
+    const body = (await request.json()) as SaveTripIn;
+    const replay = mswTripEvents.get(`save:${body.client_event_id}`);
+    if (replay !== undefined) return HttpResponse.json(replay, { status: 201 });
+    if (body.session_id === "msw-session-missing") {
+      return tripError(404, "SESSION_NOT_FOUND", "Planning session not found");
+    }
+    mswTripSeq += 1;
+    const id = `msw-trip-${mswTripSeq}`;
+    const report = createHappyReport() as unknown as Record<string, unknown>;
+    const revision = mswRevision(1, report);
+    const record: MswTripRecord = {
+      summary: {
+        id,
+        title: body.title ?? "DEL \u2192 SIN \u00b7 2026-11-01",
+        origin_city: "DEL",
+        destination_city: "SIN",
+        start_date: "2026-11-01",
+        end_date: "2026-11-05",
+        created_at: "2026-10-24T12:00:00+00:00",
+        revision_count: 1,
+        latest_revision: 1,
+        latest_computed_at: revision.computed_at,
+      },
+      revisions: [revision],
+    };
+    mswTrips.push(record);
+    const created = { trip: record.summary, revision };
+    mswTripEvents.set(`save:${body.client_event_id}`, created);
+    return HttpResponse.json(created, { status: 201 });
+  }),
+
+  http.get("*/account/trips/:tripId", ({ params }) => {
+    const record = mswTrips.find((t) => t.summary.id === params.tripId);
+    return record === undefined ? tripNotFound() : HttpResponse.json(mswTripDetail(record));
+  }),
+
+  http.delete("*/account/trips/:tripId", ({ params }) => {
+    const before = mswTrips.length;
+    mswTrips = mswTrips.filter((t) => t.summary.id !== params.tripId);
+    return mswTrips.length === before ? tripNotFound() : new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post("*/account/trips/:tripId/revisions", async ({ params }) => {
+    const record = mswTrips.find((t) => t.summary.id === params.tripId);
+    if (record === undefined) return tripNotFound();
+    const revision = mswRevision(
+      record.revisions.length + 1,
+      createHappyReport() as unknown as Record<string, unknown>,
+    );
+    record.revisions.push(revision);
+    refreshSummary(record);
+    return HttpResponse.json(revision, { status: 201 });
+  }),
+
+  http.get("*/account/trips/:tripId/revisions/:revision", ({ params }) => {
+    const record = mswTrips.find((t) => t.summary.id === params.tripId);
+    if (record === undefined) return tripNotFound();
+    const found = record.revisions.find((r) => r.revision === Number(params.revision));
+    return found === undefined
+      ? tripError(404, "REVISION_NOT_FOUND", "No such revision.")
+      : HttpResponse.json(found);
+  }),
+
+  http.post("*/account/trips/:tripId/reruns", ({ params }) => {
+    if (!mswTrips.some((t) => t.summary.id === params.tripId)) return tripNotFound();
+    const jobId = `msw-rerun-${mswReruns.size + 1}`;
+    mswReruns.set(jobId, { tripId: String(params.tripId), appended: false });
+    return HttpResponse.json({ job_id: jobId }, { status: 202 });
+  }),
+
+  http.get("*/account/trips/:tripId/reruns/:jobId", ({ params }) => {
+    const rerun = mswReruns.get(String(params.jobId));
+    const record = mswTrips.find((t) => t.summary.id === params.tripId);
+    if (record === undefined) return tripNotFound();
+    if (rerun === undefined || rerun.tripId !== params.tripId) {
+      return tripError(404, "RERUN_NOT_FOUND", "No such re-run.");
+    }
+    if (!rerun.appended) {
+      record.revisions.push(
+        mswRevision(
+          record.revisions.length + 1,
+          createHappyReport() as unknown as Record<string, unknown>,
+        ),
+      );
+      refreshSummary(record);
+      rerun.appended = true;
+    }
+    const done: RerunStatusOut = {
+      job_id: String(params.jobId),
+      status: "complete",
+      stage: "explaining",
+      revision: record.revisions.length,
+      error: null,
+    };
+    return HttpResponse.json(done);
   }),
 
 ];

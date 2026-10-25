@@ -120,6 +120,20 @@ export type AnswerRequest = {
 };
 
 /**
+ * AppendRevisionIn
+ */
+export type AppendRevisionIn = {
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+};
+
+/**
  * AppliedOffer
  */
 export type AppliedOffer = {
@@ -2126,6 +2140,123 @@ export type ReplaceItem = {
 };
 
 /**
+ * RerunErrorOut
+ */
+export type RerunErrorOut = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
+ * RerunIn
+ */
+export type RerunIn = {
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+};
+
+/**
+ * RerunStartedOut
+ */
+export type RerunStartedOut = {
+    /**
+     * Job Id
+     */
+    job_id: string;
+};
+
+/**
+ * RerunStatusOut
+ */
+export type RerunStatusOut = {
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Status
+     */
+    status: 'queued' | 'running' | 'complete' | 'failed' | 'needs_clarification';
+    /**
+     * Stage
+     */
+    stage?: string | null;
+    /**
+     * Revision
+     */
+    revision?: number | null;
+    error?: RerunErrorOut | null;
+};
+
+/**
+ * RevisionOut
+ *
+ * One stored revision. ``report`` is the stored JSON object, verbatim.
+ */
+export type RevisionOut = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Computed At
+     */
+    computed_at: string;
+    /**
+     * Trace Id
+     */
+    trace_id: string;
+    /**
+     * Schema Version
+     */
+    schema_version: string;
+    /**
+     * Is Current Schema
+     */
+    is_current_schema: boolean;
+    /**
+     * Report
+     */
+    report: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * RevisionSummaryOut
+ */
+export type RevisionSummaryOut = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Computed At
+     */
+    computed_at: string;
+    /**
+     * Trace Id
+     */
+    trace_id: string;
+    /**
+     * Schema Version
+     */
+    schema_version: string;
+    /**
+     * Is Current Schema
+     */
+    is_current_schema: boolean;
+};
+
+/**
  * RhythmPreferences
  */
 export type RhythmPreferences = {
@@ -2250,6 +2381,32 @@ export type SampleHotel = {
      */
     purchasable_channels: Array<Channel>;
     provenance: Provenance;
+};
+
+/**
+ * SaveTripIn
+ */
+export type SaveTripIn = {
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+};
+
+/**
+ * SavedTripCreatedOut
+ */
+export type SavedTripCreatedOut = {
+    trip: TripSummaryOut;
+    revision: RevisionOut;
 };
 
 /**
@@ -2729,6 +2886,56 @@ export type TripBrief = {
 };
 
 /**
+ * TripDetailOut
+ */
+export type TripDetailOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Origin City
+     */
+    origin_city: string;
+    /**
+     * Destination City
+     */
+    destination_city: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Revision Count
+     */
+    revision_count: number;
+    /**
+     * Latest Revision
+     */
+    latest_revision: number;
+    /**
+     * Latest Computed At
+     */
+    latest_computed_at: string;
+    /**
+     * Revisions
+     */
+    revisions: Array<RevisionSummaryOut>;
+};
+
+/**
  * TripEssentialsControl
  */
 export type TripEssentialsControl = {
@@ -2853,6 +3060,52 @@ export type TripSpec = {
      * Unresolved
      */
     unresolved?: Array<string>;
+};
+
+/**
+ * TripSummaryOut
+ */
+export type TripSummaryOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Origin City
+     */
+    origin_city: string;
+    /**
+     * Destination City
+     */
+    destination_city: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Revision Count
+     */
+    revision_count: number;
+    /**
+     * Latest Revision
+     */
+    latest_revision: number;
+    /**
+     * Latest Computed At
+     */
+    latest_computed_at: string;
 };
 
 /**
@@ -3666,6 +3919,242 @@ export type PatchWalletEntryAccountWalletEntryIdPatchResponses = {
 };
 
 export type PatchWalletEntryAccountWalletEntryIdPatchResponse = PatchWalletEntryAccountWalletEntryIdPatchResponses[keyof PatchWalletEntryAccountWalletEntryIdPatchResponses];
+
+export type ListTripsAccountTripsGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/trips';
+};
+
+export type ListTripsAccountTripsGetResponses = {
+    /**
+     * Response List Trips Account Trips Get
+     *
+     * Successful Response
+     */
+    200: Array<TripSummaryOut>;
+};
+
+export type ListTripsAccountTripsGetResponse = ListTripsAccountTripsGetResponses[keyof ListTripsAccountTripsGetResponses];
+
+export type SaveTripAccountTripsPostData = {
+    body: SaveTripIn;
+    path?: never;
+    query?: never;
+    url: '/account/trips';
+};
+
+export type SaveTripAccountTripsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveTripAccountTripsPostError = SaveTripAccountTripsPostErrors[keyof SaveTripAccountTripsPostErrors];
+
+export type SaveTripAccountTripsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SavedTripCreatedOut;
+};
+
+export type SaveTripAccountTripsPostResponse = SaveTripAccountTripsPostResponses[keyof SaveTripAccountTripsPostResponses];
+
+export type AppendRevisionAccountTripsTripIdRevisionsPostData = {
+    body: AppendRevisionIn;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+    };
+    query?: never;
+    url: '/account/trips/{trip_id}/revisions';
+};
+
+export type AppendRevisionAccountTripsTripIdRevisionsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AppendRevisionAccountTripsTripIdRevisionsPostError = AppendRevisionAccountTripsTripIdRevisionsPostErrors[keyof AppendRevisionAccountTripsTripIdRevisionsPostErrors];
+
+export type AppendRevisionAccountTripsTripIdRevisionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: RevisionOut;
+};
+
+export type AppendRevisionAccountTripsTripIdRevisionsPostResponse = AppendRevisionAccountTripsTripIdRevisionsPostResponses[keyof AppendRevisionAccountTripsTripIdRevisionsPostResponses];
+
+export type DeleteTripAccountTripsTripIdDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+    };
+    query?: {
+        /**
+         * Client Event Id
+         */
+        client_event_id?: string | null;
+    };
+    url: '/account/trips/{trip_id}';
+};
+
+export type DeleteTripAccountTripsTripIdDeleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTripAccountTripsTripIdDeleteError = DeleteTripAccountTripsTripIdDeleteErrors[keyof DeleteTripAccountTripsTripIdDeleteErrors];
+
+export type DeleteTripAccountTripsTripIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTripAccountTripsTripIdDeleteResponse = DeleteTripAccountTripsTripIdDeleteResponses[keyof DeleteTripAccountTripsTripIdDeleteResponses];
+
+export type GetTripAccountTripsTripIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+    };
+    query?: never;
+    url: '/account/trips/{trip_id}';
+};
+
+export type GetTripAccountTripsTripIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTripAccountTripsTripIdGetError = GetTripAccountTripsTripIdGetErrors[keyof GetTripAccountTripsTripIdGetErrors];
+
+export type GetTripAccountTripsTripIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TripDetailOut;
+};
+
+export type GetTripAccountTripsTripIdGetResponse = GetTripAccountTripsTripIdGetResponses[keyof GetTripAccountTripsTripIdGetResponses];
+
+export type GetRevisionAccountTripsTripIdRevisionsRevisionGetData = {
+    body?: never;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+        /**
+         * Revision
+         */
+        revision: number;
+    };
+    query?: never;
+    url: '/account/trips/{trip_id}/revisions/{revision}';
+};
+
+export type GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetRevisionAccountTripsTripIdRevisionsRevisionGetError = GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors[keyof GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors];
+
+export type GetRevisionAccountTripsTripIdRevisionsRevisionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RevisionOut;
+};
+
+export type GetRevisionAccountTripsTripIdRevisionsRevisionGetResponse = GetRevisionAccountTripsTripIdRevisionsRevisionGetResponses[keyof GetRevisionAccountTripsTripIdRevisionsRevisionGetResponses];
+
+export type StartRerunAccountTripsTripIdRerunsPostData = {
+    body: RerunIn;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+    };
+    query?: never;
+    url: '/account/trips/{trip_id}/reruns';
+};
+
+export type StartRerunAccountTripsTripIdRerunsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartRerunAccountTripsTripIdRerunsPostError = StartRerunAccountTripsTripIdRerunsPostErrors[keyof StartRerunAccountTripsTripIdRerunsPostErrors];
+
+export type StartRerunAccountTripsTripIdRerunsPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: RerunStartedOut;
+};
+
+export type StartRerunAccountTripsTripIdRerunsPostResponse = StartRerunAccountTripsTripIdRerunsPostResponses[keyof StartRerunAccountTripsTripIdRerunsPostResponses];
+
+export type RerunStatusAccountTripsTripIdRerunsJobIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/account/trips/{trip_id}/reruns/{job_id}';
+};
+
+export type RerunStatusAccountTripsTripIdRerunsJobIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RerunStatusAccountTripsTripIdRerunsJobIdGetError = RerunStatusAccountTripsTripIdRerunsJobIdGetErrors[keyof RerunStatusAccountTripsTripIdRerunsJobIdGetErrors];
+
+export type RerunStatusAccountTripsTripIdRerunsJobIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RerunStatusOut;
+};
+
+export type RerunStatusAccountTripsTripIdRerunsJobIdGetResponse = RerunStatusAccountTripsTripIdRerunsJobIdGetResponses[keyof RerunStatusAccountTripsTripIdRerunsJobIdGetResponses];
 
 export type HealthHealthGetData = {
     body?: never;

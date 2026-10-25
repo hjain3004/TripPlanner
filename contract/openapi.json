@@ -992,6 +992,376 @@
         }
       }
     },
+    "/account/trips": {
+      "get": {
+        "tags": [
+          "saved-trips"
+        ],
+        "summary": "List Trips",
+        "description": "The caller's saved trips, newest first. Summaries only: no report bodies.",
+        "operationId": "list_trips_account_trips_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TripSummaryOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Trips Account Trips Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "saved-trips"
+        ],
+        "summary": "Save Trip",
+        "description": "Save the confirmed session's current plan as a new trip with revision 1.",
+        "operationId": "save_trip_account_trips_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveTripIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTripCreatedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/trips/{trip_id}/revisions": {
+      "post": {
+        "tags": [
+          "saved-trips"
+        ],
+        "summary": "Append Revision",
+        "description": "Append the attached session's *current* plan to the trip as the next revision.",
+        "operationId": "append_revision_account_trips__trip_id__revisions_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendRevisionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/trips/{trip_id}": {
+      "get": {
+        "tags": [
+          "saved-trips"
+        ],
+        "summary": "Get Trip",
+        "operationId": "get_trip_account_trips__trip_id__get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "saved-trips"
+        ],
+        "summary": "Delete Trip",
+        "description": "Hard-delete a trip, all its revisions and the planning session attached to it.\n\nThere is no tombstone. With a ``client_event_id`` a retried delete replays as 204\nrather than reporting the 404 a genuine second delete gets.",
+        "operationId": "delete_trip_account_trips__trip_id__delete",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "client_event_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/trips/{trip_id}/revisions/{revision}": {
+      "get": {
+        "tags": [
+          "saved-trips"
+        ],
+        "summary": "Get Revision",
+        "description": "One stored revision, with its report returned exactly as it was stored.\n\nThe report is parsed as a plain JSON object and **not** validated through\n``FinalReport``: a snapshot written under an older schema must read back as it\nwas computed, flagged by ``is_current_schema``, not silently reshaped.",
+        "operationId": "get_revision_account_trips__trip_id__revisions__revision__get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Revision"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/trips/{trip_id}/reruns": {
+      "post": {
+        "tags": [
+          "saved-trips"
+        ],
+        "summary": "Start Rerun",
+        "description": "Plan a saved trip again with current prices; the result becomes the next revision.",
+        "operationId": "start_rerun_account_trips__trip_id__reruns_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RerunIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RerunStartedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/trips/{trip_id}/reruns/{job_id}": {
+      "get": {
+        "tags": [
+          "saved-trips"
+        ],
+        "summary": "Rerun Status",
+        "description": "Progress of a re-run. After a restart the job is unknown (404); the trip is unchanged.",
+        "operationId": "rerun_status_account_trips__trip_id__reruns__job_id__get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RerunStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -1586,6 +1956,27 @@
           "client_event_id"
         ],
         "title": "AnswerRequest"
+      },
+      "AppendRevisionIn": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "client_event_id"
+        ],
+        "title": "AppendRevisionIn"
       },
       "AppliedOffer": {
         "properties": {
@@ -5508,6 +5899,188 @@
         ],
         "title": "ReplaceItem"
       },
+      "RerunErrorOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "RerunErrorOut"
+      },
+      "RerunIn": {
+        "properties": {
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "client_event_id"
+        ],
+        "title": "RerunIn"
+      },
+      "RerunStartedOut": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "RerunStartedOut"
+      },
+      "RerunStatusOut": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "complete",
+              "failed",
+              "needs_clarification"
+            ],
+            "title": "Status"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RerunErrorOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "RerunStatusOut"
+      },
+      "RevisionOut": {
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "computed_at": {
+            "type": "string",
+            "title": "Computed At"
+          },
+          "trace_id": {
+            "type": "string",
+            "title": "Trace Id"
+          },
+          "schema_version": {
+            "type": "string",
+            "title": "Schema Version"
+          },
+          "is_current_schema": {
+            "type": "boolean",
+            "title": "Is Current Schema"
+          },
+          "report": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Report"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "revision",
+          "computed_at",
+          "trace_id",
+          "schema_version",
+          "is_current_schema",
+          "report"
+        ],
+        "title": "RevisionOut",
+        "description": "One stored revision. ``report`` is the stored JSON object, verbatim."
+      },
+      "RevisionSummaryOut": {
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "computed_at": {
+            "type": "string",
+            "title": "Computed At"
+          },
+          "trace_id": {
+            "type": "string",
+            "title": "Trace Id"
+          },
+          "schema_version": {
+            "type": "string",
+            "title": "Schema Version"
+          },
+          "is_current_schema": {
+            "type": "boolean",
+            "title": "Is Current Schema"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "revision",
+          "computed_at",
+          "trace_id",
+          "schema_version",
+          "is_current_schema"
+        ],
+        "title": "RevisionSummaryOut"
+      },
       "RhythmPreferences": {
         "properties": {
           "pace": {
@@ -5748,6 +6321,57 @@
           "provenance"
         ],
         "title": "SampleHotel"
+      },
+      "SaveTripIn": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "client_event_id"
+        ],
+        "title": "SaveTripIn"
+      },
+      "SavedTripCreatedOut": {
+        "properties": {
+          "trip": {
+            "$ref": "#/components/schemas/TripSummaryOut"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/RevisionOut"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "trip",
+          "revision"
+        ],
+        "title": "SavedTripCreatedOut"
       },
       "SectionFreshness": {
         "properties": {
@@ -6706,6 +7330,75 @@
         ],
         "title": "TripBrief"
       },
+      "TripDetailOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "origin_city": {
+            "type": "string",
+            "title": "Origin City"
+          },
+          "destination_city": {
+            "type": "string",
+            "title": "Destination City"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "revision_count": {
+            "type": "integer",
+            "title": "Revision Count"
+          },
+          "latest_revision": {
+            "type": "integer",
+            "title": "Latest Revision"
+          },
+          "latest_computed_at": {
+            "type": "string",
+            "title": "Latest Computed At"
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/RevisionSummaryOut"
+            },
+            "type": "array",
+            "title": "Revisions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "origin_city",
+          "destination_city",
+          "start_date",
+          "end_date",
+          "created_at",
+          "revision_count",
+          "latest_revision",
+          "latest_computed_at",
+          "revisions"
+        ],
+        "title": "TripDetailOut"
+      },
       "TripEssentialsControl": {
         "properties": {
           "type": {
@@ -6936,6 +7629,67 @@
           "wallet"
         ],
         "title": "TripSpec"
+      },
+      "TripSummaryOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "origin_city": {
+            "type": "string",
+            "title": "Origin City"
+          },
+          "destination_city": {
+            "type": "string",
+            "title": "Destination City"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "revision_count": {
+            "type": "integer",
+            "title": "Revision Count"
+          },
+          "latest_revision": {
+            "type": "integer",
+            "title": "Latest Revision"
+          },
+          "latest_computed_at": {
+            "type": "string",
+            "title": "Latest Computed At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "origin_city",
+          "destination_city",
+          "start_date",
+          "end_date",
+          "created_at",
+          "revision_count",
+          "latest_revision",
+          "latest_computed_at"
+        ],
+        "title": "TripSummaryOut"
       },
       "UserOut": {
         "properties": {
