@@ -60,7 +60,32 @@ Typed failures: `PLAN_RESULT_UNAVAILABLE`, `SESSION_NOT_CONFIRMED`, `SESSION_ALR
 
 ## Verification — measured on the final committed clean tree
 
-VERIFICATION_PLACEHOLDER
+All figures below were measured in this session, on the committed tree `1542d27` (clean `git status`),
+with the regional catalogs copied in (never committed). The report-only commit that records them changes
+no code; the gate was re-run on it (see the last row).
+
+| Check | Baseline (own run on `cef3a4d` + plan) | Final tree |
+|---|---|---|
+| `make gate` | GATE PASSED | **GATE PASSED** (`GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN`) |
+| Backend pytest | 1883 passed, 1 skipped | **1991 passed, 1 skipped** (+108: 104 A4 tests by the end of Task 9, +4 from the review fixes) |
+| mypy `--strict` | 177 + 5 files clean | 178 + 5 files clean |
+| Ruff, zero-tolerance scope | clean | clean |
+| Ruff `core/` + `api/` legacy ratchet | 6 (ceiling 12) | 6 (ceiling 12) — A4 added none |
+| `scripts/check-contract-drift.sh` | — | `CONTRACT_DRIFT_OK`, run twice |
+| Frontend `tsc --noEmit` | exit 0 | exit 0 |
+| Frontend Vitest | 177 passed (11 files) | **204 passed (12 files)** (+27 saved-trip mock tests) |
+| Frontend ESLint | 14 warnings, 0 errors | 14 warnings, 0 errors |
+
+The one skipped backend test is the pre-existing `CP1_MERGE_BASE` guard (a clean worktree has no merge
+base to compare), unchanged by A4.
+
+Per-test-file counts at the end of the work: `test_a4_trip_scoping` 15, `test_a4_trip_idempotency` 14,
+`test_a4_trip_privacy` 12, `test_a4_save_api` 24, `test_a4_read_api` 10, `test_a4_rerun` 15,
+`test_a4_boundaries` 18.
+
+Tests that were mutation-checked (the production change that must make them fail): removing
+`BEGIN IMMEDIATE` fails the concurrent-append test and the concurrent-save-cap test (2 of 3 runs each);
+the replay-before-limit ordering tests fail if the order is swapped by construction.
 
 ---
 
