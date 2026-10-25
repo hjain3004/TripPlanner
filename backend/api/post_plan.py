@@ -25,8 +25,15 @@ from accounts.store import (
     StalePlanningSessionError,
     StalePostPlanBaseError,
     StalePostPlanWorkspaceError,
+    StaleProfileSectionError,
     UnknownPlanningSessionError,
     trip_event_fingerprint,
+)
+from agents.post_plan_execution import (
+    recompute_confirmed_report,
+    refresh_provider_inventory,
+    replan_scoped_itinerary,
+    spec_for_brief,
 )
 from agents.post_plan_interpreter import (
     PostPlanInterpretationError,
@@ -35,6 +42,7 @@ from agents.post_plan_interpreter import (
     get_post_plan_llm,
     sanitize_command_text,
 )
+from agents.post_plan_models import RetainedInventory
 from api.auth import current_user, get_store, now_utc, require_csrf
 from api.post_plan_service import (
     LoadedWorkspace,
@@ -46,14 +54,17 @@ from api.post_plan_service import (
     mark_finished,
     recover_interrupted,
 )
+from planning.brief import profile_group_from_answer
 from planning.contracts import PlanningSession
 from planning.post_plan import (
+    DayOverride,
     ExplainableRef,
     PostPlanAction,
     PostPlanInputError,
     RoutingContext,
     RoutingDay,
     RoutingItem,
+    ScopedItineraryReplan,
     apply_brief_patch,
     apply_wallet_or_objective,
     classify_command,
@@ -152,6 +163,10 @@ def _map_error(exc: Exception) -> HTTPException:
         return _error(
             "POST_PLAN_QUOTA_EXCEEDED", "This session has reached its post-plan limit.", 429
         )
+    if isinstance(exc, StaleProfileSectionError):
+        return _error(
+            "PROFILE_SECTION_CONFLICT", "That preference section changed; reload and retry.", 409
+        )
     if isinstance(exc, WorkspaceError):
         return _error(exc.code, str(exc), 409)
     if isinstance(exc, ValidationError):
@@ -168,7 +183,7 @@ def _session(store: AccountStore, user: User, session_id: str) -> PlanningSessio
     return session
 
 
-def _routing_context(report: Any) -> RoutingContext:
+def _routing_context(report: Any, brief: Any) -> RoutingContext:
     days = [
         RoutingDay(
             date=day.date,
@@ -187,10 +202,10 @@ def _routing_context(report: Any) -> RoutingContext:
         for item in day.items
     ]
     explainable.extend(
-        ExplainableRef(kind="cost_line", ref_id=line.id, label=line.description)
+        ExplainableRef(kind="cost_line", ref_id=line.id, label=line.label)
         for line in report.costed_trip.lines
     )
-    return RoutingContext(days=days, candidates=[], explainable=explainable, brief=report.trip_spec)
+    return RoutingContext(days=days, candidates=[], explainable=explainable, brief=brief)
 
 
 def _proposal_action(body: ActionIn, context: RoutingContext) -> PostPlanAction:
@@ -207,6 +222,8 @@ def _proposal_action(body: ActionIn, context: RoutingContext) -> PostPlanAction:
 
 
 def _after_brief(before: Any, action: PostPlanAction, store: AccountStore, user: User) -> Any:
+    if action.kind == "scoped_itinerary_replan" and action.scope == "dates":
+        return before
     if action.kind in {"scoped_itinerary_replan", "provider_invalidating_change"}:
         assert action.patch is not None
         return apply_brief_patch(before, action.patch)
@@ -214,6 +231,38 @@ def _after_brief(before: Any, action: PostPlanAction, store: AccountStore, user:
         wallet = build_user_wallet(store.wallet_entries(user.id))
         return apply_wallet_or_objective(before, action, current_wallet=wallet)
     return before
+
+
+def _section_fingerprint(profile: Any, section: str) -> str:
+    value = getattr(profile, section)
+    return hashlib.sha256(
+        json.dumps(value.model_dump(mode="json"), sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def _profile_candidate(
+    store: AccountStore, user: User, action: Any, *, now: Any
+) -> tuple[Any, str]:
+    current = store.get_travel_preferences(user.id)
+    if current is None:
+        from accounts.models import TravelPreferenceProfile
+
+        current = TravelPreferenceProfile(user_id=user.id, updated_at=now)
+    base_fingerprint = _section_fingerprint(current, action.section)
+    group = profile_group_from_answer(action.section, action.candidate, now=now)
+    candidate = current.model_copy(update={action.section: group, "updated_at": now})
+    return candidate, base_fingerprint
+
+
+def _advance_session_snapshot(
+    store: AccountStore, user_id: str, session_id: str, *, now: Any
+) -> Any:
+    typed = PlanningSessionRepository(store).get(user_id=user_id, session_id=session_id)
+    if typed is None:
+        raise UnknownPlanningSessionError(session_id)
+    return PlanningSessionRepository.snapshot_of(
+        typed.model_copy(update={"version": typed.version + 1, "updated_at": now})
+    )
 
 
 def _loaded(store: AccountStore, user: User, session_id: str) -> LoadedWorkspace:
@@ -296,7 +345,7 @@ def propose_action(
     require_csrf(request)
     try:
         loaded = _loaded(store, user, session_id)
-        context = _routing_context(loaded.report)
+        context = _routing_context(loaded.report, loaded.workspace.brief)
         clean_text: str | None = None
         if body.text is not None:
             try:
@@ -363,6 +412,23 @@ def propose_action(
             action=action,
             context=impact_context_from_routing(context),
         )
+        proposal_payload: dict[str, Any] = {
+            "action": action.model_dump(mode="json"),
+            "impact": impact.model_dump(mode="json"),
+        }
+        if action.kind == "wallet_or_objective_change":
+            proposal_payload["wallet_fingerprint"] = hashlib.sha256(
+                json.dumps(
+                    build_user_wallet(store.wallet_entries(user.id)).model_dump(mode="json"),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest()
+        if action.kind == "profile_update_proposal":
+            _candidate, base_fingerprint = _profile_candidate(
+                store, user, action, now=now_utc()
+            )
+            proposal_payload["profile_base_fingerprint"] = base_fingerprint
         operation = (
             _reserve(
                 store,
@@ -373,8 +439,7 @@ def propose_action(
                 action_kind=action.kind,
                 interpreter_calls=0,
                 payload={
-                    "action": action.model_dump(mode="json"),
-                    "impact": impact.model_dump(mode="json"),
+                    **proposal_payload,
                 },
             )
             if body.action is not None
@@ -393,14 +458,11 @@ def propose_action(
             expected_workspace_version=operation.reserved_workspace_version
             or loaded.snapshot.version,
             workspace=committed,
-            session=current.model_copy(
-                update={"version": current.version + 1, "updated_at": now_utc()}
-            ),
+            session=_advance_session_snapshot(store, user.id, session_id, now=now_utc()),
             report_json=None,
             outcome_json=json.dumps(
                 {
-                    "action": action.model_dump(mode="json"),
-                    "impact": impact.model_dump(mode="json"),
+                    **proposal_payload,
                 },
                 sort_keys=True,
             ),
@@ -503,39 +565,147 @@ def _decision(
     )
     mark_active(operation.operation_id)
     try:
-        if approve and action.kind in {
-            "scoped_itinerary_replan",
-            "provider_invalidating_change",
-            "wallet_or_objective_change",
-            "profile_update_proposal",
-        }:
-            store.fail_post_plan_operation(
-                user_id=user.id,
-                session_id=session_id,
-                event_id=body.client_event_id,
-                fingerprint=operation.fingerprint,
-                expected_workspace_version=operation.reserved_workspace_version
-                or loaded.snapshot.version,
-                error_code="ACTION_EXECUTION_UNAVAILABLE",
-                updated_at=now_utc(),
-            )
-            raise _error(
-                "ACTION_EXECUTION_UNAVAILABLE",
-                "This approved action needs a supported offline execution path.",
-                503,
-            ) from None
         current = store.get_planning_session_snapshot(user_id=user.id, session_id=session_id)
         assert current is not None
         now = now_utc()
+        workspace_domain = loaded.workspace
         workspace = loaded.snapshot.model_copy(update={"updated_at": now})
         report_json = None
-        if approve and action.kind == "deterministic_edit":
+        profile_update = None
+        profile_section = None
+        profile_base_fingerprint = None
+        execution = None
+        if approve and action.kind == "wallet_or_objective_change":
+            expected_wallet = data.get("wallet_fingerprint")
+            actual_wallet = hashlib.sha256(
+                json.dumps(
+                    build_user_wallet(store.wallet_entries(user.id)).model_dump(mode="json"),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest()
+            if expected_wallet != actual_wallet:
+                raise _error("STALE_WALLET", "The stored wallet changed; reload and retry.", 409)
+            after = _after_brief(loaded.workspace.brief, action, store, user)
+            from agents.post_plan_execution import PostPlanExecutionResult
+            from api.main import get_kb
+
+            new_spec = spec_for_brief(loaded.report.trip_spec, after)
+            report = recompute_confirmed_report(
+                loaded.report,
+                itinerary=loaded.report.itinerary,
+                spec=new_spec,
+                kb=get_kb(),
+                now=now,
+            )
+            execution = PostPlanExecutionResult(report=report, brief=after)
+        elif approve and action.kind == "scoped_itinerary_replan":
+            from api.main import get_kb
+
+            after = _after_brief(loaded.workspace.brief, action, store, user)
+            execution = replan_scoped_itinerary(
+                loaded.report, action, brief=after, kb=get_kb(), now=now
+            )
+        elif approve and action.kind == "provider_invalidating_change":
+            from api.confirmed_planning import build_travel_service
+            from api.main import get_kb
+            from gateway.travel.product import TravelInventorySnapshot
+
+            after = _after_brief(loaded.workspace.brief, action, store, user)
+            retained = (
+                TravelInventorySnapshot.model_validate_json(loaded.workspace.inventory.snapshot_json)
+                if loaded.workspace.inventory is not None
+                and loaded.workspace.inventory.snapshot_json is not None
+                else None
+            )
+            service = build_travel_service(
+                get_kb(),
+                plan_id=f"{session_id}:cp4",
+                now=lambda: now,
+                country=loaded.workspace.brief.home.home_country,
+            )
+            execution = refresh_provider_inventory(
+                loaded.report,
+                action,
+                brief=after,
+                retained_snapshot=retained,
+                kb=get_kb(),
+                now=now,
+                inventory_service=service,
+            )
+        elif approve and action.kind == "profile_update_proposal":
+            profile_update, profile_base_fingerprint = _profile_candidate(
+                store, user, action, now=now
+            )
+            profile_base_fingerprint = data.get("profile_base_fingerprint")
+            if not isinstance(profile_base_fingerprint, str):
+                raise _error(
+                    "INVALID_ACTION", "The profile proposal is missing its base fingerprint."
+                )
+            profile_section = action.section
+            typed = PlanningSessionRepository(store).get(
+                user_id=user.id, session_id=session_id
+            )
+            if typed is None:
+                raise UnknownPlanningSessionError(session_id)
+            typed_updated = typed.model_copy(
+                update={
+                    "profile_defaults": profile_update,
+                    "updated_at": now,
+                    "version": typed.version + 1,
+                }
+            )
+            current = PlanningSessionRepository.snapshot_of(typed_updated)
+        elif approve and action.kind == "deterministic_edit":
             from agents.post_plan_execution import recompute_confirmed_edit
             from api.main import get_kb
 
             report = recompute_confirmed_edit(loaded.report, action.edit, kb=get_kb(), now=now)
-            report_json = report.model_dump_json()
+            from agents.post_plan_execution import PostPlanExecutionResult
+
+            execution = PostPlanExecutionResult(report=report, brief=loaded.workspace.brief)
+        if execution is not None:
+            report_json = execution.report.model_dump_json()
             workspace = workspace.model_copy(update={"current_result_id": uuid4().hex})
+            workspace_domain = workspace_domain.model_copy(
+                update={"brief": execution.brief, "updated_at": now}
+            )
+            if execution.inventory_snapshot is not None:
+                retained_inventory = workspace_domain.inventory or RetainedInventory()
+                workspace_domain = workspace_domain.model_copy(
+                    update={
+                        "inventory": retained_inventory.model_copy(
+                            update={"snapshot_json": execution.inventory_snapshot.model_dump_json()}
+                        )
+                    }
+                )
+            workspace = workspace.model_copy(
+                update={"payload_json": workspace_domain.model_dump_json()}
+            )
+        elif approve and isinstance(action, ScopedItineraryReplan) and action.scope == "dates":
+            workspace_domain = workspace_domain.model_copy(
+                update={
+                    "day_overrides": [
+                        *workspace_domain.day_overrides,
+                        *[
+                            DayOverride(
+                                date=d,
+                                question_ids=action.patch.question_ids if action.patch else [],
+                            )
+                            for d in action.affected_dates
+                        ],
+                    ],
+                    "updated_at": now,
+                }
+            )
+            workspace = workspace.model_copy(
+                update={"payload_json": workspace_domain.model_dump_json()}
+            )
+        commit_session = (
+            current
+            if profile_update is not None
+            else _advance_session_snapshot(store, user.id, session_id, now=now)
+        )
         finished = store.commit_post_plan_operation(
             user_id=user.id,
             session_id=session_id,
@@ -544,13 +714,16 @@ def _decision(
             expected_workspace_version=operation.reserved_workspace_version
             or loaded.snapshot.version,
             workspace=workspace,
-            session=current.model_copy(update={"version": current.version + 1, "updated_at": now}),
+            session=commit_session,
             report_json=report_json,
             outcome_json=json.dumps(
                 {"proposal_id": proposal_id, "decision": "approved" if approve else "rejected"},
                 sort_keys=True,
             ),
             updated_at=now,
+            profile_update=profile_update,
+            profile_section=profile_section,
+            profile_base_fingerprint=profile_base_fingerprint,
         )
         return {
             "operation_id": finished.operation_id,

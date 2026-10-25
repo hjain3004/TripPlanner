@@ -30,6 +30,7 @@ reconfirmed; a later milestone (CP2) owns revision 2+.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import Literal, TypeVar
 
@@ -467,6 +468,33 @@ def build_profile_update_proposals(
             )
         )
     return proposals
+
+
+def profile_group_from_answer(
+    section: ProfileSection, payload: BaseModel, *, now: datetime
+) -> BaseModel:
+    """Convert one approved conversational answer into its durable profile group."""
+    converters: dict[ProfileSection, Callable[[BaseModel, datetime], BaseModel]] = {
+        "flight": lambda value, timestamp: _flight_from_payload(
+            FlightPreferencesPayload.model_validate(value), now=timestamp
+        ),
+        "stay": lambda value, timestamp: _stay_from_payload(
+            StayPreferencesPayload.model_validate(value), now=timestamp
+        ),
+        "rhythm": lambda value, timestamp: _rhythm_from_payload(
+            DailyRhythmPayload.model_validate(value), now=timestamp
+        ),
+        "experiences": lambda value, timestamp: _experiences_from_payload(
+            ExperiencesFoodPayload.model_validate(value), now=timestamp
+        ),
+        "constraints": lambda value, timestamp: _constraints_from_payload(
+            HardConstraintsPayload.model_validate(value), now=timestamp
+        ),
+        "optimization": lambda value, timestamp: _optimization_from_payload(
+            BudgetObjectivePayload.model_validate(value), now=timestamp
+        ),
+    }
+    return converters[section](payload, now)
 
 
 # --------------------------------------------------------------------------- #

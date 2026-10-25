@@ -7,11 +7,15 @@ over the report's own final cost lines.
 
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 
+from agents.confirmed_trip import build_inventory_requests, compile_confirmed_input
 from agents.estimator import per_diem_lines, poi_lines
 from agents.explainer import _template_explainer, build_final_report
+from agents.gateway_estimator import estimate_confirmed_inventory
 from agents.kernel import run_kernel
 from agents.models import (
     DraftItinerary,
@@ -22,12 +26,181 @@ from agents.models import (
 )
 from agents.retrieval import retrieve_candidates
 from core.db import KnowledgeBase
-from core.itinerary.compose import build_final_schedule
+from core.itinerary.compose import build_final_schedule, fallback_itinerary
 from core.itinerary.edits import apply_edit
-from core.models import CostedTrip, SpendCategory, SpendLineItem
+from core.models import CostedTrip, OptimizationPrefs, SpendCategory, SpendLineItem
 from core.trip_models import ItineraryEdit, TripSpec
+from gateway.travel.product import TravelInventorySnapshot, TravelInventorySummary
+from gateway.travel.service import TravelInventoryService
+from planning.contracts import ConfirmedBriefSnapshot, TripBrief
+from planning.post_plan import ProviderInvalidatingChange, ScopedItineraryReplan
 
 _ADMITTED_CATEGORIES = (SpendCategory.FLIGHTS, SpendCategory.HOTELS)
+
+
+@dataclass(frozen=True)
+class PostPlanExecutionResult:
+    report: FinalReport
+    brief: TripBrief
+    inventory_snapshot: TravelInventorySnapshot | None = None
+
+
+def spec_for_brief(base: TripSpec, brief: TripBrief) -> TripSpec:
+    """Project a confirmed brief onto the existing kernel request shape."""
+    essentials = brief.trip_essentials
+    budget = brief.budget_and_objective
+    rhythm = brief.daily_rhythm
+    objective_map = {
+        "lowest_cash": "min_cash_outlay",
+        "highest_value": "max_savings",
+        "balanced": "max_savings",
+        "convenience": "simplicity",
+    }
+    return base.model_copy(
+        update={
+            "home_country": brief.home.home_country,
+            "origin_city": essentials.origin,
+            "destination_city": essentials.destination,
+            "start_date": essentials.start_date,
+            "end_date": essentials.end_date,
+            "travelers": essentials.travelers,
+            "budget_minor": budget.budget_minor if budget else None,
+            "budget_currency": budget.currency if budget else brief.home.home_currency,
+            "style": budget.travel_style if budget else "balanced",
+            "interests": (
+                brief.experiences_and_food.interests
+                if brief.experiences_and_food
+                else []
+            ),
+            "pace": rhythm.pace if rhythm else "moderate",
+            "dietary": (
+                brief.hard_constraints.dietary if brief.hard_constraints.has_constraints else []
+            ),
+            "wallet": brief.wallet,
+            "optimization": OptimizationPrefs(objective=objective_map[budget.objective])
+            if budget
+            else base.optimization,
+        }
+    )
+
+
+def _report_from_estimate(
+    report: FinalReport,
+    *,
+    spec: TripSpec,
+    itinerary: DraftItinerary,
+    estimate: EstimatorResult,
+    kb: KnowledgeBase,
+    now: datetime,
+    inventory: TravelInventorySummary | None = None,
+) -> FinalReport:
+    del now
+    retrieval = retrieve_candidates(spec, kb)
+    kernel = run_kernel(spec, estimate, kb, booking_date=report.costed_trip.booking_date)
+    rebuilt = build_final_report(
+        spec,
+        itinerary,
+        estimate,
+        kernel,
+        retrieval,
+        critic_caveats=list(report.caveats),
+        explainer=_template_explainer(kernel),
+        trace_id=report.trace_id,
+        region_capability=report.region_capability,
+        freshness=report.freshness,
+    )
+    return rebuilt.model_copy(update={"travel_inventory": inventory})
+
+
+def replan_scoped_itinerary(
+    report: FinalReport,
+    action: ScopedItineraryReplan,
+    *,
+    brief: TripBrief,
+    kb: KnowledgeBase,
+    now: datetime,
+) -> PostPlanExecutionResult:
+    """Build a local deterministic candidate and splice only approved dates."""
+    spec = spec_for_brief(report.trip_spec, brief)
+    retrieval = retrieve_candidates(spec, kb)
+    candidate = fallback_itinerary(spec, retrieval)
+    affected = set(action.affected_dates)
+    candidate_by_date = {day.date: day for day in candidate.days}
+    days = [
+        candidate_by_date.get(day.date, day) if day.date in affected else day
+        for day in report.itinerary.days
+    ]
+    itinerary = report.itinerary.model_copy(update={"days": days})
+    rebuilt = recompute_confirmed_report(
+        report, itinerary=itinerary, spec=spec, kb=kb, now=now
+    )
+    return PostPlanExecutionResult(report=rebuilt, brief=brief)
+
+
+def refresh_provider_inventory(
+    report: FinalReport,
+    action: ProviderInvalidatingChange,
+    *,
+    brief: TripBrief,
+    retained_snapshot: TravelInventorySnapshot | None,
+    kb: KnowledgeBase,
+    now: datetime,
+    inventory_service: TravelInventoryService,
+) -> PostPlanExecutionResult:
+    """Refresh only server-derived invalidated domains through the sample gateway."""
+    del action
+    spec = spec_for_brief(report.trip_spec, brief)
+    itinerary = report.itinerary
+    expected_dates = [spec.start_date + timedelta(days=offset) for offset in range(spec.nights)]
+    if [day.date for day in itinerary.days] != expected_dates:
+        itinerary = fallback_itinerary(spec, retrieve_candidates(spec, kb))
+    confirmed = ConfirmedBriefSnapshot(revision=1, brief=brief, confirmed_at=now)
+    flight_request, hotel_request = build_inventory_requests(
+        compile_confirmed_input(confirmed), itinerary
+    )
+    # The route supplies a sample-only TravelInventoryService. The object protocol
+    # keeps this module independent from API construction and makes raising test
+    # transports straightforward.
+    requested = {"flight", "hotel"}
+    if retained_snapshot is not None:
+        if flight_request == retained_snapshot.flight_request:
+            requested.discard("flight")
+        if hotel_request == retained_snapshot.hotel_request:
+            requested.discard("hotel")
+    fresh = asyncio.run(inventory_service.search(flight_request, hotel_request, domains=requested))
+    if retained_snapshot is not None:
+        fresh = fresh.model_copy(
+            update={
+                "flights": fresh.flights if "flight" in requested else retained_snapshot.flights,
+                "hotels": fresh.hotels if "hotel" in requested else retained_snapshot.hotels,
+                "flight_scopes": fresh.flight_scopes
+                if "flight" in requested
+                else retained_snapshot.flight_scopes,
+                "hotel_scopes": fresh.hotel_scopes
+                if "hotel" in requested
+                else retained_snapshot.hotel_scopes,
+            }
+        )
+    fresh = fresh.model_copy(
+        update={
+            "inventory_revision": (
+                retained_snapshot.inventory_revision + 1 if retained_snapshot else 1
+            )
+        }
+    )
+    estimate_result = estimate_confirmed_inventory(
+        spec, itinerary, kb, fresh, booking_date=report.costed_trip.booking_date
+    )
+    rebuilt = _report_from_estimate(
+        report,
+        spec=spec,
+        itinerary=itinerary,
+        estimate=estimate_result.estimate,
+        kb=kb,
+        now=now,
+        inventory=estimate_result.summary,
+    )
+    return PostPlanExecutionResult(report=rebuilt, brief=brief, inventory_snapshot=fresh)
 
 
 def _without(items: list[str], remove: list[str]) -> list[str]:

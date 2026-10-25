@@ -63,6 +63,17 @@ const cp4Workspace: {
   operations: [],
 };
 
+type Cp4ProposalFixture = {
+  proposal_id: string;
+  operation_id: string;
+  status: string;
+  action: unknown;
+  impact: Record<string, unknown>;
+  decision: "pending" | "approved" | "rejected";
+};
+
+const cp4Proposals = new Map<string, Cp4ProposalFixture>();
+
 const STAGES: PlanJobStatus["stage"][] = [
   "intake",
   "itinerary",
@@ -907,12 +918,31 @@ export const handlers = [
   http.get("*/planning/sessions/:sessionId/workspace", () => HttpResponse.json(cp4Workspace)),
   http.post("*/planning/sessions/:sessionId/actions", async ({ request }) => {
     const body = await request.json() as { client_event_id?: string; action?: unknown };
-    const proposal = { proposal_id: `msw-proposal-${body.client_event_id ?? "1"}`, operation_id: `msw-operation-${body.client_event_id ?? "1"}`, status: "complete", action: body.action ?? { kind: "clarification_required", reason: "needs_detail", question: "What should change?", choices: [] }, impact: { invalidated_domains: [], affected_dates: [], refetch_domains: [], inventory_reuse: "full", requires_confirmation: false, changes_trip: false, explanation_only: false }, decision: "pending" };
+    const eventId = body.client_event_id ?? "1";
+    const replay = cp4Proposals.get(eventId);
+    if (replay) return HttpResponse.json(replay);
+    const proposal: Cp4ProposalFixture = { proposal_id: `msw-proposal-${body.client_event_id ?? "1"}`, operation_id: `msw-operation-${body.client_event_id ?? "1"}`, status: "complete", action: body.action ?? { kind: "clarification_required", reason: "needs_detail", question: "What should change?", choices: [] }, impact: { invalidated_domains: [], affected_dates: [], refetch_domains: [], inventory_reuse: "full", requires_confirmation: false, changes_trip: false, explanation_only: false }, decision: "pending" };
+    cp4Proposals.set(eventId, proposal);
+    cp4Workspace.version += 1;
     cp4Workspace.operations = [...cp4Workspace.operations, proposal];
     return HttpResponse.json(proposal);
   }),
-  http.post("*/planning/sessions/:sessionId/actions/:proposalId/approve", ({ params }) => HttpResponse.json({ operation_id: `msw-approve-${params.proposalId}`, proposal_id: params.proposalId, status: "complete", decision: "approved", result_id: cp4Workspace.current_result_id })),
-  http.post("*/planning/sessions/:sessionId/actions/:proposalId/reject", ({ params }) => HttpResponse.json({ operation_id: `msw-reject-${params.proposalId}`, proposal_id: params.proposalId, status: "complete", decision: "rejected", result_id: cp4Workspace.current_result_id })),
+  http.post("*/planning/sessions/:sessionId/actions/:proposalId/approve", ({ params }) => {
+    const proposal = [...cp4Proposals.values()].find((value) => value.proposal_id === params.proposalId);
+    if (!proposal || proposal.decision !== "pending") return HttpResponse.json({ detail: { code: "PROPOSAL_NOT_PENDING", message: "This proposal is no longer pending." } }, { status: 409 });
+    proposal.decision = "approved";
+    cp4Workspace.version += 1;
+    cp4Workspace.current_result_id = `msw-result-${cp4Workspace.version}`;
+    return HttpResponse.json({ operation_id: `msw-approve-${params.proposalId}`, proposal_id: params.proposalId, status: "complete", decision: "approved", result_id: cp4Workspace.current_result_id });
+  }),
+  http.post("*/planning/sessions/:sessionId/actions/:proposalId/reject", ({ params }) => {
+    const proposal = [...cp4Proposals.values()].find((value) => value.proposal_id === params.proposalId);
+    if (!proposal || proposal.decision !== "pending") return HttpResponse.json({ detail: { code: "PROPOSAL_NOT_PENDING", message: "This proposal is no longer pending." } }, { status: 409 });
+    proposal.decision = "rejected";
+    cp4Workspace.version += 1;
+    return HttpResponse.json({ operation_id: `msw-reject-${params.proposalId}`, proposal_id: params.proposalId, status: "complete", decision: "rejected", result_id: cp4Workspace.current_result_id });
+  }),
+  http.post("*/planning/sessions/:sessionId/workspace/revisions", () => HttpResponse.json({ trip_id: "msw-trip-001", revision: cp4Workspace.version, result_id: cp4Workspace.current_result_id }, { status: 201 })),
 
   // --- A3 authenticated wallet ---
   http.get("*/account/card-products", () => HttpResponse.json(MSW_CARD_PRODUCTS)),

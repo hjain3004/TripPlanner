@@ -155,6 +155,10 @@ class PostPlanQuotaError(ValueError):
         self.quota = quota
 
 
+class StaleProfileSectionError(ValueError):
+    """The approved profile section changed after the proposal was created."""
+
+
 TripOperation = Literal["save", "append_revision", "delete", "rerun_complete"]
 
 
@@ -2023,6 +2027,9 @@ class AccountStore:
         report_json: str | None,
         outcome_json: str = "{}",
         updated_at: datetime | None = None,
+        profile_update: TravelPreferenceProfile | None = None,
+        profile_section: str | None = None,
+        profile_base_fingerprint: str | None = None,
     ) -> PostPlanOperation:
         """Complete a reserved operation: workspace, session, result and outcome, atomically.
 
@@ -2068,6 +2075,39 @@ class AccountStore:
                 raise ValueError(
                     "commit identity or session version does not match the reservation"
                 )
+            if profile_update is not None:
+                if profile_section is None or profile_base_fingerprint is None:
+                    raise ValueError("profile section and base fingerprint are required")
+                profile_row = db.get(TravelPreferenceRow, user_id)
+                current_profile = (
+                    TravelPreferenceProfile.model_validate_json(profile_row.payload)
+                    if profile_row is not None
+                    else TravelPreferenceProfile(
+                        user_id=user_id, updated_at=profile_update.updated_at
+                    )
+                )
+                current_section = getattr(current_profile, profile_section)
+                current_fingerprint = hashlib.sha256(
+                    json.dumps(
+                        current_section.model_dump(mode="json"),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest()
+                if current_fingerprint != profile_base_fingerprint:
+                    raise StaleProfileSectionError(
+                        "the approved preference section changed while this action was pending"
+                    )
+                if profile_update.user_id != user_id:
+                    raise ValueError("profile owner does not match operation owner")
+                if profile_row is None:
+                    db.add(
+                        TravelPreferenceRow(
+                            user_id=user_id, payload=profile_update.model_dump_json()
+                        )
+                    )
+                else:
+                    profile_row.payload = profile_update.model_dump_json()
             outcome = db.execute(
                 update(PlanningSessionRow)
                 .where(
