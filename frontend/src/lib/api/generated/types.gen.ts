@@ -5,6 +5,68 @@ export type ClientOptions = {
 };
 
 /**
+ * ActionIn
+ */
+export type ActionIn = {
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Expected Session Version
+     */
+    expected_session_version: number;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version: number;
+    /**
+     * Text
+     */
+    text?: string | null;
+    /**
+     * Action
+     */
+    action?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * ActionProposalOut
+ */
+export type ActionProposalOut = {
+    /**
+     * Proposal Id
+     */
+    proposal_id: string;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Action
+     */
+    action: {
+        [key: string]: unknown;
+    };
+    /**
+     * Impact
+     */
+    impact: {
+        [key: string]: unknown;
+    };
+    /**
+     * Decision
+     */
+    decision: string | null;
+};
+
+/**
  * AdaptiveDetailPayload
  */
 export type AdaptiveDetailPayload = {
@@ -131,7 +193,7 @@ export type ApiErrorBody = {
     /**
      * Code
      */
-    code: 'IDEMPOTENCY_KEY_REUSED' | 'PLAN_RESULT_UNAVAILABLE' | 'REPORT_TOO_LARGE' | 'RERUN_IN_PROGRESS' | 'RERUN_NOT_FOUND' | 'REVISION_LIMIT_REACHED' | 'REVISION_NOT_FOUND' | 'SAVED_TRIP_INVALID' | 'SAVED_TRIPS_UNAVAILABLE' | 'SESSION_ALREADY_SAVED' | 'SESSION_EXPIRED' | 'SESSION_NOT_ATTACHED' | 'SESSION_NOT_CONFIRMED' | 'SESSION_NOT_FOUND' | 'STALE_SESSION' | 'TRIP_LIMIT_REACHED' | 'TRIP_NOT_FOUND' | 'TRIP_NOT_RERUNNABLE' | 'TRIP_REVISION_CONFLICT';
+    code: 'IDEMPOTENCY_KEY_REUSED' | 'PLAN_RESULT_UNAVAILABLE' | 'REPORT_TOO_LARGE' | 'RERUN_IN_PROGRESS' | 'RERUN_NOT_FOUND' | 'REVISION_LIMIT_REACHED' | 'REVISION_NOT_FOUND' | 'SAVED_TRIP_INVALID' | 'SAVED_TRIPS_UNAVAILABLE' | 'SESSION_ALREADY_SAVED' | 'SESSION_EXPIRED' | 'SESSION_NOT_ATTACHED' | 'SESSION_NOT_CONFIRMED' | 'SESSION_NOT_FOUND' | 'STALE_SESSION' | 'TRIP_LIMIT_REACHED' | 'TRIP_NOT_FOUND' | 'TRIP_NOT_RERUNNABLE' | 'TRIP_REVISION_CONFLICT' | 'WORKSPACE_REVIEW_REQUIRED' | 'STALE_WORKSPACE' | 'WORKSPACE_REBUILD_REQUIRED';
     /**
      * Message
      */
@@ -154,6 +216,14 @@ export type AppendRevisionIn = {
      * Client Event Id
      */
     client_event_id: string;
+    /**
+     * Source Result Id
+     */
+    source_result_id?: string | null;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version?: number | null;
 };
 
 /**
@@ -610,6 +680,24 @@ export type DailyRhythmPayload = {
      * Day Trip Appetite
      */
     day_trip_appetite: 'none' | 'one' | 'multiple' | 'no_preference';
+};
+
+/**
+ * DecisionIn
+ */
+export type DecisionIn = {
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Expected Session Version
+     */
+    expected_session_version: number;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version: number;
 };
 
 /**
@@ -1547,6 +1635,42 @@ export type PlanJobStatus = {
 export type PlanningSessionStatus = 'interviewing' | 'awaiting_assistant' | 'reviewing' | 'confirmed' | 'planning' | 'complete' | 'failed' | 'abandoned';
 
 /**
+ * PostPlanWorkspaceOut
+ */
+export type PostPlanWorkspaceOut = {
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Current Result Id
+     */
+    current_result_id: string;
+    /**
+     * Workspace
+     */
+    workspace: {
+        [key: string]: unknown;
+    };
+    /**
+     * Report
+     */
+    report: {
+        [key: string]: unknown;
+    };
+    /**
+     * Operations
+     */
+    operations: Array<{
+        [key: string]: unknown;
+    }>;
+};
+
+/**
  * PreferenceOut
  */
 export type PreferenceOut = {
@@ -2446,6 +2570,14 @@ export type SaveTripIn = {
      * Client Event Id
      */
     client_event_id: string;
+    /**
+     * Source Result Id
+     */
+    source_result_id?: string | null;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version?: number | null;
 };
 
 /**
@@ -3374,6 +3506,56 @@ export type WalletEntryPatchIn = {
      * Client Event Id
      */
     client_event_id?: string | null;
+};
+
+/**
+ * WorkspaceInitIn
+ */
+export type WorkspaceInitIn = {
+    /**
+     * Source
+     */
+    source?: 'job' | 'saved_revision';
+    /**
+     * Trip Id
+     */
+    trip_id?: string | null;
+    /**
+     * Revision
+     */
+    revision?: number | null;
+};
+
+/**
+ * WorkspaceRevisionIn
+ */
+export type WorkspaceRevisionIn = {
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version: number;
+};
+
+/**
+ * WorkspaceRevisionOut
+ */
+export type WorkspaceRevisionOut = {
+    /**
+     * Trip Id
+     */
+    trip_id: string;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Result Id
+     */
+    result_id: string;
 };
 
 export type GetPreferencesPlanningPreferencesGetData = {
@@ -4388,6 +4570,202 @@ export type RerunStatusAccountTripsTripIdRerunsJobIdGetResponses = {
 };
 
 export type RerunStatusAccountTripsTripIdRerunsJobIdGetResponse = RerunStatusAccountTripsTripIdRerunsJobIdGetResponses[keyof RerunStatusAccountTripsTripIdRerunsJobIdGetResponses];
+
+export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/workspace';
+};
+
+export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetError = GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors[keyof GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors];
+
+export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PostPlanWorkspaceOut;
+};
+
+export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetResponse = GetWorkspacePlanningSessionsSessionIdWorkspaceGetResponses[keyof GetWorkspacePlanningSessionsSessionIdWorkspaceGetResponses];
+
+export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostData = {
+    body: WorkspaceInitIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/workspace';
+};
+
+export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostError = InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors[keyof InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors];
+
+export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PostPlanWorkspaceOut;
+};
+
+export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostResponse = InitializeWorkspacePlanningSessionsSessionIdWorkspacePostResponses[keyof InitializeWorkspacePlanningSessionsSessionIdWorkspacePostResponses];
+
+export type ProposeActionPlanningSessionsSessionIdActionsPostData = {
+    body: ActionIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/actions';
+};
+
+export type ProposeActionPlanningSessionsSessionIdActionsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeActionPlanningSessionsSessionIdActionsPostError = ProposeActionPlanningSessionsSessionIdActionsPostErrors[keyof ProposeActionPlanningSessionsSessionIdActionsPostErrors];
+
+export type ProposeActionPlanningSessionsSessionIdActionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ActionProposalOut;
+};
+
+export type ProposeActionPlanningSessionsSessionIdActionsPostResponse = ProposeActionPlanningSessionsSessionIdActionsPostResponses[keyof ProposeActionPlanningSessionsSessionIdActionsPostResponses];
+
+export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostData = {
+    body: DecisionIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Proposal Id
+         */
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/actions/{proposal_id}/approve';
+};
+
+export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostError = ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors[keyof ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors];
+
+export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostResponses = {
+    /**
+     * Response Approve Action Planning Sessions  Session Id  Actions  Proposal Id  Approve Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostResponse = ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostResponses[keyof ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostResponses];
+
+export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostData = {
+    body: DecisionIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Proposal Id
+         */
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/actions/{proposal_id}/reject';
+};
+
+export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostError = RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors[keyof RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors];
+
+export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostResponses = {
+    /**
+     * Response Reject Action Planning Sessions  Session Id  Actions  Proposal Id  Reject Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostResponse = RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostResponses[keyof RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostResponses];
+
+export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostData = {
+    body: WorkspaceRevisionIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/workspace/revisions';
+};
+
+export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostError = SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors[keyof SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors];
+
+export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: WorkspaceRevisionOut;
+};
+
+export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostResponse = SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostResponses[keyof SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostResponses];
 
 export type HealthHealthGetData = {
     body?: never;

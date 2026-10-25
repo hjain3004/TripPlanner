@@ -1768,6 +1768,329 @@
         }
       }
     },
+    "/planning/sessions/{session_id}/workspace": {
+      "post": {
+        "tags": [
+          "post-plan"
+        ],
+        "summary": "Initialize Workspace",
+        "operationId": "initialize_workspace_planning_sessions__session_id__workspace_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceInitIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanWorkspaceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "post-plan"
+        ],
+        "summary": "Get Workspace",
+        "operationId": "get_workspace_planning_sessions__session_id__workspace_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanWorkspaceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/actions": {
+      "post": {
+        "tags": [
+          "post-plan"
+        ],
+        "summary": "Propose Action",
+        "operationId": "propose_action_planning_sessions__session_id__actions_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionProposalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/actions/{proposal_id}/approve": {
+      "post": {
+        "tags": [
+          "post-plan"
+        ],
+        "summary": "Approve Action",
+        "operationId": "approve_action_planning_sessions__session_id__actions__proposal_id__approve_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Approve Action Planning Sessions  Session Id  Actions  Proposal Id  Approve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/actions/{proposal_id}/reject": {
+      "post": {
+        "tags": [
+          "post-plan"
+        ],
+        "summary": "Reject Action",
+        "operationId": "reject_action_planning_sessions__session_id__actions__proposal_id__reject_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reject Action Planning Sessions  Session Id  Actions  Proposal Id  Reject Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/workspace/revisions": {
+      "post": {
+        "tags": [
+          "post-plan"
+        ],
+        "summary": "Save Workspace Revision",
+        "description": "Explicitly append the selected durable result; working approvals never autosave.",
+        "operationId": "save_workspace_revision_planning_sessions__session_id__workspace_revisions_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceRevisionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceRevisionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -2093,6 +2416,106 @@
   },
   "components": {
     "schemas": {
+      "ActionIn": {
+        "properties": {
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          },
+          "expected_session_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Session Version"
+          },
+          "expected_workspace_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Workspace Version"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "client_event_id",
+          "expected_session_version",
+          "expected_workspace_version"
+        ],
+        "title": "ActionIn"
+      },
+      "ActionProposalOut": {
+        "properties": {
+          "proposal_id": {
+            "type": "string",
+            "title": "Proposal Id"
+          },
+          "operation_id": {
+            "type": "string",
+            "title": "Operation Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "action": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Action"
+          },
+          "impact": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Impact"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "proposal_id",
+          "operation_id",
+          "status",
+          "action",
+          "impact",
+          "decision"
+        ],
+        "title": "ActionProposalOut"
+      },
       "AdaptiveDetailPayload": {
         "properties": {
           "detail": {
@@ -2386,7 +2809,10 @@
               "TRIP_LIMIT_REACHED",
               "TRIP_NOT_FOUND",
               "TRIP_NOT_RERUNNABLE",
-              "TRIP_REVISION_CONFLICT"
+              "TRIP_REVISION_CONFLICT",
+              "WORKSPACE_REVIEW_REQUIRED",
+              "STALE_WORKSPACE",
+              "WORKSPACE_REBUILD_REQUIRED"
             ],
             "title": "Code"
           },
@@ -2426,6 +2852,29 @@
             "maxLength": 128,
             "minLength": 1,
             "title": "Client Event Id"
+          },
+          "source_result_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Result Id"
+          },
+          "expected_workspace_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Workspace Version"
           }
         },
         "additionalProperties": false,
@@ -3265,6 +3714,34 @@
           "day_trip_appetite"
         ],
         "title": "DailyRhythmPayload"
+      },
+      "DecisionIn": {
+        "properties": {
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          },
+          "expected_session_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Session Version"
+          },
+          "expected_workspace_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Workspace Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "client_event_id",
+          "expected_session_version",
+          "expected_workspace_version"
+        ],
+        "title": "DecisionIn"
       },
       "DraftItinerary-Input": {
         "properties": {
@@ -5164,6 +5641,51 @@
         ],
         "title": "PlanningSessionStatus"
       },
+      "PostPlanWorkspaceOut": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "current_result_id": {
+            "type": "string",
+            "title": "Current Result Id"
+          },
+          "workspace": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Workspace"
+          },
+          "report": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Report"
+          },
+          "operations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Operations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "version",
+          "current_result_id",
+          "workspace",
+          "report",
+          "operations"
+        ],
+        "title": "PostPlanWorkspaceOut"
+      },
       "PreferenceOut": {
         "properties": {
           "profile": {
@@ -6836,6 +7358,29 @@
             "maxLength": 128,
             "minLength": 1,
             "title": "Client Event Id"
+          },
+          "source_result_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Result Id"
+          },
+          "expected_workspace_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Workspace Version"
           }
         },
         "additionalProperties": false,
@@ -8572,6 +9117,91 @@
         ],
         "title": "WalletEntryPatchIn",
         "description": "Patch body. Omitted fields are left alone; explicit ``null`` clears one."
+      },
+      "WorkspaceInitIn": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "job",
+              "saved_revision"
+            ],
+            "title": "Source",
+            "default": "job"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "WorkspaceInitIn"
+      },
+      "WorkspaceRevisionIn": {
+        "properties": {
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          },
+          "expected_workspace_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Workspace Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "client_event_id",
+          "expected_workspace_version"
+        ],
+        "title": "WorkspaceRevisionIn"
+      },
+      "WorkspaceRevisionOut": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "result_id": {
+            "type": "string",
+            "title": "Result Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "trip_id",
+          "revision",
+          "result_id"
+        ],
+        "title": "WorkspaceRevisionOut"
       }
     }
   }

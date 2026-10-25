@@ -26,6 +26,7 @@ from accounts.store import (
     StalePostPlanBaseError,
     StalePostPlanWorkspaceError,
     UnknownPlanningSessionError,
+    trip_event_fingerprint,
 )
 from agents.post_plan_interpreter import (
     PostPlanInterpretationError,
@@ -92,6 +93,13 @@ class WorkspaceRevisionIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     client_event_id: str = Field(min_length=1, max_length=128)
     expected_workspace_version: int = Field(ge=1)
+
+
+class WorkspaceRevisionOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    trip_id: str
+    revision: int
+    result_id: str
 
 
 class PostPlanError(BaseModel):
@@ -540,6 +548,46 @@ def reject_action(
     try:
         return _decision(
             session_id, proposal_id, body, approve=False, request=request, user=user, store=store
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _map_error(exc) from exc
+
+
+@router.post("/workspace/revisions", response_model=WorkspaceRevisionOut, status_code=201)
+def save_workspace_revision(
+    session_id: str,
+    body: WorkspaceRevisionIn,
+    request: Request,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+) -> WorkspaceRevisionOut:
+    """Explicitly append the selected durable result; working approvals never autosave."""
+    require_csrf(request)
+    try:
+        loaded = _loaded(store, user, session_id)
+        if loaded.snapshot.version != body.expected_workspace_version:
+            raise _error("STALE_WORKSPACE", "Reload the workspace before saving.", 409)
+        trip_id = loaded.snapshot.saved_trip_id
+        if trip_id is None:
+            raise _error("SESSION_NOT_ATTACHED", "Attach this session to a saved trip first.", 409)
+        fingerprint = trip_event_fingerprint(
+            "append_revision",
+            trip_id=trip_id,
+            fields={"session_id": session_id, "result_id": loaded.snapshot.current_result_id},
+        )
+        revision = store.add_revision(
+            user_id=user.id,
+            trip_id=trip_id,
+            trace_id=loaded.report.trace_id,
+            report_json=loaded.result.report_json,
+            now=now_utc(),
+            client_event_id=body.client_event_id,
+            request_fingerprint=fingerprint,
+        )
+        return WorkspaceRevisionOut(
+            trip_id=trip_id, revision=revision.revision, result_id=loaded.snapshot.current_result_id
         )
     except HTTPException:
         raise

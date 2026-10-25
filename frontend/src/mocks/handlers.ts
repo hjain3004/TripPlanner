@@ -47,6 +47,22 @@ const conversationSession = {
   planning_job_id: null,
 };
 
+const cp4Workspace: {
+  session_id: string;
+  version: number;
+  current_result_id: string;
+  workspace: Record<string, unknown>;
+  report: ReturnType<typeof createHappyReport>;
+  operations: unknown[];
+} = {
+  session_id: "msw-session-001",
+  version: 1,
+  current_result_id: "msw-result-001",
+  workspace: { session_id: "msw-session-001", confirmed_brief_revision: 1 },
+  report: createHappyReport(),
+  operations: [],
+};
+
 const STAGES: PlanJobStatus["stage"][] = [
   "intake",
   "itinerary",
@@ -887,6 +903,16 @@ export const handlers = [
   http.post("*/planning/sessions/:sessionId/profile-updates/:proposalId/approve", () => HttpResponse.json({ ...conversationSession, version: 1 })),
   http.post("*/planning/sessions/:sessionId/confirm", () => HttpResponse.json({ ...conversationSession, status: "planning", planning_job_id: "msw-job-001", job_id: "msw-job-001" }, { status: 202 })),
   http.get("*/planning/sessions/:sessionId/job", () => HttpResponse.json({ job_id: "msw-job-001", status: "complete", stage: "explaining", progress: 1 })),
+  http.post("*/planning/sessions/:sessionId/workspace", () => HttpResponse.json(cp4Workspace)),
+  http.get("*/planning/sessions/:sessionId/workspace", () => HttpResponse.json(cp4Workspace)),
+  http.post("*/planning/sessions/:sessionId/actions", async ({ request }) => {
+    const body = await request.json() as { client_event_id?: string; action?: unknown };
+    const proposal = { proposal_id: `msw-proposal-${body.client_event_id ?? "1"}`, operation_id: `msw-operation-${body.client_event_id ?? "1"}`, status: "complete", action: body.action ?? { kind: "clarification_required", reason: "needs_detail", question: "What should change?", choices: [] }, impact: { invalidated_domains: [], affected_dates: [], refetch_domains: [], inventory_reuse: "full", requires_confirmation: false, changes_trip: false, explanation_only: false }, decision: "pending" };
+    cp4Workspace.operations = [...cp4Workspace.operations, proposal];
+    return HttpResponse.json(proposal);
+  }),
+  http.post("*/planning/sessions/:sessionId/actions/:proposalId/approve", ({ params }) => HttpResponse.json({ operation_id: `msw-approve-${params.proposalId}`, proposal_id: params.proposalId, status: "complete", decision: "approved", result_id: cp4Workspace.current_result_id })),
+  http.post("*/planning/sessions/:sessionId/actions/:proposalId/reject", ({ params }) => HttpResponse.json({ operation_id: `msw-reject-${params.proposalId}`, proposal_id: params.proposalId, status: "complete", decision: "rejected", result_id: cp4Workspace.current_result_id })),
 
   // --- A3 authenticated wallet ---
   http.get("*/account/card-products", () => HttpResponse.json(MSW_CARD_PRODUCTS)),
