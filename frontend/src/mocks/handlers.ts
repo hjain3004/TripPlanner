@@ -1,5 +1,6 @@
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, type JsonBodyType } from "msw";
 import type {
+  ApiErrorBody,
   CredentialsIn,
   FinalReport,
   PlanJobStatus,
@@ -473,31 +474,72 @@ function walletConflict(code: string, message: string) {
 
 // --- A4 saved trips (stateful mock; mirrors api/saved_trips.py) ---------------
 //
-// Reports are returned verbatim as stored, never re-derived: the mock keeps the
-// exact object it saved, as the real API does.
+// Reports are returned verbatim as stored, never re-derived. The mock models the
+// behaviour a UI must handle: idempotent replay and event-id reuse, one trip per
+// planning session, the session a trip is attached to, the trip/revision caps, and a
+// re-run that is "running" until its revision has been appended.
+//
+// Sentinel session ids select the documented plan-state failures deterministically.
+
+const MSW_MAX_TRIPS = 50;
+const MSW_MAX_REVISIONS = 25;
 
 interface MswTripRecord {
   summary: TripSummaryOut;
   revisions: RevisionOut[];
+  sessionId: string;
+}
+
+interface MswRerun {
+  tripId: string;
+  polls: number;
+  revision: number | null;
 }
 
 let mswTrips: MswTripRecord[] = [];
 let mswTripSeq = 0;
-let mswTripEvents = new Map<string, unknown>();
-let mswReruns = new Map<string, { tripId: string; appended: boolean }>();
+/** `<operation>:<client_event_id>` -> original fingerprint + response body (replay). */
+let mswTripEvents = new Map<string, { fingerprint: string; body: JsonBodyType }>();
+let mswReruns = new Map<string, MswRerun>();
+/** Rerun starts by client event id -> fingerprint + job id (in memory, as in the API). */
+let mswRerunStarts = new Map<string, { fingerprint: string; jobId: string }>();
 
 export function resetMswTrips(): void {
   mswTrips = [];
   mswTripSeq = 0;
   mswTripEvents = new Map();
   mswReruns = new Map();
+  mswRerunStarts = new Map();
 }
 
-function tripError(status: number, code: string, message: string, extra: Record<string, string> = {}) {
+function tripError(
+  status: number,
+  code: ApiErrorBody["code"],
+  message: string,
+  extra: Record<string, string> = {},
+) {
   return HttpResponse.json({ detail: { code, message, ...extra } }, { status });
 }
 
 const tripNotFound = () => tripError(404, "TRIP_NOT_FOUND", "No such saved trip.");
+const eventReused = () =>
+  tripError(409, "IDEMPOTENCY_KEY_REUSED", "This client event id was already used for a different request.");
+
+/** Plan-state failures selected by sentinel session ids (the API reads these off the job). */
+function sessionFailure(sessionId: string) {
+  switch (sessionId) {
+    case "msw-session-missing":
+      return tripError(404, "SESSION_NOT_FOUND", "Planning session not found");
+    case "msw-session-expired":
+      return tripError(410, "SESSION_EXPIRED", "Planning session has expired");
+    case "msw-session-unconfirmed":
+      return tripError(409, "SESSION_NOT_CONFIRMED", "Confirm the trip brief and let planning finish before saving.");
+    case "msw-session-lost":
+      return tripError(409, "PLAN_RESULT_UNAVAILABLE", "This plan's result is no longer available to save. Plan the trip again.");
+    default:
+      return null;
+  }
+}
 
 function mswRevision(n: number, report: Record<string, unknown>): RevisionOut {
   return {
@@ -508,6 +550,10 @@ function mswRevision(n: number, report: Record<string, unknown>): RevisionOut {
     is_current_schema: true,
     report,
   };
+}
+
+function mswReport(): Record<string, unknown> {
+  return createHappyReport() as unknown as Record<string, unknown>;
 }
 
 function refreshSummary(record: MswTripRecord): void {
@@ -534,6 +580,10 @@ function mswTripDetail(record: MswTripRecord): TripDetailOut {
   };
 }
 
+function hasActiveRerun(tripId: string): boolean {
+  return [...mswReruns.values()].some((r) => r.tripId === tripId && r.revision === null);
+}
+
 /** Typed error responses for every documented saved-trip failure (status + code). */
 export const SAVED_TRIP_ERROR_FIXTURES = {
   unauthenticated: { status: 401, detail: "Not authenticated" },
@@ -546,15 +596,21 @@ export const SAVED_TRIP_ERROR_FIXTURES = {
   SESSION_NOT_CONFIRMED: { status: 409, code: "SESSION_NOT_CONFIRMED" },
   SESSION_ALREADY_SAVED: { status: 409, code: "SESSION_ALREADY_SAVED", trip_id: "msw-trip-1" },
   SESSION_NOT_ATTACHED: { status: 409, code: "SESSION_NOT_ATTACHED" },
+  STALE_SESSION: { status: 409, code: "STALE_SESSION" },
   RERUN_IN_PROGRESS: { status: 409, code: "RERUN_IN_PROGRESS" },
+  TRIP_NOT_RERUNNABLE: { status: 409, code: "TRIP_NOT_RERUNNABLE" },
   TRIP_LIMIT_REACHED: { status: 409, code: "TRIP_LIMIT_REACHED" },
   REVISION_LIMIT_REACHED: { status: 409, code: "REVISION_LIMIT_REACHED" },
   IDEMPOTENCY_KEY_REUSED: { status: 409, code: "IDEMPOTENCY_KEY_REUSED" },
   TRIP_REVISION_CONFLICT: { status: 409, code: "TRIP_REVISION_CONFLICT" },
+  SESSION_EXPIRED: { status: 410, code: "SESSION_EXPIRED" },
   REPORT_TOO_LARGE: { status: 413, code: "REPORT_TOO_LARGE" },
   SAVED_TRIP_INVALID: { status: 422, code: "SAVED_TRIP_INVALID" },
   SAVED_TRIPS_UNAVAILABLE: { status: 503, code: "SAVED_TRIPS_UNAVAILABLE" },
-} as const;
+} as const satisfies Record<
+  string,
+  { status: number; code?: ApiErrorBody["code"]; detail?: string; trip_id?: string }
+>;
 
 export type SavedTripErrorFixture = keyof typeof SAVED_TRIP_ERROR_FIXTURES;
 
@@ -566,7 +622,7 @@ export function savedTripErrorHandler(
 ) {
   const spec = SAVED_TRIP_ERROR_FIXTURES[fixture] as {
     status: number;
-    code?: string;
+    code?: ApiErrorBody["code"];
     detail?: string;
     trip_id?: string;
   };
@@ -905,19 +961,32 @@ export const handlers = [
 
   http.post("*/account/trips", async ({ request }) => {
     const body = (await request.json()) as SaveTripIn;
-    const replay = mswTripEvents.get(`save:${body.client_event_id}`);
-    if (replay !== undefined) return HttpResponse.json(replay, { status: 201 });
-    if (body.session_id === "msw-session-missing") {
-      return tripError(404, "SESSION_NOT_FOUND", "Planning session not found");
+    const fingerprint = JSON.stringify([body.session_id, body.title ?? null]);
+    const prior = mswTripEvents.get(`save:${body.client_event_id}`);
+    if (prior !== undefined) {
+      return prior.fingerprint === fingerprint ? HttpResponse.json(prior.body, { status: 201 }) : eventReused();
+    }
+    const failure = sessionFailure(body.session_id);
+    if (failure !== null) return failure;
+    const existing = mswTrips.find((t) => t.sessionId === body.session_id);
+    if (existing !== undefined) {
+      return tripError(
+        409,
+        "SESSION_ALREADY_SAVED",
+        "This plan is already saved. Add the current plan to that trip as a new revision.",
+        { trip_id: existing.summary.id },
+      );
+    }
+    if (mswTrips.length >= MSW_MAX_TRIPS) {
+      return tripError(409, "TRIP_LIMIT_REACHED", "You have reached the maximum number of saved trips. Delete one to save another.");
     }
     mswTripSeq += 1;
     const id = `msw-trip-${mswTripSeq}`;
-    const report = createHappyReport() as unknown as Record<string, unknown>;
-    const revision = mswRevision(1, report);
+    const revision = mswRevision(1, mswReport());
     const record: MswTripRecord = {
       summary: {
         id,
-        title: body.title ?? "DEL \u2192 SIN \u00b7 2026-11-01",
+        title: body.title ?? "DEL → SIN · 2026-11-01",
         origin_city: "DEL",
         destination_city: "SIN",
         start_date: "2026-11-01",
@@ -928,10 +997,11 @@ export const handlers = [
         latest_computed_at: revision.computed_at,
       },
       revisions: [revision],
+      sessionId: body.session_id,
     };
     mswTrips.push(record);
     const created = { trip: record.summary, revision };
-    mswTripEvents.set(`save:${body.client_event_id}`, created);
+    mswTripEvents.set(`save:${body.client_event_id}`, { fingerprint, body: created });
     return HttpResponse.json(created, { status: 201 });
   }),
 
@@ -940,21 +1010,44 @@ export const handlers = [
     return record === undefined ? tripNotFound() : HttpResponse.json(mswTripDetail(record));
   }),
 
-  http.delete("*/account/trips/:tripId", ({ params }) => {
+  http.delete("*/account/trips/:tripId", ({ params, request }) => {
+    const eventId = new URL(request.url).searchParams.get("client_event_id");
+    const fingerprint = `delete:${String(params.tripId)}`;
+    if (eventId !== null) {
+      const prior = mswTripEvents.get(`delete:${eventId}`);
+      if (prior !== undefined) {
+        // A retried delete replays as 204 even though the trip is gone.
+        return prior.fingerprint === fingerprint ? new HttpResponse(null, { status: 204 }) : eventReused();
+      }
+    }
     const before = mswTrips.length;
     mswTrips = mswTrips.filter((t) => t.summary.id !== params.tripId);
-    return mswTrips.length === before ? tripNotFound() : new HttpResponse(null, { status: 204 });
+    if (mswTrips.length === before) return tripNotFound();
+    if (eventId !== null) mswTripEvents.set(`delete:${eventId}`, { fingerprint, body: null });
+    return new HttpResponse(null, { status: 204 });
   }),
 
-  http.post("*/account/trips/:tripId/revisions", async ({ params }) => {
+  http.post("*/account/trips/:tripId/revisions", async ({ params, request }) => {
+    const body = (await request.json()) as { session_id: string; client_event_id: string };
     const record = mswTrips.find((t) => t.summary.id === params.tripId);
     if (record === undefined) return tripNotFound();
-    const revision = mswRevision(
-      record.revisions.length + 1,
-      createHappyReport() as unknown as Record<string, unknown>,
-    );
+    const fingerprint = JSON.stringify([record.summary.id, body.session_id]);
+    const prior = mswTripEvents.get(`append:${body.client_event_id}`);
+    if (prior !== undefined) {
+      return prior.fingerprint === fingerprint ? HttpResponse.json(prior.body, { status: 201 }) : eventReused();
+    }
+    const failure = sessionFailure(body.session_id);
+    if (failure !== null) return failure;
+    if (body.session_id !== record.sessionId) {
+      return tripError(409, "SESSION_NOT_ATTACHED", "That planning session is not the one this trip was saved from.");
+    }
+    if (record.revisions.length >= MSW_MAX_REVISIONS) {
+      return tripError(409, "REVISION_LIMIT_REACHED", "This trip has reached its maximum number of revisions.");
+    }
+    const revision = mswRevision(record.revisions.length + 1, mswReport());
     record.revisions.push(revision);
     refreshSummary(record);
+    mswTripEvents.set(`append:${body.client_event_id}`, { fingerprint, body: revision });
     return HttpResponse.json(revision, { status: 201 });
   }),
 
@@ -967,38 +1060,50 @@ export const handlers = [
       : HttpResponse.json(found);
   }),
 
-  http.post("*/account/trips/:tripId/reruns", ({ params }) => {
-    if (!mswTrips.some((t) => t.summary.id === params.tripId)) return tripNotFound();
+  http.post("*/account/trips/:tripId/reruns", async ({ params, request }) => {
+    const body = (await request.json()) as { client_event_id: string };
+    const record = mswTrips.find((t) => t.summary.id === params.tripId);
+    if (record === undefined) return tripNotFound();
+    const fingerprint = `rerun:${record.summary.id}`;
+    const prior = mswRerunStarts.get(body.client_event_id);
+    if (prior !== undefined) {
+      return prior.fingerprint === fingerprint
+        ? HttpResponse.json({ job_id: prior.jobId }, { status: 202 })
+        : eventReused();
+    }
+    if (hasActiveRerun(record.summary.id)) {
+      return tripError(409, "RERUN_IN_PROGRESS", "This trip is already being planned again. Wait for it to finish.");
+    }
+    if (record.revisions.length >= MSW_MAX_REVISIONS) {
+      return tripError(409, "REVISION_LIMIT_REACHED", "This trip has reached its maximum number of revisions.");
+    }
     const jobId = `msw-rerun-${mswReruns.size + 1}`;
-    mswReruns.set(jobId, { tripId: String(params.tripId), appended: false });
+    mswReruns.set(jobId, { tripId: record.summary.id, polls: 0, revision: null });
+    mswRerunStarts.set(body.client_event_id, { fingerprint, jobId });
     return HttpResponse.json({ job_id: jobId }, { status: 202 });
   }),
 
   http.get("*/account/trips/:tripId/reruns/:jobId", ({ params }) => {
-    const rerun = mswReruns.get(String(params.jobId));
     const record = mswTrips.find((t) => t.summary.id === params.tripId);
     if (record === undefined) return tripNotFound();
-    if (rerun === undefined || rerun.tripId !== params.tripId) {
+    const jobId = String(params.jobId);
+    const rerun = mswReruns.get(jobId);
+    if (rerun === undefined || rerun.tripId !== record.summary.id) {
       return tripError(404, "RERUN_NOT_FOUND", "No such re-run.");
     }
-    if (!rerun.appended) {
-      record.revisions.push(
-        mswRevision(
-          record.revisions.length + 1,
-          createHappyReport() as unknown as Record<string, unknown>,
-        ),
-      );
+    rerun.polls += 1;
+    if (rerun.revision === null && rerun.polls >= 2) {
+      // The first poll sees it running; the revision is appended once it completes.
+      const revision = mswRevision(record.revisions.length + 1, mswReport());
+      record.revisions.push(revision);
       refreshSummary(record);
-      rerun.appended = true;
+      rerun.revision = revision.revision;
     }
-    const done: RerunStatusOut = {
-      job_id: String(params.jobId),
-      status: "complete",
-      stage: "explaining",
-      revision: record.revisions.length,
-      error: null,
-    };
-    return HttpResponse.json(done);
+    const status: RerunStatusOut =
+      rerun.revision === null
+        ? { job_id: jobId, status: "running", stage: "planning", revision: null, error: null }
+        : { job_id: jobId, status: "complete", stage: "explaining", revision: rerun.revision, error: null };
+    return HttpResponse.json(status);
   }),
 
 ];
