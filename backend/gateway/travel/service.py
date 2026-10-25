@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import cast
+from typing import Literal, cast
 from urllib.parse import urlsplit
 
 from gateway.travel.contracts import (
@@ -61,15 +61,22 @@ class TravelInventoryService:
         return rows
 
     async def search(
-        self, flight: FlightSearchRequest, hotel: HotelSearchRequest
+        self,
+        flight: FlightSearchRequest,
+        hotel: HotelSearchRequest,
+        *,
+        domains: set[str] | None = None,
     ) -> TravelInventorySnapshot:
+        requested = {"flight", "hotel"} if domains is None else set(domains)
+        if not requested <= {"flight", "hotel"}:
+            raise ValueError("unsupported inventory domain")
         retrieved = self.now()
         flights: list[FlightQuote] = []
         hotels: list[HotelQuote] = []
         diagnostics: list[GatewayDiagnostic] = []
         scopes: dict[str, QuotePriceScope] = {}
         hotel_scopes: dict[str, QuotePriceScope] = {}
-        for provider_id, adapter in self._eligible("flight"):
+        for provider_id, adapter in self._eligible("flight") if "flight" in requested else []:
             try:
                 candidates = await adapter.search_flights(flight)
             except Exception:
@@ -119,13 +126,13 @@ class TravelInventoryService:
                 if quote.evidence.provider_id != provider_id:
                     continue
                 flights.append(quote)
-                basis = (
+                flight_basis: Literal["sample_per_traveler_trip", "party_total"] = (
                     "sample_per_traveler_trip"
                     if provider_id.startswith("sample_")
                     else "party_total"
                 )
                 scopes[quote.id] = QuotePriceScope(
-                    basis=basis,
+                    basis=flight_basis,
                     scope_verified=provider_id.startswith("sample_"),
                     travelers=flight.travelers.adults
                     + flight.travelers.children
@@ -133,7 +140,7 @@ class TravelInventoryService:
                 )
             if flights:
                 break
-        for provider_id, adapter in self._eligible("hotel"):
+        for provider_id, adapter in self._eligible("hotel") if "hotel" in requested else []:
             try:
                 hotel_candidates = await adapter.search_hotels(hotel)
             except Exception:
@@ -165,11 +172,11 @@ class TravelInventoryService:
                 if hotel_quote.evidence.provider_id != provider_id:
                     continue
                 hotels.append(hotel_quote)
-                basis = (
+                hotel_basis: Literal["sample_nightly_stay", "party_total"] = (
                     "sample_nightly_stay" if provider_id.startswith("sample_") else "party_total"
                 )
                 hotel_scopes[hotel_quote.id] = QuotePriceScope(
-                    basis=basis,
+                    basis=hotel_basis,
                     scope_verified=provider_id.startswith("sample_"),
                     rooms=hotel_quote.rooms,
                 )

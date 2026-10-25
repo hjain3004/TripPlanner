@@ -270,9 +270,15 @@ def estimate_costed_trip_via_gateway(
 class GatewayEstimateResult:
     """Kernel estimator output plus display-safe inventory evidence."""
 
-    def __init__(self, estimate: EstimatorResult, summary: TravelInventorySummary) -> None:
+    def __init__(
+        self,
+        estimate: EstimatorResult,
+        summary: TravelInventorySummary,
+        snapshot: TravelInventorySnapshot | None = None,
+    ) -> None:
         self.estimate = estimate
         self.summary = summary
+        self.snapshot = snapshot
 
 
 def _safe_public_url(value: str | None) -> str | None:
@@ -544,6 +550,7 @@ def estimate_confirmed_inventory(
     ]
     return GatewayEstimateResult(
         estimate=estimate,
+        snapshot=snapshot,
         summary=TravelInventorySummary(
             flight=selected_flight_summary,
             hotel=selected_hotel_summary,

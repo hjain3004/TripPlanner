@@ -12,13 +12,16 @@ never destroy user data. Nothing in this module ever drops a table.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import cast
 
-from sqlalchemy import Engine, Table, Text, create_engine, inspect, text
+from sqlalchemy import Engine, Index, Table, Text, create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from core.runtime_paths import state_path
+
+logger = logging.getLogger(__name__)
 
 ACCOUNTS_DB_PATH = state_path("accounts.sqlite", Path(__file__).parent / "accounts.sqlite")
 
@@ -80,6 +83,69 @@ class WalletMutationEventRow(AccountsBase):
     created_at: Mapped[str | None] = mapped_column(index=True, nullable=True)
 
 
+class TripMutationEventRow(AccountsBase):
+    """Durable idempotency record for one saved-trip mutation (A4).
+
+    Same shape and reasoning as ``WalletMutationEventRow``: the composite primary
+    key makes event identity ``(user_id, client_event_id)``, so two users may reuse
+    a textual id and a genuine concurrent double-submit hits the key instead of
+    applying twice. ``result_payload`` is the original outcome, so a replay answers
+    identically. ``trip_id`` is nullable because a delete event outlives its trip.
+    """
+
+    __tablename__ = "trip_mutation_events"
+    user_id: Mapped[str] = mapped_column(primary_key=True)
+    client_event_id: Mapped[str] = mapped_column(primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(index=True)
+    operation: Mapped[str] = mapped_column()
+    trip_id: Mapped[str | None] = mapped_column(index=True, nullable=True)
+    result_payload: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str | None] = mapped_column(index=True, nullable=True)
+
+
+class PostPlanWorkspaceRow(AccountsBase):
+    """Current working state of a planning session (one row per session, CAS-updated)."""
+
+    __tablename__ = "post_plan_workspaces"
+    session_id: Mapped[str] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(index=True)
+    version: Mapped[int] = mapped_column()
+    current_result_id: Mapped[str] = mapped_column()
+    expires_at: Mapped[str] = mapped_column(index=True)  # ISO datetime, for sweeping
+    saved_trip_id: Mapped[str | None] = mapped_column(index=True, nullable=True)
+    payload: Mapped[str] = mapped_column(Text)
+
+
+class PostPlanResultRow(AccountsBase):
+    """An accepted report. Insert-only: the store exposes no update or delete for it."""
+
+    __tablename__ = "post_plan_results"
+    result_id: Mapped[str] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(index=True)
+    session_id: Mapped[str] = mapped_column(index=True)
+    report_sha256: Mapped[str] = mapped_column()
+    payload: Mapped[str] = mapped_column(Text)
+
+
+class PostPlanOperationRow(AccountsBase):
+    """A reservation / terminal outcome. ``(user_id, event_key)`` is the idempotency key."""
+
+    __tablename__ = "post_plan_operations"
+    user_id: Mapped[str] = mapped_column(primary_key=True)
+    event_key: Mapped[str] = mapped_column(primary_key=True)
+    operation_id: Mapped[str] = mapped_column(unique=True, index=True)
+    session_id: Mapped[str] = mapped_column(index=True)
+    kind: Mapped[str] = mapped_column(index=True)
+    status: Mapped[str] = mapped_column(index=True)
+    proposal_id: Mapped[str | None] = mapped_column(index=True, nullable=True)
+    decision: Mapped[str | None] = mapped_column(nullable=True)
+    action_kind: Mapped[str | None] = mapped_column(nullable=True)
+    interpreter_calls: Mapped[int] = mapped_column(default=0)
+    planner_calls: Mapped[int] = mapped_column(default=0)
+    provider_calls: Mapped[int] = mapped_column(default=0)
+    payload: Mapped[str] = mapped_column(Text)
+
+
 class SavedTripRow(AccountsBase):
     __tablename__ = "saved_trips"
     id: Mapped[str] = mapped_column(primary_key=True)
@@ -90,6 +156,12 @@ class SavedTripRow(AccountsBase):
 
 class TripRevisionRow(AccountsBase):
     __tablename__ = "trip_revisions"
+    # One revision number per trip, enforced by the database. The store also
+    # serialises numbering with BEGIN IMMEDIATE; this index is the backstop that
+    # makes a duplicate number impossible rather than merely unlikely.
+    __table_args__ = (
+        Index("uq_trip_revisions_trip_revision", "trip_id", "revision", unique=True),
+    )
     id: Mapped[str] = mapped_column(primary_key=True)
     trip_id: Mapped[str] = mapped_column(index=True)
     revision: Mapped[int] = mapped_column(index=True)
@@ -125,6 +197,41 @@ def _migrate_existing_accounts_schema(engine: Engine) -> None:
     wallet_table = cast(Table, WalletEntryRow.__table__)
     for index in wallet_table.indexes:
         index.create(bind=engine, checkfirst=True)
+    _ensure_unique_revision_index(engine)
+
+
+def _ensure_unique_revision_index(engine: Engine) -> None:
+    """Add the A4 ``(trip_id, revision)`` unique index to a pre-A4 database.
+
+    Additive and idempotent. Rows are never rewritten: if an old database already
+    holds duplicate numbers (possible only through the pre-A4 race), the index is
+    skipped with a warning rather than failing startup or renumbering a stored
+    revision. Numbering stays serialised by the store either way.
+    """
+    # ``get_store`` opens the database on every request, so the common case (index
+    # already present) must cost one catalogue lookup, not a scan of every revision.
+    existing = {index["name"] for index in inspect(engine).get_indexes("trip_revisions")}
+    if "uq_trip_revisions_trip_revision" in existing:
+        return
+    with engine.begin() as connection:
+        duplicates = connection.execute(
+            text(
+                "SELECT 1 FROM trip_revisions GROUP BY trip_id, revision "
+                "HAVING COUNT(*) > 1 LIMIT 1"
+            )
+        ).first()
+        if duplicates is not None:
+            logger.warning(
+                "trip_revisions holds duplicate (trip_id, revision) rows; "
+                "the unique revision index was not created"
+            )
+            return
+        connection.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_trip_revisions_trip_revision "
+                "ON trip_revisions (trip_id, revision)"
+            )
+        )
 
 
 class UserCredentialRow(AccountsBase):

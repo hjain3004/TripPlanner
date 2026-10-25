@@ -112,6 +112,9 @@ class TestLiveProvidersStayOff:
         assert names(prod(tmp_path, TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED="1")) == {
             "TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED"
         }
+        assert names(prod(tmp_path, TRIPWISE_POST_PLAN_LLM_ZERO_SPEND_CONFIRMED="1")) == {
+            "TRIPWISE_POST_PLAN_LLM_ZERO_SPEND_CONFIRMED"
+        }
         assert names(prod(tmp_path, TRIPWISE_TRIPADVISOR_API_KEY="x")) == {
             "TRIPWISE_TRIPADVISOR_API_KEY"
         }

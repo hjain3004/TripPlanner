@@ -269,29 +269,29 @@ def test_revisions_are_numbered_from_one_and_append(tmp_path: Path) -> None:
     trip_id = _saved_trip(store)
 
     first = store.add_revision(
-        trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
+        user_id="u1", trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
     )
     second = store.add_revision(
-        trip_id=trip_id, trace_id="trace2", report_json='{"summary":"v2"}', now=NOW
+        user_id="u1", trip_id=trip_id, trace_id="trace2", report_json='{"summary":"v2"}', now=NOW
     )
 
     assert first.revision == 1
     assert second.revision == 2
-    assert [r.revision for r in store.revisions(trip_id)] == [1, 2]
+    assert [r.revision for r in store.revisions("u1", trip_id)] == [1, 2]
 
 
 def test_a_new_revision_never_mutates_an_earlier_one(tmp_path: Path) -> None:
     store = _user_store(tmp_path)
     trip_id = _saved_trip(store)
     store.add_revision(
-        trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
+        user_id="u1", trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
     )
 
     store.add_revision(
-        trip_id=trip_id, trace_id="trace2", report_json='{"summary":"v2"}', now=NOW
+        user_id="u1", trip_id=trip_id, trace_id="trace2", report_json='{"summary":"v2"}', now=NOW
     )
 
-    stored = store.revisions(trip_id)
+    stored = store.revisions("u1", trip_id)
     assert stored[0].report_json == '{"summary":"v1"}'
     assert stored[0].trace_id == "trace1"
 
@@ -313,13 +313,13 @@ def test_latest_revision_returns_the_highest_numbered(tmp_path: Path) -> None:
     store = _user_store(tmp_path)
     trip_id = _saved_trip(store)
     store.add_revision(
-        trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
+        user_id="u1", trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
     )
     store.add_revision(
-        trip_id=trip_id, trace_id="trace2", report_json='{"summary":"v2"}', now=NOW
+        user_id="u1", trip_id=trip_id, trace_id="trace2", report_json='{"summary":"v2"}', now=NOW
     )
 
-    latest = store.latest_revision(trip_id)
+    latest = store.latest_revision("u1", trip_id)
 
     assert latest is not None
     assert latest.revision == 2
@@ -330,14 +330,16 @@ def test_latest_revision_is_none_for_a_trip_with_no_runs(tmp_path: Path) -> None
     store = _user_store(tmp_path)
     trip_id = _saved_trip(store)
 
-    assert store.latest_revision(trip_id) is None
+    assert store.latest_revision("u1", trip_id) is None
 
 
 def test_add_revision_rejects_an_unknown_trip(tmp_path: Path) -> None:
     store = _user_store(tmp_path)
 
     with pytest.raises(UnknownTripError):
-        store.add_revision(trip_id="nope", trace_id="t", report_json="{}", now=NOW)
+        store.add_revision(
+            user_id="u1", trip_id="nope", trace_id="t", report_json="{}", now=NOW
+        )
 
 
 def _populated(tmp_path: Path) -> AccountStore:
@@ -361,7 +363,7 @@ def _populated(tmp_path: Path) -> AccountStore:
     )
     trip_id = _saved_trip(store)
     store.add_revision(
-        trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
+        user_id="u1", trip_id=trip_id, trace_id="trace1", report_json='{"summary":"v1"}', now=NOW
     )
     store.put_travel_preferences(TravelPreferenceProfile(user_id="u1", updated_at=NOW))
     return store
@@ -396,7 +398,7 @@ def test_delete_user_removes_every_owned_row(tmp_path: Path) -> None:
     assert store.get_profile("u1") is None
     assert store.wallet_entries("u1") == []
     assert store.trips("u1") == []
-    assert store.revisions("t1") == []
+    assert store._revisions_of_trip("t1") == []
     assert store.get_travel_preferences("u1") is None
 
 

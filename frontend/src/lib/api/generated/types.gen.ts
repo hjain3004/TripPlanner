@@ -5,6 +5,68 @@ export type ClientOptions = {
 };
 
 /**
+ * ActionIn
+ */
+export type ActionIn = {
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Expected Session Version
+     */
+    expected_session_version: number;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version: number;
+    /**
+     * Text
+     */
+    text?: string | null;
+    /**
+     * Action
+     */
+    action?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * ActionProposalOut
+ */
+export type ActionProposalOut = {
+    /**
+     * Proposal Id
+     */
+    proposal_id: string;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Action
+     */
+    action: {
+        [key: string]: unknown;
+    };
+    /**
+     * Impact
+     */
+    impact: {
+        [key: string]: unknown;
+    };
+    /**
+     * Decision
+     */
+    decision: string | null;
+};
+
+/**
  * AdaptiveDetailPayload
  */
 export type AdaptiveDetailPayload = {
@@ -120,6 +182,51 @@ export type AnswerRequest = {
 };
 
 /**
+ * ApiErrorBody
+ *
+ * The ``detail`` of every typed saved-trip failure.
+ *
+ * ``code`` is a closed set, so a generated client can switch on it exhaustively.
+ * ``trip_id`` is present only on ``SESSION_ALREADY_SAVED``.
+ */
+export type ApiErrorBody = {
+    /**
+     * Code
+     */
+    code: 'IDEMPOTENCY_KEY_REUSED' | 'PLAN_RESULT_UNAVAILABLE' | 'REPORT_TOO_LARGE' | 'RERUN_IN_PROGRESS' | 'RERUN_NOT_FOUND' | 'REVISION_LIMIT_REACHED' | 'REVISION_NOT_FOUND' | 'SAVED_TRIP_INVALID' | 'SAVED_TRIPS_UNAVAILABLE' | 'SESSION_ALREADY_SAVED' | 'SESSION_EXPIRED' | 'SESSION_NOT_ATTACHED' | 'SESSION_NOT_CONFIRMED' | 'SESSION_NOT_FOUND' | 'STALE_SESSION' | 'TRIP_LIMIT_REACHED' | 'TRIP_NOT_FOUND' | 'TRIP_NOT_RERUNNABLE' | 'TRIP_REVISION_CONFLICT';
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Trip Id
+     */
+    trip_id?: string | null;
+};
+
+/**
+ * AppendRevisionIn
+ */
+export type AppendRevisionIn = {
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Source Result Id
+     */
+    source_result_id?: string | null;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version?: number | null;
+};
+
+/**
  * AppliedOffer
  */
 export type AppliedOffer = {
@@ -135,6 +242,18 @@ export type AppliedOffer = {
      * Stacking Class
      */
     stacking_class: 'bank_offer' | 'coupon' | 'card_linked';
+};
+
+/**
+ * AuthErrorResponse
+ *
+ * 401 (no or expired session) and 403 (CSRF check) carry a plain-string detail.
+ */
+export type AuthErrorResponse = {
+    /**
+     * Detail
+     */
+    detail: string;
 };
 
 /**
@@ -561,6 +680,24 @@ export type DailyRhythmPayload = {
      * Day Trip Appetite
      */
     day_trip_appetite: 'none' | 'one' | 'multiple' | 'no_preference';
+};
+
+/**
+ * DecisionIn
+ */
+export type DecisionIn = {
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Expected Session Version
+     */
+    expected_session_version: number;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version: number;
 };
 
 /**
@@ -1498,6 +1635,56 @@ export type PlanJobStatus = {
 export type PlanningSessionStatus = 'interviewing' | 'awaiting_assistant' | 'reviewing' | 'confirmed' | 'planning' | 'complete' | 'failed' | 'abandoned';
 
 /**
+ * PostPlanError
+ */
+export type PostPlanError = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
+ * PostPlanWorkspaceOut
+ */
+export type PostPlanWorkspaceOut = {
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Current Result Id
+     */
+    current_result_id: string;
+    /**
+     * Workspace
+     */
+    workspace: {
+        [key: string]: unknown;
+    };
+    /**
+     * Report
+     */
+    report: {
+        [key: string]: unknown;
+    };
+    /**
+     * Operations
+     */
+    operations: Array<{
+        [key: string]: unknown;
+    }>;
+};
+
+/**
  * PreferenceOut
  */
 export type PreferenceOut = {
@@ -2126,6 +2313,135 @@ export type ReplaceItem = {
 };
 
 /**
+ * RequestValidationErrorResponse
+ *
+ * FastAPI's own 422 for a malformed request (before any handler runs).
+ */
+export type RequestValidationErrorResponse = {
+    /**
+     * Detail
+     */
+    detail: Array<ValidationIssue>;
+};
+
+/**
+ * RerunErrorOut
+ */
+export type RerunErrorOut = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
+ * RerunIn
+ */
+export type RerunIn = {
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+};
+
+/**
+ * RerunStartedOut
+ */
+export type RerunStartedOut = {
+    /**
+     * Job Id
+     */
+    job_id: string;
+};
+
+/**
+ * RerunStatusOut
+ */
+export type RerunStatusOut = {
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Status
+     */
+    status: 'queued' | 'running' | 'complete' | 'failed' | 'needs_clarification';
+    /**
+     * Stage
+     */
+    stage?: string | null;
+    /**
+     * Revision
+     */
+    revision?: number | null;
+    error?: RerunErrorOut | null;
+};
+
+/**
+ * RevisionOut
+ *
+ * One stored revision. ``report`` is the stored JSON object, verbatim.
+ */
+export type RevisionOut = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Computed At
+     */
+    computed_at: string;
+    /**
+     * Trace Id
+     */
+    trace_id: string;
+    /**
+     * Schema Version
+     */
+    schema_version: string;
+    /**
+     * Is Current Schema
+     */
+    is_current_schema: boolean;
+    /**
+     * Report
+     */
+    report: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * RevisionSummaryOut
+ */
+export type RevisionSummaryOut = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Computed At
+     */
+    computed_at: string;
+    /**
+     * Trace Id
+     */
+    trace_id: string;
+    /**
+     * Schema Version
+     */
+    schema_version: string;
+    /**
+     * Is Current Schema
+     */
+    is_current_schema: boolean;
+};
+
+/**
  * RhythmPreferences
  */
 export type RhythmPreferences = {
@@ -2250,6 +2566,49 @@ export type SampleHotel = {
      */
     purchasable_channels: Array<Channel>;
     provenance: Provenance;
+};
+
+/**
+ * SaveTripIn
+ */
+export type SaveTripIn = {
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Source Result Id
+     */
+    source_result_id?: string | null;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version?: number | null;
+};
+
+/**
+ * SavedTripCreatedOut
+ */
+export type SavedTripCreatedOut = {
+    trip: TripSummaryOut;
+    revision: RevisionOut;
+};
+
+/**
+ * SavedTripErrorResponse
+ *
+ * A typed saved-trip failure as it goes over the wire (FastAPI wraps it in ``detail``).
+ */
+export type SavedTripErrorResponse = {
+    detail: ApiErrorBody;
 };
 
 /**
@@ -2729,6 +3088,56 @@ export type TripBrief = {
 };
 
 /**
+ * TripDetailOut
+ */
+export type TripDetailOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Origin City
+     */
+    origin_city: string;
+    /**
+     * Destination City
+     */
+    destination_city: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Revision Count
+     */
+    revision_count: number;
+    /**
+     * Latest Revision
+     */
+    latest_revision: number;
+    /**
+     * Latest Computed At
+     */
+    latest_computed_at: string;
+    /**
+     * Revisions
+     */
+    revisions: Array<RevisionSummaryOut>;
+};
+
+/**
  * TripEssentialsControl
  */
 export type TripEssentialsControl = {
@@ -2856,6 +3265,52 @@ export type TripSpec = {
 };
 
 /**
+ * TripSummaryOut
+ */
+export type TripSummaryOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Origin City
+     */
+    origin_city: string;
+    /**
+     * Destination City
+     */
+    destination_city: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Revision Count
+     */
+    revision_count: number;
+    /**
+     * Latest Revision
+     */
+    latest_revision: number;
+    /**
+     * Latest Computed At
+     */
+    latest_computed_at: string;
+};
+
+/**
  * UserOut
  */
 export type UserOut = {
@@ -2917,6 +3372,24 @@ export type ValidationError = {
     ctx?: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * ValidationIssue
+ */
+export type ValidationIssue = {
+    /**
+     * Loc
+     */
+    loc: Array<string | number>;
+    /**
+     * Msg
+     */
+    msg: string;
+    /**
+     * Type
+     */
+    type: string;
 };
 
 /**
@@ -3047,6 +3520,56 @@ export type WalletEntryPatchIn = {
      * Client Event Id
      */
     client_event_id?: string | null;
+};
+
+/**
+ * WorkspaceInitIn
+ */
+export type WorkspaceInitIn = {
+    /**
+     * Source
+     */
+    source?: 'job' | 'saved_revision';
+    /**
+     * Trip Id
+     */
+    trip_id?: string | null;
+    /**
+     * Revision
+     */
+    revision?: number | null;
+};
+
+/**
+ * WorkspaceRevisionIn
+ */
+export type WorkspaceRevisionIn = {
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version: number;
+};
+
+/**
+ * WorkspaceRevisionOut
+ */
+export type WorkspaceRevisionOut = {
+    /**
+     * Trip Id
+     */
+    trip_id: string;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Result Id
+     */
+    result_id: string;
 };
 
 export type GetPreferencesPlanningPreferencesGetData = {
@@ -3666,6 +4189,789 @@ export type PatchWalletEntryAccountWalletEntryIdPatchResponses = {
 };
 
 export type PatchWalletEntryAccountWalletEntryIdPatchResponse = PatchWalletEntryAccountWalletEntryIdPatchResponses[keyof PatchWalletEntryAccountWalletEntryIdPatchResponses];
+
+export type ListTripsAccountTripsGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/trips';
+};
+
+export type ListTripsAccountTripsGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
+};
+
+export type ListTripsAccountTripsGetError = ListTripsAccountTripsGetErrors[keyof ListTripsAccountTripsGetErrors];
+
+export type ListTripsAccountTripsGetResponses = {
+    /**
+     * Response List Trips Account Trips Get
+     *
+     * Successful Response
+     */
+    200: Array<TripSummaryOut>;
+};
+
+export type ListTripsAccountTripsGetResponse = ListTripsAccountTripsGetResponses[keyof ListTripsAccountTripsGetResponses];
+
+export type SaveTripAccountTripsPostData = {
+    body: SaveTripIn;
+    path?: never;
+    query?: never;
+    url: '/account/trips';
+};
+
+export type SaveTripAccountTripsPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Conflict
+     */
+    409: SavedTripErrorResponse;
+    /**
+     * Gone
+     */
+    410: SavedTripErrorResponse;
+    /**
+     * Content Too Large
+     */
+    413: SavedTripErrorResponse;
+    /**
+     * Response 422 Save Trip Account Trips Post
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
+};
+
+export type SaveTripAccountTripsPostError = SaveTripAccountTripsPostErrors[keyof SaveTripAccountTripsPostErrors];
+
+export type SaveTripAccountTripsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SavedTripCreatedOut;
+};
+
+export type SaveTripAccountTripsPostResponse = SaveTripAccountTripsPostResponses[keyof SaveTripAccountTripsPostResponses];
+
+export type AppendRevisionAccountTripsTripIdRevisionsPostData = {
+    body: AppendRevisionIn;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+    };
+    query?: never;
+    url: '/account/trips/{trip_id}/revisions';
+};
+
+export type AppendRevisionAccountTripsTripIdRevisionsPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Conflict
+     */
+    409: SavedTripErrorResponse;
+    /**
+     * Gone
+     */
+    410: SavedTripErrorResponse;
+    /**
+     * Content Too Large
+     */
+    413: SavedTripErrorResponse;
+    /**
+     * Response 422 Append Revision Account Trips  Trip Id  Revisions Post
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
+};
+
+export type AppendRevisionAccountTripsTripIdRevisionsPostError = AppendRevisionAccountTripsTripIdRevisionsPostErrors[keyof AppendRevisionAccountTripsTripIdRevisionsPostErrors];
+
+export type AppendRevisionAccountTripsTripIdRevisionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: RevisionOut;
+};
+
+export type AppendRevisionAccountTripsTripIdRevisionsPostResponse = AppendRevisionAccountTripsTripIdRevisionsPostResponses[keyof AppendRevisionAccountTripsTripIdRevisionsPostResponses];
+
+export type DeleteTripAccountTripsTripIdDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+    };
+    query?: {
+        /**
+         * Client Event Id
+         */
+        client_event_id?: string | null;
+    };
+    url: '/account/trips/{trip_id}';
+};
+
+export type DeleteTripAccountTripsTripIdDeleteErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Conflict
+     */
+    409: SavedTripErrorResponse;
+    /**
+     * Response 422 Delete Trip Account Trips  Trip Id  Delete
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
+};
+
+export type DeleteTripAccountTripsTripIdDeleteError = DeleteTripAccountTripsTripIdDeleteErrors[keyof DeleteTripAccountTripsTripIdDeleteErrors];
+
+export type DeleteTripAccountTripsTripIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTripAccountTripsTripIdDeleteResponse = DeleteTripAccountTripsTripIdDeleteResponses[keyof DeleteTripAccountTripsTripIdDeleteResponses];
+
+export type GetTripAccountTripsTripIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+    };
+    query?: never;
+    url: '/account/trips/{trip_id}';
+};
+
+export type GetTripAccountTripsTripIdGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Response 422 Get Trip Account Trips  Trip Id  Get
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
+};
+
+export type GetTripAccountTripsTripIdGetError = GetTripAccountTripsTripIdGetErrors[keyof GetTripAccountTripsTripIdGetErrors];
+
+export type GetTripAccountTripsTripIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TripDetailOut;
+};
+
+export type GetTripAccountTripsTripIdGetResponse = GetTripAccountTripsTripIdGetResponses[keyof GetTripAccountTripsTripIdGetResponses];
+
+export type GetRevisionAccountTripsTripIdRevisionsRevisionGetData = {
+    body?: never;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+        /**
+         * Revision
+         */
+        revision: number;
+    };
+    query?: never;
+    url: '/account/trips/{trip_id}/revisions/{revision}';
+};
+
+export type GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Response 422 Get Revision Account Trips  Trip Id  Revisions  Revision  Get
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
+};
+
+export type GetRevisionAccountTripsTripIdRevisionsRevisionGetError = GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors[keyof GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors];
+
+export type GetRevisionAccountTripsTripIdRevisionsRevisionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RevisionOut;
+};
+
+export type GetRevisionAccountTripsTripIdRevisionsRevisionGetResponse = GetRevisionAccountTripsTripIdRevisionsRevisionGetResponses[keyof GetRevisionAccountTripsTripIdRevisionsRevisionGetResponses];
+
+export type StartRerunAccountTripsTripIdRerunsPostData = {
+    body: RerunIn;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+    };
+    query?: never;
+    url: '/account/trips/{trip_id}/reruns';
+};
+
+export type StartRerunAccountTripsTripIdRerunsPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Conflict
+     */
+    409: SavedTripErrorResponse;
+    /**
+     * Response 422 Start Rerun Account Trips  Trip Id  Reruns Post
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
+};
+
+export type StartRerunAccountTripsTripIdRerunsPostError = StartRerunAccountTripsTripIdRerunsPostErrors[keyof StartRerunAccountTripsTripIdRerunsPostErrors];
+
+export type StartRerunAccountTripsTripIdRerunsPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: RerunStartedOut;
+};
+
+export type StartRerunAccountTripsTripIdRerunsPostResponse = StartRerunAccountTripsTripIdRerunsPostResponses[keyof StartRerunAccountTripsTripIdRerunsPostResponses];
+
+export type RerunStatusAccountTripsTripIdRerunsJobIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/account/trips/{trip_id}/reruns/{job_id}';
+};
+
+export type RerunStatusAccountTripsTripIdRerunsJobIdGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: SavedTripErrorResponse;
+    /**
+     * Response 422 Rerun Status Account Trips  Trip Id  Reruns  Job Id  Get
+     *
+     * Unprocessable Content
+     */
+    422: SavedTripErrorResponse | RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: SavedTripErrorResponse;
+};
+
+export type RerunStatusAccountTripsTripIdRerunsJobIdGetError = RerunStatusAccountTripsTripIdRerunsJobIdGetErrors[keyof RerunStatusAccountTripsTripIdRerunsJobIdGetErrors];
+
+export type RerunStatusAccountTripsTripIdRerunsJobIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RerunStatusOut;
+};
+
+export type RerunStatusAccountTripsTripIdRerunsJobIdGetResponse = RerunStatusAccountTripsTripIdRerunsJobIdGetResponses[keyof RerunStatusAccountTripsTripIdRerunsJobIdGetResponses];
+
+export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/workspace';
+};
+
+export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetError = GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors[keyof GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors];
+
+export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PostPlanWorkspaceOut;
+};
+
+export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetResponse = GetWorkspacePlanningSessionsSessionIdWorkspaceGetResponses[keyof GetWorkspacePlanningSessionsSessionIdWorkspaceGetResponses];
+
+export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostData = {
+    body: WorkspaceInitIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/workspace';
+};
+
+export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostError = InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors[keyof InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors];
+
+export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PostPlanWorkspaceOut;
+};
+
+export type InitializeWorkspacePlanningSessionsSessionIdWorkspacePostResponse = InitializeWorkspacePlanningSessionsSessionIdWorkspacePostResponses[keyof InitializeWorkspacePlanningSessionsSessionIdWorkspacePostResponses];
+
+export type ProposeActionPlanningSessionsSessionIdActionsPostData = {
+    body: ActionIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/actions';
+};
+
+export type ProposeActionPlanningSessionsSessionIdActionsPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type ProposeActionPlanningSessionsSessionIdActionsPostError = ProposeActionPlanningSessionsSessionIdActionsPostErrors[keyof ProposeActionPlanningSessionsSessionIdActionsPostErrors];
+
+export type ProposeActionPlanningSessionsSessionIdActionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ActionProposalOut;
+};
+
+export type ProposeActionPlanningSessionsSessionIdActionsPostResponse = ProposeActionPlanningSessionsSessionIdActionsPostResponses[keyof ProposeActionPlanningSessionsSessionIdActionsPostResponses];
+
+export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostData = {
+    body: DecisionIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Proposal Id
+         */
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/actions/{proposal_id}/approve';
+};
+
+export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostError = ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors[keyof ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors];
+
+export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostResponses = {
+    /**
+     * Response Approve Action Planning Sessions  Session Id  Actions  Proposal Id  Approve Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostResponse = ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostResponses[keyof ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostResponses];
+
+export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostData = {
+    body: DecisionIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Proposal Id
+         */
+        proposal_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/actions/{proposal_id}/reject';
+};
+
+export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostError = RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors[keyof RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors];
+
+export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostResponses = {
+    /**
+     * Response Reject Action Planning Sessions  Session Id  Actions  Proposal Id  Reject Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostResponse = RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostResponses[keyof RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostResponses];
+
+export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostData = {
+    body: WorkspaceRevisionIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/workspace/revisions';
+};
+
+export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostError = SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors[keyof SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors];
+
+export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: WorkspaceRevisionOut;
+};
+
+export type SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostResponse = SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostResponses[keyof SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostResponses];
 
 export type HealthHealthGetData = {
     body?: never;

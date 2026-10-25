@@ -1,10 +1,16 @@
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, type JsonBodyType } from "msw";
 import type {
+  ApiErrorBody,
   CredentialsIn,
   FinalReport,
   PlanJobStatus,
   RecomputeRequest,
   RefreshProseRequest,
+  RerunStatusOut,
+  RevisionOut,
+  SaveTripIn,
+  TripDetailOut,
+  TripSummaryOut,
   UserOut,
 } from "@/lib/api";
 import { createJapanVisualReport } from "./japan-visual-fixture";
@@ -40,6 +46,34 @@ const conversationSession = {
   brief: null,
   planning_job_id: null,
 };
+
+const cp4Workspace: {
+  session_id: string;
+  version: number;
+  current_result_id: string;
+  workspace: Record<string, unknown>;
+  report: ReturnType<typeof createHappyReport>;
+  operations: unknown[];
+} = {
+  session_id: "msw-session-001",
+  version: 1,
+  current_result_id: "msw-result-001",
+  workspace: { session_id: "msw-session-001", confirmed_brief_revision: 1 },
+  report: createHappyReport(),
+  operations: [],
+};
+
+type Cp4ProposalFixture = {
+  proposal_id: string;
+  operation_id: string;
+  status: string;
+  action: unknown;
+  impact: Record<string, unknown>;
+  decision: "pending" | "approved" | "rejected";
+};
+
+const cp4Proposals = new Map<string, Cp4ProposalFixture>();
+const cp4RevisionEvents = new Map<string, { trip_id: string; revision: number; result_id: string }>();
 
 const STAGES: PlanJobStatus["stage"][] = [
   "intake",
@@ -466,6 +500,172 @@ function walletConflict(code: string, message: string) {
 }
 
 
+// --- A4 saved trips (stateful mock; mirrors api/saved_trips.py) ---------------
+//
+// Reports are returned verbatim as stored, never re-derived. The mock models the
+// behaviour a UI must handle: idempotent replay and event-id reuse, one trip per
+// planning session, the session a trip is attached to, the trip/revision caps, and a
+// re-run that is "running" until its revision has been appended.
+//
+// Sentinel session ids select the documented plan-state failures deterministically.
+
+const MSW_MAX_TRIPS = 50;
+const MSW_MAX_REVISIONS = 25;
+
+interface MswTripRecord {
+  summary: TripSummaryOut;
+  revisions: RevisionOut[];
+  sessionId: string;
+}
+
+interface MswRerun {
+  tripId: string;
+  polls: number;
+  revision: number | null;
+}
+
+let mswTrips: MswTripRecord[] = [];
+let mswTripSeq = 0;
+/** `<operation>:<client_event_id>` -> original fingerprint + response body (replay). */
+let mswTripEvents = new Map<string, { fingerprint: string; body: JsonBodyType }>();
+let mswReruns = new Map<string, MswRerun>();
+/** Rerun starts by client event id -> fingerprint + job id (in memory, as in the API). */
+let mswRerunStarts = new Map<string, { fingerprint: string; jobId: string }>();
+
+export function resetMswTrips(): void {
+  mswTrips = [];
+  mswTripSeq = 0;
+  mswTripEvents = new Map();
+  mswReruns = new Map();
+  mswRerunStarts = new Map();
+}
+
+function tripError(
+  status: number,
+  code: ApiErrorBody["code"],
+  message: string,
+  extra: Record<string, string> = {},
+) {
+  return HttpResponse.json({ detail: { code, message, ...extra } }, { status });
+}
+
+const tripNotFound = () => tripError(404, "TRIP_NOT_FOUND", "No such saved trip.");
+const eventReused = () =>
+  tripError(409, "IDEMPOTENCY_KEY_REUSED", "This client event id was already used for a different request.");
+
+/** Plan-state failures selected by sentinel session ids (the API reads these off the job). */
+function sessionFailure(sessionId: string) {
+  switch (sessionId) {
+    case "msw-session-missing":
+      return tripError(404, "SESSION_NOT_FOUND", "Planning session not found");
+    case "msw-session-expired":
+      return tripError(410, "SESSION_EXPIRED", "Planning session has expired");
+    case "msw-session-unconfirmed":
+      return tripError(409, "SESSION_NOT_CONFIRMED", "Confirm the trip brief and let planning finish before saving.");
+    case "msw-session-lost":
+      return tripError(409, "PLAN_RESULT_UNAVAILABLE", "This plan's result is no longer available to save. Plan the trip again.");
+    default:
+      return null;
+  }
+}
+
+function mswRevision(n: number, report: Record<string, unknown>): RevisionOut {
+  return {
+    revision: n,
+    computed_at: "2026-10-24T12:00:00+00:00",
+    trace_id: `msw-trace-${n}`,
+    schema_version: "1",
+    is_current_schema: true,
+    report,
+  };
+}
+
+function mswReport(): Record<string, unknown> {
+  return createHappyReport() as unknown as Record<string, unknown>;
+}
+
+function refreshSummary(record: MswTripRecord): void {
+  const latest = record.revisions[record.revisions.length - 1];
+  if (latest === undefined) return;
+  record.summary = {
+    ...record.summary,
+    revision_count: record.revisions.length,
+    latest_revision: latest.revision,
+    latest_computed_at: latest.computed_at,
+  };
+}
+
+function mswTripDetail(record: MswTripRecord): TripDetailOut {
+  return {
+    ...record.summary,
+    revisions: record.revisions.map((r) => ({
+      revision: r.revision,
+      computed_at: r.computed_at,
+      trace_id: r.trace_id,
+      schema_version: r.schema_version,
+      is_current_schema: r.is_current_schema,
+    })),
+  };
+}
+
+function hasActiveRerun(tripId: string): boolean {
+  return [...mswReruns.values()].some((r) => r.tripId === tripId && r.revision === null);
+}
+
+/** Typed error responses for every documented saved-trip failure (status + code). */
+export const SAVED_TRIP_ERROR_FIXTURES = {
+  unauthenticated: { status: 401, detail: "Not authenticated" },
+  csrf: { status: 403, detail: "CSRF check failed" },
+  TRIP_NOT_FOUND: { status: 404, code: "TRIP_NOT_FOUND" },
+  SESSION_NOT_FOUND: { status: 404, code: "SESSION_NOT_FOUND" },
+  REVISION_NOT_FOUND: { status: 404, code: "REVISION_NOT_FOUND" },
+  RERUN_NOT_FOUND: { status: 404, code: "RERUN_NOT_FOUND" },
+  PLAN_RESULT_UNAVAILABLE: { status: 409, code: "PLAN_RESULT_UNAVAILABLE" },
+  SESSION_NOT_CONFIRMED: { status: 409, code: "SESSION_NOT_CONFIRMED" },
+  SESSION_ALREADY_SAVED: { status: 409, code: "SESSION_ALREADY_SAVED", trip_id: "msw-trip-1" },
+  SESSION_NOT_ATTACHED: { status: 409, code: "SESSION_NOT_ATTACHED" },
+  STALE_SESSION: { status: 409, code: "STALE_SESSION" },
+  RERUN_IN_PROGRESS: { status: 409, code: "RERUN_IN_PROGRESS" },
+  TRIP_NOT_RERUNNABLE: { status: 409, code: "TRIP_NOT_RERUNNABLE" },
+  TRIP_LIMIT_REACHED: { status: 409, code: "TRIP_LIMIT_REACHED" },
+  REVISION_LIMIT_REACHED: { status: 409, code: "REVISION_LIMIT_REACHED" },
+  IDEMPOTENCY_KEY_REUSED: { status: 409, code: "IDEMPOTENCY_KEY_REUSED" },
+  TRIP_REVISION_CONFLICT: { status: 409, code: "TRIP_REVISION_CONFLICT" },
+  SESSION_EXPIRED: { status: 410, code: "SESSION_EXPIRED" },
+  REPORT_TOO_LARGE: { status: 413, code: "REPORT_TOO_LARGE" },
+  SAVED_TRIP_INVALID: { status: 422, code: "SAVED_TRIP_INVALID" },
+  SAVED_TRIPS_UNAVAILABLE: { status: 503, code: "SAVED_TRIPS_UNAVAILABLE" },
+} as const satisfies Record<
+  string,
+  { status: number; code?: ApiErrorBody["code"]; detail?: string; trip_id?: string }
+>;
+
+export type SavedTripErrorFixture = keyof typeof SAVED_TRIP_ERROR_FIXTURES;
+
+/** A one-off handler that answers the given route with a documented failure. */
+export function savedTripErrorHandler(
+  method: "get" | "post" | "delete",
+  path: string,
+  fixture: SavedTripErrorFixture,
+) {
+  const spec = SAVED_TRIP_ERROR_FIXTURES[fixture] as {
+    status: number;
+    code?: ApiErrorBody["code"];
+    detail?: string;
+    trip_id?: string;
+  };
+  return http[method](path, () =>
+    spec.code === undefined
+      ? HttpResponse.json({ detail: spec.detail }, { status: spec.status })
+      : tripError(
+          spec.status,
+          spec.code,
+          "Mocked saved-trip failure.",
+          spec.trip_id === undefined ? {} : { trip_id: spec.trip_id },
+        ),
+  );
+}
+
 export const handlers = [
   http.post("*/auth/register", async ({ request }) => {
     const body = (await request.json()) as CredentialsIn;
@@ -715,6 +915,53 @@ export const handlers = [
   http.post("*/planning/sessions/:sessionId/profile-updates/:proposalId/approve", () => HttpResponse.json({ ...conversationSession, version: 1 })),
   http.post("*/planning/sessions/:sessionId/confirm", () => HttpResponse.json({ ...conversationSession, status: "planning", planning_job_id: "msw-job-001", job_id: "msw-job-001" }, { status: 202 })),
   http.get("*/planning/sessions/:sessionId/job", () => HttpResponse.json({ job_id: "msw-job-001", status: "complete", stage: "explaining", progress: 1 })),
+  http.post("*/planning/sessions/:sessionId/workspace", () => HttpResponse.json(cp4Workspace)),
+  http.get("*/planning/sessions/:sessionId/workspace", () => HttpResponse.json(cp4Workspace)),
+  http.post("*/planning/sessions/:sessionId/actions", async ({ request }) => {
+    const body = await request.json() as { client_event_id?: string; action?: unknown };
+    const eventId = body.client_event_id ?? "1";
+    const replay = cp4Proposals.get(eventId);
+    if (replay) return HttpResponse.json(replay);
+    const proposal: Cp4ProposalFixture = { proposal_id: `msw-proposal-${body.client_event_id ?? "1"}`, operation_id: `msw-operation-${body.client_event_id ?? "1"}`, status: "complete", action: body.action ?? { kind: "clarification_required", reason: "needs_detail", question: "What should change?", choices: [] }, impact: { invalidated_domains: [], affected_dates: [], refetch_domains: [], inventory_reuse: "full", requires_confirmation: false, changes_trip: false, explanation_only: false }, decision: "pending" };
+    cp4Proposals.set(eventId, proposal);
+    cp4Workspace.version += 1;
+    cp4Workspace.operations = [...cp4Workspace.operations, proposal];
+    return HttpResponse.json(proposal);
+  }),
+  http.post("*/planning/sessions/:sessionId/actions/:proposalId/approve", ({ params }) => {
+    const proposal = [...cp4Proposals.values()].find((value) => value.proposal_id === params.proposalId);
+    if (!proposal || proposal.decision !== "pending") return HttpResponse.json({ detail: { code: "PROPOSAL_NOT_PENDING", message: "This proposal is no longer pending." } }, { status: 409 });
+    proposal.decision = "approved";
+    cp4Workspace.version += 1;
+    cp4Workspace.current_result_id = `msw-result-${cp4Workspace.version}`;
+    return HttpResponse.json({ operation_id: `msw-approve-${params.proposalId}`, proposal_id: params.proposalId, status: "complete", decision: "approved", result_id: cp4Workspace.current_result_id });
+  }),
+  http.post("*/planning/sessions/:sessionId/actions/:proposalId/reject", ({ params }) => {
+    const proposal = [...cp4Proposals.values()].find((value) => value.proposal_id === params.proposalId);
+    if (!proposal || proposal.decision !== "pending") return HttpResponse.json({ detail: { code: "PROPOSAL_NOT_PENDING", message: "This proposal is no longer pending." } }, { status: 409 });
+    proposal.decision = "rejected";
+    cp4Workspace.version += 1;
+    return HttpResponse.json({ operation_id: `msw-reject-${params.proposalId}`, proposal_id: params.proposalId, status: "complete", decision: "rejected", result_id: cp4Workspace.current_result_id });
+  }),
+  http.post("*/planning/sessions/:sessionId/workspace/revisions", async ({ request }) => {
+    const body = await request.json() as { client_event_id?: string; expected_workspace_version?: number };
+    const eventId = body.client_event_id ?? "revision-1";
+    const replay = cp4RevisionEvents.get(eventId);
+    if (replay) return HttpResponse.json(replay, { status: 201 });
+    if (body.expected_workspace_version !== cp4Workspace.version) {
+      return HttpResponse.json(
+        { detail: { code: "STALE_WORKSPACE", message: "The accepted result changed." } },
+        { status: 409 },
+      );
+    }
+    const result = {
+      trip_id: "msw-trip-001",
+      revision: cp4Workspace.version,
+      result_id: cp4Workspace.current_result_id,
+    };
+    cp4RevisionEvents.set(eventId, result);
+    return HttpResponse.json(result, { status: 201 });
+  }),
 
   // --- A3 authenticated wallet ---
   http.get("*/account/card-products", () => HttpResponse.json(MSW_CARD_PRODUCTS)),
@@ -780,6 +1027,158 @@ export const handlers = [
       );
     }
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  // --- A4 saved trips ---
+  http.get("*/account/trips", () =>
+    HttpResponse.json([...mswTrips].reverse().map((t) => t.summary)),
+  ),
+
+  http.post("*/account/trips", async ({ request }) => {
+    const body = (await request.json()) as SaveTripIn;
+    const fingerprint = JSON.stringify([body.session_id, body.title ?? null]);
+    const prior = mswTripEvents.get(`save:${body.client_event_id}`);
+    if (prior !== undefined) {
+      return prior.fingerprint === fingerprint ? HttpResponse.json(prior.body, { status: 201 }) : eventReused();
+    }
+    const failure = sessionFailure(body.session_id);
+    if (failure !== null) return failure;
+    const existing = mswTrips.find((t) => t.sessionId === body.session_id);
+    if (existing !== undefined) {
+      return tripError(
+        409,
+        "SESSION_ALREADY_SAVED",
+        "This plan is already saved. Add the current plan to that trip as a new revision.",
+        { trip_id: existing.summary.id },
+      );
+    }
+    if (mswTrips.length >= MSW_MAX_TRIPS) {
+      return tripError(409, "TRIP_LIMIT_REACHED", "You have reached the maximum number of saved trips. Delete one to save another.");
+    }
+    mswTripSeq += 1;
+    const id = `msw-trip-${mswTripSeq}`;
+    const revision = mswRevision(1, mswReport());
+    const record: MswTripRecord = {
+      summary: {
+        id,
+        title: body.title ?? "DEL → SIN · 2026-11-01",
+        origin_city: "DEL",
+        destination_city: "SIN",
+        start_date: "2026-11-01",
+        end_date: "2026-11-05",
+        created_at: "2026-10-24T12:00:00+00:00",
+        revision_count: 1,
+        latest_revision: 1,
+        latest_computed_at: revision.computed_at,
+      },
+      revisions: [revision],
+      sessionId: body.session_id,
+    };
+    mswTrips.push(record);
+    const created = { trip: record.summary, revision };
+    mswTripEvents.set(`save:${body.client_event_id}`, { fingerprint, body: created });
+    return HttpResponse.json(created, { status: 201 });
+  }),
+
+  http.get("*/account/trips/:tripId", ({ params }) => {
+    const record = mswTrips.find((t) => t.summary.id === params.tripId);
+    return record === undefined ? tripNotFound() : HttpResponse.json(mswTripDetail(record));
+  }),
+
+  http.delete("*/account/trips/:tripId", ({ params, request }) => {
+    const eventId = new URL(request.url).searchParams.get("client_event_id");
+    const fingerprint = `delete:${String(params.tripId)}`;
+    if (eventId !== null) {
+      const prior = mswTripEvents.get(`delete:${eventId}`);
+      if (prior !== undefined) {
+        // A retried delete replays as 204 even though the trip is gone.
+        return prior.fingerprint === fingerprint ? new HttpResponse(null, { status: 204 }) : eventReused();
+      }
+    }
+    const before = mswTrips.length;
+    mswTrips = mswTrips.filter((t) => t.summary.id !== params.tripId);
+    if (mswTrips.length === before) return tripNotFound();
+    if (eventId !== null) mswTripEvents.set(`delete:${eventId}`, { fingerprint, body: null });
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post("*/account/trips/:tripId/revisions", async ({ params, request }) => {
+    const body = (await request.json()) as { session_id: string; client_event_id: string };
+    const record = mswTrips.find((t) => t.summary.id === params.tripId);
+    if (record === undefined) return tripNotFound();
+    const fingerprint = JSON.stringify([record.summary.id, body.session_id]);
+    const prior = mswTripEvents.get(`append:${body.client_event_id}`);
+    if (prior !== undefined) {
+      return prior.fingerprint === fingerprint ? HttpResponse.json(prior.body, { status: 201 }) : eventReused();
+    }
+    const failure = sessionFailure(body.session_id);
+    if (failure !== null) return failure;
+    if (body.session_id !== record.sessionId) {
+      return tripError(409, "SESSION_NOT_ATTACHED", "That planning session is not the one this trip was saved from.");
+    }
+    if (record.revisions.length >= MSW_MAX_REVISIONS) {
+      return tripError(409, "REVISION_LIMIT_REACHED", "This trip has reached its maximum number of revisions.");
+    }
+    const revision = mswRevision(record.revisions.length + 1, mswReport());
+    record.revisions.push(revision);
+    refreshSummary(record);
+    mswTripEvents.set(`append:${body.client_event_id}`, { fingerprint, body: revision });
+    return HttpResponse.json(revision, { status: 201 });
+  }),
+
+  http.get("*/account/trips/:tripId/revisions/:revision", ({ params }) => {
+    const record = mswTrips.find((t) => t.summary.id === params.tripId);
+    if (record === undefined) return tripNotFound();
+    const found = record.revisions.find((r) => r.revision === Number(params.revision));
+    return found === undefined
+      ? tripError(404, "REVISION_NOT_FOUND", "No such revision.")
+      : HttpResponse.json(found);
+  }),
+
+  http.post("*/account/trips/:tripId/reruns", async ({ params, request }) => {
+    const body = (await request.json()) as { client_event_id: string };
+    const record = mswTrips.find((t) => t.summary.id === params.tripId);
+    if (record === undefined) return tripNotFound();
+    const fingerprint = `rerun:${record.summary.id}`;
+    const prior = mswRerunStarts.get(body.client_event_id);
+    if (prior !== undefined) {
+      return prior.fingerprint === fingerprint
+        ? HttpResponse.json({ job_id: prior.jobId }, { status: 202 })
+        : eventReused();
+    }
+    if (hasActiveRerun(record.summary.id)) {
+      return tripError(409, "RERUN_IN_PROGRESS", "This trip is already being planned again. Wait for it to finish.");
+    }
+    if (record.revisions.length >= MSW_MAX_REVISIONS) {
+      return tripError(409, "REVISION_LIMIT_REACHED", "This trip has reached its maximum number of revisions.");
+    }
+    const jobId = `msw-rerun-${mswReruns.size + 1}`;
+    mswReruns.set(jobId, { tripId: record.summary.id, polls: 0, revision: null });
+    mswRerunStarts.set(body.client_event_id, { fingerprint, jobId });
+    return HttpResponse.json({ job_id: jobId }, { status: 202 });
+  }),
+
+  http.get("*/account/trips/:tripId/reruns/:jobId", ({ params }) => {
+    const record = mswTrips.find((t) => t.summary.id === params.tripId);
+    if (record === undefined) return tripNotFound();
+    const jobId = String(params.jobId);
+    const rerun = mswReruns.get(jobId);
+    if (rerun === undefined || rerun.tripId !== record.summary.id) {
+      return tripError(404, "RERUN_NOT_FOUND", "No such re-run.");
+    }
+    rerun.polls += 1;
+    if (rerun.revision === null && rerun.polls >= 2) {
+      // The first poll sees it running; the revision is appended once it completes.
+      const revision = mswRevision(record.revisions.length + 1, mswReport());
+      record.revisions.push(revision);
+      refreshSummary(record);
+      rerun.revision = revision.revision;
+    }
+    const status: RerunStatusOut =
+      rerun.revision === null
+        ? { job_id: jobId, status: "running", stage: "planning", revision: null, error: null }
+        : { job_id: jobId, status: "complete", stage: "explaining", revision: rerun.revision, error: null };
+    return HttpResponse.json(status);
   }),
 
 ];

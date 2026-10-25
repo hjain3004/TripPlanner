@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AmendSessionPlanningSessionsSessionIdAmendPostData, AmendSessionPlanningSessionsSessionIdAmendPostErrors, AmendSessionPlanningSessionsSessionIdAmendPostResponses, AnswerSessionPlanningSessionsSessionIdAnswersPostData, AnswerSessionPlanningSessionsSessionIdAnswersPostErrors, AnswerSessionPlanningSessionsSessionIdAnswersPostResponses, ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostData, ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostErrors, ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostResponses, BackSessionPlanningSessionsSessionIdBackPostData, BackSessionPlanningSessionsSessionIdBackPostErrors, BackSessionPlanningSessionsSessionIdBackPostResponses, ConfirmSessionPlanningSessionsSessionIdConfirmPostData, ConfirmSessionPlanningSessionsSessionIdConfirmPostErrors, ConfirmSessionPlanningSessionsSessionIdConfirmPostResponses, CreateSessionPlanningSessionsPostData, CreateSessionPlanningSessionsPostResponses, CreateWalletEntryAccountWalletPostData, CreateWalletEntryAccountWalletPostErrors, CreateWalletEntryAccountWalletPostResponses, DeleteWalletEntryAccountWalletEntryIdDeleteData, DeleteWalletEntryAccountWalletEntryIdDeleteErrors, DeleteWalletEntryAccountWalletEntryIdDeleteResponses, GetCardProductsAccountCardProductsGetData, GetCardProductsAccountCardProductsGetResponses, GetJobStatusPlanJobIdGetData, GetJobStatusPlanJobIdGetErrors, GetJobStatusPlanJobIdGetResponses, GetPreferencesPlanningPreferencesGetData, GetPreferencesPlanningPreferencesGetResponses, GetWalletAccountWalletGetData, GetWalletAccountWalletGetResponses, GetWalletProjectionAccountWalletProjectionGetData, GetWalletProjectionAccountWalletProjectionGetResponses, HealthHealthGetData, HealthHealthGetResponses, InterpretSessionPlanningSessionsSessionIdInterpretPostData, InterpretSessionPlanningSessionsSessionIdInterpretPostErrors, InterpretSessionPlanningSessionsSessionIdInterpretPostResponses, LoginAuthLoginPostData, LoginAuthLoginPostErrors, LoginAuthLoginPostResponses, LogoutAuthLogoutPostData, LogoutAuthLogoutPostResponses, MeAuthMeGetData, MeAuthMeGetResponses, PatchPreferencesPlanningPreferencesPatchData, PatchPreferencesPlanningPreferencesPatchErrors, PatchPreferencesPlanningPreferencesPatchResponses, PatchWalletEntryAccountWalletEntryIdPatchData, PatchWalletEntryAccountWalletEntryIdPatchErrors, PatchWalletEntryAccountWalletEntryIdPatchResponses, PlanPlanPostData, PlanPlanPostErrors, PlanPlanPostResponses, ReadSessionPlanningSessionsSessionIdGetData, ReadSessionPlanningSessionsSessionIdGetErrors, ReadSessionPlanningSessionsSessionIdGetResponses, RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostData, RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostErrors, RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostResponses, RecomputePlanPlanRecomputePostData, RecomputePlanPlanRecomputePostErrors, RecomputePlanPlanRecomputePostResponses, RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostData, RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostErrors, RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponses, RefreshProsePlanPlanRefreshProsePostData, RefreshProsePlanPlanRefreshProsePostErrors, RefreshProsePlanPlanRefreshProsePostResponses, RegisterAuthRegisterPostData, RegisterAuthRegisterPostErrors, RegisterAuthRegisterPostResponses, RemovePreferencesPlanningPreferencesSectionDeleteData, RemovePreferencesPlanningPreferencesSectionDeleteErrors, RemovePreferencesPlanningPreferencesSectionDeleteResponses, ReplacePreferencesPlanningPreferencesPutData, ReplacePreferencesPlanningPreferencesPutErrors, ReplacePreferencesPlanningPreferencesPutResponses, ReviewSessionPlanningSessionsSessionIdReviewGetData, ReviewSessionPlanningSessionsSessionIdReviewGetErrors, ReviewSessionPlanningSessionsSessionIdReviewGetResponses, SearchPlacesPlacesSearchPostData, SearchPlacesPlacesSearchPostErrors, SearchPlacesPlacesSearchPostResponses, SessionJobPlanningSessionsSessionIdJobGetData, SessionJobPlanningSessionsSessionIdJobGetErrors, SessionJobPlanningSessionsSessionIdJobGetResponses, SkipSessionPlanningSessionsSessionIdSkipPostData, SkipSessionPlanningSessionsSessionIdSkipPostErrors, SkipSessionPlanningSessionsSessionIdSkipPostResponses } from './types.gen';
+import type { AmendSessionPlanningSessionsSessionIdAmendPostData, AmendSessionPlanningSessionsSessionIdAmendPostErrors, AmendSessionPlanningSessionsSessionIdAmendPostResponses, AnswerSessionPlanningSessionsSessionIdAnswersPostData, AnswerSessionPlanningSessionsSessionIdAnswersPostErrors, AnswerSessionPlanningSessionsSessionIdAnswersPostResponses, AppendRevisionAccountTripsTripIdRevisionsPostData, AppendRevisionAccountTripsTripIdRevisionsPostErrors, AppendRevisionAccountTripsTripIdRevisionsPostResponses, ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostData, ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors, ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostResponses, ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostData, ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostErrors, ApproveProfileUpdatePlanningSessionsSessionIdProfileUpdatesProposalIdApprovePostResponses, BackSessionPlanningSessionsSessionIdBackPostData, BackSessionPlanningSessionsSessionIdBackPostErrors, BackSessionPlanningSessionsSessionIdBackPostResponses, ConfirmSessionPlanningSessionsSessionIdConfirmPostData, ConfirmSessionPlanningSessionsSessionIdConfirmPostErrors, ConfirmSessionPlanningSessionsSessionIdConfirmPostResponses, CreateSessionPlanningSessionsPostData, CreateSessionPlanningSessionsPostResponses, CreateWalletEntryAccountWalletPostData, CreateWalletEntryAccountWalletPostErrors, CreateWalletEntryAccountWalletPostResponses, DeleteTripAccountTripsTripIdDeleteData, DeleteTripAccountTripsTripIdDeleteErrors, DeleteTripAccountTripsTripIdDeleteResponses, DeleteWalletEntryAccountWalletEntryIdDeleteData, DeleteWalletEntryAccountWalletEntryIdDeleteErrors, DeleteWalletEntryAccountWalletEntryIdDeleteResponses, GetCardProductsAccountCardProductsGetData, GetCardProductsAccountCardProductsGetResponses, GetJobStatusPlanJobIdGetData, GetJobStatusPlanJobIdGetErrors, GetJobStatusPlanJobIdGetResponses, GetPreferencesPlanningPreferencesGetData, GetPreferencesPlanningPreferencesGetResponses, GetRevisionAccountTripsTripIdRevisionsRevisionGetData, GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors, GetRevisionAccountTripsTripIdRevisionsRevisionGetResponses, GetTripAccountTripsTripIdGetData, GetTripAccountTripsTripIdGetErrors, GetTripAccountTripsTripIdGetResponses, GetWalletAccountWalletGetData, GetWalletAccountWalletGetResponses, GetWalletProjectionAccountWalletProjectionGetData, GetWalletProjectionAccountWalletProjectionGetResponses, GetWorkspacePlanningSessionsSessionIdWorkspaceGetData, GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors, GetWorkspacePlanningSessionsSessionIdWorkspaceGetResponses, HealthHealthGetData, HealthHealthGetResponses, InitializeWorkspacePlanningSessionsSessionIdWorkspacePostData, InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors, InitializeWorkspacePlanningSessionsSessionIdWorkspacePostResponses, InterpretSessionPlanningSessionsSessionIdInterpretPostData, InterpretSessionPlanningSessionsSessionIdInterpretPostErrors, InterpretSessionPlanningSessionsSessionIdInterpretPostResponses, ListTripsAccountTripsGetData, ListTripsAccountTripsGetErrors, ListTripsAccountTripsGetResponses, LoginAuthLoginPostData, LoginAuthLoginPostErrors, LoginAuthLoginPostResponses, LogoutAuthLogoutPostData, LogoutAuthLogoutPostResponses, MeAuthMeGetData, MeAuthMeGetResponses, PatchPreferencesPlanningPreferencesPatchData, PatchPreferencesPlanningPreferencesPatchErrors, PatchPreferencesPlanningPreferencesPatchResponses, PatchWalletEntryAccountWalletEntryIdPatchData, PatchWalletEntryAccountWalletEntryIdPatchErrors, PatchWalletEntryAccountWalletEntryIdPatchResponses, PlanPlanPostData, PlanPlanPostErrors, PlanPlanPostResponses, ProposeActionPlanningSessionsSessionIdActionsPostData, ProposeActionPlanningSessionsSessionIdActionsPostErrors, ProposeActionPlanningSessionsSessionIdActionsPostResponses, ReadSessionPlanningSessionsSessionIdGetData, ReadSessionPlanningSessionsSessionIdGetErrors, ReadSessionPlanningSessionsSessionIdGetResponses, RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostData, RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostErrors, RecomputeConfirmedSessionPlanningSessionsSessionIdRecomputePostResponses, RecomputePlanPlanRecomputePostData, RecomputePlanPlanRecomputePostErrors, RecomputePlanPlanRecomputePostResponses, RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostData, RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostErrors, RefreshConfirmedSessionProsePlanningSessionsSessionIdRefreshProsePostResponses, RefreshProsePlanPlanRefreshProsePostData, RefreshProsePlanPlanRefreshProsePostErrors, RefreshProsePlanPlanRefreshProsePostResponses, RegisterAuthRegisterPostData, RegisterAuthRegisterPostErrors, RegisterAuthRegisterPostResponses, RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostData, RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors, RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostResponses, RemovePreferencesPlanningPreferencesSectionDeleteData, RemovePreferencesPlanningPreferencesSectionDeleteErrors, RemovePreferencesPlanningPreferencesSectionDeleteResponses, ReplacePreferencesPlanningPreferencesPutData, ReplacePreferencesPlanningPreferencesPutErrors, ReplacePreferencesPlanningPreferencesPutResponses, RerunStatusAccountTripsTripIdRerunsJobIdGetData, RerunStatusAccountTripsTripIdRerunsJobIdGetErrors, RerunStatusAccountTripsTripIdRerunsJobIdGetResponses, ReviewSessionPlanningSessionsSessionIdReviewGetData, ReviewSessionPlanningSessionsSessionIdReviewGetErrors, ReviewSessionPlanningSessionsSessionIdReviewGetResponses, SaveTripAccountTripsPostData, SaveTripAccountTripsPostErrors, SaveTripAccountTripsPostResponses, SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostData, SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors, SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostResponses, SearchPlacesPlacesSearchPostData, SearchPlacesPlacesSearchPostErrors, SearchPlacesPlacesSearchPostResponses, SessionJobPlanningSessionsSessionIdJobGetData, SessionJobPlanningSessionsSessionIdJobGetErrors, SessionJobPlanningSessionsSessionIdJobGetResponses, SkipSessionPlanningSessionsSessionIdSkipPostData, SkipSessionPlanningSessionsSessionIdSkipPostErrors, SkipSessionPlanningSessionsSessionIdSkipPostResponses, StartRerunAccountTripsTripIdRerunsPostData, StartRerunAccountTripsTripIdRerunsPostErrors, StartRerunAccountTripsTripIdRerunsPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -221,6 +221,155 @@ export const deleteWalletEntryAccountWalletEntryIdDelete = <ThrowOnError extends
  */
 export const patchWalletEntryAccountWalletEntryIdPatch = <ThrowOnError extends boolean = false>(options: Options<PatchWalletEntryAccountWalletEntryIdPatchData, ThrowOnError>): RequestResult<PatchWalletEntryAccountWalletEntryIdPatchResponses, PatchWalletEntryAccountWalletEntryIdPatchErrors, ThrowOnError> => (options.client ?? client).patch<PatchWalletEntryAccountWalletEntryIdPatchResponses, PatchWalletEntryAccountWalletEntryIdPatchErrors, ThrowOnError>({
     url: '/account/wallet/{entry_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List Trips
+ *
+ * The caller's saved trips, newest first. Summaries only: no report bodies.
+ */
+export const listTripsAccountTripsGet = <ThrowOnError extends boolean = false>(options?: Options<ListTripsAccountTripsGetData, ThrowOnError>): RequestResult<ListTripsAccountTripsGetResponses, ListTripsAccountTripsGetErrors, ThrowOnError> => (options?.client ?? client).get<ListTripsAccountTripsGetResponses, ListTripsAccountTripsGetErrors, ThrowOnError>({ url: '/account/trips', ...options });
+
+/**
+ * Save Trip
+ *
+ * Save the confirmed session's current plan as a new trip with revision 1.
+ */
+export const saveTripAccountTripsPost = <ThrowOnError extends boolean = false>(options: Options<SaveTripAccountTripsPostData, ThrowOnError>): RequestResult<SaveTripAccountTripsPostResponses, SaveTripAccountTripsPostErrors, ThrowOnError> => (options.client ?? client).post<SaveTripAccountTripsPostResponses, SaveTripAccountTripsPostErrors, ThrowOnError>({
+    url: '/account/trips',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Append Revision
+ *
+ * Append the attached session's *current* plan to the trip as the next revision.
+ */
+export const appendRevisionAccountTripsTripIdRevisionsPost = <ThrowOnError extends boolean = false>(options: Options<AppendRevisionAccountTripsTripIdRevisionsPostData, ThrowOnError>): RequestResult<AppendRevisionAccountTripsTripIdRevisionsPostResponses, AppendRevisionAccountTripsTripIdRevisionsPostErrors, ThrowOnError> => (options.client ?? client).post<AppendRevisionAccountTripsTripIdRevisionsPostResponses, AppendRevisionAccountTripsTripIdRevisionsPostErrors, ThrowOnError>({
+    url: '/account/trips/{trip_id}/revisions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Trip
+ *
+ * Hard-delete a trip, all its revisions and the planning session attached to it.
+ *
+ * There is no tombstone. With a ``client_event_id`` a retried delete replays as 204
+ * rather than reporting the 404 a genuine second delete gets.
+ */
+export const deleteTripAccountTripsTripIdDelete = <ThrowOnError extends boolean = false>(options: Options<DeleteTripAccountTripsTripIdDeleteData, ThrowOnError>): RequestResult<DeleteTripAccountTripsTripIdDeleteResponses, DeleteTripAccountTripsTripIdDeleteErrors, ThrowOnError> => (options.client ?? client).delete<DeleteTripAccountTripsTripIdDeleteResponses, DeleteTripAccountTripsTripIdDeleteErrors, ThrowOnError>({ url: '/account/trips/{trip_id}', ...options });
+
+/**
+ * Get Trip
+ */
+export const getTripAccountTripsTripIdGet = <ThrowOnError extends boolean = false>(options: Options<GetTripAccountTripsTripIdGetData, ThrowOnError>): RequestResult<GetTripAccountTripsTripIdGetResponses, GetTripAccountTripsTripIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetTripAccountTripsTripIdGetResponses, GetTripAccountTripsTripIdGetErrors, ThrowOnError>({ url: '/account/trips/{trip_id}', ...options });
+
+/**
+ * Get Revision
+ *
+ * One stored revision, with its report returned exactly as it was stored.
+ *
+ * The report is parsed as a plain JSON object and **not** validated through
+ * ``FinalReport``: a snapshot written under an older schema must read back as it
+ * was computed, flagged by ``is_current_schema``, not silently reshaped.
+ */
+export const getRevisionAccountTripsTripIdRevisionsRevisionGet = <ThrowOnError extends boolean = false>(options: Options<GetRevisionAccountTripsTripIdRevisionsRevisionGetData, ThrowOnError>): RequestResult<GetRevisionAccountTripsTripIdRevisionsRevisionGetResponses, GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors, ThrowOnError> => (options.client ?? client).get<GetRevisionAccountTripsTripIdRevisionsRevisionGetResponses, GetRevisionAccountTripsTripIdRevisionsRevisionGetErrors, ThrowOnError>({ url: '/account/trips/{trip_id}/revisions/{revision}', ...options });
+
+/**
+ * Start Rerun
+ *
+ * Plan a saved trip again with current prices; the result becomes the next revision.
+ */
+export const startRerunAccountTripsTripIdRerunsPost = <ThrowOnError extends boolean = false>(options: Options<StartRerunAccountTripsTripIdRerunsPostData, ThrowOnError>): RequestResult<StartRerunAccountTripsTripIdRerunsPostResponses, StartRerunAccountTripsTripIdRerunsPostErrors, ThrowOnError> => (options.client ?? client).post<StartRerunAccountTripsTripIdRerunsPostResponses, StartRerunAccountTripsTripIdRerunsPostErrors, ThrowOnError>({
+    url: '/account/trips/{trip_id}/reruns',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Rerun Status
+ *
+ * Progress of a re-run. After a restart the job is unknown (404); the trip is unchanged.
+ */
+export const rerunStatusAccountTripsTripIdRerunsJobIdGet = <ThrowOnError extends boolean = false>(options: Options<RerunStatusAccountTripsTripIdRerunsJobIdGetData, ThrowOnError>): RequestResult<RerunStatusAccountTripsTripIdRerunsJobIdGetResponses, RerunStatusAccountTripsTripIdRerunsJobIdGetErrors, ThrowOnError> => (options.client ?? client).get<RerunStatusAccountTripsTripIdRerunsJobIdGetResponses, RerunStatusAccountTripsTripIdRerunsJobIdGetErrors, ThrowOnError>({ url: '/account/trips/{trip_id}/reruns/{job_id}', ...options });
+
+/**
+ * Get Workspace
+ */
+export const getWorkspacePlanningSessionsSessionIdWorkspaceGet = <ThrowOnError extends boolean = false>(options: Options<GetWorkspacePlanningSessionsSessionIdWorkspaceGetData, ThrowOnError>): RequestResult<GetWorkspacePlanningSessionsSessionIdWorkspaceGetResponses, GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors, ThrowOnError> => (options.client ?? client).get<GetWorkspacePlanningSessionsSessionIdWorkspaceGetResponses, GetWorkspacePlanningSessionsSessionIdWorkspaceGetErrors, ThrowOnError>({ url: '/planning/sessions/{session_id}/workspace', ...options });
+
+/**
+ * Initialize Workspace
+ */
+export const initializeWorkspacePlanningSessionsSessionIdWorkspacePost = <ThrowOnError extends boolean = false>(options: Options<InitializeWorkspacePlanningSessionsSessionIdWorkspacePostData, ThrowOnError>): RequestResult<InitializeWorkspacePlanningSessionsSessionIdWorkspacePostResponses, InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors, ThrowOnError> => (options.client ?? client).post<InitializeWorkspacePlanningSessionsSessionIdWorkspacePostResponses, InitializeWorkspacePlanningSessionsSessionIdWorkspacePostErrors, ThrowOnError>({
+    url: '/planning/sessions/{session_id}/workspace',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Propose Action
+ */
+export const proposeActionPlanningSessionsSessionIdActionsPost = <ThrowOnError extends boolean = false>(options: Options<ProposeActionPlanningSessionsSessionIdActionsPostData, ThrowOnError>): RequestResult<ProposeActionPlanningSessionsSessionIdActionsPostResponses, ProposeActionPlanningSessionsSessionIdActionsPostErrors, ThrowOnError> => (options.client ?? client).post<ProposeActionPlanningSessionsSessionIdActionsPostResponses, ProposeActionPlanningSessionsSessionIdActionsPostErrors, ThrowOnError>({
+    url: '/planning/sessions/{session_id}/actions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve Action
+ */
+export const approveActionPlanningSessionsSessionIdActionsProposalIdApprovePost = <ThrowOnError extends boolean = false>(options: Options<ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostData, ThrowOnError>): RequestResult<ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostResponses, ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors, ThrowOnError> => (options.client ?? client).post<ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostResponses, ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostErrors, ThrowOnError>({
+    url: '/planning/sessions/{session_id}/actions/{proposal_id}/approve',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Reject Action
+ */
+export const rejectActionPlanningSessionsSessionIdActionsProposalIdRejectPost = <ThrowOnError extends boolean = false>(options: Options<RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostData, ThrowOnError>): RequestResult<RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostResponses, RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors, ThrowOnError> => (options.client ?? client).post<RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostResponses, RejectActionPlanningSessionsSessionIdActionsProposalIdRejectPostErrors, ThrowOnError>({
+    url: '/planning/sessions/{session_id}/actions/{proposal_id}/reject',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Save Workspace Revision
+ *
+ * Explicitly append the selected durable result; working approvals never autosave.
+ */
+export const saveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPost = <ThrowOnError extends boolean = false>(options: Options<SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostData, ThrowOnError>): RequestResult<SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostResponses, SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors, ThrowOnError> => (options.client ?? client).post<SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostResponses, SaveWorkspaceRevisionPlanningSessionsSessionIdWorkspaceRevisionsPostErrors, ThrowOnError>({
+    url: '/planning/sessions/{session_id}/workspace/revisions',
     ...options,
     headers: {
         'Content-Type': 'application/json',

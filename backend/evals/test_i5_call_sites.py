@@ -3,7 +3,7 @@ from pathlib import Path
 
 AGENTS = Path(__file__).parent.parent / "agents"
 EXPECTED = {"intake", "planner", "critic", "explainer"}
-TARGET_PLATFORM_CALLERS = {"interview_assistant"}
+TARGET_PLATFORM_CALLERS = {"interview_assistant", "post_plan_interpreter"}
 
 
 def test_exactly_four_llm_call_sites_exist() -> None:
@@ -48,7 +48,9 @@ def test_kernel_import_graph_cannot_reach_the_interview_assistant() -> None:
                     pending.append(
                         AGENTS / (module.removeprefix("agents.").replace(".", "/") + ".py")
                     )
-    assert "interview_assistant.py" not in {path.name for path in visited}
+    reached = {path.name for path in visited}
+    assert "interview_assistant.py" not in reached
+    assert "post_plan_interpreter.py" not in reached
     callers: set[str] = set()
     for path in visited:
         if path.stem == "llm":

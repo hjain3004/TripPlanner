@@ -26,6 +26,19 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # snapshot it did not write.
 ACCOUNTS_SCHEMA_VERSION = "1"
 
+# Saved-trip storage bounds (A4, DEVIATIONS D11). They bound disk use and the size
+# of a privacy export; they are product limits, not security boundaries.
+MAX_SAVED_TRIPS = 50
+MAX_REVISIONS_PER_TRIP = 25
+MAX_REPORT_BYTES = 2 * 1024 * 1024
+
+# Post-plan (CP4) per-session bounds. Tier C defaults: they bound LLM use, replanning
+# work and stored records, and are enforced inside the reserving transaction so a
+# consumed slot can never be silently forgotten and re-dispatched.
+MAX_INTERPRETER_CALLS_PER_SESSION = 20
+MAX_SCOPED_REPLANS_PER_SESSION = 10
+MAX_POST_PLAN_RECORDS_PER_SESSION = 100
+
 # Field names that may never appear on a stored account model. ``password_hash``
 # is deliberately absent — the (separate, later) auth plan owns credential storage
 # and will add it to ``User``. ``password`` in the clear is forbidden forever.
@@ -436,6 +449,98 @@ class PlanningSessionSnapshot(AccountModel):
 
 
 # --------------------------------------------------------------------------- #
+# 3c. Post-plan workspace (CP4) — opaque to this layer                           #
+# --------------------------------------------------------------------------- #
+#
+# ``accounts`` stores these as opaque JSON and never imports the report, brief or
+# inventory models: orchestration alone understands what is inside.
+
+
+class PostPlanWorkspaceSnapshot(AccountModel):
+    """The current working state of one planning session after its plan exists.
+
+    ``version`` advances on every transition (an operation being reserved, and again
+    when it commits), which is what makes a competing or late writer fail its
+    compare-and-swap. ``current_result_id`` names the exact accepted report.
+    """
+
+    session_id: str
+    user_id: str
+    version: int = Field(ge=1)
+    current_result_id: str
+    created_at: datetime
+    updated_at: datetime
+    expires_at: datetime
+    saved_trip_id: str | None = None
+    payload_json: str
+
+    @field_validator("payload_json")
+    @classmethod
+    def check_payload_json(cls, value: str) -> str:
+        return _require_json_object(value, "payload_json")
+
+
+class PostPlanResult(AccountModel):
+    """One accepted report, immutable. ``report_json`` is stored byte for byte."""
+
+    result_id: str
+    user_id: str
+    session_id: str
+    created_at: datetime
+    report_sha256: str
+    report_json: str
+    schema_version: str = ACCOUNTS_SCHEMA_VERSION
+
+    @field_validator("report_json")
+    @classmethod
+    def check_report_json(cls, value: str) -> str:
+        return _require_json_object(value, "report_json")
+
+
+PostPlanOperationKind = Literal["initialize", "propose", "approve", "reject", "save"]
+PostPlanOperationStatus = Literal["reserved", "complete", "failed", "interrupted"]
+
+
+class PostPlanOperation(AccountModel):
+    """One post-plan operation: a durable reservation, then its terminal outcome.
+
+    A ``propose`` operation *is* the durable proposal (its id is the proposal id and
+    ``decision`` records its single terminal decision). ``approve``/``reject`` operations
+    reference it by ``proposal_id``. Consumed call slots are recorded when the operation
+    is reserved, before anything is dispatched, and are never returned.
+    """
+
+    operation_id: str
+    user_id: str
+    session_id: str
+    kind: PostPlanOperationKind
+    event_id: str = Field(min_length=1, max_length=200)
+    event_source: Literal["client", "system"] = "client"
+    fingerprint: str
+    status: PostPlanOperationStatus = "reserved"
+    expected_workspace_version: int = Field(ge=0)
+    expected_session_version: int = Field(ge=0)
+    reserved_workspace_version: int | None = None
+    base_result_id: str | None = None
+    proposal_id: str | None = None
+    result_id: str | None = None
+    action_kind: str | None = None
+    decision: Literal["pending", "approved", "rejected"] | None = None
+    interpreter_calls: int = Field(default=0, ge=0)
+    planner_calls: int = Field(default=0, ge=0)
+    provider_calls: int = Field(default=0, ge=0)
+    error_code: str | None = None
+    payload_json: str = "{}"
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator("payload_json")
+    @classmethod
+    def check_payload_json(cls, value: str) -> str:
+        return _require_json_object(value, "payload_json")
+
+
+# --------------------------------------------------------------------------- #
 # 4. Privacy — the full picture of what is held about one user                  #
 # --------------------------------------------------------------------------- #
 
@@ -458,6 +563,27 @@ class WalletMutationEvent(AccountModel):
     created_at: datetime | None = None
 
 
+class TripMutationEvent(AccountModel):
+    """One recorded saved-trip mutation, for idempotency and subject-access export.
+
+    ``result_payload`` is the outcome the original request returned (a saved trip
+    and first revision, a revision, or ``{"removed": bool}``), so it is personal
+    data: it appears in the export and is erased with the account.
+    """
+
+    user_id: str
+    client_event_id: str
+    # "client" ids come from a request; "system" ids are minted internally (the
+    # re-run completion). They live in separate namespaces, so a caller can never
+    # choose an id that blocks an internal event.
+    source: Literal["client", "system"] = "client"
+    operation: Literal["save", "append_revision", "delete", "rerun_complete"]
+    trip_id: str | None = None
+    fingerprint: str
+    result_payload: str
+    created_at: datetime | None = None
+
+
 class UserExport(AccountModel):
     """Everything the system stores about one user, for subject-access export."""
 
@@ -467,6 +593,10 @@ class UserExport(AccountModel):
     wallet_mutation_events: list[WalletMutationEvent] = Field(default_factory=list)
     trips: list[SavedTrip] = Field(default_factory=list)
     revisions: list[TripRevision] = Field(default_factory=list)
+    trip_mutation_events: list[TripMutationEvent] = Field(default_factory=list)
+    post_plan_workspaces: list[PostPlanWorkspaceSnapshot] = Field(default_factory=list)
+    post_plan_results: list[PostPlanResult] = Field(default_factory=list)
+    post_plan_operations: list[PostPlanOperation] = Field(default_factory=list)
     travel_preferences: TravelPreferenceProfile | None = None
     planning_sessions: list[PlanningSessionSnapshot] = Field(default_factory=list)
     exported_at: datetime

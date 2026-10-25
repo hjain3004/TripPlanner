@@ -14,8 +14,10 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 from sqlalchemy import Engine, delete, func, select, update
@@ -26,9 +28,13 @@ from accounts import passwords
 from accounts.db import (
     ACCOUNTS_DB_PATH,
     PlanningSessionRow,
+    PostPlanOperationRow,
+    PostPlanResultRow,
+    PostPlanWorkspaceRow,
     SavedTripRow,
     SessionRow,
     TravelPreferenceRow,
+    TripMutationEventRow,
     TripRevisionRow,
     UserCredentialRow,
     UserProfileRow,
@@ -38,9 +44,19 @@ from accounts.db import (
     create_accounts_engine,
 )
 from accounts.models import (
+    MAX_INTERPRETER_CALLS_PER_SESSION,
+    MAX_POST_PLAN_RECORDS_PER_SESSION,
+    MAX_REPORT_BYTES,
+    MAX_REVISIONS_PER_TRIP,
+    MAX_SAVED_TRIPS,
+    MAX_SCOPED_REPLANS_PER_SESSION,
     PlanningSessionSnapshot,
+    PostPlanOperation,
+    PostPlanResult,
+    PostPlanWorkspaceSnapshot,
     SavedTrip,
     TravelPreferenceProfile,
+    TripMutationEvent,
     TripRevision,
     User,
     UserCredential,
@@ -63,7 +79,176 @@ class UnknownUserError(ValueError):
 
 
 class UnknownTripError(ValueError):
-    """Raised when an operation names a saved trip id that does not exist."""
+    """Raised when no saved trip with that id is owned by this user.
+
+    Deliberately indistinguishable from "the trip exists but belongs to someone
+    else", and the message carries no owner information, so the API can never be
+    used to probe for another user's trip ids.
+    """
+
+
+class TripRevisionConflictError(ValueError):
+    """Raised when a revision number could not be allocated after one retry."""
+
+
+class UnknownRevisionError(ValueError):
+    """Raised when a trip the user owns has no revision with that number."""
+
+
+class TripIdempotencyConflictError(ValueError):
+    """Raised when a client event id is reused for a materially different trip request."""
+
+
+class TripLimitReachedError(ValueError):
+    """Raised when a user already holds the maximum number of saved trips."""
+
+
+class RevisionLimitReachedError(ValueError):
+    """Raised when a trip already holds the maximum number of revisions."""
+
+
+class ReportTooLargeError(ValueError):
+    """Raised when a report to be stored exceeds the per-revision size bound."""
+
+
+class UnknownPlanningSessionError(ValueError):
+    """No planning session with that id is owned by this user (same as missing)."""
+
+
+class PostPlanWorkspaceNotFoundError(ValueError):
+    """No post-plan workspace for this user and session. Wrong owner reads as missing."""
+
+
+class StalePostPlanWorkspaceError(ValueError):
+    """The workspace is no longer at the version the caller expected."""
+
+    def __init__(self, message: str, *, current_version: int | None = None) -> None:
+        super().__init__(message)
+        self.current_version = current_version
+
+
+class StalePostPlanBaseError(ValueError):
+    """The proposal was made against a result that is no longer the current one."""
+
+
+class PostPlanOperationConflictError(ValueError):
+    """An event id was reused for a materially different post-plan request."""
+
+
+class PostPlanOperationInProgressError(ValueError):
+    """Another operation on this workspace is still reserved (running)."""
+
+
+class PostPlanOperationNotReservedError(ValueError):
+    """The operation is not (or is no longer) reserved: a late or duplicate completion."""
+
+
+class PostPlanProposalStateError(ValueError):
+    """The proposal is unknown, or already has its single terminal decision."""
+
+
+class PostPlanQuotaError(ValueError):
+    """A per-session post-plan budget is exhausted."""
+
+    def __init__(self, quota: str, message: str) -> None:
+        super().__init__(message)
+        self.quota = quota
+
+
+class StaleProfileSectionError(ValueError):
+    """The approved profile section changed after the proposal was created."""
+
+
+TripOperation = Literal["save", "append_revision", "delete", "rerun_complete"]
+
+
+EventSource = Literal["client", "system"]
+
+
+def _event_key(source: EventSource, event_id: str) -> str:
+    """The stored identity of an event: its namespace plus the raw id."""
+    return f"{source}:{event_id}"
+
+
+def _split_event_key(key: str) -> tuple[EventSource, str]:
+    source, _, rest = key.partition(":")
+    if source == "system":
+        return "system", rest
+    if source == "client":
+        return "client", rest
+    return "client", key  # defensive: an un-namespaced legacy row is a client id
+
+
+def _resolve_event_key(client_event_id: str | None, system_event_id: str | None) -> str | None:
+    if client_event_id is not None and system_event_id is not None:
+        raise ValueError("a mutation names at most one of client_event_id and system_event_id")
+    if client_event_id is not None:
+        return _event_key("client", client_event_id)
+    if system_event_id is not None:
+        return _event_key("system", system_event_id)
+    return None
+
+
+def revision_limit() -> int:
+    """The per-trip revision cap, read at call time (tests lower it)."""
+    return MAX_REVISIONS_PER_TRIP
+
+
+def trip_event_fingerprint(
+    operation: str,
+    *,
+    trip_id: str | None = None,
+    fields: dict[str, object] | None = None,
+) -> str:
+    """Canonical identity of a saved-trip mutation request.
+
+    Callers that know the *intent* of the request (the API, which sees a session id
+    and a title rather than the report it will compute) pass their own fingerprint,
+    because a retry of the same intent legitimately arrives with a different report.
+    The clock and server-generated ids are never part of it.
+    """
+    canonical = json.dumps(
+        {"operation": operation, "trip_id": trip_id, "fields": fields or {}},
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class RevisionMeta:
+    """A revision without its report: what a list or detail view needs."""
+
+    revision: int
+    trace_id: str
+    schema_version: str
+    created_at: datetime
+
+    @classmethod
+    def of(cls, revision: TripRevision) -> RevisionMeta:
+        return cls(
+            revision=revision.revision,
+            trace_id=revision.trace_id,
+            schema_version=revision.schema_version,
+            created_at=revision.created_at,
+        )
+
+
+@dataclass(frozen=True)
+class TripOverview:
+    """A saved trip and the metadata of its revisions, oldest first."""
+
+    trip: SavedTrip
+    revisions: list[RevisionMeta]
+
+
+@dataclass(frozen=True)
+class SavedTripResult:
+    """A newly saved trip together with its first revision."""
+
+    trip: SavedTrip
+    revision: TripRevision
 
 
 class PlanningSessionExistsError(ValueError):
@@ -348,6 +533,21 @@ class AccountStore:
             ]
         return sorted(snapshots, key=lambda s: (s.updated_at, s.id))
 
+    def planning_session_for_trip(
+        self, user_id: str, trip_id: str
+    ) -> PlanningSessionSnapshot | None:
+        """The planning session this user's trip was saved from, if it still exists."""
+        with Session(self._engine) as session:
+            row = session.scalar(
+                select(PlanningSessionRow).where(
+                    PlanningSessionRow.user_id == user_id,
+                    PlanningSessionRow.saved_trip_id == trip_id,
+                )
+            )
+            if row is None:
+                return None
+            return PlanningSessionSnapshot.model_validate_json(row.payload)
+
     def delete_expired_planning_sessions(self, *, now: datetime) -> int:
         """Hard-delete abandoned sessions past expiry. Returns how many were removed.
 
@@ -356,6 +556,16 @@ class AccountStore:
         of its own ``expires_at``.
         """
         with Session(self._engine) as session:
+            expired = list(
+                session.scalars(
+                    select(PlanningSessionRow.id).where(
+                        PlanningSessionRow.expires_at < now.isoformat(),
+                        PlanningSessionRow.saved_trip_id.is_(None),
+                    )
+                )
+            )
+            # A workspace follows its parent session: it is swept with it.
+            self._delete_post_plan_rows(session, user_id=None, session_ids=expired)
             result = session.execute(
                 delete(PlanningSessionRow).where(
                     PlanningSessionRow.expires_at < now.isoformat(),
@@ -798,6 +1008,106 @@ class AccountStore:
             entries = [WalletEntry.model_validate_json(r.payload) for r in rows]
         return sorted(entries, key=lambda e: (e.card_id, e.id))
 
+    # -- saved-trip idempotency ---------------------------------------------- #
+
+    @staticmethod
+    def _begin_write(session: Session) -> None:
+        """Take SQLite's write lock up front so check-then-write is atomic.
+
+        Replay, limit and numbering decisions all read before they write; under
+        deferred locking two writers could both pass the same check. Acquiring the
+        lock first makes the second writer wait, then see the first one's rows.
+        """
+        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+
+    @staticmethod
+    def _replay_trip_event(
+        session: Session, *, user_id: str, client_event_id: str, fingerprint: str
+    ) -> str | None:
+        row = session.get(TripMutationEventRow, (user_id, client_event_id))
+        if row is None:
+            return None
+        if row.fingerprint != fingerprint:
+            raise TripIdempotencyConflictError(
+                f"client event {client_event_id} was already used for a "
+                f"materially different saved-trip request"
+            )
+        return row.result_payload
+
+    @staticmethod
+    def _record_trip_event(
+        session: Session,
+        *,
+        user_id: str,
+        client_event_id: str,
+        fingerprint: str,
+        operation: TripOperation,
+        trip_id: str | None,
+        result_payload: str,
+        now: datetime | None,
+    ) -> None:
+        session.add(
+            TripMutationEventRow(
+                user_id=user_id,
+                client_event_id=client_event_id,
+                fingerprint=fingerprint,
+                operation=operation,
+                trip_id=trip_id,
+                result_payload=result_payload,
+                created_at=now.isoformat() if now is not None else None,
+            )
+        )
+
+    def trip_event_result(
+        self, *, user_id: str, client_event_id: str, request_fingerprint: str
+    ) -> str | None:
+        """The stored outcome of a previously applied event, else ``None``.
+
+        Lets the API recognise an honest retry *before* it applies state checks that
+        the original success has since changed (for example "this session is already
+        saved"). Raises on a reused id whose fingerprint differs.
+        """
+        with Session(self._engine) as session:
+            return self._replay_trip_event(
+                session,
+                user_id=user_id,
+                client_event_id=_event_key("client", client_event_id),
+                fingerprint=request_fingerprint,
+            )
+
+    def trip_mutation_events(self, user_id: str) -> list[TripMutationEvent]:
+        """This user's recorded saved-trip mutations, ordered by ``client_event_id``."""
+        with Session(self._engine) as session:
+            rows = session.scalars(
+                select(TripMutationEventRow).where(TripMutationEventRow.user_id == user_id)
+            ).all()
+            keyed = [(r, *_split_event_key(r.client_event_id)) for r in rows]
+            events = [
+                TripMutationEvent(
+                    user_id=r.user_id,
+                    client_event_id=raw_id,
+                    source=source,
+                    operation=r.operation,
+                    trip_id=r.trip_id,
+                    fingerprint=r.fingerprint,
+                    result_payload=r.result_payload,
+                    created_at=(
+                        datetime.fromisoformat(r.created_at)
+                        if r.created_at is not None
+                        else None
+                    ),
+                )
+                for r, source, raw_id in keyed
+            ]
+        return sorted(events, key=lambda e: (e.source, e.client_event_id))
+
+    @staticmethod
+    def _check_report_size(report_json: str) -> None:
+        if len(report_json.encode("utf-8")) > MAX_REPORT_BYTES:
+            raise ReportTooLargeError(
+                f"report exceeds the {MAX_REPORT_BYTES}-byte storage limit"
+            )
+
     # -- saved trips (append-only) ------------------------------------------ #
 
     def save_trip(
@@ -839,35 +1149,158 @@ class AccountStore:
             session.commit()
         return trip
 
-    def add_revision(
+    def save_trip_with_revision(
         self,
         *,
-        trip_id: str,
+        user_id: str,
+        title: str,
+        origin_city: str,
+        destination_city: str,
+        start_date: date,
+        end_date: date,
+        raw_request: str,
+        trip_spec_json: str,
         trace_id: str,
         report_json: str,
         now: datetime,
-        revision_id: str | None = None,
-    ) -> TripRevision:
-        """Append a computed result. Never mutates an existing revision.
+        trip_id: str | None = None,
+        attach_session: PlanningSessionSnapshot | None = None,
+        expected_session_version: int | None = None,
+        post_plan_session_id: str | None = None,
+        expected_post_plan_workspace_version: int | None = None,
+        source_result_id: str | None = None,
+        client_event_id: str | None = None,
+        request_fingerprint: str | None = None,
+    ) -> SavedTripResult:
+        """Create a trip and its first revision, atomically and idempotently.
 
-        Saved trips are immutable: re-running a trip produces revision N+1 so the
-        provenance and ``last_verified`` values of every earlier run survive intact.
+        One transaction covers the replay check, the size and count limits, the
+        trip, revision 1, the optional compare-and-swap attach of the originating
+        planning session, and the idempotency record. If the session was advanced by
+        someone else the whole save rolls back, so a lost race never leaves a trip
+        the session does not point at.
         """
-        with Session(self._engine) as session:
-            if session.get(SavedTripRow, trip_id) is None:
-                raise UnknownTripError(f"no such saved trip: {trip_id}")
-            highest = session.scalar(
-                select(func.max(TripRevisionRow.revision)).where(
-                    TripRevisionRow.trip_id == trip_id
-                )
+        fingerprint = request_fingerprint or trip_event_fingerprint(
+            "save",
+            fields={
+                "title": title,
+                "origin_city": origin_city,
+                "destination_city": destination_city,
+                "start_date": start_date,
+                "end_date": end_date,
+                "raw_request": raw_request,
+                "trip_spec_json": trip_spec_json,
+                "report_sha256": hashlib.sha256(report_json.encode("utf-8")).hexdigest(),
+            },
+        )
+        event_key = _resolve_event_key(client_event_id, None)
+        trip = SavedTrip(
+            id=trip_id or uuid4().hex,
+            user_id=user_id,
+            title=title,
+            origin_city=origin_city,
+            destination_city=destination_city,
+            start_date=start_date,
+            end_date=end_date,
+            raw_request=raw_request,
+            trip_spec_json=trip_spec_json,
+            created_at=now,
+        )
+        revision = TripRevision(
+            id=uuid4().hex,
+            trip_id=trip.id,
+            revision=1,
+            trace_id=trace_id,
+            report_json=report_json,
+            created_at=now,
+        )
+        if attach_session is not None:
+            if (
+                expected_session_version is None
+                or attach_session.user_id != user_id
+                or attach_session.saved_trip_id != trip.id
+                or attach_session.version != expected_session_version + 1
+            ):
+                raise ValueError("attach_session must point at the new trip and advance by one")
+        result_payload = json.dumps(
+            {
+                "trip": json.loads(trip.model_dump_json()),
+                "revision": json.loads(revision.model_dump_json()),
+            }
+        )
+
+        def replayed(payload: str) -> SavedTripResult:
+            data = json.loads(payload)
+            return SavedTripResult(
+                trip=SavedTrip.model_validate(data["trip"]),
+                revision=TripRevision.model_validate(data["revision"]),
             )
-            revision = TripRevision(
-                id=revision_id or uuid4().hex,
-                trip_id=trip_id,
-                revision=(highest or 0) + 1,
-                trace_id=trace_id,
-                report_json=report_json,
-                created_at=now,
+
+        with Session(self._engine) as session:
+            self._begin_write(session)
+            if event_key is not None:
+                prior = self._replay_trip_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=event_key,
+                    fingerprint=fingerprint,
+                )
+                if prior is not None:
+                    return replayed(prior)
+            self._check_report_size(report_json)
+            self._require_user(session, user_id)
+            if post_plan_session_id is not None:
+                workspace_row = session.get(PostPlanWorkspaceRow, post_plan_session_id)
+                if (
+                    workspace_row is None
+                    or workspace_row.user_id != user_id
+                    or expected_post_plan_workspace_version is None
+                    or source_result_id is None
+                    or workspace_row.version != expected_post_plan_workspace_version
+                    or workspace_row.current_result_id != source_result_id
+                ):
+                    raise StalePostPlanWorkspaceError(
+                        "the selected post-plan result changed",
+                        current_version=workspace_row.version if workspace_row else -1,
+                    )
+            held = session.scalar(
+                select(func.count())
+                .select_from(SavedTripRow)
+                .where(SavedTripRow.user_id == user_id)
+            )
+            if int(held or 0) >= MAX_SAVED_TRIPS:
+                raise TripLimitReachedError(
+                    f"at most {MAX_SAVED_TRIPS} saved trips are kept per user"
+                )
+            if attach_session is not None:
+                outcome = session.execute(
+                    update(PlanningSessionRow)
+                    .where(
+                        PlanningSessionRow.id == attach_session.id,
+                        PlanningSessionRow.user_id == user_id,
+                        PlanningSessionRow.version == expected_session_version,
+                    )
+                    .values(
+                        status=attach_session.status,
+                        version=attach_session.version,
+                        updated_at=attach_session.updated_at.isoformat(),
+                        expires_at=attach_session.expires_at.isoformat(),
+                        saved_trip_id=attach_session.saved_trip_id,
+                        payload=attach_session.model_dump_json(),
+                    )
+                )
+                if outcome.rowcount != 1:  # type: ignore[attr-defined]
+                    raise StalePlanningSessionError(
+                        f"planning session {attach_session.id} was not at version "
+                        f"{expected_session_version} for this user"
+                    )
+            session.add(
+                SavedTripRow(
+                    id=trip.id,
+                    user_id=trip.user_id,
+                    created_at=trip.created_at.isoformat(),
+                    payload=trip.model_dump_json(),
+                )
             )
             session.add(
                 TripRevisionRow(
@@ -877,8 +1310,253 @@ class AccountStore:
                     payload=revision.model_dump_json(),
                 )
             )
-            session.commit()
-        return revision
+            if event_key is not None:
+                self._record_trip_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=event_key,
+                    fingerprint=fingerprint,
+                    operation="save",
+                    trip_id=trip.id,
+                    result_payload=result_payload,
+                    now=now,
+                )
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                if event_key is None:
+                    raise
+                with Session(self._engine) as again:
+                    prior = self._replay_trip_event(
+                        again,
+                        user_id=user_id,
+                        client_event_id=event_key,
+                        fingerprint=fingerprint,
+                    )
+                if prior is None:
+                    raise
+                return replayed(prior)
+        return SavedTripResult(trip=trip, revision=revision)
+
+    def get_trip(self, user_id: str, trip_id: str) -> SavedTrip:
+        """One trip, scoped to its owner. Wrong owner reads as missing."""
+        with Session(self._engine) as session:
+            row = self._owned_trip_row(session, user_id, trip_id)
+            return SavedTrip.model_validate_json(row.payload)
+
+    @staticmethod
+    def _owned_trip_row(session: Session, user_id: str, trip_id: str) -> SavedTripRow:
+        row = session.scalar(
+            select(SavedTripRow).where(
+                SavedTripRow.id == trip_id, SavedTripRow.user_id == user_id
+            )
+        )
+        if row is None:
+            raise UnknownTripError(f"no saved trip {trip_id} for this user")
+        return row
+
+    @staticmethod
+    def _highest_revision(session: Session, trip_id: str) -> int:
+        highest = session.scalar(
+            select(func.max(TripRevisionRow.revision)).where(
+                TripRevisionRow.trip_id == trip_id
+            )
+        )
+        return int(highest or 0)
+
+    def add_revision(
+        self,
+        *,
+        user_id: str,
+        trip_id: str,
+        trace_id: str,
+        report_json: str,
+        now: datetime,
+        revision_id: str | None = None,
+        client_event_id: str | None = None,
+        system_event_id: str | None = None,
+        post_plan_session_id: str | None = None,
+        expected_post_plan_workspace_version: int | None = None,
+        source_result_id: str | None = None,
+        request_fingerprint: str | None = None,
+        operation: Literal["append_revision", "rerun_complete"] = "append_revision",
+    ) -> TripRevision:
+        """Append a computed result to a trip this user owns. Never mutates one.
+
+        Saved trips are immutable: re-running a trip produces revision N+1 so the
+        provenance and ``last_verified`` values of every earlier run survive intact.
+
+        Everything happens in one ``BEGIN IMMEDIATE`` transaction, in this order:
+        replay, size, ownership, revision limit, numbering, insert. Replay comes
+        first so a retried append that already succeeded is never rejected by the
+        limit it consumed. A second writer waits for the lock instead of computing
+        the same ``max + 1``; the unique ``(trip_id, revision)`` index is the
+        backstop, retried once and then surfaced as a typed error — a raw driver
+        exception never leaves the store.
+        """
+        fingerprint = request_fingerprint or trip_event_fingerprint(
+            operation,
+            trip_id=trip_id,
+            fields={
+                "trace_id": trace_id,
+                "report_sha256": hashlib.sha256(report_json.encode("utf-8")).hexdigest(),
+            },
+        )
+        event_key = _resolve_event_key(client_event_id, system_event_id)
+        for _attempt in range(2):
+            with Session(self._engine) as session:
+                self._begin_write(session)
+                if event_key is not None:
+                    prior = self._replay_trip_event(
+                        session,
+                        user_id=user_id,
+                        client_event_id=event_key,
+                        fingerprint=fingerprint,
+                    )
+                    if prior is not None:
+                        return TripRevision.model_validate_json(prior)
+                self._check_report_size(report_json)
+                self._owned_trip_row(session, user_id, trip_id)
+                if post_plan_session_id is not None:
+                    workspace_row = session.get(PostPlanWorkspaceRow, post_plan_session_id)
+                    if (
+                        workspace_row is None
+                        or workspace_row.user_id != user_id
+                        or expected_post_plan_workspace_version is None
+                        or source_result_id is None
+                        or workspace_row.version != expected_post_plan_workspace_version
+                        or workspace_row.current_result_id != source_result_id
+                    ):
+                        raise StalePostPlanWorkspaceError(
+                            "the selected post-plan result changed",
+                            current_version=workspace_row.version if workspace_row else -1,
+                        )
+                held = session.scalar(
+                    select(func.count())
+                    .select_from(TripRevisionRow)
+                    .where(TripRevisionRow.trip_id == trip_id)
+                )
+                if int(held or 0) >= MAX_REVISIONS_PER_TRIP:
+                    raise RevisionLimitReachedError(
+                        f"at most {MAX_REVISIONS_PER_TRIP} revisions are kept per trip"
+                    )
+                revision = TripRevision(
+                    id=revision_id or uuid4().hex,
+                    trip_id=trip_id,
+                    revision=self._highest_revision(session, trip_id) + 1,
+                    trace_id=trace_id,
+                    report_json=report_json,
+                    created_at=now,
+                )
+                session.add(
+                    TripRevisionRow(
+                        id=revision.id,
+                        trip_id=revision.trip_id,
+                        revision=revision.revision,
+                        payload=revision.model_dump_json(),
+                    )
+                )
+                if event_key is not None:
+                    self._record_trip_event(
+                        session,
+                        user_id=user_id,
+                        client_event_id=event_key,
+                        fingerprint=fingerprint,
+                        operation=operation,
+                        trip_id=trip_id,
+                        result_payload=revision.model_dump_json(),
+                        now=now,
+                    )
+                try:
+                    session.commit()
+                except IntegrityError:
+                    session.rollback()
+                    if event_key is not None:
+                        with Session(self._engine) as again:
+                            prior = self._replay_trip_event(
+                                again,
+                                user_id=user_id,
+                                client_event_id=event_key,
+                                fingerprint=fingerprint,
+                            )
+                        if prior is not None:
+                            return TripRevision.model_validate_json(prior)
+                    continue
+            return revision
+        raise TripRevisionConflictError(
+            f"could not allocate a revision number for trip {trip_id}"
+        )
+
+    def _revision_metas(
+        self, session: Session, trip_ids: list[str]
+    ) -> dict[str, list[RevisionMeta]]:
+        """Revision metadata for several trips without materialising any report.
+
+        A revision row's payload embeds the whole report (up to 2 MiB), so a list
+        view that parsed payloads would read every report a user has ever saved.
+        ``json_extract`` pulls just the small fields inside SQLite.
+        """
+        if not trip_ids:
+            return {}
+        rows = session.execute(
+            select(
+                TripRevisionRow.trip_id,
+                TripRevisionRow.revision,
+                func.json_extract(TripRevisionRow.payload, "$.trace_id"),
+                func.json_extract(TripRevisionRow.payload, "$.schema_version"),
+                func.json_extract(TripRevisionRow.payload, "$.created_at"),
+            ).where(TripRevisionRow.trip_id.in_(trip_ids))
+        ).all()
+        grouped: dict[str, list[RevisionMeta]] = {trip_id: [] for trip_id in trip_ids}
+        for trip_id, number, trace_id, schema_version, created_at in rows:
+            grouped[trip_id].append(
+                RevisionMeta(
+                    revision=int(number),
+                    trace_id=str(trace_id),
+                    schema_version=str(schema_version),
+                    created_at=datetime.fromisoformat(str(created_at)),
+                )
+            )
+        for metas in grouped.values():
+            metas.sort(key=lambda m: m.revision)
+        return grouped
+
+    def trip_overviews(self, user_id: str) -> list[TripOverview]:
+        """Every trip this user saved with revision metadata, newest trip first."""
+        with Session(self._engine) as session:
+            rows = session.scalars(
+                select(SavedTripRow).where(SavedTripRow.user_id == user_id)
+            ).all()
+            trips = sorted(
+                (SavedTrip.model_validate_json(r.payload) for r in rows),
+                key=lambda t: (t.created_at, t.id),
+                reverse=True,
+            )
+            metas = self._revision_metas(session, [t.id for t in trips])
+        return [TripOverview(trip=t, revisions=metas[t.id]) for t in trips]
+
+    def trip_overview(self, user_id: str, trip_id: str) -> TripOverview:
+        """One trip this user owns with revision metadata. Wrong owner reads as missing."""
+        with Session(self._engine) as session:
+            row = self._owned_trip_row(session, user_id, trip_id)
+            trip = SavedTrip.model_validate_json(row.payload)
+            metas = self._revision_metas(session, [trip_id])
+        return TripOverview(trip=trip, revisions=metas[trip_id])
+
+    def get_revision(self, user_id: str, trip_id: str, revision: int) -> TripRevision:
+        """One stored revision, verbatim. Ownership is proven before the row is read."""
+        with Session(self._engine) as session:
+            self._owned_trip_row(session, user_id, trip_id)
+            row = session.scalar(
+                select(TripRevisionRow).where(
+                    TripRevisionRow.trip_id == trip_id,
+                    TripRevisionRow.revision == revision,
+                )
+            )
+            if row is None:
+                raise UnknownRevisionError(f"no revision {revision} of trip {trip_id}")
+            return TripRevision.model_validate_json(row.payload)
 
     def trips(self, user_id: str) -> list[SavedTrip]:
         """Every saved trip for a user, ordered by ``(created_at, id)``."""
@@ -889,8 +1567,14 @@ class AccountStore:
             trips = [SavedTrip.model_validate_json(r.payload) for r in rows]
         return sorted(trips, key=lambda t: (t.created_at, t.id))
 
-    def revisions(self, trip_id: str) -> list[TripRevision]:
-        """Every revision for a trip, oldest first."""
+    def revisions(self, user_id: str, trip_id: str) -> list[TripRevision]:
+        """Every revision of a trip this user owns, oldest first."""
+        with Session(self._engine) as session:
+            self._owned_trip_row(session, user_id, trip_id)
+        return self._revisions_of_trip(trip_id)
+
+    def _revisions_of_trip(self, trip_id: str) -> list[TripRevision]:
+        """Unscoped read. Internal: callers must already have proved ownership."""
         with Session(self._engine) as session:
             rows = session.scalars(
                 select(TripRevisionRow).where(TripRevisionRow.trip_id == trip_id)
@@ -898,11 +1582,724 @@ class AccountStore:
             revisions = [TripRevision.model_validate_json(r.payload) for r in rows]
         return sorted(revisions, key=lambda r: r.revision)
 
-    def latest_revision(self, trip_id: str) -> TripRevision | None:
-        stored = self.revisions(trip_id)
+    def latest_revision(self, user_id: str, trip_id: str) -> TripRevision | None:
+        stored = self.revisions(user_id, trip_id)
         return stored[-1] if stored else None
 
+    def delete_trip(
+        self,
+        user_id: str,
+        trip_id: str,
+        *,
+        client_event_id: str | None = None,
+        request_fingerprint: str | None = None,
+        now: datetime | None = None,
+    ) -> bool:
+        """Hard-delete one trip and its revisions. ``False`` if not this user's.
+
+        With a ``client_event_id`` a replay returns the *original* outcome, so a
+        retried successful delete reports ``True`` again rather than the ``False`` a
+        genuine second delete would produce.
+        """
+        fingerprint = request_fingerprint or trip_event_fingerprint("delete", trip_id=trip_id)
+        event_key = _resolve_event_key(client_event_id, None)
+        with Session(self._engine) as session:
+            self._begin_write(session)
+            if event_key is not None:
+                prior = self._replay_trip_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=event_key,
+                    fingerprint=fingerprint,
+                )
+                if prior is not None:
+                    return bool(json.loads(prior)["removed"])
+            owned = session.scalar(
+                select(SavedTripRow.id).where(
+                    SavedTripRow.id == trip_id, SavedTripRow.user_id == user_id
+                )
+            )
+            removed = owned is not None
+            if removed:
+                session.execute(
+                    delete(TripRevisionRow).where(TripRevisionRow.trip_id == trip_id)
+                )
+                # The trip's own save/append/rerun outcomes carry its report, so
+                # they go with it. Delete events are kept (trip_id is already NULL)
+                # so a retried DELETE can still replay as "removed".
+                session.execute(
+                    delete(TripMutationEventRow).where(
+                        TripMutationEventRow.user_id == user_id,
+                        TripMutationEventRow.trip_id == trip_id,
+                    )
+                )
+                # A planning session attached to the trip is retained only *with*
+                # the trip (its expiry exemption); it dies with it.
+                attached = list(
+                    session.scalars(
+                        select(PlanningSessionRow.id).where(
+                            PlanningSessionRow.user_id == user_id,
+                            PlanningSessionRow.saved_trip_id == trip_id,
+                        )
+                    )
+                )
+                self._delete_post_plan_rows(session, user_id=None, session_ids=attached)
+                session.execute(
+                    delete(PlanningSessionRow).where(
+                        PlanningSessionRow.user_id == user_id,
+                        PlanningSessionRow.saved_trip_id == trip_id,
+                    )
+                )
+                session.execute(
+                    delete(SavedTripRow).where(
+                        SavedTripRow.id == trip_id, SavedTripRow.user_id == user_id
+                    )
+                )
+            if event_key is not None:
+                self._record_trip_event(
+                    session,
+                    user_id=user_id,
+                    client_event_id=event_key,
+                    fingerprint=fingerprint,
+                    operation="delete",
+                    trip_id=None,
+                    result_payload=json.dumps({"removed": removed}),
+                    now=now,
+                )
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                if event_key is None:
+                    raise
+                with Session(self._engine) as again:
+                    prior = self._replay_trip_event(
+                        again,
+                        user_id=user_id,
+                        client_event_id=event_key,
+                        fingerprint=fingerprint,
+                    )
+                if prior is None:
+                    raise
+                return bool(json.loads(prior)["removed"])
+        return removed
+
+    # -- post-plan workspace (CP4) -------------------------------------------- #
+    #
+    # Every method here runs in one BEGIN IMMEDIATE transaction, checks idempotent
+    # replay before any version or quota check, and never inserts when a parent row is
+    # missing: a late completion can therefore neither overwrite newer state nor
+    # recreate data that was deleted while it ran.
+
+    @staticmethod
+    def _workspace_row(
+        session: Session, user_id: str, session_id: str
+    ) -> PostPlanWorkspaceRow:
+        row = session.get(PostPlanWorkspaceRow, session_id)
+        if row is None or row.user_id != user_id:
+            raise PostPlanWorkspaceNotFoundError("no post-plan workspace for this session")
+        return row
+
+    @staticmethod
+    def _operation_key(operation: PostPlanOperation) -> str:
+        return _event_key(operation.event_source, operation.event_id)
+
+    @staticmethod
+    def _store_operation(row: PostPlanOperationRow, operation: PostPlanOperation) -> None:
+        row.status = operation.status
+        row.proposal_id = operation.proposal_id
+        row.decision = operation.decision
+        row.action_kind = operation.action_kind
+        row.interpreter_calls = operation.interpreter_calls
+        row.planner_calls = operation.planner_calls
+        row.provider_calls = operation.provider_calls
+        row.payload = operation.model_dump_json()
+
+    @staticmethod
+    def _new_operation_row(operation: PostPlanOperation) -> PostPlanOperationRow:
+        row = PostPlanOperationRow(
+            user_id=operation.user_id,
+            event_key=_event_key(operation.event_source, operation.event_id),
+            operation_id=operation.operation_id,
+            session_id=operation.session_id,
+            kind=operation.kind,
+            status=operation.status,
+            proposal_id=operation.proposal_id,
+            decision=operation.decision,
+            action_kind=operation.action_kind,
+            interpreter_calls=operation.interpreter_calls,
+            planner_calls=operation.planner_calls,
+            provider_calls=operation.provider_calls,
+            payload=operation.model_dump_json(),
+        )
+        return row
+
+    def get_post_plan_workspace(
+        self, *, user_id: str, session_id: str
+    ) -> PostPlanWorkspaceSnapshot | None:
+        with Session(self._engine) as session:
+            row = session.get(PostPlanWorkspaceRow, session_id)
+            if row is None or row.user_id != user_id:
+                return None
+            return PostPlanWorkspaceSnapshot.model_validate_json(row.payload)
+
+    def get_post_plan_result(
+        self, *, user_id: str, session_id: str, result_id: str
+    ) -> PostPlanResult | None:
+        """One accepted report, only if it belongs to this user's session."""
+        with Session(self._engine) as session:
+            row = session.get(PostPlanResultRow, result_id)
+            if row is None or row.user_id != user_id or row.session_id != session_id:
+                return None
+            return PostPlanResult.model_validate_json(row.payload)
+
+    def get_post_plan_operation(
+        self,
+        *,
+        user_id: str,
+        event_id: str,
+        event_source: Literal["client", "system"] = "client",
+    ) -> PostPlanOperation | None:
+        with Session(self._engine) as session:
+            row = session.get(PostPlanOperationRow, (user_id, _event_key(event_source, event_id)))
+            return None if row is None else PostPlanOperation.model_validate_json(row.payload)
+
+    def get_post_plan_operation_by_id(
+        self, *, user_id: str, session_id: str, operation_id: str
+    ) -> PostPlanOperation | None:
+        with Session(self._engine) as session:
+            row = session.scalar(
+                select(PostPlanOperationRow).where(
+                    PostPlanOperationRow.operation_id == operation_id,
+                    PostPlanOperationRow.user_id == user_id,
+                    PostPlanOperationRow.session_id == session_id,
+                )
+            )
+            return None if row is None else PostPlanOperation.model_validate_json(row.payload)
+
+    def post_plan_operations(self, *, user_id: str, session_id: str) -> list[PostPlanOperation]:
+        """This session's operations, oldest first."""
+        with Session(self._engine) as session:
+            rows = session.scalars(
+                select(PostPlanOperationRow).where(
+                    PostPlanOperationRow.user_id == user_id,
+                    PostPlanOperationRow.session_id == session_id,
+                )
+            ).all()
+            operations = [PostPlanOperation.model_validate_json(r.payload) for r in rows]
+        return sorted(operations, key=lambda o: (o.created_at, o.operation_id))
+
+    def create_post_plan_workspace(
+        self,
+        *,
+        workspace: PostPlanWorkspaceSnapshot,
+        result: PostPlanResult,
+        operation: PostPlanOperation,
+    ) -> tuple[PostPlanWorkspaceSnapshot, bool]:
+        """Create a session's workspace with its first accepted result, exactly once.
+
+        Returns ``(workspace, created)``. A replayed event, or a second initialisation
+        of a session that already has a workspace, returns the existing one untouched.
+        """
+        user_id, session_id = workspace.user_id, workspace.session_id
+        if not (
+            result.user_id == user_id == operation.user_id
+            and result.session_id == session_id == operation.session_id
+            and workspace.current_result_id == result.result_id
+            and operation.kind == "initialize"
+        ):
+            raise ValueError("workspace, first result and initialise operation must agree")
+        self._check_report_size(result.report_json)
+        with Session(self._engine) as session:
+            self._begin_write(session)
+            prior = session.get(PostPlanOperationRow, (user_id, self._operation_key(operation)))
+            if prior is not None:
+                if PostPlanOperation.model_validate_json(prior.payload).fingerprint != (
+                    operation.fingerprint
+                ):
+                    raise PostPlanOperationConflictError(
+                        f"event {operation.event_id} was already used for a different request"
+                    )
+                existing = self._workspace_row(session, user_id, session_id)
+                return PostPlanWorkspaceSnapshot.model_validate_json(existing.payload), False
+            current = session.get(PostPlanWorkspaceRow, session_id)
+            if current is not None:
+                if current.user_id != user_id:
+                    raise UnknownPlanningSessionError(f"no planning session {session_id}")
+                return PostPlanWorkspaceSnapshot.model_validate_json(current.payload), False
+            self._require_user(session, user_id)
+            owner = session.get(PlanningSessionRow, session_id)
+            if owner is None or owner.user_id != user_id:
+                raise UnknownPlanningSessionError(f"no planning session {session_id}")
+            session.add(
+                PostPlanResultRow(
+                    result_id=result.result_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    report_sha256=result.report_sha256,
+                    payload=result.model_dump_json(),
+                )
+            )
+            session.add(
+                PostPlanWorkspaceRow(
+                    session_id=session_id,
+                    user_id=user_id,
+                    version=workspace.version,
+                    current_result_id=workspace.current_result_id,
+                    expires_at=workspace.expires_at.isoformat(),
+                    saved_trip_id=workspace.saved_trip_id,
+                    payload=workspace.model_dump_json(),
+                )
+            )
+            first = operation.model_copy(
+                update={"status": "complete", "result_id": result.result_id}
+            )
+            session.add(self._new_operation_row(first))
+            session.commit()
+        return workspace, True
+
+    def reserve_post_plan_operation(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        operation: PostPlanOperation,
+        expected_workspace_version: int,
+        expected_session_version: int,
+    ) -> PostPlanOperation:
+        """Reserve an operation (and its call budget) before anything is dispatched.
+
+        In one write transaction: replay an identical earlier request (before any stale
+        check), verify the workspace and session versions, refuse a second concurrent
+        operation, enforce the per-session budgets, record the single terminal decision
+        on the proposal an approve/reject targets, and advance the workspace version.
+        """
+        if operation.user_id != user_id or operation.session_id != session_id:
+            raise ValueError("operation identity does not match the request")
+        if operation.status != "reserved":
+            raise ValueError("only a reserved operation can be reserved")
+        with Session(self._engine) as session:
+            self._begin_write(session)
+            prior = session.get(PostPlanOperationRow, (user_id, self._operation_key(operation)))
+            if prior is not None:
+                stored = PostPlanOperation.model_validate_json(prior.payload)
+                if stored.fingerprint != operation.fingerprint:
+                    raise PostPlanOperationConflictError(
+                        f"event {operation.event_id} was already used for a different request"
+                    )
+                return stored
+            workspace_row = self._workspace_row(session, user_id, session_id)
+            if workspace_row.version != expected_workspace_version:
+                raise StalePostPlanWorkspaceError(
+                    f"workspace is at version {workspace_row.version}, not "
+                    f"{expected_workspace_version}",
+                    current_version=workspace_row.version,
+                )
+            owner = session.get(PlanningSessionRow, session_id)
+            if owner is None or owner.user_id != user_id:
+                raise UnknownPlanningSessionError(f"no planning session {session_id}")
+            if owner.version != expected_session_version:
+                raise StalePlanningSessionError(
+                    f"planning session {session_id} is at version {owner.version}, not "
+                    f"{expected_session_version}"
+                )
+            running = session.scalar(
+                select(func.count())
+                .select_from(PostPlanOperationRow)
+                .where(
+                    PostPlanOperationRow.user_id == user_id,
+                    PostPlanOperationRow.session_id == session_id,
+                    PostPlanOperationRow.status == "reserved",
+                )
+            )
+            if int(running or 0) > 0:
+                raise PostPlanOperationInProgressError(
+                    "another operation on this workspace is still running"
+                )
+            self._enforce_post_plan_budgets(session, user_id, session_id, operation)
+            if operation.kind in {"approve", "reject"}:
+                self._claim_proposal(session, user_id, session_id, operation, workspace_row)
+            snapshot = PostPlanWorkspaceSnapshot.model_validate_json(workspace_row.payload)
+            advanced = snapshot.model_copy(
+                update={"version": snapshot.version + 1, "updated_at": operation.created_at}
+            )
+            workspace_row.version = advanced.version
+            workspace_row.payload = advanced.model_dump_json()
+            reserved = operation.model_copy(
+                update={
+                    "reserved_workspace_version": advanced.version,
+                    "expected_workspace_version": expected_workspace_version,
+                    "expected_session_version": expected_session_version,
+                    "base_result_id": operation.base_result_id or snapshot.current_result_id,
+                }
+            )
+            session.add(self._new_operation_row(reserved))
+            session.commit()
+        return reserved
+
+    @staticmethod
+    def _enforce_post_plan_budgets(
+        session: Session, user_id: str, session_id: str, operation: PostPlanOperation
+    ) -> None:
+        scope = (
+            PostPlanOperationRow.user_id == user_id,
+            PostPlanOperationRow.session_id == session_id,
+        )
+        records = int(
+            session.scalar(select(func.count()).select_from(PostPlanOperationRow).where(*scope))
+            or 0
+        )
+        if records >= MAX_POST_PLAN_RECORDS_PER_SESSION:
+            raise PostPlanQuotaError("records", "this session has reached its post-plan record cap")
+        if operation.interpreter_calls:
+            used = int(
+                session.scalar(
+                    select(
+                        func.coalesce(func.sum(PostPlanOperationRow.interpreter_calls), 0)
+                    ).where(*scope)
+                )
+                or 0
+            )
+            if used + operation.interpreter_calls > MAX_INTERPRETER_CALLS_PER_SESSION:
+                raise PostPlanQuotaError(
+                    "interpreter_calls", "this session has used its interpretation budget"
+                )
+        if operation.kind == "approve" and operation.action_kind == "scoped_itinerary_replan":
+            replans = int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(PostPlanOperationRow)
+                    .where(
+                        *scope,
+                        PostPlanOperationRow.kind == "approve",
+                        PostPlanOperationRow.action_kind == "scoped_itinerary_replan",
+                    )
+                )
+                or 0
+            )
+            if replans >= MAX_SCOPED_REPLANS_PER_SESSION:
+                raise PostPlanQuotaError(
+                    "scoped_replans", "this session has used its scoped-replan budget"
+                )
+
+    @staticmethod
+    def _claim_proposal(
+        session: Session,
+        user_id: str,
+        session_id: str,
+        operation: PostPlanOperation,
+        workspace_row: PostPlanWorkspaceRow,
+    ) -> None:
+        """Record the proposal's single terminal decision (approve or reject), atomically."""
+        proposal_row = session.scalar(
+            select(PostPlanOperationRow).where(
+                PostPlanOperationRow.operation_id == operation.proposal_id,
+                PostPlanOperationRow.user_id == user_id,
+                PostPlanOperationRow.session_id == session_id,
+                PostPlanOperationRow.kind == "propose",
+            )
+        )
+        if proposal_row is None:
+            raise PostPlanProposalStateError("no such proposal")
+        proposal = PostPlanOperation.model_validate_json(proposal_row.payload)
+        if proposal.status != "complete" or proposal.decision != "pending":
+            raise PostPlanProposalStateError("this proposal has already been decided")
+        if proposal.base_result_id != workspace_row.current_result_id:
+            raise StalePostPlanBaseError("the plan changed since this proposal was made")
+        decision: Literal["approved", "rejected"] = (
+            "approved" if operation.kind == "approve" else "rejected"
+        )
+        decided = proposal.model_copy(update={"decision": decision})
+        proposal_row.decision = decision
+        proposal_row.payload = decided.model_dump_json()
+
+    def commit_post_plan_operation(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        event_id: str,
+        event_source: Literal["client", "system"] = "client",
+        fingerprint: str,
+        expected_workspace_version: int,
+        workspace: PostPlanWorkspaceSnapshot,
+        session: PlanningSessionSnapshot,
+        report_json: str | None,
+        outcome_json: str = "{}",
+        updated_at: datetime | None = None,
+        profile_update: TravelPreferenceProfile | None = None,
+        profile_section: str | None = None,
+        profile_base_fingerprint: str | None = None,
+    ) -> PostPlanOperation:
+        """Complete a reserved operation: workspace, session, result and outcome, atomically.
+
+        ``expected_workspace_version`` is the version the reservation returned. If anything
+        else has happened to the workspace since (a recovery marking it interrupted, a
+        deletion, another writer) the commit fails and writes nothing, so a late
+        completion can never replace newer state. A duplicate completion of an already
+        complete operation returns it unchanged.
+        """
+        key = _event_key(event_source, event_id)
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            operation_row = db.get(PostPlanOperationRow, (user_id, key))
+            if operation_row is None or operation_row.session_id != session_id:
+                raise PostPlanOperationNotReservedError("no such operation")
+            operation = PostPlanOperation.model_validate_json(operation_row.payload)
+            if operation.fingerprint != fingerprint:
+                raise PostPlanOperationConflictError(
+                    f"event {event_id} was already used for a different request"
+                )
+            if operation.status == "complete":
+                return operation
+            if operation.status != "reserved":
+                raise PostPlanOperationNotReservedError(
+                    f"the operation is {operation.status}; a late completion cannot apply"
+                )
+            workspace_row = self._workspace_row(db, user_id, session_id)
+            if (
+                workspace_row.version != expected_workspace_version
+                or operation.reserved_workspace_version != expected_workspace_version
+            ):
+                raise StalePostPlanWorkspaceError(
+                    "the workspace changed while this operation ran",
+                    current_version=workspace_row.version,
+                )
+            if (
+                session.user_id != user_id
+                or session.id != session_id
+                or workspace.user_id != user_id
+                or workspace.session_id != session_id
+                or session.version != operation.expected_session_version + 1
+            ):
+                raise ValueError(
+                    "commit identity or session version does not match the reservation"
+                )
+            if profile_update is not None:
+                if profile_section is None or profile_base_fingerprint is None:
+                    raise ValueError("profile section and base fingerprint are required")
+                profile_row = db.get(TravelPreferenceRow, user_id)
+                current_profile = (
+                    TravelPreferenceProfile.model_validate_json(profile_row.payload)
+                    if profile_row is not None
+                    else TravelPreferenceProfile(
+                        user_id=user_id, updated_at=profile_update.updated_at
+                    )
+                )
+                current_section = getattr(current_profile, profile_section)
+                current_fingerprint = hashlib.sha256(
+                    json.dumps(
+                        current_section.model_dump(mode="json"),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest()
+                if current_fingerprint != profile_base_fingerprint:
+                    raise StaleProfileSectionError(
+                        "the approved preference section changed while this action was pending"
+                    )
+                if profile_update.user_id != user_id:
+                    raise ValueError("profile owner does not match operation owner")
+                if profile_row is None:
+                    db.add(
+                        TravelPreferenceRow(
+                            user_id=user_id, payload=profile_update.model_dump_json()
+                        )
+                    )
+                else:
+                    profile_row.payload = profile_update.model_dump_json()
+            outcome = db.execute(
+                update(PlanningSessionRow)
+                .where(
+                    PlanningSessionRow.id == session_id,
+                    PlanningSessionRow.user_id == user_id,
+                    PlanningSessionRow.version == operation.expected_session_version,
+                )
+                .values(
+                    status=session.status,
+                    version=session.version,
+                    updated_at=session.updated_at.isoformat(),
+                    expires_at=session.expires_at.isoformat(),
+                    saved_trip_id=session.saved_trip_id,
+                    payload=session.model_dump_json(),
+                )
+            )
+            if outcome.rowcount != 1:  # type: ignore[attr-defined]
+                raise StalePlanningSessionError(
+                    f"planning session {session_id} changed while this operation ran"
+                )
+            result_id = workspace_row.current_result_id
+            if report_json is not None:
+                self._check_report_size(report_json)
+                result_id = workspace.current_result_id
+                if result_id == workspace_row.current_result_id:
+                    raise ValueError("a new report needs a new result id")
+                db.add(
+                    PostPlanResultRow(
+                        result_id=result_id,
+                        user_id=user_id,
+                        session_id=session_id,
+                        report_sha256=hashlib.sha256(report_json.encode("utf-8")).hexdigest(),
+                        payload=PostPlanResult(
+                            result_id=result_id,
+                            user_id=user_id,
+                            session_id=session_id,
+                            created_at=workspace.updated_at,
+                            report_sha256=hashlib.sha256(report_json.encode("utf-8")).hexdigest(),
+                            report_json=report_json,
+                        ).model_dump_json(),
+                    )
+                )
+            elif workspace.current_result_id != workspace_row.current_result_id:
+                raise ValueError("a commit without a report cannot change the current result")
+            committed = workspace.model_copy(update={"version": expected_workspace_version + 1})
+            workspace_row.version = committed.version
+            workspace_row.current_result_id = committed.current_result_id
+            workspace_row.expires_at = committed.expires_at.isoformat()
+            workspace_row.saved_trip_id = committed.saved_trip_id
+            workspace_row.payload = committed.model_dump_json()
+            finished = operation.model_copy(
+                update={
+                    "status": "complete",
+                    "result_id": result_id,
+                    "payload_json": outcome_json,
+                    "decision": "pending" if operation.kind == "propose" else operation.decision,
+                    "updated_at": updated_at or workspace.updated_at,
+                }
+            )
+            self._store_operation(operation_row, finished)
+            db.commit()
+        return finished
+
+    def fail_post_plan_operation(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        event_id: str,
+        event_source: Literal["client", "system"] = "client",
+        fingerprint: str,
+        expected_workspace_version: int,
+        error_code: str,
+        updated_at: datetime,
+        status: Literal["failed", "interrupted"] = "failed",
+    ) -> PostPlanOperation:
+        """End a reserved operation without a result. Its consumed budget is kept."""
+        key = _event_key(event_source, event_id)
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            operation_row = db.get(PostPlanOperationRow, (user_id, key))
+            if operation_row is None or operation_row.session_id != session_id:
+                raise PostPlanOperationNotReservedError("no such operation")
+            operation = PostPlanOperation.model_validate_json(operation_row.payload)
+            if operation.fingerprint != fingerprint:
+                raise PostPlanOperationConflictError("fingerprint does not match the operation")
+            if operation.status != "reserved":
+                return operation
+            workspace_row = self._workspace_row(db, user_id, session_id)
+            if workspace_row.version != expected_workspace_version:
+                raise StalePostPlanWorkspaceError(
+                    "the workspace changed while this operation ran",
+                    current_version=workspace_row.version,
+                )
+            snapshot = PostPlanWorkspaceSnapshot.model_validate_json(workspace_row.payload)
+            advanced = snapshot.model_copy(
+                update={"version": snapshot.version + 1, "updated_at": updated_at}
+            )
+            workspace_row.version = advanced.version
+            workspace_row.payload = advanced.model_dump_json()
+            ended = operation.model_copy(
+                update={"status": status, "error_code": error_code, "updated_at": updated_at}
+            )
+            self._store_operation(operation_row, ended)
+            db.commit()
+        return ended
+
+    def interrupt_stale_post_plan_operations(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        active_operation_ids: frozenset[str],
+        updated_at: datetime,
+    ) -> list[PostPlanOperation]:
+        """Mark reserved operations this process is not running as interrupted.
+
+        A reservation that outlived its worker (a restart) must never be dispatched
+        again. It keeps its consumed budget; the traveler retries with a *new* action.
+        """
+        interrupted: list[PostPlanOperation] = []
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            rows = db.scalars(
+                select(PostPlanOperationRow).where(
+                    PostPlanOperationRow.user_id == user_id,
+                    PostPlanOperationRow.session_id == session_id,
+                    PostPlanOperationRow.status == "reserved",
+                )
+            ).all()
+            stale = [
+                r for r in rows if r.operation_id not in active_operation_ids
+            ]
+            if not stale:
+                return []
+            workspace_row = self._workspace_row(db, user_id, session_id)
+            snapshot = PostPlanWorkspaceSnapshot.model_validate_json(workspace_row.payload)
+            for row in stale:
+                operation = PostPlanOperation.model_validate_json(row.payload)
+                ended = operation.model_copy(
+                    update={
+                        "status": "interrupted",
+                        "error_code": "OPERATION_INTERRUPTED",
+                        "updated_at": updated_at,
+                    }
+                )
+                self._store_operation(row, ended)
+                interrupted.append(ended)
+            advanced = snapshot.model_copy(
+                update={"version": snapshot.version + 1, "updated_at": updated_at}
+            )
+            workspace_row.version = advanced.version
+            workspace_row.payload = advanced.model_dump_json()
+            db.commit()
+        return interrupted
+
+    @staticmethod
+    def _delete_post_plan_rows(
+        session: Session, *, user_id: str | None, session_ids: list[str]
+    ) -> None:
+        """Hard-delete workspaces, results and operations for sessions (or a whole user)."""
+        for model in (PostPlanOperationRow, PostPlanResultRow, PostPlanWorkspaceRow):
+            if user_id is not None:
+                session.execute(delete(model).where(model.user_id == user_id))
+            elif session_ids:
+                session.execute(delete(model).where(model.session_id.in_(session_ids)))
+
     # -- privacy ------------------------------------------------------------ #
+
+    def _export_post_plan_workspaces(self, user_id: str) -> list[PostPlanWorkspaceSnapshot]:
+        with Session(self._engine) as db:
+            rows = db.scalars(
+                select(PostPlanWorkspaceRow).where(PostPlanWorkspaceRow.user_id == user_id)
+            ).all()
+            items = [PostPlanWorkspaceSnapshot.model_validate_json(r.payload) for r in rows]
+        return sorted(items, key=lambda w: w.session_id)
+
+    def _export_post_plan_results(self, user_id: str) -> list[PostPlanResult]:
+        with Session(self._engine) as db:
+            rows = db.scalars(
+                select(PostPlanResultRow).where(PostPlanResultRow.user_id == user_id)
+            ).all()
+            items = [PostPlanResult.model_validate_json(r.payload) for r in rows]
+        return sorted(items, key=lambda r: (r.session_id, r.created_at, r.result_id))
+
+    def _export_post_plan_operations(self, user_id: str) -> list[PostPlanOperation]:
+        with Session(self._engine) as db:
+            rows = db.scalars(
+                select(PostPlanOperationRow).where(PostPlanOperationRow.user_id == user_id)
+            ).all()
+            items = [PostPlanOperation.model_validate_json(r.payload) for r in rows]
+        return sorted(items, key=lambda o: (o.session_id, o.created_at, o.operation_id))
 
     def export_user(self, user_id: str, *, now: datetime) -> UserExport:
         """Every row held about a user, in the layer's deterministic order."""
@@ -912,7 +2309,7 @@ class AccountStore:
         trips = self.trips(user_id)
         revisions: list[TripRevision] = []
         for trip in trips:
-            revisions.extend(self.revisions(trip.id))
+            revisions.extend(self._revisions_of_trip(trip.id))
         return UserExport(
             user=user,
             profile=self.get_profile(user_id),
@@ -920,6 +2317,10 @@ class AccountStore:
             wallet_mutation_events=self.wallet_mutation_events(user_id),
             trips=trips,
             revisions=revisions,
+            trip_mutation_events=self.trip_mutation_events(user_id),
+            post_plan_workspaces=self._export_post_plan_workspaces(user_id),
+            post_plan_results=self._export_post_plan_results(user_id),
+            post_plan_operations=self._export_post_plan_operations(user_id),
             travel_preferences=self.get_travel_preferences(user_id),
             planning_sessions=self.planning_session_snapshots(user_id),
             exported_at=now,
@@ -927,15 +2328,22 @@ class AccountStore:
 
     def delete_user(self, user_id: str) -> None:
         """Erase a user and everything they own. Idempotent."""
-        trip_ids = [trip.id for trip in self.trips(user_id)]
         with Session(self._engine) as session:
-            if trip_ids:
-                session.execute(
-                    delete(TripRevisionRow).where(
-                        TripRevisionRow.trip_id.in_(trip_ids)
+            # Take the write lock first and find the revisions to erase *inside* the
+            # transaction: a trip listed before the lock could miss one saved in
+            # between, leaving its full report behind after account deletion.
+            self._begin_write(session)
+            session.execute(
+                delete(TripRevisionRow).where(
+                    TripRevisionRow.trip_id.in_(
+                        select(SavedTripRow.id).where(SavedTripRow.user_id == user_id)
                     )
                 )
+            )
             session.execute(delete(SavedTripRow).where(SavedTripRow.user_id == user_id))
+            session.execute(
+                delete(TripMutationEventRow).where(TripMutationEventRow.user_id == user_id)
+            )
             session.execute(
                 delete(WalletEntryRow).where(WalletEntryRow.user_id == user_id)
             )
@@ -952,6 +2360,7 @@ class AccountStore:
                     TravelPreferenceRow.user_id == user_id
                 )
             )
+            self._delete_post_plan_rows(session, user_id=user_id, session_ids=[])
             session.execute(
                 delete(PlanningSessionRow).where(
                     PlanningSessionRow.user_id == user_id
