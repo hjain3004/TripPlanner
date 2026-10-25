@@ -166,6 +166,26 @@ def test_no_table_in_the_schema_keeps_a_deleted_users_rows(tmp_path: Path) -> No
         connection.close()
 
 
+def test_account_erasure_removes_revisions_even_if_a_save_raced_the_trip_listing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A trip saved after ``delete_user`` listed trips must not keep its report."""
+    store = _store(tmp_path)
+    saved = _save(store, "u-alice", "evt-1")
+    monkeypatch.setattr(store, "trips", lambda user_id: [])  # the stale pre-read
+
+    store.delete_user("u-alice")
+
+    monkeypatch.undo()
+    assert store._revisions_of_trip(saved.trip.id) == []
+    connection = sqlite3.connect(tmp_path / "accounts.sqlite")
+    try:
+        (count,) = connection.execute("SELECT COUNT(*) FROM trip_revisions").fetchone()
+    finally:
+        connection.close()
+    assert count == 0
+
+
 # --------------------------------------------------------------------------- #
 # Single-trip deletion (D10)                                                    #
 # --------------------------------------------------------------------------- #

@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime
 from pathlib import Path
 from threading import Barrier
+from typing import Any
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -314,3 +315,22 @@ def test_a_database_with_legacy_duplicate_revisions_still_opens(tmp_path: Path) 
     AccountStore.open(path)
 
     assert _revision_rows(path) == before
+
+
+def test_reopening_does_not_rescan_revisions_once_the_index_exists(tmp_path: Path) -> None:
+    """``get_store`` opens the database on every request; the duplicate scan must not
+    run again once the unique index is already in place."""
+    from sqlalchemy import event
+
+    from accounts.db import _ensure_unique_revision_index
+
+    store = _store(tmp_path)  # fresh database: the index already exists
+    statements: list[str] = []
+
+    @event.listens_for(store._engine, "before_cursor_execute")
+    def capture(_conn: Any, _cur: Any, statement: str, *_args: Any) -> None:
+        statements.append(statement)
+
+    _ensure_unique_revision_index(store._engine)
+
+    assert not any("GROUP BY" in s.upper() for s in statements), statements

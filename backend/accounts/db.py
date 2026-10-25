@@ -165,6 +165,11 @@ def _ensure_unique_revision_index(engine: Engine) -> None:
     skipped with a warning rather than failing startup or renumbering a stored
     revision. Numbering stays serialised by the store either way.
     """
+    # ``get_store`` opens the database on every request, so the common case (index
+    # already present) must cost one catalogue lookup, not a scan of every revision.
+    existing = {index["name"] for index in inspect(engine).get_indexes("trip_revisions")}
+    if "uq_trip_revisions_trip_revision" in existing:
+        return
     with engine.begin() as connection:
         duplicates = connection.execute(
             text(

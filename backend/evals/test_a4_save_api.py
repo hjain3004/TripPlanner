@@ -356,3 +356,44 @@ def test_a_retried_append_adds_one_revision(
 
     assert retry.status_code == 201 and retry.json() == first.json()
     assert len(store.revisions(_user_id(client), trip_id)) == 2
+
+
+def test_an_expired_unattached_session_cannot_be_saved_and_revived(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Attaching a trip exempts a session from expiry for good, so an expired,
+    unattached session must be refused exactly as the conversation API refuses it."""
+    from datetime import UTC, datetime
+
+    from api import saved_trips
+
+    client, store, _kit, session, _job = _plan(tmp_path, monkeypatch)
+    monkeypatch.setattr(saved_trips, "now_utc", lambda: datetime(2030, 1, 1, tzinfo=UTC))
+
+    response = _save(client, session["id"])
+
+    assert response.status_code == 410
+    assert response.json()["detail"]["code"] == "SESSION_EXPIRED"
+    assert store.trips(_user_id(client)) == []
+
+
+def test_two_concurrent_saves_of_different_sessions_respect_the_trip_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without the write lock both pass the count check and the cap is exceeded."""
+    import accounts.store as store_module
+
+    client, store = signed_in_client(tmp_path)
+    kit = PlanningKit(monkeypatch, tmp_path)
+    first, _ = finished_plan(client, kit)
+    second, _ = finished_plan(client, kit)
+    monkeypatch.setattr(store_module, "MAX_SAVED_TRIPS", 1)
+
+    def attempt(session_id: str) -> int:
+        return int(_save(client, session_id, f"save-{session_id}").status_code)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = sorted(pool.map(attempt, [first["id"], second["id"]]))
+
+    assert outcomes == [201, 409], outcomes
+    assert len(store.trips(_user_id(client))) == 1

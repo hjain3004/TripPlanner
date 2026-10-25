@@ -1567,14 +1567,18 @@ class AccountStore:
 
     def delete_user(self, user_id: str) -> None:
         """Erase a user and everything they own. Idempotent."""
-        trip_ids = [trip.id for trip in self.trips(user_id)]
         with Session(self._engine) as session:
-            if trip_ids:
-                session.execute(
-                    delete(TripRevisionRow).where(
-                        TripRevisionRow.trip_id.in_(trip_ids)
+            # Take the write lock first and find the revisions to erase *inside* the
+            # transaction: a trip listed before the lock could miss one saved in
+            # between, leaving its full report behind after account deletion.
+            self._begin_write(session)
+            session.execute(
+                delete(TripRevisionRow).where(
+                    TripRevisionRow.trip_id.in_(
+                        select(SavedTripRow.id).where(SavedTripRow.user_id == user_id)
                     )
                 )
+            )
             session.execute(delete(SavedTripRow).where(SavedTripRow.user_id == user_id))
             session.execute(
                 delete(TripMutationEventRow).where(TripMutationEventRow.user_id == user_id)

@@ -279,6 +279,10 @@ def _owned_session(store: AccountStore, user: User, session_id: str) -> Planning
     session = PlanningSessionRepository(store).get(user_id=user.id, session_id=session_id)
     if session is None:
         raise _session_not_found()
+    # Same rule as the conversation API: attaching a trip exempts a session from
+    # expiry for good, so an expired, unattached session must not be revivable.
+    if session.expires_at <= now_utc() and session.saved_trip_id is None:
+        raise _error(status.HTTP_410_GONE, "SESSION_EXPIRED", "Planning session has expired")
     return session
 
 

@@ -9,6 +9,7 @@ client, and that the legacy unauthenticated ``/plan`` is untouched.
 from __future__ import annotations
 
 import sqlite3
+import time
 from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
@@ -309,10 +310,12 @@ def test_the_legacy_unauthenticated_plan_has_no_saved_trip_side_effect(tmp_path:
         started = anonymous.post("/plan", json={"raw_request": "Delhi to Singapore Aug 1-5"})
         assert started.status_code == 202
         job: dict[str, Any] = {}
-        for _ in range(200):
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
             job = anonymous.get(f"/plan/{started.json()['job_id']}").json()
             if job["status"] in {"complete", "failed", "needs_clarification"}:
                 break
+            time.sleep(0.05)
 
     assert job["status"] == "complete"
     assert job["report"]["trip_spec"]["wallet"]["card_ids"] == ["hdfc-infinia"]  # caller-supplied
