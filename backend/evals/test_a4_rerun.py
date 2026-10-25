@@ -14,6 +14,7 @@ import shutil
 import threading
 import time
 from collections.abc import Iterator
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -117,6 +118,24 @@ def _hold_intake(kit: PlanningKit) -> tuple[threading.Event, threading.Event]:
         if node == "intake":
             entered.set()
             assert release.wait(timeout=30), "test never released the held intake call"
+        return original(node=node, **kwargs)
+
+    kit.llm.complete_json = held  # type: ignore[method-assign]
+    return entered, release
+
+
+def _hold_first_intake(kit: PlanningKit) -> tuple[threading.Event, threading.Event]:
+    """Block only the first intake call; later runs proceed normally."""
+    entered, release = threading.Event(), threading.Event()
+    original = kit.llm.complete_json
+    seen = {"intake": 0}
+
+    def held(*, node: str, **kwargs: Any) -> Any:
+        if node == "intake":
+            seen["intake"] += 1
+            if seen["intake"] == 1:
+                entered.set()
+                assert release.wait(timeout=30), "test never released the held intake call"
         return original(node=node, **kwargs)
 
     kit.llm.complete_json = held  # type: ignore[method-assign]
@@ -473,3 +492,138 @@ def test_a_caller_cannot_block_a_rerun_by_reusing_its_internal_event_id(
     assert done["status"] == "complete" and done["error"] is None
     assert done["revision"] == 3  # revision 2 is the squatter's own append
     assert len(store.revisions(_user_id(client), trip_id)) == 3
+
+
+# --- a trip that cannot be planned again ---------------------------------------------------- #
+
+
+def _assert_not_rerunnable_and_free(client: TestClient, trip_id: str, event: str) -> None:
+    refused = _rerun(client, trip_id, event)
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"]["code"] == "TRIP_NOT_RERUNNABLE"
+    # The reservation was released: not stuck in progress, and the event is reusable.
+    assert saved_trips._ACTIVE_BY_TRIP == {} and saved_trips._START_EVENTS == {}
+    again = _rerun(client, trip_id, event)
+    assert again.json()["detail"]["code"] == "TRIP_NOT_RERUNNABLE"
+
+
+def test_a_trip_with_no_attached_session_cannot_be_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, store = signed_in_client(tmp_path)
+    user_id = _user_id(client)
+    orphan = store.save_trip_with_revision(  # saved without a planning session
+        user_id=user_id,
+        title="Orphan",
+        origin_city="DEL",
+        destination_city="SIN",
+        start_date=date(2026, 11, 1),
+        end_date=date(2026, 11, 5),
+        raw_request="r",
+        trip_spec_json="{}",
+        trace_id="t",
+        report_json="{}",
+        now=datetime(2026, 10, 24, tzinfo=UTC),
+    )
+
+    _assert_not_rerunnable_and_free(client, orphan.trip.id, "rr-1")
+
+
+def test_an_attached_session_without_a_confirmed_brief_cannot_be_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, store, _kit, trip_id = _saved_trip(tmp_path, monkeypatch)
+    attached = store.planning_session_for_trip(_user_id(client), trip_id)
+    assert attached is not None
+    stripped = json.loads(attached.payload_json) | {"confirmed_briefs": []}
+    store.put_planning_session_snapshot(
+        attached.model_copy(
+            update={"version": attached.version + 1, "payload_json": json.dumps(stripped)}
+        ),
+        expected_version=attached.version,
+    )
+
+    _assert_not_rerunnable_and_free(client, trip_id, "rr-1")
+
+
+def test_an_undecodable_attached_session_is_not_rerunnable_rather_than_a_422(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, store, _kit, trip_id = _saved_trip(tmp_path, monkeypatch)
+    attached = store.planning_session_for_trip(_user_id(client), trip_id)
+    assert attached is not None
+    store.put_planning_session_snapshot(
+        attached.model_copy(update={"version": attached.version + 1, "payload_json": "{}"}),
+        expected_version=attached.version,
+    )
+
+    _assert_not_rerunnable_and_free(client, trip_id, "rr-1")
+
+
+# --- the bounded in-memory registry --------------------------------------------------------- #
+
+
+def _second_trip(client: TestClient, kit: PlanningKit) -> str:
+    session, _ = finished_plan(client, kit)
+    return _save(client, session["id"], "save-b")["trip"]["id"]
+
+
+def test_pruning_forgets_the_oldest_finished_reruns_and_keeps_the_newest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _store, kit, trip_id = _saved_trip(tmp_path, monkeypatch)
+    monkeypatch.setattr(saved_trips, "_MAX_REMEMBERED_RERUNS", 2)
+    jobs: list[str] = []
+    for n in range(1, 5):
+        kit.queue_run()
+        jobs.append(_rerun(client, trip_id, f"r{n}").json()["job_id"])
+        assert _wait(client, trip_id, jobs[-1])["status"] == "complete"
+
+    assert set(saved_trips._RERUNS) == set(jobs[2:])  # the two newest survive
+    assert {key[1] for key in saved_trips._START_EVENTS} == {"r3", "r4"}
+    forgotten = client.get(f"/account/trips/{trip_id}/reruns/{jobs[0]}")
+    assert forgotten.status_code == 404
+    assert forgotten.json()["detail"]["code"] == "RERUN_NOT_FOUND"
+    assert _wait(client, trip_id, jobs[3])["revision"] == 5  # the kept ones still report
+
+
+def test_pruning_never_evicts_a_rerun_that_is_still_running(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _store, kit, trip_a = _saved_trip(tmp_path, monkeypatch)
+    trip_b = _second_trip(client, kit)
+    monkeypatch.setattr(saved_trips, "_MAX_REMEMBERED_RERUNS", 1)
+    entered, release = _hold_first_intake(kit)
+    kit.queue_run()
+    running = _rerun(client, trip_a, "ra").json()["job_id"]
+    assert entered.wait(timeout=30)
+    for n in range(1, 4):  # churn trip B well past the cap while A is still in flight
+        kit.queue_run()
+        job = _rerun(client, trip_b, f"rb{n}").json()["job_id"]
+        assert _wait(client, trip_b, job)["status"] == "complete"
+
+    assert running in saved_trips._RERUNS and not saved_trips._RERUNS[running].finished
+    release.set()
+    done = _wait(client, trip_a, running)
+    assert done["status"] == "complete" and done["revision"] == 2
+
+
+def test_a_retried_start_after_its_record_was_pruned_is_a_new_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The documented limit: past the cap an old event id no longer replays."""
+    client, store, kit, trip_id = _saved_trip(tmp_path, monkeypatch)
+    monkeypatch.setattr(saved_trips, "_MAX_REMEMBERED_RERUNS", 1)
+    kit.queue_run()
+    first = _rerun(client, trip_id, "r1").json()["job_id"]
+    _wait(client, trip_id, first)
+    kit.queue_run()
+    second = _rerun(client, trip_id, "r2").json()["job_id"]
+    _wait(client, trip_id, second)
+    kit.queue_run()
+
+    retry = _rerun(client, trip_id, "r1")  # r1's record is long gone
+
+    assert retry.status_code == 202 and retry.json()["job_id"] not in {first, second}
+    _wait(client, trip_id, retry.json()["job_id"])
+    assert len(store.revisions(_user_id(client), trip_id)) == 4

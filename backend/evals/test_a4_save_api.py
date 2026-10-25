@@ -397,3 +397,39 @@ def test_two_concurrent_saves_of_different_sessions_respect_the_trip_limit(
 
     assert outcomes == [201, 409], outcomes
     assert len(store.trips(_user_id(client))) == 1
+
+
+def test_a_session_advanced_during_the_save_is_a_stale_session_and_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Lose the session compare-and-swap with no competing save: STALE_SESSION."""
+    from datetime import UTC, datetime
+
+    from api import saved_trips
+    from planning.contracts import PlanningSession
+    from planning.repository import PlanningSessionRepository
+
+    client, store, _kit, session, _job = _plan(tmp_path, monkeypatch)
+    real = saved_trips._finished_report
+    repo = PlanningSessionRepository(store)
+
+    def racing(current: Any, user: Any) -> Any:
+        # Another tab touches the session after we read it, before we write.
+        bumped = PlanningSession.model_validate(
+            current.model_copy(
+                update={"version": current.version + 1, "updated_at": datetime.now(UTC)}
+            ).model_dump()
+        )
+        repo.save(bumped, expected_version=current.version)
+        return real(current, user)
+
+    monkeypatch.setattr(saved_trips, "_finished_report", racing)
+
+    stale = _save(client, session["id"], "save-1")
+
+    assert stale.status_code == 409
+    assert stale.json()["detail"]["code"] == "STALE_SESSION"
+    assert store.trips(_user_id(client)) == []
+    assert store.trip_mutation_events(_user_id(client)) == []
+    monkeypatch.setattr(saved_trips, "_finished_report", real)
+    assert _save(client, session["id"], "save-1").status_code == 201  # the retry works

@@ -27,7 +27,7 @@ from typing import Annotated, Any, Literal, NoReturn
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, StringConstraints, ValidationError
 from sqlalchemy.exc import OperationalError
 
 import accounts.store as account_store
@@ -760,9 +760,12 @@ def _rerun_worker(
 
 def _launch_rerun(store: AccountStore, user: User, record: _Rerun) -> None:
     snapshot = store.planning_session_for_trip(user.id, record.trip_id)
-    session = (
-        PlanningSession.model_validate_json(snapshot.payload_json) if snapshot is not None else None
-    )
+    session: PlanningSession | None = None
+    if snapshot is not None:
+        try:
+            session = PlanningSession.model_validate_json(snapshot.payload_json)
+        except ValidationError:
+            session = None  # a stored session we can no longer read cannot be planned from
     if session is None or not session.confirmed_briefs:
         raise _error(
             status.HTTP_409_CONFLICT,
