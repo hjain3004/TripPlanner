@@ -43,6 +43,7 @@ from api.auth import (
 )
 from api.conversation import router as conversation_router
 from api.health import router as health_router
+from api.post_plan import router as post_plan_router
 from api.job_manager import job_manager
 from api.runtime_config import assert_valid_runtime_config
 from api.saved_trips import router as saved_trips_router
@@ -75,6 +76,7 @@ app.include_router(conversation_router)
 app.include_router(wallet_router)
 app.include_router(saved_trips_router)
 app.include_router(health_router)
+app.include_router(post_plan_router)
 
 # Without this, a browser's preflight OPTIONS /plan gets 405 and the POST never
 # fires - exactly what happened the first time the real frontend talked to the

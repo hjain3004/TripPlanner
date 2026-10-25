@@ -23,11 +23,11 @@ import json
 import threading
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from typing import Annotated, Any, Literal, NoReturn
+from typing import Annotated, Any, Literal, NoReturn, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel, ConfigDict, StringConstraints, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 from sqlalchemy.exc import OperationalError
 
 import accounts.store as account_store
@@ -87,6 +87,9 @@ SavedTripErrorCode = Literal[
     "TRIP_NOT_FOUND",
     "TRIP_NOT_RERUNNABLE",
     "TRIP_REVISION_CONFLICT",
+    "WORKSPACE_REVIEW_REQUIRED",
+    "STALE_WORKSPACE",
+    "WORKSPACE_REBUILD_REQUIRED",
 ]
 
 
@@ -150,9 +153,7 @@ def _errors(*statuses: int) -> dict[int | str, dict[str, Any]]:
     return {status_code: {"model": _ERROR_MODELS[status_code]} for status_code in statuses}
 
 
-def _error(
-    status_code: int, code: SavedTripErrorCode, message: str, **extra: str
-) -> HTTPException:
+def _error(status_code: int, code: SavedTripErrorCode, message: str, **extra: str) -> HTTPException:
     return HTTPException(
         status_code=status_code, detail={"code": code, "message": message, **extra}
     )
@@ -179,9 +180,7 @@ def _handle(call: Any) -> Any:
     except UnknownTripError as exc:
         raise _trip_not_found() from exc
     except UnknownRevisionError as exc:
-        raise _error(
-            status.HTTP_404_NOT_FOUND, "REVISION_NOT_FOUND", "No such revision."
-        ) from exc
+        raise _error(status.HTTP_404_NOT_FOUND, "REVISION_NOT_FOUND", "No such revision.") from exc
     except TripIdempotencyConflictError as exc:
         raise _error(
             status.HTTP_409_CONFLICT,
@@ -239,6 +238,8 @@ class SaveTripIn(BaseModel):
     session_id: str
     title: TripTitle | None = None
     client_event_id: EventId
+    source_result_id: str | None = None
+    expected_workspace_version: int | None = Field(default=None, ge=1)
 
 
 class AppendRevisionIn(BaseModel):
@@ -246,6 +247,8 @@ class AppendRevisionIn(BaseModel):
 
     session_id: str
     client_event_id: EventId
+    source_result_id: str | None = None
+    expected_workspace_version: int | None = Field(default=None, ge=1)
 
 
 class RevisionSummaryOut(BaseModel):
@@ -381,6 +384,50 @@ def _finished_report(session: PlanningSession, user: User) -> FinalReport:
     return report
 
 
+def _selected_report(
+    store: AccountStore,
+    user: User,
+    session: PlanningSession,
+    *,
+    source_result_id: str | None,
+    expected_workspace_version: int | None,
+) -> FinalReport:
+    """Select an accepted CP4 result when a workspace exists; never fall back silently."""
+    snapshot = store.get_post_plan_workspace(user_id=user.id, session_id=session.id)
+    if snapshot is None:
+        return _finished_report(session, user)
+    if source_result_id is None or expected_workspace_version is None:
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            "WORKSPACE_REVIEW_REQUIRED",
+            "Select the accepted post-plan result before saving.",
+        )
+    if (
+        snapshot.version != expected_workspace_version
+        or snapshot.current_result_id != source_result_id
+    ):
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            "STALE_WORKSPACE",
+            "The accepted post-plan result changed. Reload before saving.",
+        )
+    result = store.get_post_plan_result(
+        user_id=user.id, session_id=session.id, result_id=source_result_id
+    )
+    if result is None:
+        raise _error(
+            status.HTTP_409_CONFLICT, "WORKSPACE_REVIEW_REQUIRED", "Accepted result is unavailable."
+        )
+    try:
+        return FinalReport.model_validate_json(result.report_json)
+    except ValidationError as exc:
+        raise _error(
+            status.HTTP_409_CONFLICT,
+            "WORKSPACE_REBUILD_REQUIRED",
+            "Accepted result needs rebuilding.",
+        ) from exc
+
+
 def _plan_unavailable() -> NoReturn:
     raise _error(
         status.HTTP_409_CONFLICT,
@@ -435,7 +482,13 @@ def save_trip(
         session = _owned_session(store, user, payload.session_id)
         if session.saved_trip_id is not None:
             raise _already_saved(session.saved_trip_id)
-        report = _finished_report(session, user)
+        report = _selected_report(
+            store,
+            user,
+            session,
+            source_result_id=payload.source_result_id,
+            expected_workspace_version=payload.expected_workspace_version,
+        )
         spec = report.trip_spec
         trip_id = uuid4().hex
         now = now_utc()
@@ -521,7 +574,13 @@ def append_revision(
                 "SESSION_NOT_ATTACHED",
                 "That planning session is not the one this trip was saved from.",
             )
-        report = _finished_report(session, user)
+        report = _selected_report(
+            store,
+            user,
+            session,
+            source_result_id=payload.source_result_id,
+            expected_workspace_version=payload.expected_workspace_version,
+        )
         revision = store.add_revision(
             user_id=user.id,
             trip_id=trip_id,
@@ -554,9 +613,7 @@ def list_trips(
     return listing
 
 
-@router.get(
-    "/{trip_id}", response_model=TripDetailOut, responses=_errors(401, 404, 422, 503)
-)
+@router.get("/{trip_id}", response_model=TripDetailOut, responses=_errors(401, 404, 422, 503))
 def get_trip(
     trip_id: str,
     user: Annotated[User, Depends(current_user)],
@@ -568,9 +625,7 @@ def get_trip(
     return detail
 
 
-@router.delete(
-    "/{trip_id}", status_code=204, responses=_errors(401, 403, 404, 409, 422, 503)
-)
+@router.delete("/{trip_id}", status_code=204, responses=_errors(401, 403, 404, 409, 422, 503))
 def delete_trip(
     request: Request,
     trip_id: str,
@@ -901,7 +956,9 @@ def rerun_status(
             error = RerunErrorOut(code=record.error[0], message=record.error[1])
     return RerunStatusOut(
         job_id=job_id,
-        status=job_status,
+        status=cast(
+            Literal["queued", "running", "complete", "failed", "needs_clarification"], job_status
+        ),
         stage=stage,
         revision=record.revision if job_status == "complete" else None,
         error=error,
