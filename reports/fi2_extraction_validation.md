@@ -47,7 +47,7 @@ PY=.venv/bin/python` seeded 42 rows.
 | Seeded pre-change baseline | 2220 passed, 1 skipped, 3 warnings |
 | Complete backend pytest after FI2 | 2231 passed, 1 skipped, 3 warnings |
 | Focused FI0/FI1/FI2 regressions before review fixes | 41 passed |
-| Focused FI0/FI1/FI2 regressions after review fixes | 44 passed |
+| Focused FI0/FI1/FI2 regressions after review fixes | 45 passed |
 | FI2 extraction/replay tests after review fixes | 11 passed |
 | Strict mypy | 185 source files in existing packages + 16 ingestion files; clean |
 | Ruff zero-tolerance scopes | clean, including ingestion and FI2 evals |
