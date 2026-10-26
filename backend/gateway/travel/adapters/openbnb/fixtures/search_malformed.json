@@ -1,0 +1,11 @@
+{
+  "_fixture_provenance": "synthetic, not captured from a live OpenBnB or Airbnb response; key paths follow openbnb-org/mcp-server-airbnb v0.3.0 (d5a8f18) index.ts, leaf wording is invented",
+  "_fixture_meta": {
+    "status": "estimated",
+    "origin": "synthetic_fixture"
+  },
+  "payload": {
+    "searchUrl": "https://www.airbnb.com/s/Singapore/homes?checkin=2026-11-10&checkout=2026-11-13&adults=2&children=0&infants=0&pets=0&l2_property_type_ids%5B%5D=1",
+    "searchResults": "oops"
+  }
+}

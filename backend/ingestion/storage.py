@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS snapshot_manifests (
 CREATE TABLE IF NOT EXISTS change_proposals (
     id TEXT PRIMARY KEY, status TEXT NOT NULL, version INTEGER NOT NULL,
     client_event_id TEXT NOT NULL UNIQUE, payload TEXT NOT NULL,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    request_fingerprint TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS review_decisions (
     id TEXT PRIMARY KEY, proposal_id TEXT NOT NULL UNIQUE REFERENCES change_proposals(id),
@@ -336,17 +337,54 @@ class FinancialIngestionStore:
         return None if snapshot is None else snapshot.snapshot_id
 
     def create_proposal(self, proposal: ChangeProposal, *, client_event_id: str) -> ChangeProposal:
+        return self.create_proposal_with_fingerprint(
+            proposal, client_event_id=client_event_id, request_fingerprint=""
+        )
+
+    def get_proposal_by_client_event(
+        self, client_event_id: str
+    ) -> tuple[ChangeProposal, str] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload, request_fingerprint FROM change_proposals "
+                "WHERE client_event_id = ?",
+                (client_event_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return ChangeProposal.model_validate_json(row[0]), str(row[1])
+
+    def create_proposal_with_fingerprint(
+        self,
+        proposal: ChangeProposal,
+        *,
+        client_event_id: str,
+        request_fingerprint: str,
+    ) -> ChangeProposal:
         with self._connect() as connection:
             prior = connection.execute(
-                "SELECT payload FROM change_proposals WHERE client_event_id = ?", (client_event_id,)
+                "SELECT payload, request_fingerprint FROM change_proposals "
+                "WHERE client_event_id = ?",
+                (client_event_id,),
             ).fetchone()
             payload = self._payload(proposal)
             if prior is not None:
-                if prior[0] != payload:
+                if prior[0] != payload or (
+                    prior[1] and request_fingerprint and prior[1] != request_fingerprint
+                ):
                     raise IdempotencyConflictError(
                         "client event was already used for another proposal"
                     )
                 return ChangeProposal.model_validate_json(prior[0])
+            existing = connection.execute(
+                "SELECT payload FROM change_proposals WHERE id = ?", (proposal.proposal_id,)
+            ).fetchone()
+            if existing is not None:
+                if existing[0] != payload:
+                    raise ConflictingWriteError(
+                        f"conflicting payload for immutable proposal {proposal.proposal_id}"
+                    )
+                return ChangeProposal.model_validate_json(existing[0])
             for lineage_id in proposal.lineage_ids:
                 if (
                     connection.execute(
@@ -358,8 +396,8 @@ class FinancialIngestionStore:
             now = proposal.created_at.isoformat()
             connection.execute(
                 "INSERT INTO change_proposals(id, status, version, client_event_id, "
-                "payload, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "payload, created_at, updated_at, request_fingerprint) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     proposal.proposal_id,
                     proposal.status.value,
@@ -368,6 +406,7 @@ class FinancialIngestionStore:
                     payload,
                     now,
                     proposal.updated_at.isoformat(),
+                    request_fingerprint,
                 ),
             )
             self._audit(
@@ -456,6 +495,10 @@ class FinancialIngestionStore:
             if row[0] not in {"pending", "edited", "reverify"}:
                 raise AlreadyDecidedError(f"proposal {proposal_id} already has a terminal decision")
             proposal = ChangeProposal.model_validate_json(row[2])
+            if status in {ReviewDecisionStatus.APPROVED, ReviewDecisionStatus.EDITED} and any(
+                finding.severity == "blocking" for finding in proposal.validation_findings
+            ):
+                raise ValueError("proposal has blocking validation findings")
             for lineage_id in proposal.lineage_ids:
                 if (
                     connection.execute(
