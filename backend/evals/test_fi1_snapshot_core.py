@@ -356,6 +356,25 @@ def test_crawl4ai_failure_is_typed_without_retry_or_fallback(tmp_path: Path) -> 
     assert result.failure.retryable is False
 
 
+def test_crawl4ai_rejects_pdf_under_official_page_evidence(tmp_path: Path) -> None:
+    class PdfResult(_FakeResult):
+        content_type = "application/pdf"
+        body = b"%PDF-1.7 fixture"
+
+    class PdfCrawler(_FakeCrawler):
+        async def arun(self, *, url: str, config: Any) -> PdfResult:
+            return PdfResult()
+
+    backend = Crawl4AIBackend(
+        artifacts=ContentAddressedStore(tmp_path / "artifacts"),
+        policy=policy(),
+        robots=RobotsRules.parse("User-agent: *\nAllow: /\n"),
+        crawler_factory=lambda config: PdfCrawler(),
+    )
+    result = asyncio.run(backend.fetch(request()))
+    assert result.failure is not None and result.failure.kind.value == "invalid_response"
+
+
 def test_automated_preflight_turns_robots_and_manual_policy_into_typed_failures() -> None:
     preflight = SourcePreflight()
     robots = RobotsRules.parse("User-agent: *\nDisallow: /cards\n")

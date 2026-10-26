@@ -305,6 +305,12 @@ class Crawl4AIBackend:
                 else bytes(raw_html or self._markdown(result), "utf-8")
             )
             media_type = declared_type or "text/html"
+            if request.evidence_kind == "official_page" and media_type == "application/pdf":
+                return _failure(
+                    request.request_id,
+                    FetchFailureKind.INVALID_RESPONSE,
+                    "official_page evidence cannot contain a PDF; request tnc_pdf explicitly",
+                )
         if len(raw_data) > request.max_bytes:
             return _failure(
                 request.request_id,
