@@ -729,6 +729,11 @@ def test_process_creation_is_confined_to_the_runner_and_never_uses_a_shell() -> 
     for path in _sources():
         modules = _modules(path)
         tree_text = path.read_text()
+        if path.name == "pdf_worker.py":
+            # The worker may use ``os``/``signal`` to end its own group, but never spawns.
+            assert not ({"subprocess", "multiprocessing"} & modules)
+            assert "os.system" not in tree_text and "os.popen" not in tree_text
+            continue
         if path.name in PROCESS_MODULES:
             assert "shell=True" not in tree_text and "create_subprocess_shell" not in tree_text
             assert "os.system" not in tree_text and "os.popen" not in tree_text
