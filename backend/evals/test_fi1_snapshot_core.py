@@ -9,7 +9,13 @@ import pytest
 
 from ingestion.artifacts import ArtifactIntegrityError, ContentAddressedStore
 from ingestion.canonical import canonicalize_content
-from ingestion.contracts import FetchAttempt, FetchRequest, SourcePolicyRecord, WatchTarget
+from ingestion.contracts import (
+    FetchAttempt,
+    FetchRequest,
+    PageKind,
+    SourcePolicyRecord,
+    WatchTarget,
+)
 from ingestion.diff import diff_text
 from ingestion.fetch import Crawl4AIBackend, ManualUploadBackend
 from ingestion.preflight import RobotsRules, SourcePreflight, canonicalize_url, robots_url
@@ -59,7 +65,7 @@ def target() -> WatchTarget:
         canonical_url="https://www.hdfcbank.com/cards/infinia",
         source_policy_id="issuer-hdfc",
         target_fact_ids=("card:hdfc-infinia",),
-        page_kind="card_page",
+        page_kind=PageKind.CARD_PAGE,
         check_frequency_days=365,
         preferred_backend="local",
     )
@@ -133,6 +139,30 @@ def test_canonicalization_removes_untrusted_markup_and_bounds_content() -> None:
         canonicalize_content(b"secret", media_type="application/pdf", max_chars=100)
 
 
+def test_page_class_and_robots_are_required_before_automated_dispatch() -> None:
+    tnc_request = request().model_copy(update={"evidence_kind": "tnc_pdf"})
+    missing_robots = SourcePreflight().check(tnc_request, policy())
+    assert missing_robots.failure_kind is not None
+    assert missing_robots.failure_kind.value == "robots_blocked"
+    disallowed_class = SourcePreflight().check(
+        tnc_request,
+        policy().model_copy(update={"allowed_page_classes": ("card_page",)}),
+        robots=RobotsRules.parse("User-agent: *\nAllow: /\n"),
+    )
+    assert disallowed_class.failure_kind is not None
+    assert (
+        disallowed_class.failure_kind.value
+        == "policy_blocked"
+    )
+
+
+def test_robots_wildcards_and_end_anchors_are_deterministic() -> None:
+    rules = RobotsRules.parse("User-agent: *\nDisallow: /private/*\nAllow: /exact$\n")
+    assert not rules.allowed("https://www.hdfcbank.com/private/terms")
+    assert rules.allowed("https://www.hdfcbank.com/exactly")
+    assert rules.allowed("https://www.hdfcbank.com/exact")
+
+
 def test_manual_upload_capture_replays_and_preserves_lineage(tmp_path: Path) -> None:
     artifacts = ContentAddressedStore(tmp_path / "artifacts")
     database = FinancialIngestionStore(tmp_path / "ingestion.sqlite", now=lambda: NOW)
@@ -174,6 +204,30 @@ def test_changed_capture_supersedes_and_immutable_replay_conflicts(tmp_path: Pat
     assert service.compare(target_id="watch-1", current=changed).changed is False
     with pytest.raises(ConflictingWriteError):
         database.put_snapshot(first.model_copy(update={"canonical_markdown": "tampered"}))
+
+
+def test_changed_raw_artifact_retains_lineage_when_normalized_text_is_same(tmp_path: Path) -> None:
+    artifacts = ContentAddressedStore(tmp_path / "artifacts")
+    database = FinancialIngestionStore(tmp_path / "ingestion.sqlite", now=lambda: NOW)
+    database.put_source_policy(policy(manual_only=True))
+    database.put_watch_target(target())
+    upload = tmp_path / "capture.html"
+    upload.write_text("<html><body><main><p>Stable text.</p></main></body></html>")
+    backend = ManualUploadBackend(upload, artifacts=artifacts, policy=policy(manual_only=True))
+    service = SnapshotService(store=database, artifacts=artifacts, now=lambda: NOW)
+    first = service.capture(
+        target_id="watch-1", result=asyncio.run(backend.fetch(request())), attempt=attempt()
+    )
+    upload.write_text("<html><body><div><main>Stable text.</main></div></body></html>")
+    second = service.capture(
+        target_id="watch-1",
+        result=asyncio.run(backend.fetch(request())),
+        attempt=attempt("attempt-2"),
+    )
+    assert first is not None and second is not None
+    assert first.canonical_markdown == second.canonical_markdown
+    assert first.snapshot_id != second.snapshot_id
+    assert second.supersedes_snapshot_id == first.snapshot_id
 
 
 def test_manual_upload_rejects_oversized_and_unsupported_material(tmp_path: Path) -> None:
@@ -247,13 +301,17 @@ def test_crawl4ai_adapter_rejects_untrusted_redirect_and_unavailable_sdk(tmp_pat
     backend = Crawl4AIBackend(
         artifacts=ContentAddressedStore(tmp_path / "artifacts"),
         policy=policy(),
+        robots=RobotsRules.parse("User-agent: *\nAllow: /\n"),
         crawler_factory=lambda config: RedirectCrawler(),
     )
     blocked = asyncio.run(backend.fetch(request()))
     assert blocked.failure is not None and blocked.failure.kind.value == "policy_blocked"
 
     unavailable = Crawl4AIBackend(
-        artifacts=ContentAddressedStore(tmp_path / "other"), policy=policy()
+        artifacts=ContentAddressedStore(tmp_path / "other"),
+        policy=policy(),
+        robots=RobotsRules.parse("User-agent: *\nAllow: /\n"),
+        resolve_host=lambda host: ("93.184.216.34",),
     )
     result = asyncio.run(unavailable.fetch(request()))
     assert result.failure is not None
@@ -278,6 +336,7 @@ def test_crawl4ai_failure_is_typed_without_retry_or_fallback(tmp_path: Path) -> 
     backend = Crawl4AIBackend(
         artifacts=ContentAddressedStore(tmp_path / "artifacts"),
         policy=policy(),
+        robots=RobotsRules.parse("User-agent: *\nAllow: /\n"),
         crawler_factory=lambda config: FailedCrawler(),
     )
     result = asyncio.run(backend.fetch(request()))
@@ -295,6 +354,44 @@ def test_automated_preflight_turns_robots_and_manual_policy_into_typed_failures(
     manual = preflight.check(request(), policy(manual_only=True))
     assert manual.allowed is False and manual.failure_kind is not None
     assert manual.failure_kind.value == "policy_blocked"
+
+
+def test_crawl4ai_enforces_domain_delay_and_redirect_chain(tmp_path: Path) -> None:
+    class Chained(_FakeResult):
+        redirect_chain = [
+            {"url": "https://www.hdfcbank.com/step-one"},
+            {"url": "https://evil.example/step-two"},
+        ]
+
+    class ChainedCrawler(_FakeCrawler):
+        async def arun(self, *, url: str, config: Any) -> Chained:
+            return Chained()
+
+    ticks = iter((NOW, NOW))
+    backend = Crawl4AIBackend(
+        artifacts=ContentAddressedStore(tmp_path / "artifacts"),
+        policy=policy(),
+        robots=RobotsRules.parse("User-agent: *\nAllow: /\n"),
+        crawler_factory=lambda config: ChainedCrawler(),
+        now=lambda: next(ticks),
+    )
+    first = asyncio.run(backend.fetch(request()))
+    assert first.failure is not None and first.failure.kind.value == "policy_blocked"
+
+    class GoodCrawler(_FakeCrawler):
+        async def arun(self, *, url: str, config: Any) -> _FakeResult:
+            return _FakeResult()
+
+    backend = Crawl4AIBackend(
+        artifacts=ContentAddressedStore(tmp_path / "other"),
+        policy=policy(),
+        robots=RobotsRules.parse("User-agent: *\nAllow: /\n"),
+        crawler_factory=lambda config: GoodCrawler(),
+        now=lambda: NOW,
+    )
+    assert asyncio.run(backend.fetch(request())).failure is None
+    delayed = asyncio.run(backend.fetch(request()))
+    assert delayed.failure is not None and delayed.failure.kind.value == "rate_limited"
 
 
 def test_diff_is_byte_deterministic_and_only_changes_on_normalized_content() -> None:

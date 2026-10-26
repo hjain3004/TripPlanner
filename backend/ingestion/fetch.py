@@ -6,9 +6,10 @@ import asyncio
 import importlib.metadata
 import mimetypes
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
 from ingestion.artifacts import ContentAddressedStore
 from ingestion.canonical import ContentLimitError, UnsupportedContentError, canonicalize_content
@@ -85,6 +86,7 @@ class ManualUploadBackend:
                 data,
                 media_type=media_type,
                 max_chars=request.max_bytes,
+                max_pages=request.max_pages,
             )
         except (ContentLimitError, UnsupportedContentError) as error:
             return _failure(request.request_id, FetchFailureKind.INVALID_RESPONSE, str(error))
@@ -121,13 +123,20 @@ class Crawl4AIBackend:
         user_agent: str = "Tripwise-FinancialIngestion/1.0",
         crawler_factory: Callable[[Any], Any] | None = None,
         preflight: SourcePreflight | None = None,
+        resolve_host: Callable[[str], Any] | None = None,
+        now: Callable[[], datetime] | None = None,
     ) -> None:
         self.artifacts = artifacts
         self.policy = policy
         self.robots = robots
         self.user_agent = user_agent
         self.crawler_factory = crawler_factory
-        self.preflight = preflight or SourcePreflight(user_agent=user_agent)
+        self.resolve_host = resolve_host
+        self.preflight = preflight or SourcePreflight(
+            user_agent=user_agent, resolve_host=resolve_host
+        )
+        self.now = now or (lambda: datetime.now(UTC))
+        self._last_dispatch: dict[str, datetime] = {}
 
     @staticmethod
     def _failure_kind(error_message: str) -> FetchFailureKind:
@@ -180,6 +189,12 @@ class Crawl4AIBackend:
             return await active.arun(url=url, config=locals().get("run_config"))
 
     async def fetch(self, request: FetchRequest) -> FetchResult:
+        if self.crawler_factory is None and self.preflight.resolve_host is None:
+            return _failure(
+                request.request_id,
+                FetchFailureKind.POLICY_BLOCKED,
+                "automated fetching requires an injected public DNS resolver",
+            )
         decision = self.preflight.check(request, self.policy, robots=self.robots)
         if not decision.allowed:
             return _failure(
@@ -187,7 +202,18 @@ class Crawl4AIBackend:
                 decision.failure_kind or FetchFailureKind.POLICY_BLOCKED,
                 decision.diagnostic or "preflight blocked",
             )
-        started = datetime.now(UTC)
+        host = urlsplit(decision.canonical_url).hostname or ""
+        robots_delay = self.robots.crawl_delay() if self.robots else None
+        delay = max(float(self.policy.minimum_delay_seconds), float(robots_delay or 0))
+        started = self.now()
+        last_dispatch = self._last_dispatch.get(host)
+        if last_dispatch is not None and started - last_dispatch < timedelta(seconds=delay):
+            return _failure(
+                request.request_id,
+                FetchFailureKind.RATE_LIMITED,
+                f"source delay requires {delay} seconds between requests",
+            )
+        self._last_dispatch[host] = started
         try:
             result = await asyncio.wait_for(
                 self._crawl(request, decision.canonical_url), timeout=request.timeout_seconds
@@ -214,14 +240,21 @@ class Crawl4AIBackend:
             return _failure(
                 request.request_id, self._failure_kind(message), message, retryable=False
             )
+        redirect_chain_raw = getattr(result, "redirect_chain", None)
+        redirect_chain: list[str] = [decision.canonical_url]
+        if isinstance(redirect_chain_raw, (list, tuple)):
+            for item in redirect_chain_raw:
+                candidate = item.get("url") if isinstance(item, dict) else item
+                if isinstance(candidate, str):
+                    redirect_chain.append(candidate)
         final_url = str(
             getattr(result, "redirected_url", None)
             or getattr(result, "url", decision.canonical_url)
         )
+        if redirect_chain[-1] != final_url:
+            redirect_chain.append(final_url)
         try:
-            final_url = self.preflight.check_redirect(
-                decision.canonical_url, final_url, self.policy
-            )
+            final_url = self.preflight.check_redirect_chain(redirect_chain, self.policy)
         except ValueError as error:
             return _failure(request.request_id, FetchFailureKind.POLICY_BLOCKED, str(error))
         raw_html = getattr(result, "html", None) or getattr(result, "cleaned_html", None)
@@ -238,7 +271,10 @@ class Crawl4AIBackend:
             )
         try:
             normalized = canonicalize_content(
-                raw_data, media_type="text/html", max_chars=request.max_bytes
+                raw_data,
+                media_type="text/html",
+                max_chars=request.max_bytes,
+                max_pages=request.max_pages,
             )
         except (ContentLimitError, UnsupportedContentError) as error:
             return _failure(request.request_id, FetchFailureKind.INVALID_RESPONSE, str(error))

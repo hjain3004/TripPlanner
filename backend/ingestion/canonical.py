@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import io
 import re
 import unicodedata
 from html.parser import HTMLParser
@@ -85,7 +86,28 @@ def canonicalize_html(data: bytes, *, max_chars: int) -> str:
     return _normalize_lines("".join(parser.parts), max_chars=max_chars)
 
 
-def canonicalize_content(data: bytes, *, media_type: str, max_chars: int) -> str:
+def canonicalize_pdf(data: bytes, *, max_chars: int, max_pages: int) -> str:
+    try:
+        pdfplumber = __import__("pdfplumber")
+    except ImportError as error:
+        raise UnsupportedContentError(
+            "PDF canonicalization requires the optional ingestion-local extra"
+        ) from error
+    try:
+        with pdfplumber.open(io.BytesIO(data)) as document:
+            if len(document.pages) > max_pages:
+                raise ContentLimitError(f"PDF exceeds {max_pages} page limit")
+            text = "\n".join(page.extract_text() or "" for page in document.pages)
+    except ContentLimitError:
+        raise
+    except Exception as error:
+        raise UnsupportedContentError("PDF could not be parsed safely") from error
+    return _normalize_lines(text, max_chars=max_chars)
+
+
+def canonicalize_content(
+    data: bytes, *, media_type: str, max_chars: int, max_pages: int = 1
+) -> str:
     normalized_type = media_type.split(";", 1)[0].lower().strip()
     if normalized_type in {"text/html", "application/xhtml+xml"}:
         return canonicalize_html(data, max_chars=max_chars)
@@ -94,4 +116,6 @@ def canonicalize_content(data: bytes, *, media_type: str, max_chars: int) -> str
             return canonicalize_markdown(data.decode("utf-8"), max_chars=max_chars)
         except UnicodeDecodeError as error:
             raise UnsupportedContentError("text content must be valid UTF-8") from error
+    if normalized_type == "application/pdf":
+        return canonicalize_pdf(data, max_chars=max_chars, max_pages=max_pages)
     raise UnsupportedContentError(f"unsupported content type: {normalized_type}")

@@ -43,7 +43,7 @@ class SnapshotService:
         if normalized_bytes != result.normalized_text.encode("utf-8"):
             raise ValueError("normalized artifact does not match the fetch result text")
         normalized_hash = hashlib.sha256(result.normalized_text.encode("utf-8")).hexdigest()
-        snapshot_id = f"snapshot:{target_id}:{normalized_hash}"
+        snapshot_id = f"snapshot:{target_id}:{normalized_hash}:{result.raw_artifact.sha256}"
         existing = self.store.get_snapshot(snapshot_id)
         if existing is not None:
             return existing

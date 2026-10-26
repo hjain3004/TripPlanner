@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
@@ -123,11 +124,20 @@ class RobotsRules:
             return True
         path = urlsplit(url).path or "/"
         matching = [
-            (len(rule), allow) for allow, rule in group.rules if rule and path.startswith(rule)
+            (len(rule), allow)
+            for allow, rule in group.rules
+            if rule and self._rule_matches(path, rule)
         ]
         if not matching:
             return True
         return max(matching, key=lambda item: item[0])[1]
+
+    @staticmethod
+    def _rule_matches(path: str, rule: str) -> bool:
+        expression = re.escape(rule).replace(r"\*", ".*")
+        if expression.endswith(r"\$"):
+            expression = expression[:-2] + "$"
+        return re.match(f"^{expression}", path) is not None
 
     def crawl_delay(self, *, user_agent: str = _USER_AGENT) -> float | None:
         group = self._group(user_agent)
@@ -189,13 +199,29 @@ class SourcePreflight:
             return PreflightDecision(
                 False, url, FetchFailureKind.POLICY_BLOCKED, "host is outside source policy"
             )
-        if page_class is not None and page_class not in policy.allowed_page_classes:
+        expected_page_class = page_class or {
+            "tnc_pdf": "tnc_pdf",
+            "manual_capture": "manual_capture",
+        }.get(request.evidence_kind)
+        page_class_allowed = (
+            expected_page_class in policy.allowed_page_classes
+            if expected_page_class is not None
+            else any(
+                candidate in policy.allowed_page_classes
+                for candidate in ("card_page", "offer_page", "official_page")
+            )
+        )
+        if not page_class_allowed:
             return PreflightDecision(
                 False, url, FetchFailureKind.POLICY_BLOCKED, "page class is not allowed"
             )
         if not manual and (policy.manual_only or not policy.automated_access_permitted):
             return PreflightDecision(
                 False, url, FetchFailureKind.POLICY_BLOCKED, "source is manual-only"
+            )
+        if not manual and robots is None:
+            return PreflightDecision(
+                False, url, FetchFailureKind.ROBOTS_BLOCKED, "robots preflight is required"
             )
         if (
             not manual
