@@ -1,0 +1,28 @@
+{
+  "_fixture_provenance": "synthetic, not captured from a live OpenBnB or Airbnb response; key paths follow openbnb-org/mcp-server-airbnb v0.3.0 (d5a8f18) index.ts, leaf wording is invented",
+  "_fixture_meta": {
+    "status": "estimated",
+    "origin": "synthetic_fixture"
+  },
+  "payload": {
+    "listingUrl": "https://www.airbnb.com/rooms/12345678?check_in=2026-11-10&check_out=2026-11-13&adults=2&children=0&infants=0&pets=0",
+    "details": [
+      {
+        "id": "LOCATION_DEFAULT",
+        "lat": 1.3112,
+        "lng": 103.8631,
+        "title": "Where you'll be",
+        "subtitle": "Kallang, Singapore"
+      },
+      {
+        "id": "AMENITIES_DEFAULT",
+        "title": "What this place offers",
+        "seeAllAmenitiesGroups": {
+          "Bathroom": "Hair dryer, Shampoo",
+          "Heating and cooling": "AC - split type ductless system",
+          "Not included": "Dryer, Hot water"
+        }
+      }
+    ]
+  }
+}
