@@ -120,6 +120,7 @@ class FetchRequest(BaseModel):
     canonical_url: str
     source_policy_id: str = Field(min_length=1)
     evidence_kind: Literal["official_page", "tnc_pdf", "manual_capture"]
+    page_class: PageKind | None = None
     max_bytes: int = Field(gt=0)
     max_pages: int = Field(gt=0)
     timeout_seconds: int = Field(gt=0)
@@ -129,6 +130,21 @@ class FetchRequest(BaseModel):
     run_id: str = Field(min_length=1)
 
     _url = field_validator("canonical_url")(_https_url)
+
+    @model_validator(mode="after")
+    def _page_class_matches_evidence(self) -> FetchRequest:
+        if self.page_class is None:
+            return self
+        if self.evidence_kind == "tnc_pdf" and self.page_class != PageKind.TNC_PDF:
+            raise ValueError("tnc_pdf evidence requires the tnc_pdf page class")
+        if self.evidence_kind == "official_page" and self.page_class not in {
+            PageKind.CARD_PAGE,
+            PageKind.OFFER_PAGE,
+        }:
+            raise ValueError("official_page evidence requires a card_page or offer_page class")
+        if self.evidence_kind == "manual_capture" and self.page_class != PageKind.MANUAL_CAPTURE:
+            raise ValueError("manual_capture evidence requires the manual_capture page class")
+        return self
 
 
 class ImmutableArtifactRef(BaseModel):
@@ -152,6 +168,7 @@ class FetchResult(BaseModel):
     content_type: str | None = None
     raw_artifact: ImmutableArtifactRef | None = None
     rendered_html_artifact: ImmutableArtifactRef | None = None
+    normalized_artifact: ImmutableArtifactRef | None = None
     normalized_text: str = ""
     outbound_links: tuple[str, ...] = ()
     engine: str | None = None
