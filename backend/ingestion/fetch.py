@@ -12,7 +12,13 @@ from typing import Any, Protocol
 from urllib.parse import urlsplit
 
 from ingestion.artifacts import ContentAddressedStore
-from ingestion.canonical import ContentLimitError, UnsupportedContentError, canonicalize_content
+from ingestion.canonical import (
+    ContentLimitError,
+    UnsupportedContentError,
+    acanonicalize_content,
+    canonicalize_content,
+    is_pdf_media_type,
+)
 from ingestion.contracts import (
     FetchFailure,
     FetchFailureKind,
@@ -94,15 +100,12 @@ class ManualUploadBackend:
             )
         media_type = mimetypes.guess_type(self.upload_path.name)[0] or "text/plain"
         try:
-            normalized = await asyncio.wait_for(
-                asyncio.to_thread(
-                    canonicalize_content,
-                    data,
-                    media_type=media_type,
-                    max_chars=request.max_bytes,
-                    max_pages=request.max_pages,
-                ),
-                timeout=request.timeout_seconds,
+            normalized = await acanonicalize_content(
+                data,
+                media_type=media_type,
+                max_chars=request.max_bytes,
+                max_pages=request.max_pages,
+                timeout_seconds=request.timeout_seconds,
             )
         except TimeoutError:
             return _failure(
@@ -318,11 +321,28 @@ class Crawl4AIBackend:
                 "Crawl4AI response exceeds byte bound",
             )
         try:
-            normalized = canonicalize_content(
-                raw_data,
-                media_type=media_type,
-                max_chars=request.max_bytes,
-                max_pages=request.max_pages,
+            if is_pdf_media_type(media_type):
+                # Never parse a PDF inline: it runs in a killable child under a deadline.
+                normalized = await acanonicalize_content(
+                    raw_data,
+                    media_type=media_type,
+                    max_chars=request.max_bytes,
+                    max_pages=request.max_pages,
+                    timeout_seconds=request.timeout_seconds,
+                )
+            else:
+                normalized = canonicalize_content(
+                    raw_data,
+                    media_type=media_type,
+                    max_chars=request.max_bytes,
+                    max_pages=request.max_pages,
+                )
+        except TimeoutError:
+            return _failure(
+                request.request_id,
+                FetchFailureKind.TIMEOUT,
+                "PDF normalization timed out",
+                retryable=True,
             )
         except (ContentLimitError, UnsupportedContentError) as error:
             return _failure(request.request_id, FetchFailureKind.INVALID_RESPONSE, str(error))

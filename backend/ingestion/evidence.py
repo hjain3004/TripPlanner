@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import io
 from datetime import UTC, datetime
 
 from gateway.evidence.edges import EvidenceGraph
 from ingestion.artifacts import ContentAddressedStore
 from ingestion.contracts import EvidenceSpan, SnapshotBundle
+from ingestion.pdf_isolation import PdfPageOutOfRange, get_default_runner
 
 
 class EvidenceVerificationError(ValueError):
@@ -50,18 +50,16 @@ def verify_evidence_span(
         if span.page_number is None:
             raise EvidenceVerificationError("PDF evidence requires a page")
         try:
-            pdfplumber = __import__("pdfplumber")
             data = artifacts.read(snapshot.raw_artifact)
-            with pdfplumber.open(io.BytesIO(data)) as document:
-                if span.page_number > len(document.pages):
-                    raise EvidenceVerificationError("PDF evidence page is outside the artifact")
-                page_text = document.pages[span.page_number - 1].extract_text() or ""
-                if span.quote not in page_text:
-                    raise EvidenceVerificationError("PDF quote is not present on the cited page")
-        except EvidenceVerificationError:
-            raise
+            # Parsed in a killable child process under a deadline; a hung or hostile PDF
+            # fails verification closed instead of stalling the validator.
+            page_text = get_default_runner().page_text(data, page_number=span.page_number)
+        except PdfPageOutOfRange as error:
+            raise EvidenceVerificationError("PDF evidence page is outside the artifact") from error
         except Exception as error:
             raise EvidenceVerificationError("PDF evidence could not be verified") from error
+        if span.quote not in page_text:
+            raise EvidenceVerificationError("PDF quote is not present on the cited page")
     elif span.page_number is not None:
         raise EvidenceVerificationError("non-PDF evidence cannot cite a page")
 
@@ -146,7 +144,9 @@ def financial_draft_graph(
                 kind=ClaimKind.REFERENCE_FACT,
                 identity=ReferenceFactIdentity(
                     kind="reference_fact",
-                    namespace="financial_draft", entity_id=snapshot.target_id, field=field
+                    namespace="financial_draft",
+                    entity_id=snapshot.target_id,
+                    field=field,
                 ),
                 payload={"snapshot_id": snapshot.snapshot_id, "field_path": field},
                 source_id=source_id,

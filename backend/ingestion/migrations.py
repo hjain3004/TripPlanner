@@ -12,9 +12,7 @@ def migrate(connection: sqlite3.Connection, schema_sql: str) -> None:
         raise RuntimeError(f"unsupported ingestion schema version {version}")
     connection.executescript(schema_sql)
     if version < 2:
-        columns = {
-            row[1] for row in connection.execute("PRAGMA table_info(review_decisions)")
-        }
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(review_decisions)")}
         if "request_fingerprint" not in columns:
             connection.execute(
                 "ALTER TABLE review_decisions ADD COLUMN request_fingerprint "
