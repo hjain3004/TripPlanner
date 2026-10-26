@@ -77,7 +77,7 @@ from planning.post_plan import (
 from planning.repository import PlanningSessionRepository
 
 router = APIRouter(prefix="/planning/sessions/{session_id}", tags=["post-plan"])
-_ACTION = TypeAdapter(PostPlanAction)
+_ACTION: TypeAdapter[PostPlanAction] = TypeAdapter(PostPlanAction)
 
 
 class WorkspaceInitIn(BaseModel):
