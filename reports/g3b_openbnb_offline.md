@@ -60,15 +60,16 @@ seed, golden, Tier-F or ingestion file was changed.
 | `test_g3b_transport.py` | 41 |
 | `test_g3b_adapter.py` | 33 |
 | `test_g3b_boundaries.py` | 28 |
-| **G3b total** | **342** |
+| `test_g3b_review_regressions.py` | 38 |
+| **G3b total** | **380** |
 
 Baseline before any change (own seeded run, regional catalogs present): **2220 passed, 1 skipped**.
-With G3b: **2562 passed, 1 skipped** (2220 + 342). The first full run after the code was
+With G3b: **2600 passed, 1 skipped** (2220 + 380). The first full run after the code was
 written failed one existing guard — D1's "every `TRIPWISE_*` literal is documented" — because
 the two new flags were undocumented; they are now documented in `backend/.env.example` only.
 
-**Test teeth.** Twenty targeted mutations were applied one at a time and every one was killed
-by at least one G3b test (nightly promoted to total; robots override accepted; date mismatch
+**Test teeth.** Twenty targeted mutations were applied one at a time (re-run after the review fixes) and every
+one was killed by at least one G3b test (nightly promoted to total; robots override accepted; date mismatch
 ignored; any-host links accepted; sanitizer disabled; per-plan ceiling off by one; disabled
 guard removed; kill switch ignored; approval gate removed; completeness forced to `complete`;
 bare `$` guessed as USD; status forced to `live`; `0,0` coordinates accepted; robots env pin
@@ -168,6 +169,46 @@ Not done, deliberately:
 - A spec decision on the discovery-only gap (contract gap 1).
 - UI treatment of `verify_required` rentals with a scraper warning (no frontend was touched).
 
+## Independent whole-branch review
+
+One fresh-context reviewer (a general-purpose subagent, read-only, no network) tried to break
+the branch and reproduced its findings with throwaway snippets. It could not break the
+architectural boundaries (tool/argument allowlist, robots override, link validation, no false
+live claims, budget races, fallback, isolation). It found real correctness defects in parsing
+and sanitizing that the original tests missed. All five Important findings were reproduced,
+given a failing regression test first (35 of the 38 new cases failed before the fix), then fixed.
+
+| # | Severity | Finding (reproduced) | Disposition |
+|---|---|---|---|
+| 1 | Important | `CA$150` read as AUD (`A$`); `MX$`/`R$` read as the configured bare-`$` assumption | **Fixed** — left boundary on symbol/code; `price.py` |
+| 2 | Important | Truncated or ranged numbers gave confidently wrong totals (`US$1 234`→$1.00, `US$500-600`→$500, `1e3`, Arabic-Indic digits) | **Fixed** — ASCII digits only; a number followed by more digits, a group separator, a range or an exponent is `invalid` |
+| 3 | Important | `US$100 / night for 3 nights` became a stay total of $100 | **Fixed** — nightly wording plus a night count is `ambiguous` |
+| 4 | Important | Injection markers recombined after markup/link removal (`ign<i></i>ore previous…`) | **Fixed** — every reading (invisible chars and markup/links as nothing or as space) is checked |
+| 5 | Important | `_MARKUP` quadratic on hostile text (7 s for a detail title); no length bound on the detail path | **Fixed** — input bounded before any regex, markup pattern bounded; detail amenity text/volume bounded |
+| 6 | Minor | Calls queued behind the concurrency slot dispatched after the breaker opened | **Fixed** — enabled/breaker re-checked inside the slot |
+| 7 | Minor | `OverflowError` from a huge coordinate integer escaped as a raw exception | **Fixed** |
+| 8 | Minor | A corrupt ledger file raised raw `sqlite3.DatabaseError` | **Fixed** — `sqlite3.Error` → typed `provider_unavailable` |
+| 9 | Minor | Unorderable extra argument keys raised `TypeError` before the policy error | **Fixed** (still failed closed) |
+| 10 | Minor | `LiveActivationApproval` is forgeable; the "pinned" launch trusts `PATH` and the server's self-reported version | **Partly fixed:** future-dated approvals are refused. The rest is inherent and stated plainly: the approval is a code-level marker for a human decision, not authentication; `node` resolves via `PATH`; the version pin is checked from `serverInfo` after start and has never been validated against a real server (if upstream reports a different string the live path fails closed). A real activation milestone should pin by install hash. |
+| 11 | Minor | Decimal context rounded long-fraction input; uncapped digit strings | **Fixed** — number length capped, fraction digits checked textually, breakdown strings capped |
+| 12 | Minor | `source_url` stored the provider's whole query string | **Fixed** — rebuilt from the five verified parameters |
+| 13 | Minor | A "before taxes" caveat on one of two identical total labels could be lost | **Fixed** — caveat merged across identical totals |
+| 14 | Minor | `.env.example` outside nominal scope; report path referenced before it existed; kill switch read only at construction | **Accepted:** the env-template change is logged in DEVIATIONS (D1 guard); the report now exists; read-once matches Gondola's convention and is documented in `registry.py` |
+
+Unverified by the reviewer and not claimed: Cyrillic homoglyph and letter-spaced injection
+bypasses. `sanitize.py` documents itself as best-effort; provider text never drives a decision
+and is length-bounded and shown with a verification warning.
+
 ## Verification evidence
 
-See the final section appended after the review and gate (below).
+- Own seeded baseline on `6428b78`: `make seed`; full backend suite **2220 passed, 1 skipped**.
+- After the review fixes: focused G3b suite **380 passed**; full backend suite
+  **2600 passed, 1 skipped** (regional catalogs present, `TRIPWISE_REQUIRE_REGIONAL_CATALOGS=1`).
+- `mypy --strict core/ accounts/ planning/ agents/ api/ gateway/` and `ingestion/`: clean
+  (199 + 11 source files). `ruff check` over `accounts/ planning/ agents/ gateway/ evals/` and
+  `ingestion/`: clean.
+- Boundary checks: `core/` imports nothing from `gateway/` (existing AST test); no production
+  module imports the OpenBnB package; `get_default_travel_registry()` has no `openbnb` entry;
+  `contract/openapi.json`, goldens, seeds and specs are untouched.
+- `make gate`: run on the exact final clean commit; the result and commit hash are in the
+  hand-off message (a report cannot contain its own commit hash).
