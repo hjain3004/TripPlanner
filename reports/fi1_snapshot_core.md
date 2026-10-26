@@ -20,10 +20,11 @@ No authoritative specification, seed value, financial golden, Kernel graph, Open
 - Baseline before FI1 edits: `2203 passed, 1 skipped, 3 warnings`.
 - `make seed PY=.venv/bin/python`: passed; seeded 42 rows.
 - Focused FI0 + FI1 regressions: `33 passed`; FI1-only: `17 passed`.
-- Full backend suite on the preceding clean implementation commit: `2219 passed, 1 skipped, 3 warnings`. The last code-only fix added one regression test; the final gate below records the exact final-tree count.
+- Full backend suite on the exact final committed tree: `2220 passed, 1 skipped, 3 warnings`.
 - Strict mypy: all existing source packages `185` files clean; `ingestion/` `11` files clean.
 - Ruff: required zero-tolerance scopes clean; existing `core/` + `api/` debt remained `8`, below the gate ceiling of `12`.
 - Frozen checks: `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`.
+- Final `make gate`: passed on the exact committed clean tree; it reported `2220 passed, 1 skipped, 3 warnings`, mypy clean (`185 + 11` source files), Ruff clean in required scopes, 8 legacy core/api findings under the ceiling of 12, and `TREE_CLEAN`.
 - Frontend/OpenAPI/browser checks were not applicable: FI1 changes no frontend or public contract.
 
 ## Independent review
