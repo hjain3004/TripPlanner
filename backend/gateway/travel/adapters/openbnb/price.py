@@ -69,6 +69,7 @@ class PriceLabel:
     kind: PriceKind
     money: Money | None = None
     before_taxes: bool = False
+    assumed_currency: bool = False  # a bare "$" was read as the caller's recorded assumption
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,7 @@ class _Token:
     end: int
     minor: int
     currency: str | None  # None => the symbol alone does not identify a currency
+    assumed: bool = False
 
 
 def _to_minor(number: str, currency: str | None) -> int:
@@ -117,14 +119,25 @@ def _scan(text: str, bare_dollar_currency: str | None) -> list[_Token]:
         if symbol == "$":
             currency = bare_dollar_currency
         tokens.append(
-            _Token(match.start(), match.end(), _to_minor(match.group("num"), currency), currency)
+            _Token(
+                match.start(),
+                match.end(),
+                _to_minor(match.group("num"), currency),
+                currency,
+                assumed=symbol == "$" and bare_dollar_currency is not None,
+            )
         )
     for match in _SUFFIX_TOKEN.finditer(text):
         if any(t.start <= match.start() < t.end for t in tokens):
             continue
         currency = match.group("cur")
         tokens.append(
-            _Token(match.start(), match.end(), _to_minor(match.group("num"), currency), currency)
+            _Token(
+                match.start(),
+                match.end(),
+                _to_minor(match.group("num"), currency),
+                currency,
+            )
         )
     return sorted(tokens, key=lambda t: t.start)
 
@@ -169,7 +182,12 @@ def classify_price_label(
         return PriceLabel("nightly", money)
     if nights_match is not None and int(nights_match.group(1)) != nights:
         return PriceLabel("nights_mismatch")
-    return PriceLabel("stay_total", money, before_taxes=_BEFORE_TAXES.search(lowered) is not None)
+    return PriceLabel(
+        "stay_total",
+        money,
+        before_taxes=_BEFORE_TAXES.search(lowered) is not None,
+        assumed_currency=token.assumed,
+    )
 
 
 _ITEM_SPLIT = re.compile(r",\s+(?=[^:,]{1,80}:\s)")
