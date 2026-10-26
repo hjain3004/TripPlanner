@@ -160,6 +160,11 @@ def test_page_class_and_robots_are_required_before_automated_dispatch() -> None:
             request().model_dump()
             | {"evidence_kind": "tnc_pdf", "page_class": PageKind.CARD_PAGE}
         )
+    with pytest.raises(ValueError, match="manual_capture"):
+        FetchRequest.model_validate(
+            request().model_dump()
+            | {"evidence_kind": "manual_capture", "page_class": PageKind.CARD_PAGE}
+        )
 
 
 def test_robots_wildcards_and_end_anchors_are_deterministic() -> None:

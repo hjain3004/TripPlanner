@@ -142,8 +142,8 @@ class FetchRequest(BaseModel):
             PageKind.OFFER_PAGE,
         }:
             raise ValueError("official_page evidence requires a card_page or offer_page class")
-        if self.evidence_kind == "manual_capture" and self.page_class == PageKind.MANUAL_CAPTURE:
-            raise ValueError("manual_capture must declare the source page class")
+        if self.evidence_kind == "manual_capture" and self.page_class != PageKind.MANUAL_CAPTURE:
+            raise ValueError("manual_capture evidence requires the manual_capture page class")
         return self
 
 
