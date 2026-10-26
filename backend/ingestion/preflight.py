@@ -199,11 +199,9 @@ class SourcePreflight:
             return PreflightDecision(
                 False, url, FetchFailureKind.POLICY_BLOCKED, "host is outside source policy"
             )
-        expected_page_class = (
-            page_class
-            or (request.page_class.value if request.page_class is not None else None)
-            or ("tnc_pdf" if request.evidence_kind == "tnc_pdf" else None)
-        )
+        expected_page_class = page_class or (
+            request.page_class.value if request.page_class is not None else None
+        ) or ("tnc_pdf" if request.evidence_kind == "tnc_pdf" else None)
         if expected_page_class is None:
             return PreflightDecision(
                 False, url, FetchFailureKind.POLICY_BLOCKED, "page class is required"

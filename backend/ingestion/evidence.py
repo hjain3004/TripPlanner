@@ -144,9 +144,7 @@ def financial_draft_graph(
                 kind=ClaimKind.REFERENCE_FACT,
                 identity=ReferenceFactIdentity(
                     kind="reference_fact",
-                    namespace="financial_draft",
-                    entity_id=snapshot.target_id,
-                    field=field,
+                    namespace="financial_draft", entity_id=snapshot.target_id, field=field
                 ),
                 payload={"snapshot_id": snapshot.snapshot_id, "field_path": field},
                 source_id=source_id,

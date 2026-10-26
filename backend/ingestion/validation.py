@@ -200,7 +200,9 @@ def validate_extraction(
             raise ProposalValidationError(f"field path missing from proposed row: {path}")
         for span in extracted.evidence_spans:
             if span.field_path != path:
-                raise ProposalValidationError(f"evidence field path does not match {path}")
+                raise ProposalValidationError(
+                    f"evidence field path does not match {path}"
+                )
             try:
                 verify_evidence_span(span, snapshot=snapshot, artifacts=artifacts)
             except EvidenceVerificationError as error:
@@ -228,7 +230,9 @@ def validate_extraction(
     reconstructed_flat = _flatten(proposed)
     for path, value in proposed_flat.items():
         if not _same_value(value, reconstructed_flat[path]):
-            raise ProposalValidationError(f"proposed row changes {path} without a field proposal")
+            raise ProposalValidationError(
+                f"proposed row changes {path} without a field proposal"
+            )
     if _row_hash(current_row) != current_row_hash and current_row_hash is not None:
         findings.append(
             ValidationFinding(
@@ -250,7 +254,9 @@ def validate_extraction(
                 "manual captures cannot change provenance before human review"
             )
         if provenance is not None and not provenance.needs_verification:
-            raise ProposalValidationError("manual capture evidence must remain unverified")
+            raise ProposalValidationError(
+                "manual capture evidence must remain unverified"
+            )
     if (
         provenance is not None
         and provenance.source_type in {"official_page", "tnc_pdf"}
