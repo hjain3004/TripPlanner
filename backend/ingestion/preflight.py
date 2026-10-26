@@ -201,10 +201,7 @@ class SourcePreflight:
             )
         expected_page_class = page_class or (
             request.page_class.value if request.page_class is not None else None
-        ) or {
-            "tnc_pdf": "tnc_pdf",
-            "manual_capture": "manual_capture",
-        }.get(request.evidence_kind)
+        ) or ("tnc_pdf" if request.evidence_kind == "tnc_pdf" else None)
         if expected_page_class is None:
             return PreflightDecision(
                 False, url, FetchFailureKind.POLICY_BLOCKED, "page class is required"
