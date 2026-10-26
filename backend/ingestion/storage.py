@@ -315,6 +315,26 @@ class FinancialIngestionStore:
             )
         return snapshot
 
+    def get_snapshot(self, snapshot_id: str) -> SnapshotBundle | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload FROM snapshot_manifests WHERE id = ?", (snapshot_id,)
+            ).fetchone()
+        return None if row is None else SnapshotBundle.model_validate_json(row[0])
+
+    def latest_snapshot(self, target_id: str) -> SnapshotBundle | None:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT payload FROM snapshot_manifests WHERE target_id = ? "
+                "ORDER BY rowid DESC LIMIT 1",
+                (target_id,),
+            ).fetchone()
+        return None if rows is None else SnapshotBundle.model_validate_json(rows[0])
+
+    def latest_snapshot_id(self, target_id: str) -> str | None:
+        snapshot = self.latest_snapshot(target_id)
+        return None if snapshot is None else snapshot.snapshot_id
+
     def create_proposal(self, proposal: ChangeProposal, *, client_event_id: str) -> ChangeProposal:
         with self._connect() as connection:
             prior = connection.execute(

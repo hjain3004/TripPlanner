@@ -152,6 +152,7 @@ class FetchResult(BaseModel):
     content_type: str | None = None
     raw_artifact: ImmutableArtifactRef | None = None
     rendered_html_artifact: ImmutableArtifactRef | None = None
+    normalized_artifact: ImmutableArtifactRef | None = None
     normalized_text: str = ""
     outbound_links: tuple[str, ...] = ()
     engine: str | None = None
