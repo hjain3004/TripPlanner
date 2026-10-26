@@ -1,0 +1,98 @@
+{
+  "_fixture_provenance": "synthetic, not captured from a live OpenBnB or Airbnb response; key paths follow openbnb-org/mcp-server-airbnb v0.3.0 (d5a8f18) index.ts, leaf wording is invented",
+  "_fixture_meta": {
+    "status": "estimated",
+    "origin": "synthetic_fixture"
+  },
+  "payload": {
+    "searchResults": [
+      {
+        "id": "12345678",
+        "url": "https://www.airbnb.com/rooms/12345678",
+        "demandStayListing": {
+          "id": "RGVtYW5kU3RheUxpc3Rpbmc6MTIzNDU2Nzg="
+        },
+        "badges": "Guest favorite",
+        "structuredContent": {
+          "primaryLine": {
+            "body": "Entire rental unit in Kallang"
+          }
+        },
+        "structuredDisplayPrice": {
+          "primaryLine": {
+            "accessibilityLabel": "US$150 per night"
+          },
+          "secondaryLine": {
+            "accessibilityLabel": "US$640 total"
+          },
+          "explanationData": {
+            "title": "Price details",
+            "priceDetails": {
+              "items": "3 nights x US$150: US$450, Cleaning fee: US$60, Service fee: US$90, Taxes: US$40"
+            }
+          }
+        },
+        "avgRatingA11yLabel": "4.92 out of 5 average rating, 1,204 reviews"
+      },
+      {
+        "id": "23456789",
+        "url": "https://www.airbnb.com/rooms/23456789",
+        "demandStayListing": {
+          "id": "RGVtYW5kU3RheUxpc3Rpbmc6MTIzNDU2Nzg="
+        },
+        "badges": "Guest favorite",
+        "structuredContent": {
+          "primaryLine": {
+            "body": "Private studio near Orchard"
+          }
+        },
+        "structuredDisplayPrice": {
+          "primaryLine": {
+            "accessibilityLabel": "US$110 per night"
+          },
+          "secondaryLine": {
+            "accessibilityLabel": null
+          },
+          "explanationData": {
+            "title": "Price details",
+            "priceDetails": {
+              "items": null
+            }
+          }
+        }
+      },
+      {
+        "id": "34567890",
+        "url": "https://www.airbnb.com/rooms/34567890",
+        "demandStayListing": {
+          "id": "RGVtYW5kU3RheUxpc3Rpbmc6MTIzNDU2Nzg="
+        },
+        "badges": "Guest favorite",
+        "structuredContent": {
+          "primaryLine": {
+            "body": "Loft with city view"
+          }
+        },
+        "structuredDisplayPrice": {
+          "primaryLine": {
+            "accessibilityLabel": null
+          },
+          "secondaryLine": {
+            "accessibilityLabel": "US$720 total"
+          },
+          "explanationData": {
+            "title": "Price details",
+            "priceDetails": {
+              "items": null
+            }
+          }
+        },
+        "avgRatingA11yLabel": "4.7 out of 5 average rating, 88 reviews"
+      }
+    ],
+    "paginationInfo": {
+      "nextPageCursor": "x"
+    },
+    "searchUrl": "https://www.airbnb.com/s/Singapore/homes?checkin=2026-11-10&checkout=2026-11-13&adults=2&children=0&infants=0&pets=0&l2_property_type_ids%5B%5D=1"
+  }
+}
