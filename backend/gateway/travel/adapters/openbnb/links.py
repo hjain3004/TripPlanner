@@ -76,3 +76,23 @@ def parse_search_url(url: object) -> dict[str, str] | None:
             return None
         result[key] = value
     return result
+
+
+def parse_detail_url(url: object) -> tuple[str, dict[str, str]] | None:
+    """``(listing_id, query)`` of a listing-details URL, or ``None`` if it is not one."""
+    parts = _safe_parts(url)
+    if parts is None or parts.fragment:
+        return None
+    match = _LISTING_PATH.fullmatch(parts.path)
+    if match is None:
+        return None
+    try:
+        pairs = parse_qsl(parts.query, keep_blank_values=True, max_num_fields=MAX_QUERY_FIELDS)
+    except ValueError:
+        return None
+    query: dict[str, str] = {}
+    for key, value in pairs:
+        if key in query:
+            return None
+        query[key] = value
+    return match.group(1), query
