@@ -52,6 +52,7 @@ def request(
         canonical_url=url,
         source_policy_id="issuer-hdfc",
         evidence_kind="official_page",
+        page_class=PageKind.CARD_PAGE,
         max_bytes=max_bytes,
         max_pages=1,
         timeout_seconds=3,
@@ -140,7 +141,7 @@ def test_canonicalization_removes_untrusted_markup_and_bounds_content() -> None:
 
 
 def test_page_class_and_robots_are_required_before_automated_dispatch() -> None:
-    tnc_request = request().model_copy(update={"evidence_kind": "tnc_pdf"})
+    tnc_request = request().model_copy(update={"evidence_kind": "tnc_pdf", "page_class": None})
     missing_robots = SourcePreflight().check(tnc_request, policy())
     assert missing_robots.failure_kind is not None
     assert missing_robots.failure_kind.value == "robots_blocked"

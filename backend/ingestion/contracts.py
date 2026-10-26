@@ -120,6 +120,7 @@ class FetchRequest(BaseModel):
     canonical_url: str
     source_policy_id: str = Field(min_length=1)
     evidence_kind: Literal["official_page", "tnc_pdf", "manual_capture"]
+    page_class: PageKind | None = None
     max_bytes: int = Field(gt=0)
     max_pages: int = Field(gt=0)
     timeout_seconds: int = Field(gt=0)

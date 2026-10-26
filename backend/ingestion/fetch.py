@@ -67,12 +67,18 @@ class ManualUploadBackend:
                 decision.diagnostic or "manual upload blocked",
             )
         try:
-            data = self.upload_path.read_bytes()
+            data = await asyncio.wait_for(
+                asyncio.to_thread(self.upload_path.read_bytes), timeout=request.timeout_seconds
+            )
         except OSError as error:
             return _failure(
                 request.request_id,
                 FetchFailureKind.INVALID_RESPONSE,
                 f"manual upload unavailable: {error}",
+            )
+        except TimeoutError:
+            return _failure(
+                request.request_id, FetchFailureKind.TIMEOUT, "manual capture timed out"
             )
         if len(data) > request.max_bytes:
             return _failure(
@@ -82,11 +88,19 @@ class ManualUploadBackend:
             )
         media_type = mimetypes.guess_type(self.upload_path.name)[0] or "text/plain"
         try:
-            normalized = canonicalize_content(
-                data,
-                media_type=media_type,
-                max_chars=request.max_bytes,
-                max_pages=request.max_pages,
+            normalized = await asyncio.wait_for(
+                asyncio.to_thread(
+                    canonicalize_content,
+                    data,
+                    media_type=media_type,
+                    max_chars=request.max_bytes,
+                    max_pages=request.max_pages,
+                ),
+                timeout=request.timeout_seconds,
+            )
+        except TimeoutError:
+            return _failure(
+                request.request_id, FetchFailureKind.TIMEOUT, "manual capture timed out"
             )
         except (ContentLimitError, UnsupportedContentError) as error:
             return _failure(request.request_id, FetchFailureKind.INVALID_RESPONSE, str(error))
@@ -137,6 +151,7 @@ class Crawl4AIBackend:
         )
         self.now = now or (lambda: datetime.now(UTC))
         self._last_dispatch: dict[str, datetime] = {}
+        self._dispatch_lock = asyncio.Lock()
 
     @staticmethod
     def _failure_kind(error_message: str) -> FetchFailureKind:
@@ -205,15 +220,16 @@ class Crawl4AIBackend:
         host = urlsplit(decision.canonical_url).hostname or ""
         robots_delay = self.robots.crawl_delay() if self.robots else None
         delay = max(float(self.policy.minimum_delay_seconds), float(robots_delay or 0))
-        started = self.now()
-        last_dispatch = self._last_dispatch.get(host)
-        if last_dispatch is not None and started - last_dispatch < timedelta(seconds=delay):
-            return _failure(
-                request.request_id,
-                FetchFailureKind.RATE_LIMITED,
-                f"source delay requires {delay} seconds between requests",
-            )
-        self._last_dispatch[host] = started
+        async with self._dispatch_lock:
+            started = self.now()
+            last_dispatch = self._last_dispatch.get(host)
+            if last_dispatch is not None and started - last_dispatch < timedelta(seconds=delay):
+                return _failure(
+                    request.request_id,
+                    FetchFailureKind.RATE_LIMITED,
+                    f"source delay requires {delay} seconds between requests",
+                )
+            self._last_dispatch[host] = started
         try:
             result = await asyncio.wait_for(
                 self._crawl(request, decision.canonical_url), timeout=request.timeout_seconds
@@ -254,15 +270,35 @@ class Crawl4AIBackend:
         if redirect_chain[-1] != final_url:
             redirect_chain.append(final_url)
         try:
+            current_decision = self.preflight.check(request, self.policy, robots=self.robots)
+            if not current_decision.allowed:
+                return _failure(
+                    request.request_id,
+                    current_decision.failure_kind or FetchFailureKind.POLICY_BLOCKED,
+                    current_decision.diagnostic or "post-fetch policy revalidation failed",
+                )
             final_url = self.preflight.check_redirect_chain(redirect_chain, self.policy)
         except ValueError as error:
             return _failure(request.request_id, FetchFailureKind.POLICY_BLOCKED, str(error))
+        declared_type = str(getattr(result, "content_type", "") or "").split(";", 1)[0]
         raw_html = getattr(result, "html", None) or getattr(result, "cleaned_html", None)
-        raw_data = (
-            raw_html.encode("utf-8")
-            if isinstance(raw_html, str)
-            else bytes(raw_html or self._markdown(result), "utf-8")
-        )
+        raw_body = getattr(result, "body", None)
+        if request.evidence_kind == "tnc_pdf":
+            raw_data = bytes(raw_body) if isinstance(raw_body, (bytes, bytearray)) else b""
+            if not raw_data.startswith(b"%PDF"):
+                return _failure(
+                    request.request_id,
+                    FetchFailureKind.INVALID_RESPONSE,
+                    "T&C request did not return a PDF body",
+                )
+            media_type = "application/pdf"
+        else:
+            raw_data = (
+                raw_html.encode("utf-8")
+                if isinstance(raw_html, str)
+                else bytes(raw_html or self._markdown(result), "utf-8")
+            )
+            media_type = declared_type or "text/html"
         if len(raw_data) > request.max_bytes:
             return _failure(
                 request.request_id,
@@ -272,13 +308,13 @@ class Crawl4AIBackend:
         try:
             normalized = canonicalize_content(
                 raw_data,
-                media_type="text/html",
+                media_type=media_type,
                 max_chars=request.max_bytes,
                 max_pages=request.max_pages,
             )
         except (ContentLimitError, UnsupportedContentError) as error:
             return _failure(request.request_id, FetchFailureKind.INVALID_RESPONSE, str(error))
-        raw_ref = self.artifacts.put(raw_data, media_type="text/html")
+        raw_ref = self.artifacts.put(raw_data, media_type=media_type)
         normalized_ref = self.artifacts.put(normalized.encode("utf-8"), media_type="text/plain")
         links: list[str] = []
         raw_links = getattr(result, "links", {})
@@ -299,7 +335,7 @@ class Crawl4AIBackend:
             final_url=final_url,
             content_type="text/html",
             raw_artifact=raw_ref,
-            rendered_html_artifact=raw_ref,
+            rendered_html_artifact=raw_ref if media_type == "text/html" else None,
             normalized_artifact=normalized_ref,
             normalized_text=normalized,
             outbound_links=tuple(sorted(set(links))),

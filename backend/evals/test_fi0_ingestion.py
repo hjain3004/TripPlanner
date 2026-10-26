@@ -225,6 +225,7 @@ def test_fetch_contract_has_typed_failure_and_no_proposed_row() -> None:
         canonical_url=target().canonical_url,
         source_policy_id="issuer-hdfc",
         evidence_kind="official_page",
+        page_class="card_page",
         max_bytes=1000,
         max_pages=1,
         timeout_seconds=30,
