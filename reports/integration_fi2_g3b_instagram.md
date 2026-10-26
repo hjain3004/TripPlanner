@@ -49,9 +49,9 @@ ignored local environment and catalogs; no credentials were copied.
 | Seeded baseline from `backend/` | 2220 passed, 1 skipped, 3 warnings |
 | Parser/proposal regressions before fix | 2 failures (expected reproductions) |
 | FI2 extraction/replay after fix | 12 passed |
-| Focused FI0/FI1/FI2 + G3b + gateway/registry/fallback | 453 passed, 3 warnings |
+| Focused FI0/FI1/FI2 + G3b + gateway/registry/fallback | 456 passed, 3 warnings |
 | Strict mypy/Ruff | Exact gate passed: 199 source files plus 16 ingestion files clean; zero-tolerance Ruff scopes clean; legacy `core/` + `api/` is 8 findings under ceiling 12 |
-| Exact `make gate` | Passed on committed clean tree: 2612 passed, 1 skipped, 3 warnings; `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN` |
+| Exact `make gate` | Passed on committed clean tree before this report-only correction: 2615 passed, 1 skipped, 3 warnings; `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN` |
 
 ## Safety and scope retained
 
@@ -93,3 +93,4 @@ timestamps now use immutable snapshot capture time for byte-stable replay, and
 the G3b retention wording distinguishes the bounded SQLite call ledger from
 raw scraped-payload caching. The post-fix FI2 suite passed 15 tests; the final
 gate above was rerun after these review fixes on the resulting committed tree.
+A final report-only commit follows, after which the gate will be rerun once more.
