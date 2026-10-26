@@ -46,6 +46,16 @@ class _Page:
             with builtins.open(args[0], "w") as handle:
                 handle.write(str(child.pid))
             raise ValueError("synthetic failure after spawning a helper")
+        if directive == "crash-with-helper":
+            child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+            with builtins.open(args[0], "w") as handle:
+                handle.write(str(child.pid))
+            os._exit(3)
+        if directive == "noisy":
+            for index in range(3000):
+                print(f"parser chatter line {index} " + "x" * 40)
+            sys.stdout.flush()
+            return self._text
         if directive == "late-write":
             time.sleep(float(args[0]))
             with builtins.open(args[1], "w") as handle:

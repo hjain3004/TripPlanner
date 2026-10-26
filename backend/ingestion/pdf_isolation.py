@@ -20,8 +20,9 @@ What it does NOT guarantee
   network and memory access; a parser exploit could still read files or open sockets
   before the deadline. Use a container/seccomp/jail for that.
 * No memory or CPU rlimits are set; only wall-clock time and pipe sizes are bounded.
-* If the child exits normally (or crashes) before the kill, its group leader is already gone
-  and any grandchild it left behind is not hunted. The parser library spawns none.
+* Group cleanup signals the child's pgid unconditionally. While any group member lives the
+  pgid cannot be reissued as a pid, so this is safe; only after the whole group is gone could
+  a recycled pid collide, a window of microseconds that is accepted and documented.
 """
 
 from __future__ import annotations
@@ -48,10 +49,10 @@ DEFAULT_MAX_INPUT_BYTES = 64 * 1024 * 1024
 MAX_PAGE_TEXT_CHARS = 1_000_000
 REAP_TIMEOUT_SECONDS = 5.0
 _CHUNK = 65536
-_JSON_EXPANSION = 6  # worst-case bytes per character after ASCII JSON escaping
+_JSON_EXPANSION = 12  # worst case: an astral character is a 12-byte escaped surrogate pair
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 _BOOTSTRAP = (
-    "import sys; sys.path.insert(0, sys.argv[1]); "
+    "import sys; sys.path.append(sys.argv[1]); "
     "from ingestion.pdf_worker import main; raise SystemExit(main(sys.argv[2:]))"
 )
 _CHILD_ENV = {
@@ -76,12 +77,13 @@ def _unsupported() -> UnsupportedContentError:
     return UnsupportedContentError(_UNSUPPORTED)
 
 
-def _kill_group(pid: int, *, reaped: bool) -> None:
-    """SIGKILL the child's private process group (its pgid equals its pid)."""
-    if reaped:
-        return  # the pid may already belong to someone else
+def _kill_group(pgid: int) -> None:
+    """SIGKILL the child's private process group (its pgid equals the pid it was started with).
+
+    Always signalled, even if the leader has already been reaped (asyncio reaps behind our
+    back): surviving members keep the pgid reserved, and an empty group just raises ESRCH."""
     with contextlib.suppress(ProcessLookupError, PermissionError):
-        os.killpg(pid, signal.SIGKILL)
+        os.killpg(pgid, signal.SIGKILL)
 
 
 class PdfProcessRunner:
@@ -148,6 +150,8 @@ class PdfProcessRunner:
         with self._slots:
             self._live.add(pid)
             self.spawned_pids.append(pid)
+            if len(self.spawned_pids) > 4096:  # diagnostic only; keep it bounded
+                del self.spawned_pids[:2048]
 
     def _finished(self, pid: int) -> None:
         with self._slots:
@@ -167,7 +171,7 @@ class PdfProcessRunner:
             raise _unsupported()  # truncated reply: the child died mid-write
         try:
             reply = json.loads(raw)
-        except ValueError:
+        except (ValueError, RecursionError):
             raise _unsupported() from None
         if not isinstance(reply, dict) or not isinstance(reply.get("ok"), bool):
             raise _unsupported()
@@ -248,7 +252,10 @@ class PdfProcessRunner:
                             selector.unregister(stdin)
                             stdin.close()
                     else:
-                        chunk = os.read(stdout.fileno(), _CHUNK)
+                        try:
+                            chunk = os.read(stdout.fileno(), _CHUNK)
+                        except BlockingIOError:
+                            continue
                         if not chunk:
                             return bytes(reply)
                         reply += chunk
@@ -263,7 +270,7 @@ class PdfProcessRunner:
 
     def _reap_sync(self, process: subprocess.Popen[bytes]) -> None:
         try:
-            _kill_group(process.pid, reaped=process.returncode is not None)
+            _kill_group(process.pid)
             with contextlib.suppress(OSError):
                 process.kill()
             try:
@@ -329,14 +336,22 @@ class PdfProcessRunner:
                 return bytes(reply)  # the one-line reply is complete; do not wait for EOF
 
     async def _reap_async(self, process: asyncio.subprocess.Process) -> None:
-        _kill_group(process.pid, reaped=process.returncode is not None)
+        pid = process.pid
+        _kill_group(pid)
         with contextlib.suppress(ProcessLookupError):
             process.kill()
         try:
             await asyncio.wait_for(asyncio.shield(process.wait()), REAP_TIMEOUT_SECONDS)
         except (TimeoutError, Exception):
-            return
-        self._finished(process.pid)
+            return  # unkillable: leave the pid listed as live
+        finally:
+            # Also reached on a second cancellation: the kill was already issued, so once the
+            # (shielded) wait completes the bookkeeping must clear even while unwinding.
+            if process.returncode is not None:
+                self._finished(pid)
+            else:
+                waiter = asyncio.ensure_future(process.wait())
+                waiter.add_done_callback(lambda _: self._finished(pid))
 
     # ------------------------------------------------------------------ public API
 

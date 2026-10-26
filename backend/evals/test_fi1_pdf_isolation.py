@@ -693,6 +693,152 @@ def test_evidence_verification_of_a_hung_pdf_fails_closed_and_kills_the_parser(
 
 
 # --------------------------------------------------------------------------- #
+# Regressions from the independent review
+# --------------------------------------------------------------------------- #
+
+
+def test_a_crashed_parser_that_left_a_helper_holding_the_pipe_is_cleaned_up(
+    mode: str, runner: PdfProcessRunner, tmp_path: Path
+) -> None:
+    pidfile = tmp_path / "helper.pid"
+    started = time.monotonic()
+    with pytest.raises(UnsupportedContentError, match="PDF could not be parsed safely"):
+        canon(mode, runner, doc(f"crash-with-helper {pidfile}", "x"), timeout=20.0)
+    assert time.monotonic() - started < 5.0  # the dead leader ends the reply channel at once
+    assert gone(int(pidfile.read_text())), "the helper survived because asyncio reaped the leader"
+    assert runner.live_count() == 0 and all(gone(pid) for pid in runner.spawned_pids)
+
+
+def _scripted_reply(tmp_path: Path, body: str) -> PdfProcessRunner:
+    command = _script(tmp_path, "reply.py", "import sys\nsys.stdin.buffer.read()\n" + body)
+    return PdfProcessRunner(max_concurrent=1, worker_command=command)
+
+
+def test_a_deeply_nested_reply_is_a_typed_error_not_a_recursion_error(
+    mode: str, tmp_path: Path
+) -> None:
+    rogue = _scripted_reply(tmp_path, "sys.stdout.write('[' * 200000 + ']' * 200000 + '\\n')\n")
+    with pytest.raises(UnsupportedContentError, match="PDF could not be parsed safely"):
+        canon(mode, rogue, doc("ok", "x"), max_chars=1_000_000)
+
+
+def test_parser_chatter_on_stdout_cannot_corrupt_the_reply(
+    mode: str, runner: PdfProcessRunner
+) -> None:
+    assert canon(mode, runner, doc("noisy", "hello")) == "hello"
+
+
+def test_text_outside_the_basic_plane_survives_the_reply_bound(
+    mode: str, runner: PdfProcessRunner
+) -> None:
+    emoji = "\U0001f600" * 1000  # each is a 12-byte surrogate pair once JSON-escaped
+    assert canon(mode, runner, doc("ok", emoji), max_chars=1000) == emoji
+
+
+def test_a_second_cancellation_during_cleanup_still_clears_the_bookkeeping(
+    runner: PdfProcessRunner,
+) -> None:
+    async def scenario() -> None:
+        task = asyncio.ensure_future(
+            runner.acanonicalize(
+                doc("hang-sleep", "x"), max_chars=100, max_pages=1, timeout_seconds=30
+            )
+        )
+        for _ in range(200):
+            if runner.live_count() == 1:
+                break
+            await asyncio.sleep(0.01)
+        task.cancel()
+        await asyncio.sleep(0)
+        task.cancel()  # a second cancellation while the first is still cleaning up
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await asyncio.sleep(0.5)
+
+    asyncio.run(scenario())
+    assert runner.live_count() == 0
+    assert runner._held == 0
+    assert all(gone(pid) for pid in runner.spawned_pids)
+
+
+def test_the_worker_does_not_kill_a_group_it_merely_leads_inside_someone_elses_session(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+
+    worker = subprocess.Popen(
+        PdfProcessRunner(search_paths=[STUB]).worker_command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        process_group=0,  # leads a new group, but stays in this session
+    )
+    sibling = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)"], process_group=worker.pid
+    )
+    try:
+        data = doc("ok", "hello")
+        assert worker.stdin is not None and worker.stdout is not None
+        worker.stdin.write(
+            b'{"op":"canonicalize","max_chars":50,"max_pages":2,"data_len":%d}\n' % len(data)
+        )
+        worker.stdin.write(data)
+        worker.stdin.close()
+        assert b'"ok":true' in worker.stdout.readline()
+        worker.wait(timeout=5)
+        assert sibling.poll() is None, "the worker killed a group it did not create"
+    finally:
+        sibling.kill()
+        sibling.wait()
+        worker.kill()
+        worker.wait()
+
+
+def test_a_worker_that_replies_and_then_hangs_does_not_delay_the_result(
+    mode: str, tmp_path: Path
+) -> None:
+    command = _script(
+        tmp_path,
+        "lingering.py",
+        "import sys, time\nsys.stdin.buffer.read()\n"
+        'sys.stdout.write(\'{"ok":true,"text":"done"}\\n\')\nsys.stdout.flush()\n'
+        "time.sleep(60)\n",
+    )
+    lingering = PdfProcessRunner(max_concurrent=1, worker_command=command)
+    started = time.monotonic()
+    assert canon(mode, lingering, doc("ok", "x"), timeout=20.0) == "done"
+    assert time.monotonic() - started < 5.0  # the complete reply line ended the wait
+    assert lingering.live_count() == 0 and all(gone(pid) for pid in lingering.spawned_pids)
+
+
+def test_the_worker_ends_its_own_group_so_a_helper_cannot_outlive_a_normal_exit(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+
+    pidfile = tmp_path / "helper.pid"
+    data = doc(f"grandchild-then-raise {pidfile}", "x")
+    worker = subprocess.Popen(
+        PdfProcessRunner(search_paths=[STUB]).worker_command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,  # exactly how the runner starts it
+    )
+    try:
+        assert worker.stdin is not None and worker.stdout is not None
+        header = b'{"op":"canonicalize","max_chars":50,"max_pages":2,"data_len":%d}\n' % len(data)
+        worker.stdin.write(header + data)
+        worker.stdin.close()
+        assert b'"ok":false' in worker.stdout.readline()
+        worker.wait(timeout=5)  # no parent-side group kill is involved here
+        assert gone(int(pidfile.read_text())), "the worker left its helper running"
+    finally:
+        worker.kill()
+        worker.wait()
+
+
+# --------------------------------------------------------------------------- #
 # No bypass in source
 # --------------------------------------------------------------------------- #
 

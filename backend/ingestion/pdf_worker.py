@@ -25,12 +25,26 @@ MAX_INPUT_BYTES = 256 * 1024 * 1024  # absolute ceiling; the parent enforces a t
 MAX_PAGE_TEXT_CHARS = 1_000_000
 
 
+_REPLY_FD = -1
+
+
+def _claim_stdout() -> None:
+    """Keep the reply channel private: fd 1 is moved aside and replaced by /dev/null, so
+    anything the parser library prints can never be mistaken for (or corrupt) the reply."""
+    global _REPLY_FD
+    _REPLY_FD = os.dup(1)
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, 1)
+    os.close(devnull)
+
+
 def _reply(payload: dict[str, Any]) -> None:
     # ensure_ascii keeps the reply pure ASCII (and lossless for odd code points); the parent
-    # bounds the byte length knowing escapes can expand each character up to six-fold.
-    line = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
-    sys.stdout.buffer.write(line.encode("ascii") + b"\n")
-    sys.stdout.buffer.flush()
+    # bounds the byte length knowing escapes can expand each character up to twelve-fold.
+    line = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("ascii") + b"\n"
+    view = memoryview(line)
+    while view:
+        view = view[os.write(_REPLY_FD, view) :]
 
 
 def _read_request() -> tuple[dict[str, Any], bytes] | None:
@@ -115,7 +129,7 @@ def _end_own_process_group() -> None:
     """After replying, kill this worker's private group so no helper the parser spawned can
     outlive the request. Only when the worker really leads its own group (the parent starts
     it with a new session); a hand-run worker sharing a terminal's group is left alone."""
-    if os.getpgrp() == os.getpid():
+    if os.getpgrp() == os.getpid() and os.getsid(0) == os.getpid():
         os.killpg(os.getpgrp(), signal.SIGKILL)
 
 
@@ -129,6 +143,7 @@ def main(argv: list[str] | None = None) -> int:
             sys.path.insert(0, args.pop(0))
         else:
             return 2
+    _claim_stdout()
     request = _read_request()
     if request is None:
         _reply({"ok": False, "kind": "unsupported"})
