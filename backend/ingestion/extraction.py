@@ -91,6 +91,7 @@ class FinancialExtractor:
         snapshot: SnapshotBundle,
         diff: SnapshotDiff,
         client_event_id: str,
+        manual_capture: bool = False,
     ) -> ExtractionOutcome:
         if not diff.changed:
             return ExtractionOutcome(status="unchanged", calls=0)
@@ -129,6 +130,7 @@ class FinancialExtractor:
                 artifacts=self.artifacts,
                 now=self.now(),
                 extractor_version=self.extractor_version,
+                manual_capture=manual_capture,
             )
             stored = self.store.create_proposal(proposal, client_event_id=client_event_id)
             if self.evidence_store is not None:
