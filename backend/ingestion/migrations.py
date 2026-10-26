@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def migrate(connection: sqlite3.Connection, schema_sql: str) -> None:
@@ -18,6 +18,15 @@ def migrate(connection: sqlite3.Connection, schema_sql: str) -> None:
         if "request_fingerprint" not in columns:
             connection.execute(
                 "ALTER TABLE review_decisions ADD COLUMN request_fingerprint "
+                "TEXT NOT NULL DEFAULT ''"
+            )
+    if version < 3:
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(change_proposals)")
+        }
+        if "request_fingerprint" not in columns:
+            connection.execute(
+                "ALTER TABLE change_proposals ADD COLUMN request_fingerprint "
                 "TEXT NOT NULL DEFAULT ''"
             )
     if version < SCHEMA_VERSION:

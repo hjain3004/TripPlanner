@@ -46,7 +46,7 @@ seed, golden, Tier-F or ingestion file was changed.
 | Disabled by default | `OpenBnBAdapter(enabled=False)` raises `provider_unavailable` before touching budget or transport. Only `registry.py` computes `enabled`, from `TRIPWISE_OPENBNB_ENABLED` and `TRIPWISE_OPENBNB_KILL_SWITCH`; **the kill switch wins**. The default registry has no `openbnb` entry (tested with the flag set). | `adapter.py`, `registry.py` |
 | Budgets and failure | 2 calls per plan, 40 lifetime, reserved atomically **before** dispatch and never refunded; **zero retries** (a deliberate tightening of spec 16's one retry — see DEVIATIONS); 30 s adapter timeout; circuit breaker opens after 2 failures and stops dispatching; concurrency 1; ledger contention fails soft. | `budget.py`, `adapter.py` |
 | Fallback | Through the real `TravelInventoryService` with the real `SampleAdapter`: an OpenBnB failure leaves sample hotels with a `provider_unavailable` diagnostic; different-currency quotes are rejected as `mismatched_response`; accepted OpenBnB quotes get `scope_verified=False` and basis `unknown` unless `complete`. | `evals/test_g3b_adapter.py` |
-| Retention | No raw cache, no file writes anywhere in the package; the only persistence is the call counter (`plan_id` → count). A full offline flow run in an empty directory leaves it empty. | `evals/test_g3b_boundaries.py` |
+| Retention | No raw cache or scraped-payload file writes; the only persistence is the explicitly bounded call counter (`plan_id` → count) in its SQLite ledger. A full offline flow run in an empty directory creates no raw or normalized source cache. | `evals/test_g3b_boundaries.py`, `budget.py` |
 
 ### Tests (all offline; sockets, `subprocess` and asyncio process creation are patched to raise)
 

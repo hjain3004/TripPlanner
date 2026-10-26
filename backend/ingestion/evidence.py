@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import io
-from datetime import UTC, datetime
+from datetime import UTC
 
 from gateway.evidence.edges import EvidenceGraph
 from ingestion.artifacts import ContentAddressedStore
@@ -85,7 +85,8 @@ def financial_draft_graph(
         Source,
     )
 
-    now = datetime.now(UTC)
+    # Snapshot capture time is the stable run time for an immutable replay.
+    now = snapshot.captured_at.astimezone(UTC)
     graph = EvidenceGraph()
     graph.add_run(Run(run_id=run_id, started_at=now, ended_at=now))
     source_id = f"financial-source:{snapshot.snapshot_id}"

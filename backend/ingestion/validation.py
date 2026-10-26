@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from datetime import date, datetime
 from typing import Any
 
@@ -85,10 +86,82 @@ def _row_hash(row: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def _quote_supports_value(
+    *, field_path: str, raw_value: Any, parsed_value: Any, expected: Any, quote: str
+) -> bool:
+    """Require the exact quote to contain the value it claims to evidence."""
+    normalized_quote = " ".join(str(quote).split()).casefold()
+    normalized_raw = " ".join(str(raw_value).split()).casefold()
+    if normalized_raw and normalized_raw in normalized_quote:
+        return True
+    if isinstance(parsed_value, date):
+        return parsed_value.isoformat() in normalized_quote
+    if isinstance(raw_value, (bool, list, dict)):
+        return False
+    if field_path.rsplit(".", 1)[-1] in {"ratio_from", "ratio_to"}:
+        candidates = re.findall(r"\b\d+\s*[:/]\s*\d+\b", quote)
+    elif field_path.rsplit(".", 1)[-1].endswith("_minor"):
+        candidates = re.findall(
+            r"(?:₹|Rs\.?|INR|USD|AED|SGD)\s*[+-]?\d[\d, ]*(?:\.\d+)?|\b[+-]?\d[\d, ]*(?:\.\d+)?\b",
+            quote,
+            flags=re.IGNORECASE,
+        )
+    elif field_path.rsplit(".", 1)[-1].endswith("_bp"):
+        candidates = re.findall(r"[+-]?\d[\d, ]*(?:\.\d+)?\s*(?:%|bp)", quote, flags=re.I)
+    else:
+        candidates = re.findall(r"[+-]?\d[\d, ]*(?:\.\d+)?", quote)
+    for candidate in candidates:
+        try:
+            candidate_value = parse_field_value(field_path, candidate, expected=expected)
+            if _same_value(parsed_value, candidate_value):
+                return True
+        except UnresolvedValueError:
+            continue
+    return False
+
+
 def _sanity_findings(
     table: str, row: dict[str, Any], *, today: datetime
 ) -> list[ValidationFinding]:
     findings: list[ValidationFinding] = []
+    provenance = row.get("provenance")
+    if isinstance(provenance, dict):
+        confidence = provenance.get("confidence")
+        if not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
+            findings.append(
+                ValidationFinding(
+                    code="invalid_confidence",
+                    severity="blocking",
+                    message="provenance confidence must be between 0 and 1",
+                    field_path="provenance.confidence",
+                )
+            )
+    if table == "cards":
+        markup = row.get("forex_markup_bp")
+        if not isinstance(markup, int) or not 0 <= markup <= 500:
+            findings.append(
+                ValidationFinding(
+                    code="implausible_forex_markup",
+                    severity="blocking",
+                    message="forex markup must be between 0 and 500 basis points",
+                    field_path="forex_markup_bp",
+                )
+            )
+        country = row.get("country")
+        expected_currency = (
+            {"IN": "INR", "AE": "AED", "US": "USD"}.get(country)
+            if isinstance(country, str)
+            else None
+        )
+        if expected_currency is not None and row.get("fee_currency") != expected_currency:
+            findings.append(
+                ValidationFinding(
+                    code="currency_country_mismatch",
+                    severity="blocking",
+                    message="card fee currency must match its issuer country",
+                    field_path="fee_currency",
+                )
+            )
     if table in {"reward_rules", "offers"}:
         valid_to = row.get("valid_to")
         if valid_to is not None and valid_to < today.date():
@@ -110,6 +183,15 @@ def _sanity_findings(
                     code="non_positive_rate",
                     severity="blocking",
                     message="earn rate must be positive",
+                    field_path="earn",
+                )
+            )
+        elif points * 100_000 < per_amount or points * 10_000 > per_amount * 30:
+            findings.append(
+                ValidationFinding(
+                    code="implausible_rate",
+                    severity="blocking",
+                    message="earn rate must be between 0.1 and 30 points per 100 currency units",
                     field_path="earn",
                 )
             )
@@ -211,6 +293,19 @@ def validate_extraction(
             parsed_value = parse_field_value(path, extracted.proposed_raw_value, expected=expected)
         except UnresolvedValueError as error:
             raise ProposalValidationError(f"unresolved value for {path}: {error}") from error
+        if not any(
+            _quote_supports_value(
+                field_path=path,
+                raw_value=extracted.proposed_raw_value,
+                parsed_value=parsed_value,
+                expected=expected,
+                quote=span.quote,
+            )
+            for span in extracted.evidence_spans
+        ):
+            raise ProposalValidationError(
+                f"evidence quote does not support the proposed value for {path}"
+            )
         if not _same_value(proposed_flat[path], parsed_value):
             raise ProposalValidationError(
                 f"proposed row value for {path} is not the deterministic parse"

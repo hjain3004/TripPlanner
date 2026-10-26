@@ -50,7 +50,8 @@ ignored local environment and catalogs; no credentials were copied.
 | Parser/proposal regressions before fix | 2 failures (expected reproductions) |
 | FI2 extraction/replay after fix | 12 passed |
 | Focused FI0/FI1/FI2 + G3b + gateway/registry/fallback | 453 passed, 3 warnings |
-| Strict mypy/Ruff | Final exact gate pending; Ruff focused scopes clean; one combined exploratory mypy invocation hit the repository's configured Python 3.11/numpy stub compatibility issue and is not treated as gate evidence |
+| Strict mypy/Ruff | Exact gate passed: 199 source files plus 16 ingestion files clean; zero-tolerance Ruff scopes clean; legacy `core/` + `api/` is 8 findings under ceiling 12 |
+| Exact `make gate` | Passed on committed clean tree: 2612 passed, 1 skipped, 3 warnings; `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, `TREE_CLEAN` |
 
 ## Safety and scope retained
 
@@ -72,7 +73,23 @@ ignored local environment and catalogs; no credentials were copied.
 
 ## Independent review and final evidence
 
-The independent whole-integration review and final `make gate` results will be
-added after review dispositions and final committed-tree verification. Any
-verified Critical/Important finding will receive a regression test and a
-separate fix before landing.
+## Independent whole-integration review
+
+The independent reviewer found no Critical findings. Three Important findings
+were reproduced and fixed test-first:
+
+1. Evidence quotes now have to contain the proposed value (including parsed
+   numeric candidates), so an unrelated exact quote cannot support a proposal.
+2. FI2 sanity validation now records blocking findings for out-of-range
+   provenance confidence, card forex markup, country/currency mismatch, and
+   implausible earn rates.
+3. Duplicate extraction requests are checked by durable client-event and
+   request fingerprints before model dispatch; an identical replay returns the
+   immutable proposal with zero additional calls, while a divergent request is
+   rejected without dispatch.
+
+The reviewer also identified two Minor issues, both fixed: evidence graph run
+timestamps now use immutable snapshot capture time for byte-stable replay, and
+the G3b retention wording distinguishes the bounded SQLite call ledger from
+raw scraped-payload caching. The post-fix FI2 suite passed 15 tests; the final
+gate above was rerun after these review fixes on the resulting committed tree.

@@ -183,6 +183,89 @@ def test_malformed_money_notation_cannot_form_a_proposal(tmp_path: Path) -> None
     assert outcome.proposal is None
 
 
+def test_evidence_quote_must_support_the_proposed_value(tmp_path: Path) -> None:
+    store, snap, current, artifacts = setup(tmp_path)
+    row = current.model_dump(mode="json")
+    row["annual_fee_minor"] = 99_900
+    unsupported = response(snap, row)
+    unsupported["fields"][0]["proposed_raw_value"] = "INR 999"
+    client = ScriptedLLMClient({"financial_extractor": [unsupported]})
+
+    outcome = FinancialExtractor(
+        client=client, store=store, artifacts=artifacts, now=lambda: NOW
+    ).extract(
+        target_table="cards",
+        target_id=current.id,
+        current_row=current.model_dump(mode="json"),
+        current_row_hash=None,
+        snapshot=snap,
+        diff=diff_text("Annual fee is INR 10,000.", snap.canonical_markdown),
+        client_event_id="event-unsupported-quote",
+    )
+
+    assert outcome.status == "invalid_response"
+    assert outcome.proposal is None
+
+
+def test_invalid_row_sanity_is_blocking(tmp_path: Path) -> None:
+    store, snap, current, artifacts = setup(tmp_path)
+    current_row = current.model_dump(mode="json")
+    current_row["forex_markup_bp"] = 50_000
+    current_row["provenance"]["confidence"] = 2.0
+    row = dict(current_row)
+    row["annual_fee_minor"] = 1_250_000
+    client = ScriptedLLMClient({"financial_extractor": [response(snap, row)]})
+
+    outcome = FinancialExtractor(
+        client=client, store=store, artifacts=artifacts, now=lambda: NOW
+    ).extract(
+        target_table="cards",
+        target_id=current.id,
+        current_row=current_row,
+        current_row_hash=None,
+        snapshot=snap,
+        diff=diff_text("Annual fee is INR 10,000.", snap.canonical_markdown),
+        client_event_id="event-invalid-sanity",
+    )
+
+    assert outcome.status == "proposal_pending"
+    assert outcome.proposal is not None
+    assert {finding.code for finding in outcome.proposal.validation_findings} >= {
+        "implausible_forex_markup",
+        "invalid_confidence",
+    }
+
+
+def test_duplicate_extraction_replays_without_another_model_call(tmp_path: Path) -> None:
+    store, snap, current, artifacts = setup(tmp_path)
+    row = current.model_dump(mode="json")
+    row["annual_fee_minor"] = 1_250_000
+    client = ScriptedLLMClient({"financial_extractor": [response(snap, row)]})
+    kwargs = dict(
+        target_table="cards",
+        target_id=current.id,
+        current_row=current.model_dump(mode="json"),
+        current_row_hash=None,
+        snapshot=snap,
+        diff=diff_text("Annual fee is INR 10,000.", snap.canonical_markdown),
+        client_event_id="event-duplicate",
+    )
+
+    first = FinancialExtractor(
+        client=client, store=store, artifacts=artifacts, now=lambda: NOW
+    ).extract(**kwargs)
+    second = FinancialExtractor(
+        client=ScriptedLLMClient({}), store=store, artifacts=artifacts, now=lambda: NOW
+    ).extract(**kwargs)
+
+    assert first.status == "proposal_pending"
+    assert first.calls == 1
+    assert second.status == "proposal_pending"
+    assert second.calls == 0
+    assert second.proposal == first.proposal
+    assert client.invocations["financial_extractor"] == 1
+
+
 def test_changed_snapshot_makes_one_call_and_persists_a_typed_proposal(tmp_path: Path) -> None:
     store, snap, current, artifacts = setup(tmp_path)
     row = current.model_dump(mode="json")
@@ -413,6 +496,24 @@ def test_draft_evidence_graph_is_verify_required_and_preserves_lineage() -> None
     assert claim.status == "verify_required"
     assert claim.needs_verification is True
     assert claim.identity.kind == "reference_fact"
+    assert graph.model_dump_json() == financial_draft_graph(
+        run_id="run-fi2",
+        snapshot=SnapshotBundle(
+            snapshot_id="snap-graph",
+            target_id="watch:hdfc",
+            captured_at=NOW,
+            raw_artifact=ImmutableArtifactRef(
+                sha256=HASH, size_bytes=1, media_type="text/html"
+            ),
+            normalized_artifact=ImmutableArtifactRef(
+                sha256=NORMALIZED_HASH, size_bytes=1, media_type="text/plain"
+            ),
+            raw_sha256=HASH,
+            normalized_sha256=NORMALIZED_HASH,
+            canonical_markdown="fee",
+        ),
+        fields=["annual_fee_minor"],
+    ).model_dump_json()
 
 
 def test_draft_graph_round_trips_through_the_existing_evidence_store(tmp_path: Path) -> None:

@@ -8,6 +8,7 @@ parsed and checked by deterministic code in :mod:`ingestion.validation`.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -61,6 +62,36 @@ def _prompt(
     return system, user
 
 
+def _request_fingerprint(
+    *,
+    target_table: str,
+    target_id: str,
+    current_row: dict[str, Any],
+    current_row_hash: str | None,
+    snapshot: SnapshotBundle,
+    diff: SnapshotDiff,
+    manual_capture: bool,
+    extractor_version: str,
+) -> str:
+    payload = json.dumps(
+        {
+            "target_table": target_table,
+            "target_id": target_id,
+            "current_row": current_row,
+            "current_row_hash": current_row_hash,
+            "snapshot_id": snapshot.snapshot_id,
+            "snapshot_hash": snapshot.normalized_sha256,
+            "diff": diff.unified_diff,
+            "manual_capture": manual_capture,
+            "extractor_version": extractor_version,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 class FinancialExtractor:
     """Build one draft proposal from one changed immutable snapshot."""
 
@@ -95,6 +126,27 @@ class FinancialExtractor:
     ) -> ExtractionOutcome:
         if not diff.changed:
             return ExtractionOutcome(status="unchanged", calls=0)
+
+        request_fingerprint = _request_fingerprint(
+            target_table=target_table,
+            target_id=target_id,
+            current_row=current_row,
+            current_row_hash=current_row_hash,
+            snapshot=snapshot,
+            diff=diff,
+            manual_capture=manual_capture,
+            extractor_version=self.extractor_version,
+        )
+        prior = self.store.get_proposal_by_client_event(client_event_id)
+        if prior is not None:
+            stored, prior_fingerprint = prior
+            if prior_fingerprint and prior_fingerprint != request_fingerprint:
+                return ExtractionOutcome(
+                    status="invalid_response",
+                    calls=0,
+                    diagnostic="client event was already used for another extraction request",
+                )
+            return ExtractionOutcome(status="proposal_pending", proposal=stored, calls=0)
 
         system, user = _prompt(
             target_table=target_table,
@@ -132,7 +184,11 @@ class FinancialExtractor:
                 extractor_version=self.extractor_version,
                 manual_capture=manual_capture,
             )
-            stored = self.store.create_proposal(proposal, client_event_id=client_event_id)
+            stored = self.store.create_proposal_with_fingerprint(
+                proposal,
+                client_event_id=client_event_id,
+                request_fingerprint=request_fingerprint,
+            )
             if self.evidence_store is not None:
                 self.evidence_store.save(
                     financial_draft_graph(
