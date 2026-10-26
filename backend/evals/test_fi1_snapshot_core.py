@@ -155,6 +155,11 @@ def test_page_class_and_robots_are_required_before_automated_dispatch() -> None:
         disallowed_class.failure_kind.value
         == "policy_blocked"
     )
+    with pytest.raises(ValueError, match="tnc_pdf"):
+        FetchRequest.model_validate(
+            request().model_dump()
+            | {"evidence_kind": "tnc_pdf", "page_class": PageKind.CARD_PAGE}
+        )
 
 
 def test_robots_wildcards_and_end_anchors_are_deterministic() -> None:

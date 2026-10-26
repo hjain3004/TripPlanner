@@ -67,6 +67,12 @@ class ManualUploadBackend:
                 decision.diagnostic or "manual upload blocked",
             )
         try:
+            if self.upload_path.stat().st_size > request.max_bytes:
+                return _failure(
+                    request.request_id,
+                    FetchFailureKind.INVALID_RESPONSE,
+                    "manual upload exceeds byte bound",
+                )
             data = await asyncio.wait_for(
                 asyncio.to_thread(self.upload_path.read_bytes), timeout=request.timeout_seconds
             )
@@ -333,7 +339,7 @@ class Crawl4AIBackend:
         return FetchResult(
             request_id=request.request_id,
             final_url=final_url,
-            content_type="text/html",
+            content_type=media_type,
             raw_artifact=raw_ref,
             rendered_html_artifact=raw_ref if media_type == "text/html" else None,
             normalized_artifact=normalized_ref,
