@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
@@ -142,8 +143,27 @@ class PreflightDecision:
 
 
 class SourcePreflight:
-    def __init__(self, *, user_agent: str = _USER_AGENT) -> None:
+    def __init__(
+        self,
+        *,
+        user_agent: str = _USER_AGENT,
+        resolve_host: Callable[[str], Iterable[str]] | None = None,
+    ) -> None:
         self.user_agent = user_agent
+        self.resolve_host = resolve_host
+
+    def _host_is_safe(self, host: str) -> bool:
+        if host.lower() in {"localhost", "localhost.localdomain", "metadata.google.internal"}:
+            return False
+        if not _public_host(host):
+            return False
+        if self.resolve_host is None:
+            return True
+        try:
+            addresses = tuple(self.resolve_host(host))
+            return bool(addresses) and all(_public_host(address) for address in addresses)
+        except OSError:
+            return False
 
     def check(
         self,
@@ -161,7 +181,7 @@ class SourcePreflight:
             return PreflightDecision(
                 False, request.canonical_url, FetchFailureKind.POLICY_BLOCKED, str(error)
             )
-        if not _public_host(host):
+        if not self._host_is_safe(host):
             return PreflightDecision(
                 False, url, FetchFailureKind.POLICY_BLOCKED, "private or special-use host"
             )
@@ -191,11 +211,20 @@ class SourcePreflight:
         original = canonicalize_url(original_url)
         final = canonicalize_url(final_url)
         host = urlsplit(final).hostname or ""
-        if not _public_host(host) or not _domain_matches(host, policy.domain):
+        if not self._host_is_safe(host) or not _domain_matches(host, policy.domain):
             raise ValueError("redirect leaves the approved public source domain")
         if urlsplit(original).scheme != urlsplit(final).scheme:
             raise ValueError("redirect changes URL scheme")
         return final
+
+    def check_redirect_chain(self, urls: Iterable[str], policy: SourcePolicyRecord) -> str:
+        chain = list(urls)
+        if not chain:
+            raise ValueError("redirect chain must contain the requested URL")
+        previous = canonicalize_url(chain[0])
+        for candidate in chain[1:]:
+            previous = self.check_redirect(previous, candidate, policy)
+        return previous
 
 
 def robots_url(url: str) -> str:

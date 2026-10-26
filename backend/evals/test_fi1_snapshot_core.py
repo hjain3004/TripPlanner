@@ -106,6 +106,13 @@ def test_url_and_redirect_policy_are_canonical_and_ssrf_safe() -> None:
     assert blocked.failure_kind.value == "policy_blocked"
     with pytest.raises(ValueError):
         preflight.check_redirect(request().canonical_url, "https://evil.example/steal", policy())
+    resolver = SourcePreflight(resolve_host=lambda host: ("127.0.0.1",))
+    assert not resolver.check(request(), policy()).allowed
+    with pytest.raises(ValueError):
+        preflight.check_redirect_chain(
+            (request().canonical_url, "https://www.hdfcbank.com/one", "https://evil.example/two"),
+            policy(),
+        )
 
 
 def test_robots_rules_choose_longest_allow_match() -> None:
