@@ -30,6 +30,11 @@ def verify_evidence_span(
         raise EvidenceVerificationError("snapshot normalized hash is inconsistent")
     if snapshot.raw_sha256 != snapshot.raw_artifact.sha256 or not raw_bytes:
         raise EvidenceVerificationError("snapshot raw artifact is inconsistent")
+    is_pdf_snapshot = snapshot.raw_artifact.media_type.split(";", 1)[0].lower() == "application/pdf"
+    if is_pdf_snapshot and span.artifact_kind != "pdf":
+        raise EvidenceVerificationError("PDF snapshots require PDF evidence spans")
+    if not is_pdf_snapshot and span.artifact_kind == "pdf":
+        raise EvidenceVerificationError("non-PDF snapshots cannot use PDF evidence spans")
     if span.snapshot_id != snapshot.snapshot_id:
         raise EvidenceVerificationError("evidence refers to another snapshot")
     if span.snapshot_hash != snapshot.normalized_sha256:

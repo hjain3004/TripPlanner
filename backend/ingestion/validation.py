@@ -157,6 +157,7 @@ def validate_extraction(
     artifacts: ContentAddressedStore,
     now: datetime,
     extractor_version: str,
+    manual_capture: bool = False,
 ) -> ChangeProposal:
     try:
         parsed = (
@@ -170,6 +171,10 @@ def validate_extraction(
         ) from error
     if parsed.target_table != target_table or parsed.target_id != target_id:
         raise ProposalValidationError("extractor target does not match the requested row")
+    if "id" in current_row and current_row.get("id") != target_id:
+        raise ProposalValidationError("current row identity does not match the requested target")
+    if "id" in parsed.proposed_row and parsed.proposed_row.get("id") != target_id:
+        raise ProposalValidationError("proposed row identity does not match the requested target")
     model = TARGET_MODELS.get(target_table)
     if model is None:
         raise ProposalValidationError(f"unsupported financial target table: {target_table}")
@@ -189,9 +194,15 @@ def validate_extraction(
         expected = _get(current_row, path)
         if path not in current_flat:
             raise ProposalValidationError(f"field path is not permitted: {path}")
+        if path == "id":
+            raise ProposalValidationError("target identity is not an extractable field")
         if path not in proposed_flat:
             raise ProposalValidationError(f"field path missing from proposed row: {path}")
         for span in extracted.evidence_spans:
+            if span.field_path != path:
+                raise ProposalValidationError(
+                    f"evidence field path does not match {path}"
+                )
             try:
                 verify_evidence_span(span, snapshot=snapshot, artifacts=artifacts)
             except EvidenceVerificationError as error:
@@ -216,6 +227,12 @@ def validate_extraction(
         )
     if not fields:
         raise ProposalValidationError("changed extraction must contain at least one field")
+    reconstructed_flat = _flatten(proposed)
+    for path, value in proposed_flat.items():
+        if not _same_value(value, reconstructed_flat[path]):
+            raise ProposalValidationError(
+                f"proposed row changes {path} without a field proposal"
+            )
     if _row_hash(current_row) != current_row_hash and current_row_hash is not None:
         findings.append(
             ValidationFinding(
@@ -231,6 +248,15 @@ def validate_extraction(
     # Manual captures never acquire official verification merely because a
     # source URL appears in the uploaded document.
     provenance = getattr(typed_row, "provenance", None)
+    if manual_capture:
+        if any(field_path.startswith("provenance") for field_path in seen):
+            raise ProposalValidationError(
+                "manual captures cannot change provenance before human review"
+            )
+        if provenance is not None and not provenance.needs_verification:
+            raise ProposalValidationError(
+                "manual capture evidence must remain unverified"
+            )
     if (
         provenance is not None
         and provenance.source_type in {"official_page", "tnc_pdf"}
