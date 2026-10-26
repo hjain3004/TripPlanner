@@ -347,6 +347,15 @@ class FinancialIngestionStore:
                         "client event was already used for another proposal"
                     )
                 return ChangeProposal.model_validate_json(prior[0])
+            existing = connection.execute(
+                "SELECT payload FROM change_proposals WHERE id = ?", (proposal.proposal_id,)
+            ).fetchone()
+            if existing is not None:
+                if existing[0] != payload:
+                    raise ConflictingWriteError(
+                        f"conflicting payload for immutable proposal {proposal.proposal_id}"
+                    )
+                return ChangeProposal.model_validate_json(existing[0])
             for lineage_id in proposal.lineage_ids:
                 if (
                     connection.execute(
@@ -456,6 +465,10 @@ class FinancialIngestionStore:
             if row[0] not in {"pending", "edited", "reverify"}:
                 raise AlreadyDecidedError(f"proposal {proposal_id} already has a terminal decision")
             proposal = ChangeProposal.model_validate_json(row[2])
+            if status in {ReviewDecisionStatus.APPROVED, ReviewDecisionStatus.EDITED} and any(
+                finding.severity == "blocking" for finding in proposal.validation_findings
+            ):
+                raise ValueError("proposal has blocking validation findings")
             for lineage_id in proposal.lineage_ids:
                 if (
                     connection.execute(
