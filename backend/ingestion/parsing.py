@@ -23,13 +23,53 @@ def _decimal(raw: Any, *, suffix: str = "") -> Decimal:
     text = _text(raw)
     if suffix and text.lower().endswith(suffix):
         text = text[: -len(suffix)].strip()
-    text = text.replace(",", "").replace(" ", "")
+    text = _normalize_number(text, raw)
     if not re.fullmatch(r"[-+]?\d+(?:\.\d+)?", text):
         raise UnresolvedValueError(f"unsupported numeric notation: {raw!r}")
     try:
         return Decimal(text)
     except InvalidOperation as error:
         raise UnresolvedValueError(f"invalid number: {raw!r}") from error
+
+
+def _normalize_number(text: str, raw: Any) -> str:
+    """Validate recognized grouping before removing visual separators."""
+    sign = ""
+    if text[:1] in {"+", "-"}:
+        sign, text = text[0], text[1:]
+    if not text:
+        raise UnresolvedValueError(f"unsupported numeric notation: {raw!r}")
+
+    integer, separator, fraction = text.partition(".")
+    if separator and (not fraction or not fraction.isascii() or not fraction.isdigit()):
+        raise UnresolvedValueError(f"unsupported numeric notation: {raw!r}")
+    if "," in integer and " " in integer:
+        raise UnresolvedValueError(f"unsupported numeric notation: {raw!r}")
+
+    grouping = "," if "," in integer else " " if " " in integer else None
+    if grouping is None:
+        if not integer.isascii() or not integer.isdigit():
+            raise UnresolvedValueError(f"unsupported numeric notation: {raw!r}")
+    else:
+        groups = integer.split(grouping)
+        if (
+            not all(group.isascii() and group.isdigit() for group in groups)
+            or not 1 <= len(groups[0]) <= 3
+            or not all(len(group) == 3 for group in groups[1:])
+        ):
+            # Commas also support the recognized Indian lakh/crore form:
+            # 1,23,456 and 12,34,567. Spaces are deliberately only accepted
+            # for unambiguous three-digit grouping.
+            if grouping != "," or not (
+                all(group.isascii() and group.isdigit() for group in groups)
+                and 1 <= len(groups[0]) <= 3
+                and len(groups[-1]) == 3
+                and all(len(group) == 2 for group in groups[1:-1])
+            ):
+                raise UnresolvedValueError(f"unsupported numeric notation: {raw!r}")
+        integer = "".join(groups)
+
+    return f"{sign}{integer}{separator}{fraction}" if separator else f"{sign}{integer}"
 
 
 def _scaled(value: Decimal, scale: int) -> int:

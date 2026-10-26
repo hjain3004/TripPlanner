@@ -142,12 +142,45 @@ def setup(
 
 def test_deterministic_parsers_reject_ambiguous_values() -> None:
     assert parse_money_minor("₹12,500") == 1_250_000
+    assert parse_money_minor("INR 12,50,000") == 125_000_000
+    assert parse_money_minor("INR 1 250") == 125_000
+    assert parse_money_minor("INR 1,234,567.89") == 123_456_789
     assert parse_basis_points("2.00%") == 200
     assert parse_ratio("1:2") == (1, 2)
     with pytest.raises(UnresolvedValueError):
         parse_basis_points("two percent")
     with pytest.raises(UnresolvedValueError):
         parse_money_minor("12,500 / month")
+    with pytest.raises(UnresolvedValueError):
+        parse_money_minor("INR 1,2")
+    with pytest.raises(UnresolvedValueError):
+        parse_money_minor("INR 1 2")
+    with pytest.raises(UnresolvedValueError):
+        parse_money_minor("INR 1,23,45")
+
+
+def test_malformed_money_notation_cannot_form_a_proposal(tmp_path: Path) -> None:
+    store, snap, current, artifacts = setup(tmp_path)
+    row = current.model_dump(mode="json")
+    row["annual_fee_minor"] = 1_200
+    malformed = response(snap, row)
+    malformed["fields"][0]["proposed_raw_value"] = "INR 1,2"
+    client = ScriptedLLMClient({"financial_extractor": [malformed]})
+
+    outcome = FinancialExtractor(
+        client=client, store=store, artifacts=artifacts, now=lambda: NOW
+    ).extract(
+        target_table="cards",
+        target_id=current.id,
+        current_row=current.model_dump(mode="json"),
+        current_row_hash=None,
+        snapshot=snap,
+        diff=diff_text("Annual fee is INR 10,000.", snap.canonical_markdown),
+        client_event_id="event-malformed-money",
+    )
+
+    assert outcome.status == "invalid_response"
+    assert outcome.proposal is None
 
 
 def test_changed_snapshot_makes_one_call_and_persists_a_typed_proposal(tmp_path: Path) -> None:
