@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import re
 import socket
 import subprocess
 from pathlib import Path
@@ -240,8 +241,10 @@ def test_the_only_sqlite_use_is_the_call_counter_and_nothing_writes_files() -> N
         text = path.read_text()
         if path.name != "budget.py":
             assert "sqlite3" not in names, path.name
-        for token in ("write_text", "write_bytes", ".mkdir(", "open(", "tempfile", "os.makedirs"):
+        for token in ("write_text", "write_bytes", ".mkdir(", "tempfile", "os.makedirs"):
             assert token not in text, f"{path.name} uses {token}"
+        # A real ``open(`` call (not a longer name such as ``_assert_open(``).
+        assert re.search(r"(?<![\w.])open\(", text) is None, f"{path.name} calls open()"
 
 
 def test_no_secret_markers_in_the_package() -> None:

@@ -108,17 +108,20 @@ class OpenBnBAdapter:
     def consecutive_failures(self) -> int:
         return self._breaker.consecutive_failures
 
-    def _guard(self) -> OpenBnBTransport:
+    def _assert_open(self) -> None:
         if not self._enabled:
             raise TravelGatewayError(
                 "provider_unavailable", "OpenBnB is disabled (default off / kill switch)"
             )
-        if self._transport is None:
-            raise TravelGatewayError("provider_unavailable", "OpenBnB has no transport configured")
         if self._breaker.is_open:
             raise TravelGatewayError(
                 "provider_unavailable", "OpenBnB circuit breaker is open; falling back"
             )
+
+    def _guard(self) -> OpenBnBTransport:
+        self._assert_open()
+        if self._transport is None:
+            raise TravelGatewayError("provider_unavailable", "OpenBnB has no transport configured")
         return self._transport
 
     def _reserve(self) -> None:
@@ -133,6 +136,8 @@ class OpenBnBAdapter:
         self, transport: OpenBnBTransport, tool: str, arguments: dict[str, object]
     ) -> OpenBnBToolResult:
         async with self._slot:
+            # A call queued behind another one must see the breaker state that call left.
+            self._assert_open()
             self._reserve()
             try:
                 async with asyncio.timeout(self._timeout):

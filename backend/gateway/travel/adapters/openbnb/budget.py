@@ -88,7 +88,7 @@ class OpenBnBCallBudget:
                             (plan_id,),
                         )
                         return True
-                except sqlite3.OperationalError as exc:
+                except sqlite3.Error as exc:
                     raise OpenBnBBudgetUnavailableError(
                         f"OpenBnB call ledger unavailable for plan {plan_id!r}: {exc}"
                     ) from exc

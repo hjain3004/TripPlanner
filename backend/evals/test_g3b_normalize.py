@@ -47,7 +47,10 @@ def test_a_fully_itemized_total_becomes_one_verify_required_quote() -> None:
     assert evidence.retrieved_at == NOW
     assert evidence.expires_at is None
     assert evidence.deep_link_url == "https://www.airbnb.com/rooms/12345678"
-    assert evidence.source_url == SEARCH_URL
+    assert evidence.source_url == (
+        "https://www.airbnb.com/s/Singapore/homes?checkin=2026-11-10&checkout=2026-11-13"
+        "&adults=2&children=0&infants=0"
+    )
     assert "unreviewed" in evidence.terms_version
     assert evidence.attribution is not None and "Airbnb" in evidence.attribution
 

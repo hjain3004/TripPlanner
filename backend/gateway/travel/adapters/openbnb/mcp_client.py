@@ -90,6 +90,8 @@ class LiveActivationApproval:
             raise TravelGatewayError(
                 "terms_disabled", "an activation approval names a reviewer and a terms snapshot"
             )
+        if self.approved_on > date.today():
+            raise TravelGatewayError("terms_disabled", "an approval cannot be dated in the future")
 
 
 def build_server_parameters(config: OpenBnBServerConfig) -> StdioServerParameters:

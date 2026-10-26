@@ -24,6 +24,7 @@ from gateway.travel.errors import TravelGatewayError
 
 MAX_AMENITIES = 60
 AMENITY_MAX_CHARS = 60
+MAX_AMENITY_TEXT_CHARS = 8000
 TITLE_MAX_CHARS = 120
 _NOT_INCLUDED = "not included"
 
@@ -31,7 +32,10 @@ _NOT_INCLUDED = "not included"
 def _number(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value)
+    try:
+        return float(value)
+    except (OverflowError, ValueError):
+        return None
 
 
 def _coordinates(section: Mapping[str, Any]) -> tuple[float | None, float | None]:
@@ -47,10 +51,12 @@ def _amenity_names(text: object) -> list[str]:
     if not isinstance(text, str):
         return []
     names: list[str] = []
-    for part in text.split(", "):
+    for part in text[:MAX_AMENITY_TEXT_CHARS].split(", "):
         cleaned = sanitize_text(part, max_chars=AMENITY_MAX_CHARS)
         if cleaned:
             names.append(cleaned)
+        if len(names) >= MAX_AMENITIES:
+            break
     return names
 
 

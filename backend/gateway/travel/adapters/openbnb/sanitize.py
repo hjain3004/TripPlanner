@@ -39,7 +39,7 @@ _PHRASES = re.compile(
     r"|\b(?:card|account|passport) number\b"
     r"|\bforward (?:everything|all)\b"
 )
-_MARKUP = re.compile(r"<[^>]*>")
+_MARKUP = re.compile(r"<[^<>]{0,200}>")  # bounded: linear on hostile "<<<<..." input
 _LINK = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
 
 
@@ -57,18 +57,30 @@ def _is_injection(text: str) -> bool:
     return _PHRASES.search(words) is not None
 
 
+def _readings(text: str) -> list[str]:
+    """Every reading an attacker could be relying on: invisible characters and markup/links
+    each either vanish or act as a space. A marker split or joined by any of them is seen."""
+    readings: list[str] = []
+    for invisible in ("", " "):
+        base = _strip_invisible(text, invisible)
+        readings.append(base)
+        for markup in ("", " "):
+            readings.append(_LINK.sub(markup, _MARKUP.sub(markup, base)))
+    return readings
+
+
 def sanitize_text(text: str | None, *, max_chars: int) -> str | None:
     """Return bounded, markup-free text, ``REDACTED`` for injection, or ``None`` if empty."""
     if text is None:
         return None
-    cleaned = _strip_invisible(text).strip()
-    if not cleaned:
+    # Bound the work before any regex runs: only text that could survive into the bounded
+    # output matters, and a hostile 512 KB string must not stall the event loop.
+    text = text[: max(max_chars * 8, 2000)]
+    if not _strip_invisible(text).strip():
         return None
-    # An invisible character can hide a marker either by splitting a word or by joining
-    # two; test both readings.
-    if _is_injection(cleaned) or _is_injection(_strip_invisible(text, " ")):
+    if any(_is_injection(reading) for reading in _readings(text)):
         return REDACTED[:max_chars]
-    cleaned = _LINK.sub(" ", _MARKUP.sub("", cleaned))
+    cleaned = _LINK.sub(" ", _MARKUP.sub("", _strip_invisible(text).strip()))
     cleaned = _WHITESPACE.sub(" ", cleaned).strip()
     if not cleaned:
         return None

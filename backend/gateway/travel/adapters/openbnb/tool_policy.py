@@ -95,7 +95,7 @@ def validate_tool_arguments(tool_name: str, arguments: Mapping[str, Any]) -> dic
     key with a bad value is an ``invalid_response`` (the request builder is at fault).
     """
     assert_tool_allowed(tool_name)
-    unexpected = sorted(set(arguments) - _ARGUMENTS_BY_TOOL[tool_name])
+    unexpected = sorted(str(key) for key in set(arguments) - _ARGUMENTS_BY_TOOL[tool_name])
     if unexpected:
         raise TravelGatewayError(
             "permission_denied",

@@ -39,11 +39,19 @@ MAX_BREAKDOWN_ITEMS = 12
 
 _CODES = "|".join(sorted(_EXPONENT))
 _SYMBOL_ALT = "|".join(re.escape(s) for s in sorted(_SYMBOLS, key=len, reverse=True))
+# ASCII digits only (``\d`` would accept other scripts' digits). A symbol or code must not be
+# the tail of a longer one ("CA$", "MX$", "R$" are not "A$"/"$"), hence the left boundary.
 _PREFIX_TOKEN = re.compile(
-    rf"(?P<neg>-)?(?P<cur>{_SYMBOL_ALT}|(?:{_CODES})\s?)\s?(?P<num>\d[\d,.]*)"
+    rf"(?<![A-Za-z])(?P<neg>-)?(?P<cur>{_SYMBOL_ALT}|(?:{_CODES})\s?)\s?(?P<num>[0-9][0-9,.]*)"
 )
-_SUFFIX_TOKEN = re.compile(rf"(?<![\w$€£₹¥,.])(?P<num>\d[\d,.]*)\s?(?P<cur>{_CODES})\b")
-_NUMBER = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")
+_SUFFIX_TOKEN = re.compile(rf"(?<![\w$€£₹¥,.])(?P<num>[0-9][0-9,.]*)\s?(?P<cur>{_CODES})\b")
+_NUMBER = re.compile(r"[0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]+)?|[0-9]+(?:\.[0-9]+)?")
+# What may not follow a number: more digits after a group separator or space (a truncated
+# "1 234"), a range ("500-600", "500 to 600") or an exponent ("1e3").
+_BAD_TAIL = re.compile(
+    r"[\s\u00a0\u202f’'‘.,\-\u2013\u2014/]*[0-9]|[eE][+-]?[0-9]|\s+to\s+[0-9]", re.IGNORECASE
+)
+MAX_NUMBER_CHARS = 20
 
 PriceKind = Literal[
     "stay_total",
@@ -94,9 +102,11 @@ class _Token:
 
 def _to_minor(number: str, currency: str | None) -> int:
     cleaned = number.rstrip(",.")
-    if _NUMBER.fullmatch(cleaned) is None:
+    if len(cleaned) > MAX_NUMBER_CHARS or _NUMBER.fullmatch(cleaned) is None:
         raise _Invalid("malformed number")
     exponent = _EXPONENT.get(currency, 2) if currency else 2
+    if "." in cleaned and len(cleaned.split(".", 1)[1]) > exponent:
+        raise _Invalid("more precision than the currency allows")
     try:
         scaled = Decimal(cleaned.replace(",", "")) * (Decimal(10) ** exponent)
     except InvalidOperation:  # pragma: no cover - guarded by the regex above
@@ -114,6 +124,8 @@ def _scan(text: str, bare_dollar_currency: str | None) -> list[_Token]:
     for match in _PREFIX_TOKEN.finditer(text):
         if match.group("neg"):
             raise _Invalid("negative amount")
+        if _BAD_TAIL.match(text, match.end()):
+            raise _Invalid("number is truncated or part of a range")
         symbol = match.group("cur")
         currency = _SYMBOLS[symbol] if symbol in _SYMBOLS else symbol.strip()
         if symbol == "$":
@@ -131,6 +143,8 @@ def _scan(text: str, bare_dollar_currency: str | None) -> list[_Token]:
         if any(t.start <= match.start() < t.end for t in tokens):
             continue
         currency = match.group("cur")
+        if _BAD_TAIL.match(text, match.end()):
+            raise _Invalid("number is truncated or part of a range")
         tokens.append(
             _Token(
                 match.start(),
@@ -168,7 +182,7 @@ def classify_price_label(
     lowered = label.casefold()
     nights_match = _FOR_NIGHTS.search(lowered)
     is_total = _TOTAL.search(lowered) is not None or nights_match is not None
-    is_nightly = _NIGHTLY.search(lowered) is not None and nights_match is None
+    is_nightly = _NIGHTLY.search(lowered) is not None
     if is_total and is_nightly:
         return PriceLabel("ambiguous")
     if not is_total and not is_nightly:
@@ -218,6 +232,8 @@ def _item_pairs(value: object) -> list[tuple[str, str]] | None:
     else:
         return None
     if not pairs or len(pairs) > MAX_BREAKDOWN_ITEMS:
+        return None
+    if any(len(description) > 80 or len(price) > 40 for description, price in pairs):
         return None
     return pairs
 

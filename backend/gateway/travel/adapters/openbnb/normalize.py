@@ -18,9 +18,11 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
+from urllib.parse import urlencode, urlsplit
 
 from pydantic import ValidationError
 
@@ -110,7 +112,10 @@ def _check_search_url(url: object, request: HotelSearchRequest) -> tuple[str, bo
                 "invalid_response", f"OpenBnB search URL does not match the requested {key}"
             )
     assert isinstance(url, str)
-    return url, verified
+    # Keep only the parameters just verified: provider-chosen extras are not stored.
+    parts = urlsplit(url)
+    kept = urlencode({key: params[key] for key in expected if key in params})
+    return f"{parts.scheme}://{parts.netloc}{parts.path}?{kept}", verified
 
 
 def _rating(label: str | None) -> tuple[int | None, int | None]:
@@ -157,7 +162,9 @@ def _choose_price(
     if totals:
         if len({label.money for label in totals}) > 1:
             return None, "price_ambiguous", None
-        return totals[0], None, None
+        # The same total stated twice: a caveat on either statement applies to both.
+        merged = replace(totals[0], before_taxes=any(label.before_taxes for label in totals))
+        return merged, None, None
     nightly = next((label.money for label in labels if label.kind == "nightly"), None)
     if nightly is not None:
         return None, "price_nightly_only", nightly
