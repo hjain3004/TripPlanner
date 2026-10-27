@@ -13,6 +13,9 @@ class UnresolvedValueError(ValueError):
     """The source notation is unsupported or ambiguous."""
 
 
+_MAX_INTEGER_DIGITS = 24
+
+
 def _text(raw: Any) -> str:
     if isinstance(raw, bool) or raw is None:
         raise UnresolvedValueError("value is missing or boolean")
@@ -68,12 +71,19 @@ def _normalize_number(text: str, raw: Any) -> str:
             ):
                 raise UnresolvedValueError(f"unsupported numeric notation: {raw!r}")
         integer = "".join(groups)
+    if len(integer.lstrip("0")) > _MAX_INTEGER_DIGITS:
+        raise UnresolvedValueError(f"numeric value exceeds supported bounds: {raw!r}")
 
     return f"{sign}{integer}{separator}{fraction}" if separator else f"{sign}{integer}"
 
 
 def _scaled(value: Decimal, scale: int) -> int:
-    result = (value * scale).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    if value < 0:
+        raise UnresolvedValueError("financial values cannot be negative")
+    try:
+        result = (value * scale).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    except (InvalidOperation, OverflowError, ValueError) as error:
+        raise UnresolvedValueError("financial value exceeds supported bounds") from error
     if result < 0:
         raise UnresolvedValueError("financial values cannot be negative")
     return int(result)
@@ -123,6 +133,8 @@ def parse_date_value(raw: Any) -> date:
         return raw
     text = _text(raw)
     try:
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text) is None:
+            raise ValueError("date must use extended ISO form")
         return date.fromisoformat(text)
     except ValueError as error:
         raise UnresolvedValueError("dates must use ISO YYYY-MM-DD notation") from error

@@ -23,7 +23,9 @@ from ingestion.extraction import FinancialExtractor
 from ingestion.parsing import (
     UnresolvedValueError,
     parse_basis_points,
+    parse_date_value,
     parse_money_minor,
+    parse_rate_micro,
     parse_ratio,
 )
 from ingestion.storage import FinancialIngestionStore
@@ -157,6 +159,59 @@ def test_deterministic_parsers_reject_ambiguous_values() -> None:
         parse_money_minor("INR 1 2")
     with pytest.raises(UnresolvedValueError):
         parse_money_minor("INR 1,23,45")
+
+
+def test_parser_rejects_oversized_values_without_decimal_leaking() -> None:
+    for parser, raw in (
+        (parse_money_minor, "1" * 27),
+        (parse_rate_micro, "1" * 23),
+        (parse_basis_points, "1" * 27 + "bp"),
+    ):
+        with pytest.raises(UnresolvedValueError):
+            parser(raw)
+
+
+def test_parser_rejects_negative_values_before_rounding() -> None:
+    with pytest.raises(UnresolvedValueError):
+        parse_money_minor("-0.001")
+    with pytest.raises(UnresolvedValueError):
+        parse_rate_micro("-0.000001")
+    with pytest.raises(UnresolvedValueError):
+        parse_basis_points("-0.001%")
+
+
+def test_date_parser_requires_extended_iso_date_for_text() -> None:
+    assert parse_date_value("2026-10-26") == date(2026, 10, 26)
+    assert parse_date_value(date(2026, 10, 26)) == date(2026, 10, 26)
+    for raw in ("20261026", "2026-W01-1", "2026W011"):
+        with pytest.raises(UnresolvedValueError):
+            parse_date_value(raw)
+
+
+def test_oversized_extraction_fails_without_audit_or_proposal_write(tmp_path: Path) -> None:
+    store, snap, current, artifacts = setup(tmp_path)
+    row = current.model_dump(mode="json")
+    row["annual_fee_minor"] = 1
+    payload = response(snap, row)
+    payload["fields"][0]["proposed_raw_value"] = "1" * 27
+    client = ScriptedLLMClient({"financial_extractor": [payload]})
+    before = store.list_audit_events()
+
+    outcome = FinancialExtractor(
+        client=client, store=store, artifacts=artifacts, now=lambda: NOW
+    ).extract(
+        target_table="cards",
+        target_id=current.id,
+        current_row=current.model_dump(mode="json"),
+        current_row_hash=None,
+        snapshot=snap,
+        diff=diff_text("old", snap.canonical_markdown),
+        client_event_id="event-oversized-money",
+    )
+
+    assert outcome.status == "invalid_response"
+    assert outcome.proposal is None
+    assert store.list_audit_events() == before
 
 
 def test_malformed_money_notation_cannot_form_a_proposal(tmp_path: Path) -> None:
