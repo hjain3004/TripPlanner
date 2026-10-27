@@ -195,6 +195,8 @@ class PdfProcessRunner:
     # ------------------------------------------------------------------ sync execution
 
     def _run_sync(self, payload: bytes, *, reply_limit: int, timeout: float) -> bytes:
+        if timeout <= 0:
+            raise TimeoutError("PDF parser deadline has expired")
         deadline = time.monotonic() + timeout
         self._acquire_sync(deadline)
         process: subprocess.Popen[bytes] | None = None
@@ -287,6 +289,8 @@ class PdfProcessRunner:
     # ------------------------------------------------------------------ async execution
 
     async def _run_async(self, payload: bytes, *, reply_limit: int, timeout: float) -> bytes:
+        if timeout <= 0:
+            raise TimeoutError("PDF parser deadline has expired")
         deadline = time.monotonic() + timeout
         await self._acquire_async(deadline)
         process: asyncio.subprocess.Process | None = None

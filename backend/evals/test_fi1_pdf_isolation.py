@@ -415,6 +415,14 @@ def test_waiting_for_a_slot_respects_the_deadline_and_spawns_nothing(tmp_path: P
     assert one_slot.live_count() == 0
 
 
+def test_expired_direct_deadline_does_not_start_a_child() -> None:
+    runner = PdfProcessRunner(search_paths=[STUB])
+    with pytest.raises(TimeoutError):
+        runner.canonicalize(doc("ok", "unused"), max_chars=100, max_pages=1, timeout_seconds=0)
+    assert runner.spawned_pids == []
+    assert runner.live_count() == 0
+
+
 def test_a_failed_request_releases_its_slot(mode: str) -> None:
     one_slot = PdfProcessRunner(max_concurrent=1, search_paths=[STUB])
     for _ in range(3):

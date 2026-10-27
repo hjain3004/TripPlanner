@@ -73,9 +73,10 @@ gateway, scripts, evals): no other caller of `pdfplumber`, `canonicalize_pdf` or
 
 **Guarantees** (each demonstrated against real processes, below): a hung or busy parser is
 killed even if it ignores SIGTERM; the child is reaped (no zombie); a grandchild the parser
-spawned dies with it; a cancelled or timed-out parse produces no result, no stored artifact
-and no side effect after the deadline; concurrent requests never exceed the bound; a failing
-request releases its slot.
+spawned in the worker's process group dies with it; a cancelled or timed-out parse produces no
+result, no stored artifact, and no parent-visible output after the deadline; concurrent requests
+never exceed the bound; a failing request releases its slot. A descendant that deliberately
+creates a new session is outside process-group cleanup and is not claimed to be contained.
 
 **Does not guarantee:**
 - **It is not an OS security sandbox.** The child runs as the same user with the same

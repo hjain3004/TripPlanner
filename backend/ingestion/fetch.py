@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib.metadata
 import mimetypes
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -65,6 +66,7 @@ class ManualUploadBackend:
         self.preflight = preflight or SourcePreflight()
 
     async def fetch(self, request: FetchRequest) -> FetchResult:
+        deadline = time.monotonic() + request.timeout_seconds
         decision = self.preflight.check(request, self.policy, robots=self.robots, manual=True)
         if not decision.allowed:
             return _failure(
@@ -79,8 +81,11 @@ class ManualUploadBackend:
                     FetchFailureKind.INVALID_RESPONSE,
                     "manual upload exceeds byte bound",
                 )
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError
             data = await asyncio.wait_for(
-                asyncio.to_thread(self.upload_path.read_bytes), timeout=request.timeout_seconds
+                asyncio.to_thread(self.upload_path.read_bytes), timeout=remaining
             )
         except OSError as error:
             return _failure(
@@ -100,12 +105,15 @@ class ManualUploadBackend:
             )
         media_type = mimetypes.guess_type(self.upload_path.name)[0] or "text/plain"
         try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError
             normalized = await acanonicalize_content(
                 data,
                 media_type=media_type,
                 max_chars=request.max_bytes,
                 max_pages=request.max_pages,
-                timeout_seconds=request.timeout_seconds,
+                timeout_seconds=remaining,
             )
         except TimeoutError:
             return _failure(
@@ -182,7 +190,7 @@ class Crawl4AIBackend:
             return markdown
         return str(getattr(markdown, "fit_markdown", None) or getattr(markdown, "raw_markdown", ""))
 
-    async def _crawl(self, request: FetchRequest, url: str) -> Any:
+    async def _crawl(self, request: FetchRequest, url: str, *, timeout_seconds: float) -> Any:
         if self.crawler_factory is not None:
             crawler = self.crawler_factory(None)
         else:
@@ -205,7 +213,7 @@ class Crawl4AIBackend:
                 check_robots_txt=True,
                 excluded_tags=["script", "style", "noscript", "nav", "footer"],
                 max_retries=0,
-                page_timeout=request.timeout_seconds * 1000,
+                page_timeout=timeout_seconds * 1000,
                 word_count_threshold=1,
             )
             crawler = AsyncWebCrawler(config=browser_config)
@@ -213,6 +221,7 @@ class Crawl4AIBackend:
             return await active.arun(url=url, config=locals().get("run_config"))
 
     async def fetch(self, request: FetchRequest) -> FetchResult:
+        deadline = time.monotonic() + request.timeout_seconds
         if self.crawler_factory is None and self.preflight.resolve_host is None:
             return _failure(
                 request.request_id,
@@ -240,8 +249,12 @@ class Crawl4AIBackend:
                 )
             self._last_dispatch[host] = started
         try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError
             result = await asyncio.wait_for(
-                self._crawl(request, decision.canonical_url), timeout=request.timeout_seconds
+                self._crawl(request, decision.canonical_url, timeout_seconds=remaining),
+                timeout=remaining,
             )
         except TimeoutError:
             return _failure(
@@ -323,12 +336,15 @@ class Crawl4AIBackend:
         try:
             if is_pdf_media_type(media_type):
                 # Never parse a PDF inline: it runs in a killable child under a deadline.
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError
                 normalized = await acanonicalize_content(
                     raw_data,
                     media_type=media_type,
                     max_chars=request.max_bytes,
                     max_pages=request.max_pages,
-                    timeout_seconds=request.timeout_seconds,
+                    timeout_seconds=remaining,
                 )
             else:
                 normalized = canonicalize_content(

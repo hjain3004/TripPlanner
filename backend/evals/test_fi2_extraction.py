@@ -25,6 +25,7 @@ from ingestion.parsing import (
     parse_basis_points,
     parse_date_value,
     parse_money_minor,
+    parse_points,
     parse_rate_micro,
     parse_ratio,
 )
@@ -169,6 +170,18 @@ def test_parser_rejects_oversized_values_without_decimal_leaking() -> None:
     ):
         with pytest.raises(UnresolvedValueError):
             parser(raw)
+    for raw in (int("1" * 25), "1" * 25 + ":1", "1." + "1" * 25):
+        with pytest.raises(UnresolvedValueError):
+            parser = (
+                parse_points
+                if isinstance(raw, int)
+                else parse_ratio
+                if ":" in raw
+                else parse_money_minor
+            )
+            parser(raw)
+    with pytest.raises(UnresolvedValueError):
+        parse_points(10**5000)
 
 
 def test_parser_rejects_negative_values_before_rounding() -> None:

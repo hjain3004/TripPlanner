@@ -14,6 +14,7 @@ class UnresolvedValueError(ValueError):
 
 
 _MAX_INTEGER_DIGITS = 24
+_MAX_FRACTION_DIGITS = 24
 
 
 def _text(raw: Any) -> str:
@@ -73,6 +74,8 @@ def _normalize_number(text: str, raw: Any) -> str:
         integer = "".join(groups)
     if len(integer.lstrip("0")) > _MAX_INTEGER_DIGITS:
         raise UnresolvedValueError(f"numeric value exceeds supported bounds: {raw!r}")
+    if len(fraction) > _MAX_FRACTION_DIGITS:
+        raise UnresolvedValueError(f"numeric value exceeds supported bounds: {raw!r}")
 
     return f"{sign}{integer}{separator}{fraction}" if separator else f"{sign}{integer}"
 
@@ -98,9 +101,17 @@ def parse_money_minor(raw: Any) -> int:
     return _scaled(_decimal(text), 100)
 
 
+def _bounded_integer(raw: int, *, label: str) -> int:
+    if raw < 0:
+        raise UnresolvedValueError(f"{label} must be non-negative")
+    if raw >= 10**_MAX_INTEGER_DIGITS:
+        raise UnresolvedValueError("numeric value exceeds supported bounds")
+    return raw
+
+
 def parse_basis_points(raw: Any) -> int:
     if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
-        return raw
+        return _bounded_integer(raw, label="basis points")
     text = _text(raw).lower()
     if text.endswith("bp"):
         return _scaled(_decimal(text[:-2].strip()), 1)
@@ -111,7 +122,7 @@ def parse_basis_points(raw: Any) -> int:
 
 def parse_points(raw: Any) -> int:
     if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
-        return raw
+        return _bounded_integer(raw, label="points")
     text = _text(raw).lower()
     text = re.sub(r"\s*(?:points?|pts?)\s*$", "", text)
     value = _decimal(text)
@@ -123,9 +134,16 @@ def parse_points(raw: Any) -> int:
 def parse_ratio(raw: Any) -> tuple[int, int]:
     text = _text(raw)
     match = re.fullmatch(r"(\d+)\s*[:/]\s*(\d+)", text)
-    if match is None or int(match.group(1)) <= 0 or int(match.group(2)) <= 0:
+    if match is None:
         raise UnresolvedValueError("ratio must be two positive integers")
-    return int(match.group(1)), int(match.group(2))
+    try:
+        left = _bounded_integer(int(match.group(1)), label="ratio")
+        right = _bounded_integer(int(match.group(2)), label="ratio")
+    except (ValueError, UnresolvedValueError) as error:
+        raise UnresolvedValueError("ratio must be two positive integers") from error
+    if left <= 0 or right <= 0:
+        raise UnresolvedValueError("ratio must be two positive integers")
+    return left, right
 
 
 def parse_date_value(raw: Any) -> date:
@@ -142,7 +160,7 @@ def parse_date_value(raw: Any) -> date:
 
 def parse_rate_micro(raw: Any) -> int:
     if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
-        return raw
+        return _bounded_integer(raw, label="rate")
     text = _text(raw)
     text = re.sub(r"^(?:₹|Rs\.?|INR|USD|AED|SGD)\s*", "", text, flags=re.I)
     return _scaled(_decimal(text), 1_000_000)
