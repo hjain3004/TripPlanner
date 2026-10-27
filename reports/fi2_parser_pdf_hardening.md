@@ -41,9 +41,12 @@ crawling, credentials, provider/model activation, or spending occurred.
 `make seed PY=.venv/bin/python` seeded 42 rows. The complete backend suite from `backend/` with
 regional catalogs required passed **2702 tests**, **1 skipped**, and emitted 3 warnings on the
 final committed tree. Focused FI1/FI2 tests passed **102 tests** after the fix pass. Strict mypy
-passed for 199 source files plus 19 ingestion files. Ruff reported 8 pre-existing core/api
-findings against a ceiling of 12; all zero-tolerance scopes were clean. The exact final `make gate`
-passed with `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, and `TREE_CLEAN`.
+passed for 199 source files plus 19 ingestion files. All zero-tolerance Ruff scopes were clean.
+A direct scoped `core/`/`api/` Ruff check measured 9 pre-existing findings against the ceiling of
+12. The Makefile's legacy counter printed 0 in this environment because the installed Ruff emits
+those diagnostics on a stream the counter does not capture; the measured direct count is the
+authoritative ceiling evidence. The exact final `make gate` passed with `GOLDENS_OK`,
+`CONTRACT_OK`, `BRIEFS_IDENTICAL`, and `TREE_CLEAN` using only a writable temporary mypy cache.
 Ruff passed all zero-tolerance scopes and the existing legacy ceiling was checked separately.
 Frontend, OpenAPI, seeds, financial goldens, Tier-F arithmetic, and authoritative specs were not
 modified.
