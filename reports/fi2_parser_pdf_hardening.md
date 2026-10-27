@@ -39,18 +39,21 @@ crawling, credentials, provider/model activation, or spending occurred.
 ## Verification evidence
 
 `make seed PY=.venv/bin/python` seeded 42 rows. The complete backend suite from `backend/` with
-regional catalogs required passed **2701 tests**, **1 skipped**, and emitted 8 warnings before the
-review fix pass. Focused FI1/FI2 tests passed **102 tests** after the fix pass. Strict mypy passed
-for 199 source files plus 19 ingestion files.
+regional catalogs required passed **2702 tests**, **1 skipped**, and emitted 3 warnings on the
+final committed tree. Focused FI1/FI2 tests passed **102 tests** after the fix pass. Strict mypy
+passed for 199 source files plus 19 ingestion files. Ruff reported 8 pre-existing core/api
+findings against a ceiling of 12; all zero-tolerance scopes were clean. The exact final `make gate`
+passed with `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, and `TREE_CLEAN`.
 Ruff passed all zero-tolerance scopes and the existing legacy ceiling was checked separately.
 Frontend, OpenAPI, seeds, financial goldens, Tier-F arithmetic, and authoritative specs were not
 modified.
 
 ## Independent review
 
-The first independent review found two Important issues (numeric fast-path bounds and per-phase PDF
-deadline reset); both were fixed test-first. The follow-up review and exact final gate disposition
-are recorded before landing. No Critical finding was reported.
+The independent whole-branch review reported no Critical findings. It found Important issues in
+numeric fast-path/ratio bounds and per-phase PDF deadline accounting; both were fixed test-first.
+The follow-up also caught the typed `10**5000` formatting edge, which was fixed before the final
+focused run. Minor documentation drift and the process-group guarantee wording were corrected.
 
 ## Limitations and exclusions
 
