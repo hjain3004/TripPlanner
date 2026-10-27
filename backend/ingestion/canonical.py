@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
 import html
-import io
 import re
 import unicodedata
 from html.parser import HTMLParser
@@ -86,27 +86,43 @@ def canonicalize_html(data: bytes, *, max_chars: int) -> str:
     return _normalize_lines("".join(parser.parts), max_chars=max_chars)
 
 
-def canonicalize_pdf(data: bytes, *, max_chars: int, max_pages: int) -> str:
-    try:
-        pdfplumber = __import__("pdfplumber")
-    except ImportError as error:
-        raise UnsupportedContentError(
-            "PDF canonicalization requires the optional ingestion-local extra"
-        ) from error
-    try:
-        with pdfplumber.open(io.BytesIO(data)) as document:
-            if len(document.pages) > max_pages:
-                raise ContentLimitError(f"PDF exceeds {max_pages} page limit")
-            text = "\n".join(page.extract_text() or "" for page in document.pages)
-    except ContentLimitError:
-        raise
-    except Exception as error:
-        raise UnsupportedContentError("PDF could not be parsed safely") from error
-    return _normalize_lines(text, max_chars=max_chars)
+def is_pdf_media_type(media_type: str) -> bool:
+    return media_type.split(";", 1)[0].lower().strip() == "application/pdf"
+
+
+def canonicalize_pdf(
+    data: bytes, *, max_chars: int, max_pages: int, timeout_seconds: float | None = None
+) -> str:
+    """Parse a PDF in a killable child process (see ``ingestion.pdf_isolation``).
+
+    Raises ``TimeoutError`` if the deadline passes; the parser is already dead and reaped
+    when that happens. Imported lazily because the isolation module imports this one.
+    """
+    from ingestion.pdf_isolation import get_default_runner
+
+    return get_default_runner().canonicalize(
+        data, max_chars=max_chars, max_pages=max_pages, timeout_seconds=timeout_seconds
+    )
+
+
+async def acanonicalize_pdf(
+    data: bytes, *, max_chars: int, max_pages: int, timeout_seconds: float | None = None
+) -> str:
+    """Async twin of ``canonicalize_pdf``; caller cancellation also kills the child."""
+    from ingestion.pdf_isolation import get_default_runner
+
+    return await get_default_runner().acanonicalize(
+        data, max_chars=max_chars, max_pages=max_pages, timeout_seconds=timeout_seconds
+    )
 
 
 def canonicalize_content(
-    data: bytes, *, media_type: str, max_chars: int, max_pages: int = 1
+    data: bytes,
+    *,
+    media_type: str,
+    max_chars: int,
+    max_pages: int = 1,
+    pdf_timeout_seconds: float | None = None,
 ) -> str:
     normalized_type = media_type.split(";", 1)[0].lower().strip()
     if normalized_type in {"text/html", "application/xhtml+xml"}:
@@ -117,5 +133,32 @@ def canonicalize_content(
         except UnicodeDecodeError as error:
             raise UnsupportedContentError("text content must be valid UTF-8") from error
     if normalized_type == "application/pdf":
-        return canonicalize_pdf(data, max_chars=max_chars, max_pages=max_pages)
+        return canonicalize_pdf(
+            data, max_chars=max_chars, max_pages=max_pages, timeout_seconds=pdf_timeout_seconds
+        )
     raise UnsupportedContentError(f"unsupported content type: {normalized_type}")
+
+
+async def acanonicalize_content(
+    data: bytes,
+    *,
+    media_type: str,
+    max_chars: int,
+    max_pages: int = 1,
+    timeout_seconds: float | None = None,
+) -> str:
+    """Normalize without blocking the event loop, bounded by ``timeout_seconds``.
+
+    PDFs use the killable child process. Other types keep their existing behaviour: a worker
+    thread under ``wait_for``, which is safe because those parsers are pure and bounded.
+    """
+    if is_pdf_media_type(media_type):
+        return await acanonicalize_pdf(
+            data, max_chars=max_chars, max_pages=max_pages, timeout_seconds=timeout_seconds
+        )
+    work = asyncio.to_thread(
+        canonicalize_content, data, media_type=media_type, max_chars=max_chars, max_pages=max_pages
+    )
+    if timeout_seconds is None:
+        return await work
+    return await asyncio.wait_for(work, timeout=timeout_seconds)
