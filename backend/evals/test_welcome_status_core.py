@@ -252,6 +252,8 @@ def test_trip_inside_the_window_could_count_but_is_never_called_confirmed(
     # There is no field or assessment that asserts confirmed qualifying spend.
     assert {line.assessment for line in report.lines} == {"could_count_if_paid_by_close"}
     assert any("never as confirmed" in note for note in report.assumptions)
+    # The user's prior figure must not already include this plan's bookings.
+    assert any("count that spend twice" in note for note in report.assumptions)
 
 
 def test_on_trip_spend_after_the_window_does_not_count(kb: KnowledgeBase) -> None:
@@ -349,6 +351,10 @@ def test_a_currency_mismatch_counts_nothing_instead_of_converting(kb: KnowledgeB
     assert report.conditional_trip_spend_minor == 0
     assert report.lines[0].assessment == "currency_mismatch"
     assert "CURRENCY_MISMATCH" in _codes(report)
+    # Unattributable spend leaves the trip-dependent conclusions unknown, not False / full.
+    assert report.trip_alone_clears_minimum_if_conditions_hold is None
+    assert report.shortfall_after_conditional_trip_minor is None
+    assert report.shortfall_minor == 5_000_000
 
 
 def test_two_entries_for_one_product_attribute_no_spend_to_either(kb: KnowledgeBase) -> None:
@@ -356,6 +362,8 @@ def test_two_entries_for_one_product_attribute_no_spend_to_either(kb: KnowledgeB
     assert report.conditional_trip_spend_minor == 0
     assert {line.assessment for line in report.lines} == {"ambiguous_card_entry"}
     assert "DUPLICATE_CARD_ENTRIES" in _codes(report)
+    assert report.trip_alone_clears_minimum_if_conditions_hold is None
+    assert report.shortfall_after_conditional_trip_minor is None
 
 
 def test_a_card_the_plan_never_used_reports_zero_and_says_why(kb: KnowledgeBase) -> None:

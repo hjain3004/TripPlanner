@@ -674,20 +674,47 @@ export function savedTripErrorHandler(
 // With no approved offer data shipped, the real route answers `unknown` /
 // NO_APPROVED_OFFER, so that is what this mock answers: it never invents a window, a
 // shortfall or a bonus. Wallet entry, trip and revision are resolved against the same
-// stateful mocks the wallet and saved-trip routes use, with the same typed 404s.
+// stateful mocks the wallet and saved-trip routes use, with the same typed not-found errors.
 
 function welcomeError(status: number, code: WelcomeStatusApiErrorBody["code"], message: string) {
   return HttpResponse.json({ detail: { code, message } }, { status });
 }
 
-/** This card's assigned spend in a stored mock report, read the way the API reads it. */
-function mswCardSpend(report: RevisionOut["report"], cardId: string): number {
-  const result = report.optimizer_result as
-    | { assignments?: { card_id?: string; line?: { amount_minor?: number } }[] }
-    | undefined;
-  return (result?.assignments ?? [])
-    .filter((a) => a.card_id === cardId)
-    .reduce((sum, a) => sum + (a.line?.amount_minor ?? 0), 0);
+interface MswStoredAssignment {
+  card_id?: string;
+  channel?: string;
+  offers_applied?: { discount_minor?: number }[];
+  line?: { id?: string; label?: string; category?: string; amount_minor?: number; currency?: string };
+}
+
+/** This card's assigned lines in a stored mock report, read the way the API reads them. */
+function mswCardLines(report: RevisionOut["report"], cardId: string) {
+  const result = report.optimizer_result as { assignments?: MswStoredAssignment[] } | undefined;
+  const lines: WelcomeWindowReport["lines"] = [];
+  let omittedZero = 0;
+  for (const a of result?.assignments ?? []) {
+    if (a.card_id !== cardId) continue;
+    const amount = a.line?.amount_minor ?? 0;
+    if (amount === 0) {
+      omittedZero += 1;
+      continue;
+    }
+    const discounts = (a.offers_applied ?? []).reduce((sum, o) => sum + (o.discount_minor ?? 0), 0);
+    const channel = a.channel ?? "";
+    lines.push({
+      line_id: a.line?.id ?? "",
+      label: a.line?.label ?? "",
+      category: a.line?.category ?? "",
+      channel,
+      timing_basis: channel.startsWith("pos_") ? "on_trip" : "advance_booking",
+      amount_minor: amount,
+      instant_discounts_minor: discounts,
+      counted_minor: Math.max(0, amount - discounts),
+      currency: a.line?.currency ?? "INR",
+      assessment: "window_unknown",
+    });
+  }
+  return { lines, omittedZero };
 }
 
 export const WELCOME_STATUS_ERROR_FIXTURES = {
@@ -1094,7 +1121,15 @@ export const handlers = [
     const revision = record.revisions.find((r) => r.revision === body.revision);
     if (revision === undefined) return welcomeError(404, "REVISION_NOT_FOUND", "No such revision.");
     const prior = body.prior_qualifying_spend_minor ?? null;
-    const spend = mswCardSpend(revision.report, entry.card_id);
+    const { lines, omittedZero } = mswCardLines(revision.report, entry.card_id);
+    const gross = lines.reduce((sum, l) => sum + l.amount_minor, 0);
+    const counted = lines.reduce((sum, l) => sum + l.counted_minor, 0);
+    const costed = revision.report.costed_trip as
+      | { booking_date?: string; home_currency?: string }
+      | undefined;
+    const plannedWallet = (revision.report.trip_spec as { wallet?: { card_ids?: string[] } } | undefined)
+      ?.wallet?.card_ids;
+    const duplicate = mswWallet.filter((e) => e.card_id === entry.card_id).length > 1;
     const status: WelcomeWindowReport = {
       card_id: entry.card_id,
       card_name: MSW_CARD_PRODUCTS.find((p) => p.card_id === entry.card_id)?.display_name ?? null,
@@ -1107,6 +1142,33 @@ export const handlers = [
           message:
             "No approved welcome-offer terms are available for this card, so the spend window and bonus cannot be computed.",
         },
+        ...(entry.opened_on === null
+          ? [
+              {
+                code: "OPENED_ON_UNKNOWN" as const,
+                message:
+                  "This card has no recorded open date. The window is not guessed from any other data.",
+              },
+            ]
+          : []),
+        ...(duplicate
+          ? [
+              {
+                code: "DUPLICATE_CARD_ENTRIES" as const,
+                message:
+                  "More than one wallet entry holds this card product. The plan assigns spend to the product, not to one entry, so none of it is attributed here.",
+              },
+            ]
+          : []),
+        ...(plannedWallet !== undefined && !plannedWallet.includes(entry.card_id)
+          ? [
+              {
+                code: "CARD_NOT_IN_PLANNED_WALLET" as const,
+                message:
+                  "This card was not in the wallet the stored plan was computed with, so the plan assigned it no spend.",
+              },
+            ]
+          : []),
         ...(prior === null
           ? [
               {
@@ -1132,19 +1194,22 @@ export const handlers = [
         revision_computed_at: revision.computed_at,
         trip_start_date: record.summary.start_date,
         trip_end_date: record.summary.end_date,
-        plan_booking_date: record.summary.start_date,
-        currency: "INR",
+        plan_booking_date: costed?.booking_date ?? record.summary.start_date,
+        currency: costed?.home_currency ?? "INR",
       },
-      trip_assigned_spend_minor: spend,
-      trip_counted_spend_minor: spend,
+      trip_assigned_spend_minor: gross,
+      trip_counted_spend_minor: counted,
       conditional_trip_spend_minor: 0,
       shortfall_after_conditional_trip_minor: null,
       trip_alone_clears_minimum_if_conditions_hold: null,
-      omitted_zero_amount_lines: 0,
-      lines: [],
+      omitted_zero_amount_lines: omittedZero,
+      lines,
       bonus: null,
+      // Simplified: `as_of` is fixed and only the assumptions that apply with no offer
+      // are listed; the real route also lists offer-dependent ones.
       assumptions: [
         "The report describes the assignments in the stored plan. It does not change them, re-rank them, or add the welcome bonus to any plan total.",
+        "Payment timing is not observed. Spend is reported as conditional, never as confirmed qualifying.",
       ],
     };
     return HttpResponse.json(status);

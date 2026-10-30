@@ -394,11 +394,15 @@ def compute_welcome_status(
     shortfall: int | None = None
     after_trip: int | None = None
     clears: bool | None = None
+    # When spend cannot be attributed to this card (two entries for one product, or a
+    # currency the offer cannot be compared with), 0 would mean "the trip adds nothing"
+    # rather than "unknown", so the trip-dependent conclusions stay unknown.
+    attributable = not duplicate_card_entries and not mismatch
     if min_spend is not None and prior_spend_minor is not None:
         shortfall = max(0, min_spend - prior_spend_minor)
-        if window_known:
+        if window_known and attributable:
             after_trip = max(0, min_spend - prior_spend_minor - conditional)
-    if min_spend is not None and window_known:
+    if min_spend is not None and window_known and attributable:
         clears = conditional >= min_spend
 
     bonus: BonusOut | None = None
@@ -454,10 +458,10 @@ def _assumptions(
         f"Dates are evaluated as of {as_of.isoformat()} (the server's UTC date).",
         "The report describes the assignments in the stored plan. It does not change "
         "them, re-rank them, or add the welcome bonus to any plan total.",
-        "Trip spend counted is the amount the plan assigns to this card, net of instant "
-        "discounts the plan applied. Issuer-specific spend that does not count toward "
-        "a minimum (excluded categories, fees, refunds) is not modeled; check the "
-        "verbatim offer terms.",
+        "Trip spend counted is the amount the plan assigns to this card, net of the "
+        "discounts the plan applied (some may post later as credits). Issuer-specific "
+        "spend that does not count toward a minimum (excluded categories, fees, "
+        "refunds) is not modeled; check the verbatim offer terms.",
         "Payment timing is not observed. Flights, hotels, online agencies and bank "
         "portal lines are assumed paid when you book; destination (POS) lines are "
         "assumed charged within the travel dates, which can differ from posting dates. "
@@ -482,12 +486,14 @@ def _assumptions(
     else:
         notes.append(
             "Spend already made is as you entered it, in the offer's currency, and "
-            "is not verified."
+            "is not verified. It must not include this plan's bookings: the figures "
+            "that add the plan's spend to it would otherwise count that spend twice."
         )
     if bonus is not None and bonus.valuation is not None:
         notes.append(
             "A points bonus is valued with the card's best existing valuation path "
             f"({bonus.valuation.path}), using the same integer valuation as the "
-            "optimizer. That valuation may itself need verification."
+            "optimizer. That valuation is per card; the offer's own points currency "
+            "is not cross-checked against it, and it may itself need verification."
         )
     return notes

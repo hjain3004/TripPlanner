@@ -306,6 +306,8 @@ def test_two_wallet_entries_for_one_product_are_not_attributed(
     body = request_status(client, entry_id, trip_id, prior=0).json()
     assert "DUPLICATE_CARD_ENTRIES" in {item["code"] for item in body["limitations"]}
     assert body["conditional_trip_spend_minor"] == 0
+    assert body["trip_alone_clears_minimum_if_conditions_hold"] is None
+    assert body["shortfall_after_conditional_trip_minor"] is None
     assert {line["assessment"] for line in body["lines"]} == {"ambiguous_card_entry"}
 
 
