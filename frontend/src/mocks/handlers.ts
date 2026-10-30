@@ -12,6 +12,9 @@ import type {
   TripDetailOut,
   TripSummaryOut,
   UserOut,
+  WelcomeStatusApiErrorBody,
+  WelcomeStatusIn,
+  WelcomeWindowReport,
 } from "@/lib/api";
 import { createJapanVisualReport } from "./japan-visual-fixture";
 
@@ -666,6 +669,56 @@ export function savedTripErrorHandler(
   );
 }
 
+// --- Spec 18 Case A welcome-window status (mirrors api/welcome.py) -------------
+//
+// With no approved offer data shipped, the real route answers `unknown` /
+// NO_APPROVED_OFFER, so that is what this mock answers: it never invents a window, a
+// shortfall or a bonus. Wallet entry, trip and revision are resolved against the same
+// stateful mocks the wallet and saved-trip routes use, with the same typed 404s.
+
+function welcomeError(status: number, code: WelcomeStatusApiErrorBody["code"], message: string) {
+  return HttpResponse.json({ detail: { code, message } }, { status });
+}
+
+/** This card's assigned spend in a stored mock report, read the way the API reads it. */
+function mswCardSpend(report: RevisionOut["report"], cardId: string): number {
+  const result = report.optimizer_result as
+    | { assignments?: { card_id?: string; line?: { amount_minor?: number } }[] }
+    | undefined;
+  return (result?.assignments ?? [])
+    .filter((a) => a.card_id === cardId)
+    .reduce((sum, a) => sum + (a.line?.amount_minor ?? 0), 0);
+}
+
+export const WELCOME_STATUS_ERROR_FIXTURES = {
+  unauthenticated: { status: 401, detail: "Not authenticated" },
+  csrf: { status: 403, detail: "CSRF check failed" },
+  WALLET_ENTRY_NOT_FOUND: { status: 404, code: "WALLET_ENTRY_NOT_FOUND" },
+  TRIP_NOT_FOUND: { status: 404, code: "TRIP_NOT_FOUND" },
+  REVISION_NOT_FOUND: { status: 404, code: "REVISION_NOT_FOUND" },
+  REVISION_NOT_READABLE: { status: 409, code: "REVISION_NOT_READABLE" },
+  WELCOME_STATUS_UNAVAILABLE: { status: 503, code: "WELCOME_STATUS_UNAVAILABLE" },
+} as const satisfies Record<
+  string,
+  { status: number; code?: WelcomeStatusApiErrorBody["code"]; detail?: string }
+>;
+
+export type WelcomeStatusErrorFixture = keyof typeof WELCOME_STATUS_ERROR_FIXTURES;
+
+/** A one-off handler that answers the welcome-status route with a documented failure. */
+export function welcomeStatusErrorHandler(fixture: WelcomeStatusErrorFixture) {
+  const spec = WELCOME_STATUS_ERROR_FIXTURES[fixture] as {
+    status: number;
+    code?: WelcomeStatusApiErrorBody["code"];
+    detail?: string;
+  };
+  return http.post("*/account/wallet/:entryId/welcome-status", () =>
+    spec.code === undefined
+      ? HttpResponse.json({ detail: spec.detail }, { status: spec.status })
+      : welcomeError(spec.status, spec.code, "Mocked welcome-status failure."),
+  );
+}
+
 export const handlers = [
   http.post("*/auth/register", async ({ request }) => {
     const body = (await request.json()) as CredentialsIn;
@@ -1027,6 +1080,74 @@ export const handlers = [
       );
     }
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  // --- Spec 18 Case A: welcome-window status (honest "no approved offer" answer) ---
+  http.post("*/account/wallet/:entryId/welcome-status", async ({ params, request }) => {
+    const body = (await request.json()) as WelcomeStatusIn;
+    const entry = mswWallet.find((e) => e.id === params.entryId);
+    if (entry === undefined) {
+      return welcomeError(404, "WALLET_ENTRY_NOT_FOUND", "No such wallet entry.");
+    }
+    const record = mswTrips.find((t) => t.summary.id === body.trip_id);
+    if (record === undefined) return welcomeError(404, "TRIP_NOT_FOUND", "No such saved trip.");
+    const revision = record.revisions.find((r) => r.revision === body.revision);
+    if (revision === undefined) return welcomeError(404, "REVISION_NOT_FOUND", "No such revision.");
+    const prior = body.prior_qualifying_spend_minor ?? null;
+    const spend = mswCardSpend(revision.report, entry.card_id);
+    const status: WelcomeWindowReport = {
+      card_id: entry.card_id,
+      card_name: MSW_CARD_PRODUCTS.find((p) => p.card_id === entry.card_id)?.display_name ?? null,
+      wallet_entry_id: entry.id,
+      as_of: "2026-10-30",
+      status: "unknown",
+      limitations: [
+        {
+          code: "NO_APPROVED_OFFER",
+          message:
+            "No approved welcome-offer terms are available for this card, so the spend window and bonus cannot be computed.",
+        },
+        ...(prior === null
+          ? [
+              {
+                code: "PRIOR_SPEND_UNKNOWN" as const,
+                message:
+                  "Spend already made on this card in the window was not provided. It is not assumed to be zero, so the remaining spend cannot be stated.",
+              },
+            ]
+          : []),
+      ],
+      opened_on: entry.opened_on,
+      window_closes_on: null,
+      days_remaining: null,
+      offer: null,
+      ineligible_offer_count: 0,
+      min_spend_minor: null,
+      currency: null,
+      qualifying_spend_to_date_minor: prior,
+      shortfall_minor: null,
+      trip: {
+        trip_id: record.summary.id,
+        revision: revision.revision,
+        revision_computed_at: revision.computed_at,
+        trip_start_date: record.summary.start_date,
+        trip_end_date: record.summary.end_date,
+        plan_booking_date: record.summary.start_date,
+        currency: "INR",
+      },
+      trip_assigned_spend_minor: spend,
+      trip_counted_spend_minor: spend,
+      conditional_trip_spend_minor: 0,
+      shortfall_after_conditional_trip_minor: null,
+      trip_alone_clears_minimum_if_conditions_hold: null,
+      omitted_zero_amount_lines: 0,
+      lines: [],
+      bonus: null,
+      assumptions: [
+        "The report describes the assignments in the stored plan. It does not change them, re-rank them, or add the welcome bonus to any plan total.",
+      ],
+    };
+    return HttpResponse.json(status);
   }),
 
   // --- A4 saved trips ---

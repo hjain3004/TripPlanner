@@ -36,6 +36,7 @@ WORKDIR /app
 COPY core ./core
 COPY accounts ./accounts
 COPY planning ./planning
+COPY welcome ./welcome
 COPY agents ./agents
 COPY api ./api
 COPY gateway ./gateway

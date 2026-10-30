@@ -322,6 +322,29 @@ export type BackRequest = {
 };
 
 /**
+ * BonusOut
+ */
+export type BonusOut = {
+    /**
+     * Bonus Points
+     */
+    bonus_points: number | null;
+    /**
+     * Bonus Flat Minor
+     */
+    bonus_flat_minor: number | null;
+    /**
+     * Bonus Value Minor
+     */
+    bonus_value_minor: number | null;
+    /**
+     * Currency
+     */
+    currency: string;
+    valuation: ValuationOut | null;
+};
+
+/**
  * BudgetObjectivePayload
  */
 export type BudgetObjectivePayload = {
@@ -1290,6 +1313,20 @@ export type KernelResult = {
 };
 
 /**
+ * Limitation
+ */
+export type Limitation = {
+    /**
+     * Code
+     */
+    code: 'NO_APPROVED_OFFER' | 'AMBIGUOUS_OFFER' | 'OFFER_NOT_IN_FORCE_AT_OPEN_DATE' | 'OPENED_ON_UNKNOWN' | 'OPENED_ON_IN_FUTURE' | 'PRIOR_SPEND_UNKNOWN' | 'DUPLICATE_CARD_ENTRIES' | 'CARD_NOT_IN_PLANNED_WALLET' | 'CURRENCY_MISMATCH' | 'NO_POINT_VALUATION' | 'VALUATION_CURRENCY_MISMATCH';
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
  * LineAssignment
  */
 export type LineAssignment = {
@@ -1355,6 +1392,95 @@ export type MoveItem = {
      * Position
      */
     position: number;
+};
+
+/**
+ * OfferOut
+ *
+ * The offer terms the status was computed from (never paraphrased).
+ */
+export type OfferOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Bonus Points
+     */
+    bonus_points: number | null;
+    /**
+     * Bonus Currency Id
+     */
+    bonus_currency_id: string | null;
+    /**
+     * Bonus Flat Minor
+     */
+    bonus_flat_minor: number | null;
+    /**
+     * Min Spend Minor
+     */
+    min_spend_minor: number;
+    /**
+     * Spend Window Days
+     */
+    spend_window_days: number;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Valid To
+     */
+    valid_to: string;
+    /**
+     * Eligibility Exclusions
+     */
+    eligibility_exclusions: Array<string>;
+    provenance: OfferProvenanceOut;
+};
+
+/**
+ * OfferProvenanceOut
+ *
+ * Provenance of the offer terms, with the verification state made explicit.
+ */
+export type OfferProvenanceOut = {
+    /**
+     * Source Url
+     */
+    source_url: string | null;
+    /**
+     * Source Type
+     */
+    source_type: string;
+    /**
+     * Last Verified
+     */
+    last_verified: string;
+    /**
+     * Verified By
+     */
+    verified_by: string;
+    /**
+     * Needs Verification
+     */
+    needs_verification: boolean;
+    /**
+     * Confidence
+     */
+    confidence: number;
+    /**
+     * Notes
+     */
+    notes: string | null;
+    /**
+     * Verification Status
+     */
+    verification_status: 'verified' | 'needs_verification' | 'synthetic_fixture';
 };
 
 /**
@@ -3205,6 +3331,54 @@ export type TripIntakeRequest = {
 };
 
 /**
+ * TripLineTiming
+ *
+ * One of this card's assigned lines, with how its payment timing was judged.
+ */
+export type TripLineTiming = {
+    /**
+     * Line Id
+     */
+    line_id: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Channel
+     */
+    channel: string;
+    /**
+     * Timing Basis
+     */
+    timing_basis: 'advance_booking' | 'on_trip';
+    /**
+     * Amount Minor
+     */
+    amount_minor: number;
+    /**
+     * Instant Discounts Minor
+     */
+    instant_discounts_minor: number;
+    /**
+     * Counted Minor
+     */
+    counted_minor: number;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Assessment
+     */
+    assessment: 'could_count_if_paid_by_close' | 'outside_window' | 'straddles_window_unknown' | 'window_unknown' | 'currency_mismatch' | 'ambiguous_card_entry';
+};
+
+/**
  * TripSpec
  */
 export type TripSpec = {
@@ -3311,6 +3485,42 @@ export type TripSummaryOut = {
 };
 
 /**
+ * TripWindow
+ *
+ * What the stored plan says about *when*. Travel dates, not payment dates.
+ */
+export type TripWindow = {
+    /**
+     * Trip Id
+     */
+    trip_id: string;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Revision Computed At
+     */
+    revision_computed_at: string;
+    /**
+     * Trip Start Date
+     */
+    trip_start_date: string;
+    /**
+     * Trip End Date
+     */
+    trip_end_date: string;
+    /**
+     * Plan Booking Date
+     */
+    plan_booking_date: string;
+    /**
+     * Currency
+     */
+    currency: string;
+};
+
+/**
  * UserOut
  */
 export type UserOut = {
@@ -3390,6 +3600,42 @@ export type ValidationIssue = {
      * Type
      */
     type: string;
+};
+
+/**
+ * ValuationOut
+ *
+ * The existing ``PointValuation`` row a points bonus was valued with.
+ */
+export type ValuationOut = {
+    /**
+     * Valuation Id
+     */
+    valuation_id: string;
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Value Micro Major Per Point
+     */
+    value_micro_major_per_point: number;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Conditions
+     */
+    conditions: string | null;
+    /**
+     * Needs Verification
+     */
+    needs_verification: boolean;
+    /**
+     * Verified By
+     */
+    verified_by: string;
 };
 
 /**
@@ -3520,6 +3766,148 @@ export type WalletEntryPatchIn = {
      * Client Event Id
      */
     client_event_id?: string | null;
+};
+
+/**
+ * WelcomeStatusApiErrorBody
+ */
+export type WelcomeStatusApiErrorBody = {
+    /**
+     * Code
+     */
+    code: 'WALLET_ENTRY_NOT_FOUND' | 'TRIP_NOT_FOUND' | 'REVISION_NOT_FOUND' | 'REVISION_NOT_READABLE' | 'WELCOME_STATUS_UNAVAILABLE';
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
+ * WelcomeStatusErrorResponse
+ *
+ * A typed welcome-status failure as it goes over the wire (wrapped in ``detail``).
+ */
+export type WelcomeStatusErrorResponse = {
+    detail: WelcomeStatusApiErrorBody;
+};
+
+/**
+ * WelcomeStatusIn
+ *
+ * Which owned trip result to read, and the one optional figure only the user knows.
+ */
+export type WelcomeStatusIn = {
+    /**
+     * Trip Id
+     */
+    trip_id: string;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Prior Qualifying Spend Minor
+     */
+    prior_qualifying_spend_minor?: number | null;
+};
+
+/**
+ * WelcomeWindowReport
+ *
+ * Spec 18 §2's ``WelcomeWindowStatus`` plus the context spec 18 §3 requires.
+ */
+export type WelcomeWindowReport = {
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Card Name
+     */
+    card_name: string | null;
+    /**
+     * Wallet Entry Id
+     */
+    wallet_entry_id: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Status
+     */
+    status: 'active' | 'closing_soon' | 'met' | 'expired' | 'unknown';
+    /**
+     * Limitations
+     */
+    limitations: Array<Limitation>;
+    /**
+     * Opened On
+     */
+    opened_on: string | null;
+    /**
+     * Window Closes On
+     */
+    window_closes_on: string | null;
+    /**
+     * Days Remaining
+     */
+    days_remaining: number | null;
+    offer: OfferOut | null;
+    /**
+     * Ineligible Offer Count
+     */
+    ineligible_offer_count: number;
+    /**
+     * Min Spend Minor
+     */
+    min_spend_minor: number | null;
+    /**
+     * Currency
+     */
+    currency: string | null;
+    /**
+     * Qualifying Spend To Date Minor
+     */
+    qualifying_spend_to_date_minor: number | null;
+    /**
+     * Shortfall Minor
+     */
+    shortfall_minor: number | null;
+    trip: TripWindow;
+    /**
+     * Trip Assigned Spend Minor
+     */
+    trip_assigned_spend_minor: number;
+    /**
+     * Trip Counted Spend Minor
+     */
+    trip_counted_spend_minor: number;
+    /**
+     * Conditional Trip Spend Minor
+     */
+    conditional_trip_spend_minor: number;
+    /**
+     * Shortfall After Conditional Trip Minor
+     */
+    shortfall_after_conditional_trip_minor: number | null;
+    /**
+     * Trip Alone Clears Minimum If Conditions Hold
+     */
+    trip_alone_clears_minimum_if_conditions_hold: boolean | null;
+    /**
+     * Omitted Zero Amount Lines
+     */
+    omitted_zero_amount_lines: number;
+    /**
+     * Lines
+     */
+    lines: Array<TripLineTiming>;
+    bonus: BonusOut | null;
+    /**
+     * Assumptions
+     */
+    assumptions: Array<string>;
 };
 
 /**
@@ -4584,6 +4972,56 @@ export type RerunStatusAccountTripsTripIdRerunsJobIdGetResponses = {
 };
 
 export type RerunStatusAccountTripsTripIdRerunsJobIdGetResponse = RerunStatusAccountTripsTripIdRerunsJobIdGetResponses[keyof RerunStatusAccountTripsTripIdRerunsJobIdGetResponses];
+
+export type PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostData = {
+    body: WelcomeStatusIn;
+    path: {
+        /**
+         * Entry Id
+         */
+        entry_id: string;
+    };
+    query?: never;
+    url: '/account/wallet/{entry_id}/welcome-status';
+};
+
+export type PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: WelcomeStatusErrorResponse;
+    /**
+     * Conflict
+     */
+    409: WelcomeStatusErrorResponse;
+    /**
+     * Unprocessable Content
+     */
+    422: RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: WelcomeStatusErrorResponse;
+};
+
+export type PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostError = PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostErrors[keyof PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostErrors];
+
+export type PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: WelcomeWindowReport;
+};
+
+export type PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostResponse = PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostResponses[keyof PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostResponses];
 
 export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetData = {
     body?: never;
