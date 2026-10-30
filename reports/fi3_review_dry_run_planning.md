@@ -1,104 +1,90 @@
 # FI3 — Human Review and Activation Dry-Run: Planning Report
 
-**Status:** planning complete; documentation only. FI3 implementation has not started.
-**Date:** 2026-10-26
-**Branch:** `codex/fi3-review-dry-run-plan`
-**Base:** `c925d98077dd94a1f24d7c312243bfcee78f2d3c` (FI2). This is `origin/main` `6428b78`
-plus six FI2 commits, and it is not yet an ancestor of `origin/main`. The plan is provisional
-against it.
+**Status:** planning only; FI3 is not implemented.
+**Branch:** `codex/fi3-review-dry-run-plan`.
+**Checked against:** `main` at `6f0859b146f69d0a6f55e3a3c9ac1146353f455e` (PR #20, FI2 parser and
+PDF hardening, on top of PR #19 `3471747`).
+**Revisions:** the first revision (2026-10-26, commit `664de1f`) was written against `c925d98`;
+this revision (2026-10-29) corrects it against current `main`.
 
 ## Deliverables
 
 | Document | Purpose |
 |---|---|
-| [`docs/superpowers/specs/2026-10-26-fi3-review-activation-dry-run-design.md`](../docs/superpowers/specs/2026-10-26-fi3-review-activation-dry-run-design.md) | Design: boundary, identity, review context, decisions, bundles, threat matrix, open decisions, recheck list |
-| [`docs/superpowers/plans/2026-10-26-fi3-review-activation-dry-run.md`](../docs/superpowers/plans/2026-10-26-fi3-review-activation-dry-run.md) | Test-first plan: Task 0 recheck plus 9 tasks, with interfaces and named tests |
-| `DEVIATIONS.md` | Three Tier-C planning entries under "FI3 — Review and activation dry-run planning" |
+| [Design](../docs/superpowers/specs/2026-10-26-fi3-review-activation-dry-run-design.md) | Outcome, boundary, review context, decisions, bundle, requirement → test map, decisions |
+| [Plan](../docs/superpowers/plans/2026-10-26-fi3-review-activation-dry-run.md) | Task 0 plus Tasks 1–9; Checkpoint A (CLI workflow, Tasks 1–6) before Checkpoint B (loopback UI, Tasks 7–9) |
 
-## What was read
+## Target outcome
 
-- `AGENTS.md`/`CLAUDE.md` (identical) and the `DEVIATIONS.md` sections for FI0, FI1, and FI2.
-- The FI0, FI1, and FI2 reports.
-- Specs 05, 06, and 12 (§§1, 5–8), plus the outline of spec 17.
-- The robust ingestion plan.
-- All of `backend/ingestion/` (contracts, storage, migrations, validation, evidence, extraction,
-  parsing, artifacts, snapshots, fetch), `api/auth.py`, the wiring in `api/main.py`,
-  `core/db.py`, `core/models.Provenance`, the gate in `Makefile`,
-  `scripts/check-contract-drift.sh`, `evals/test_contract_one_pr.py`, the FI0 boundary test,
-  `deploy/` entry points, and the golden YAML structure.
+A named local curator:
+1. opens a real stored FI2 proposal;
+2. inspects its evidence, hashes, and lineage;
+3. approves, edits, rejects, or re-verifies it;
+4. reopens the durable result after a restart;
+5. exports a deterministic activation dry-run.
 
-## Key findings that shaped the plan
+Nothing is applied to the KB. This is an operator tool; travelers see no change. Demo proposals
+come from the real FI2 path (manual upload → snapshot → extractor), driven by synthetic capture
+text and a scripted extractor response, and are labelled as such.
 
-Reproduced on `c925d98` with a scratch script; no repository file was changed.
+## What changed since the first revision
 
-1. A second decision on an `edited` proposal raises a raw `sqlite3.IntegrityError`: the status
-   check allows it, but `UNIQUE(proposal_id)` forbids it.
-2. `decide_proposal(status=EDITED)` stores arbitrary, unevidenced, unparsed edits.
-3. Default generated IDs restart per process and are reused across restarts. A colliding
-   decision ID raises a raw `IntegrityError`. The audit retry loop is unbounded.
-4. FI2 proposals may carry `current_row_hash=None`, which skips the stale-row check.
-5. Reverify tasks are not atomic with their decision.
-6. Evidence verification for PDFs still parses in-process; another branch is fixing this.
-
-FI3 closes 1, 3, and 5 in storage (Task 1). It closes 2 and 4 in the review service and the
-bundle builder (Tasks 3–5). It consumes 6 only through an injectable verifier.
-
-## Contract boundary decision
-
-The curator surface is a separate, loopback-only FastAPI app inside `backend/ingestion/`:
-- it is never mounted on `api.main:app`, deployed, or proxied;
-- its server HTML has no JavaScript;
-- it has its own committed schema snapshot and an exact route allowlist;
-- a test proves the product OpenAPI has no `/review` path.
-
-This keeps `contract/openapi.json` and `frontend/` unchanged without silently bypassing spec 12.
-It is recorded in `DEVIATIONS.md` and listed as open decision D5.
-
-## Dependencies
-
-- **New runtime or dev dependencies: none.** FI3 uses existing FastAPI/Starlette, uvicorn,
-  Pydantic, and PyYAML, plus the stdlib. Templating is stdlib `html.escape`; forms use
-  `urllib.parse.parse_qs` (no Jinja2, no `python-multipart`).
-- **Milestone dependencies:** FI0–FI2 as integrated by Luna. Task 0 rechecks the interfaces in
-  design §12 before any code is written.
-
-## Open decisions (design §11)
-
-| ID | Decision | FI3 default |
+| Earlier assumption | On `6f0859b` | Plan change |
 |---|---|---|
-| D1 | Row-level provenance versus field-level evidence | Spec 05 literal, plus `unevidenced_fields` in each entry |
-| D2 | Promoting manual captures to official provenance | No |
-| D3 | Curator identity strength | Local shell plus a per-launch token |
-| D4 | Supported tables | `cards`, `reward_rules`, `offers`, `point_valuations` only |
-| D5 | Operator surface outside `contract/openapi.json` | Separate app |
-| D7 | Approval expiry | None |
-| D10 | Requiring the raw value inside the quote for FI2 extraction | Edits only |
+| FI2 not on `main` | FI2 landed in PR #19, and its parser/PDF hardening in PR #20 | Reference is `main`; Task 0 only checks for further drift |
+| FI3 takes schema 3 | `SCHEMA_VERSION = 3` is used by `change_proposals.request_fingerprint` | FI3 migration is **version 4** |
+| Parser findings open | F1–F4 fixed: grouping validation, 24-digit bound, typed scaling errors, exact ISO dates, negatives rejected | No FI3 parser rules; edits rely on `parse_field_value` through `validate_extraction` |
+| FI3 needs its own value-in-quote rule (D10) | `validate_extraction` now runs `_quote_supports_value` | Rule removed; D10 closed |
+| Sanity rules | New blocking rules: `invalid_confidence`, `implausible_forex_markup`, `currency_country_mismatch`, `implausible_rate`. The real seed cards pass them. | Edits re-run them automatically |
+| PDF verification in-process | A process-isolated runner: synchronous, 30 s default, 2 concurrent; failures become a generic `EvidenceVerificationError`; real `pdfplumber` never executed | `serve` runs `use_runner(PdfProcessRunner(default_timeout_seconds=10.0))`; one verification per span per request; an explicit `pdf_verification_unavailable` finding; tests use `fixtures/pdf_double` |
+| A separate FI3 row-hash function | `validation._row_hash` is the canonical hash | One public alias, `canonical_row_hash`; no reimplementation |
+| Proposal creation | `FinancialExtractor` now has request-fingerprint replay (`create_proposal_with_fingerprint`) | The demo staging goes through it |
+| Bundle field `applicable`, and spec-05 provenance written into `new_row` | — | `activation_authorized: false` always. `new_row.provenance` is unchanged, `provenance_candidate.needs_verification` is `null`, and entries carry `blocked_by` D1/D2 and `unevidenced_fields`. |
+| Process overhead | — | Removed: per-task fresh reviewers, a full gate after each task, the operator OpenAPI snapshot fixture. Kept: focused tests per task, `make gate` at each checkpoint, one independent review of the completed change. |
 
-D1 and D2 must be decided by a human before any apply step (FI5). FI3 itself never applies.
+## Storage concerns: retained only where reproduced on `6f0859b`
 
-## Recommended bounded implementation sequence
+Reproduced with a scratch script against an archive of `6f0859b` (FI0 fixtures; no repository file
+changed):
 
-| Order | Task | Can review independently |
+| # | Observed |
+|---|---|
+| S1 | `decide_proposal(EDITED, edits={"annual_fee_minor": 1})` stores an unvalidated edit |
+| S2 | Re-deciding an `edited` or `reverify` proposal raises a raw `sqlite3.IntegrityError` |
+| S3 | After a reopen, the decision ID `audit-1` duplicated an audit event ID; a colliding decision ID raises a raw `IntegrityError` |
+| S4 | `_audit` loops without bound under an ID factory that keeps colliding (injected-factory only; minor) |
+| S5 | `put_reverify_task` is a separate transaction from the decision |
+| S6 | `validate_extraction` skips the stale-row check when `current_row_hash is None` |
+
+All six are addressed in Tasks 1, 3, 4, and 5. No other storage concern is carried forward.
+
+## Remaining decisions
+
+| ID | Decision | FI3 behavior while open |
 |---|---|---|
-| 0 | Recheck the FI2 interfaces at the integration commit; baseline `make gate` | — |
-| 1 | Schema 3 and decision hardening (storage only) | Yes |
-| 2 | Read-only seed rows and canonical row hash | Yes |
-| 3 | Review context and computed findings | Yes |
-| 4 | Decisions and validated edits | Yes |
-| 5 | Activation bundles and in-memory dry-run | Yes |
-| 6 | Escaped HTML rendering | Yes |
-| 7 | Loopback app: sessions, CSRF, routes | Yes |
-| 8 | Server CLI and local-only guards | Yes |
-| 9 | Boundaries, end-to-end acceptance, operator schema snapshot, `make gate`, independent review, report | — |
+| D1 | Row-level provenance versus field-level evidence | Not resolved; the bundle never upgrades trust and lists unevidenced fields |
+| D2 | Promoting manual captures to official provenance | Not allowed; entries carry `blocked_by: ["D2"]` |
+| D3 | Curator identity is local shell plus a one-time token | Human acknowledgement requested |
+| D4 | Supported tables | Cards, reward rules, offers, point valuations only |
 
-Tasks 1–5 deliver a usable, fully tested review and dry-run core without any HTTP surface. Tasks
-6–8 add the local UI. Stopping after Task 5 is a valid bounded checkpoint.
+D1 and D2 must be decided before any apply step (FI5). FI3 does not need either answer.
 
-## Verification of this planning change
+## Dependencies and limits
 
-- Relative links in the three new or changed documents: checked by script (see the hand-off).
-- The diff against `c925d98` contains only the two new documents, this report, and the
-  `DEVIATIONS.md` append.
-- No application code, test, dependency, spec, OpenAPI, frontend, seed, golden,
-  `AGENTS.md`/`CLAUDE.md`, or other worktree was modified. No live service, credential, OAuth,
-  crawl, model call, spending, or deployment occurred. Nothing was pushed.
+- **No new packages.**
+- **Real `pdfplumber` is not installed, and has never been executed.** PDF proposals are
+  verifiable only once the `ingestion-local` extra is installed. Until then they show a blocking
+  `pdf_verification_unavailable` finding. This does not block FI3, which works fully for
+  text/HTML captures.
+- **Not unblocked by FI3:**
+  - FI1's live-crawl blockers: durable cross-process throttling, a response-byte bound, and DNS
+    pinning;
+  - any KB apply step.
+
+## Verification of this revision
+
+- Every relative link in the three documents resolves (scripted check; result in the hand-off).
+- The diff touches only the design, the plan, and this report.
+- No application code, test, dependency, spec, OpenAPI, frontend, seed, golden, or other worktree
+  was modified.
+- No live service, credential, crawl, model call, spending, deployment, or push occurred.
