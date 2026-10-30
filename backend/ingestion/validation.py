@@ -86,6 +86,11 @@ def _row_hash(row: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+# Public FI3 import; the implementation remains the FI2 hash so there is one
+# canonical row identity algorithm across extraction, review, and dry-run.
+canonical_row_hash = _row_hash
+
+
 def _quote_supports_value(
     *, field_path: str, raw_value: Any, parsed_value: Any, expected: Any, quote: str
 ) -> bool:
