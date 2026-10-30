@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,10 +12,12 @@ from pydantic import BaseModel
 
 from ingestion.contracts import (
     ChangeProposal,
+    CuratorRecord,
     DiscoveryCandidate,
     FetchAttempt,
     ProposalStatus,
     ReverifyTask,
+    ReviewAttestation,
     ReviewDecision,
     ReviewDecisionStatus,
     SnapshotBundle,
@@ -37,6 +40,10 @@ class AlreadyDecidedError(IngestionStoreError):
 
 
 class IdempotencyConflictError(IngestionStoreError):
+    pass
+
+
+class InvalidDecisionError(IngestionStoreError):
     pass
 
 
@@ -82,6 +89,14 @@ CREATE TABLE IF NOT EXISTS audit_events (
 );
 CREATE INDEX IF NOT EXISTS idx_proposals_status ON change_proposals(status);
 CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_events(entity_type, entity_id);
+CREATE TABLE IF NOT EXISTS curators (
+    id TEXT PRIMARY KEY, payload TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS activation_bundles (
+    id TEXT PRIMARY KEY, client_event_id TEXT NOT NULL UNIQUE,
+    request_fingerprint TEXT NOT NULL, payload TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -98,13 +113,11 @@ class FinancialIngestionStore:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._now = now or (lambda: datetime.now(UTC))
-        self._generated_id = 0
         self._id = id_factory or self._next_id
         self._ensure_schema()
 
     def _next_id(self) -> str:
-        self._generated_id += 1
-        return f"audit-{self._generated_id}"
+        return f"evt-{uuid.uuid4().hex}"
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=5.0)
@@ -124,6 +137,10 @@ class FinancialIngestionStore:
         return model.model_dump_json()
 
     @staticmethod
+    def proposal_payload_sha256(payload_json: str) -> str:
+        return hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+
+    @staticmethod
     def _fingerprint_request(
         *,
         proposal_id: str,
@@ -132,8 +149,9 @@ class FinancialIngestionStore:
         reason: str,
         expected_version: int,
         edits: dict[str, object] | None,
+        curator_confidence: float | None = None,
     ) -> str:
-        request = {
+        request: dict[str, object] = {
             "proposal_id": proposal_id,
             "reviewer_id": reviewer_id,
             "status": status.value,
@@ -141,6 +159,8 @@ class FinancialIngestionStore:
             "expected_version": expected_version,
             "edits": edits or {},
         }
+        if curator_confidence is not None:
+            request["curator_confidence"] = curator_confidence
         canonical = json.dumps(request, sort_keys=True, separators=(",", ":"), default=str)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -181,7 +201,7 @@ class FinancialIngestionStore:
         event_type: str,
         payload: str,
     ) -> None:
-        while True:
+        for _attempt in range(3):
             event_id = self._id()
             try:
                 connection.execute(
@@ -200,6 +220,123 @@ class FinancialIngestionStore:
             except sqlite3.IntegrityError:
                 # The default per-process sequence restarts after reopen; skip existing IDs.
                 continue
+        raise IngestionStoreError("unable to allocate a unique audit event id")
+
+    def put_curator(self, curator: CuratorRecord) -> CuratorRecord:
+        payload = self._payload(curator)
+        with self._connect() as connection:
+            prior = connection.execute(
+                "SELECT payload FROM curators WHERE id = ?", (curator.curator_id,)
+            ).fetchone()
+            if prior is not None and prior[0] != payload:
+                raise ConflictingWriteError(f"conflicting curator {curator.curator_id}")
+            if prior is None:
+                connection.execute(
+                    "INSERT INTO curators(id, payload) VALUES (?, ?)", (curator.curator_id, payload)
+                )
+                self._audit(
+                    connection,
+                    entity_type="curator",
+                    entity_id=curator.curator_id,
+                    event_type="created",
+                    payload=payload,
+                )
+        return curator
+
+    def get_curator(self, curator_id: str) -> CuratorRecord | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload FROM curators WHERE id = ?", (curator_id,)
+            ).fetchone()
+        return None if row is None else CuratorRecord.model_validate_json(row[0])
+
+    def get_watch_target(self, target_id: str) -> WatchTarget | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload FROM watch_targets WHERE id = ?", (target_id,)
+            ).fetchone()
+        return None if row is None else WatchTarget.model_validate_json(row[0])
+
+    def get_source_policy(self, policy_id: str) -> SourcePolicyRecord | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload FROM source_policies WHERE id = ?", (policy_id,)
+            ).fetchone()
+        return None if row is None else SourcePolicyRecord.model_validate_json(row[0])
+
+    def list_proposals(self, status: ProposalStatus | None = None) -> list[ChangeProposal]:
+        with self._connect() as connection:
+            if status is None:
+                rows = connection.execute(
+                    "SELECT payload FROM change_proposals ORDER BY rowid"
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT payload FROM change_proposals WHERE status = ? ORDER BY rowid",
+                    (status.value,),
+                ).fetchall()
+        return [ChangeProposal.model_validate_json(row[0]) for row in rows]
+
+    def get_reverify_task(self, task_id: str) -> ReverifyTask | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload FROM reverify_tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+        return None if row is None else ReverifyTask.model_validate_json(row[0])
+
+    def put_activation_bundle(
+        self,
+        record_json: str,
+        *,
+        bundle_sha256: str,
+        client_event_id: str,
+        request_fingerprint: str,
+        created_by: str,
+    ) -> str:
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            prior = connection.execute(
+                "SELECT payload, request_fingerprint FROM activation_bundles "
+                "WHERE client_event_id = ?",
+                (client_event_id,),
+            ).fetchone()
+            if prior is not None:
+                if prior[1] != request_fingerprint:
+                    raise IdempotencyConflictError(
+                        "client event was already used for another bundle"
+                    )
+                return str(prior[0])
+            existing = connection.execute(
+                "SELECT payload FROM activation_bundles WHERE id = ?", (bundle_sha256,)
+            ).fetchone()
+            if existing is not None:
+                return str(existing[0])
+            connection.execute(
+                "INSERT INTO activation_bundles(id, client_event_id, request_fingerprint, "
+                "payload, created_at) VALUES (?, ?, ?, ?, ?)",
+                (
+                    bundle_sha256,
+                    client_event_id,
+                    request_fingerprint,
+                    record_json,
+                    self._now().isoformat(),
+                ),
+            )
+            self._audit(
+                connection,
+                entity_type="activation_bundle",
+                entity_id=bundle_sha256,
+                event_type="created",
+                payload=record_json,
+            )
+        return record_json
+
+    def get_activation_bundle(self, bundle_sha256: str) -> str | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload FROM activation_bundles WHERE id = ?", (bundle_sha256,)
+            ).fetchone()
+        return None if row is None else str(row[0])
 
     def put_source_policy(self, record: SourcePolicyRecord) -> SourcePolicyRecord:
         with self._connect() as connection:
@@ -435,6 +572,9 @@ class FinancialIngestionStore:
         expected_version: int,
         client_event_id: str,
         edits: dict[str, object] | None = None,
+        attestation: ReviewAttestation | None = None,
+        curator_confidence: float | None = None,
+        reverify_task: ReverifyTask | None = None,
     ) -> ReviewDecision:
         try:
             return self._decide_proposal(
@@ -445,6 +585,9 @@ class FinancialIngestionStore:
                 expected_version=expected_version,
                 client_event_id=client_event_id,
                 edits=edits,
+                attestation=attestation,
+                curator_confidence=curator_confidence,
+                reverify_task=reverify_task,
             )
         except sqlite3.OperationalError as error:
             if "locked" in str(error).lower():
@@ -461,6 +604,9 @@ class FinancialIngestionStore:
         expected_version: int,
         client_event_id: str,
         edits: dict[str, object] | None = None,
+        attestation: ReviewAttestation | None = None,
+        curator_confidence: float | None = None,
+        reverify_task: ReverifyTask | None = None,
     ) -> ReviewDecision:
         request_fingerprint = self._fingerprint_request(
             proposal_id=proposal_id,
@@ -469,6 +615,7 @@ class FinancialIngestionStore:
             reason=reason,
             expected_version=expected_version,
             edits=edits,
+            curator_confidence=curator_confidence,
         )
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -492,9 +639,15 @@ class FinancialIngestionStore:
                 raise StaleVersionError(
                     f"proposal {proposal_id} is at version {row[1]}, expected {expected_version}"
                 )
-            if row[0] not in {"pending", "edited", "reverify"}:
+            if row[0] != "pending":
                 raise AlreadyDecidedError(f"proposal {proposal_id} already has a terminal decision")
             proposal = ChangeProposal.model_validate_json(row[2])
+            if status is ReviewDecisionStatus.EDITED and not edits:
+                raise InvalidDecisionError("edited decisions require non-empty edits")
+            if status is not ReviewDecisionStatus.EDITED and edits:
+                raise InvalidDecisionError("only edited decisions may carry edits")
+            if (status is ReviewDecisionStatus.REVERIFY) != (reverify_task is not None):
+                raise InvalidDecisionError("reverify decisions require exactly one reverify task")
             if status in {ReviewDecisionStatus.APPROVED, ReviewDecisionStatus.EDITED} and any(
                 finding.severity == "blocking" for finding in proposal.validation_findings
             ):
@@ -507,6 +660,10 @@ class FinancialIngestionStore:
                     is None
                 ):
                     raise ValueError(f"missing snapshot manifest: {lineage_id}")
+            if attestation is not None:
+                payload_hash = hashlib.sha256(row[2].encode("utf-8")).hexdigest()
+                if payload_hash != attestation.proposal_payload_sha256:
+                    raise StaleVersionError("proposal payload changed before decision")
             decision = ReviewDecision(
                 decision_id=self._id(),
                 proposal_id=proposal_id,
@@ -517,6 +674,8 @@ class FinancialIngestionStore:
                 reason=reason,
                 decided_at=self._now(),
                 client_event_id=client_event_id,
+                curator_confidence=curator_confidence,
+                attestation=attestation,
             )
             decision_payload = decision.model_dump_json()
             connection.execute(
@@ -555,7 +714,48 @@ class FinancialIngestionStore:
                 event_type="decision",
                 payload=decision_payload,
             )
+            if reverify_task is not None:
+                self._insert_reverify_task(connection, reverify_task, client_event_id + ":task")
             return decision
+
+    def _insert_reverify_task(
+        self, connection: sqlite3.Connection, task: ReverifyTask, client_event_id: str
+    ) -> None:
+        payload = self._payload(task)
+        if (
+            connection.execute(
+                "SELECT 1 FROM watch_targets WHERE id = ?", (task.target_id,)
+            ).fetchone()
+            is None
+        ):
+            raise ValueError(f"missing watch target: {task.target_id}")
+        for evidence_id in task.prior_evidence_ids:
+            if (
+                connection.execute(
+                    "SELECT 1 FROM snapshot_manifests WHERE id = ?", (evidence_id,)
+                ).fetchone()
+                is None
+            ):
+                raise ValueError(f"missing snapshot manifest: {evidence_id}")
+        prior = connection.execute(
+            "SELECT payload FROM reverify_tasks WHERE client_event_id = ?", (client_event_id,)
+        ).fetchone()
+        if prior is not None:
+            if prior[0] != payload:
+                raise IdempotencyConflictError("client event was already used for another task")
+            return
+        connection.execute(
+            "INSERT INTO reverify_tasks(id, target_id, client_event_id, payload) "
+            "VALUES (?, ?, ?, ?)",
+            (task.task_id, task.target_id, client_event_id, payload),
+        )
+        self._audit(
+            connection,
+            entity_type="reverify_task",
+            entity_id=task.task_id,
+            event_type="created",
+            payload=payload,
+        )
 
     def list_decisions(self, proposal_id: str) -> list[ReviewDecision]:
         with self._connect() as connection:

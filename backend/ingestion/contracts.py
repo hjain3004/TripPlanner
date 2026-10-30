@@ -301,6 +301,24 @@ class ReviewDecisionStatus(StrEnum):
     REVERIFY = "reverify"
 
 
+class EvidenceDigest(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    snapshot_id: str = Field(min_length=1)
+    raw_sha256: str = Field(pattern=SHA256)
+    normalized_sha256: str = Field(pattern=SHA256)
+
+
+class ReviewAttestation(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    proposal_payload_sha256: str = Field(pattern=SHA256)
+    current_row_sha256: str = Field(pattern=SHA256)
+    resulting_row_sha256: str | None = Field(default=None, pattern=SHA256)
+    evidence: tuple[EvidenceDigest, ...] = Field(min_length=1)
+    computed_finding_codes: tuple[str, ...] = ()
+
+
 class ReviewDecision(BaseModel):
     decision_id: str = Field(min_length=1)
     proposal_id: str = Field(min_length=1)
@@ -311,6 +329,16 @@ class ReviewDecision(BaseModel):
     reason: str = Field(min_length=1)
     decided_at: AwareDatetime
     client_event_id: str = Field(min_length=1)
+    curator_confidence: float | None = Field(default=None, ge=0, le=1)
+    attestation: ReviewAttestation | None = None
+
+
+class CuratorRecord(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    curator_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,31}$")
+    display_name: str = Field(min_length=1, max_length=80)
+    created_at: AwareDatetime
 
 
 class ReverifyTask(BaseModel):
