@@ -49,7 +49,6 @@ export type {
   PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostResponse,
   TripLineTiming,
   TripWindow,
-  ValuationOut,
   WelcomeStatusApiErrorBody,
   WelcomeStatusErrorResponse,
   WelcomeStatusIn,

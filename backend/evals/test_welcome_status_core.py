@@ -1,7 +1,7 @@
 """Welcome-window arithmetic and honesty rules (spec 18 §2-3), pure computation.
 
 These pin the risks that matter for a feature that tells someone where their welcome
-bonus stands: integer valuation through the existing machinery, unknown inputs staying
+bonus stands: a points bonus never valued by guesswork, unknown inputs staying
 unknown, travel dates never standing in for payment dates, and the report never touching
 the optimizer's assignments.
 """
@@ -22,7 +22,6 @@ from core.models import (
     SpendCategory,
     SpendLineItem,
 )
-from core.optimizer.money import points_value_minor
 from evals.welcome_support import synthetic_offer
 from welcome.catalog import OfferCatalog, OfferSelection
 from welcome.models import CLOSING_SOON_DAYS, CardAcquisitionOffer, WelcomeWindowReport
@@ -123,21 +122,66 @@ def _codes(report: WelcomeWindowReport) -> set[str]:
     return {item.code for item in report.limitations}
 
 
-# --- bonus valuation: integer, via the existing machinery ------------------- #
+# --- bonus: stated as the offer states it; never valued by guesswork ---------- #
+#
+# The data model keys point valuations by CARD and has no verified link from a card to a
+# points program, so a points bonus cannot be turned into money by matching
+# ``bonus_currency_id`` to a valuation row. It must stay ``None`` (never 0) with a typed
+# limitation while the stated points and the offer's provenance are preserved.
 
 
-def test_points_bonus_is_valued_with_the_existing_integer_valuation(kb: KnowledgeBase) -> None:
-    # axis-atlas is valued at 800_000 micro-major/pt; 12_345 pts floors to 987_600 minor.
-    offer = synthetic_offer("axis-atlas", bonus_points=12_345)
-    report = _run(kb, offer=offer, card_id="axis-atlas")
-    best = kb.best_valuation_obj("axis-atlas")
-    assert best is not None
+def test_a_points_bonus_is_not_valued_by_borrowing_the_cards_valuation(
+    kb: KnowledgeBase,
+) -> None:
+    # The demonstrated defect: an offer naming an unrelated program ("some-airline-miles")
+    # was valued at the card's INR 1.00/pt portal valuation (10_000 pts -> 1_000_000).
+    for currency_id in ("some-airline-miles", "synthetic-card-points"):
+        offer = synthetic_offer(bonus_currency_id=currency_id, bonus_points=10_000)
+        report = _run(kb, offer=offer)
+        assert report.bonus is not None
+        assert report.bonus.bonus_value_minor is None, currency_id
+        assert "POINTS_PROGRAM_NOT_ESTABLISHED" in _codes(report)
+
+
+def test_an_offer_naming_the_cards_own_program_id_is_still_unvalued_without_a_mapping(
+    kb: KnowledgeBase,
+) -> None:
+    # "hdfc-reward-points" is the id wallet entries use for this card's points. Nothing in
+    # the data model verifies that link, so even this looks-right id must not be trusted.
+    offer = synthetic_offer("hdfc-infinia", bonus_currency_id="hdfc-reward-points")
+    report = _run(kb, offer=offer)
     assert report.bonus is not None
-    assert report.bonus.bonus_value_minor == points_value_minor(12_345, 800_000) == 987_600
-    assert report.bonus.valuation is not None
-    assert report.bonus.valuation.valuation_id == best.id
-    assert report.bonus.valuation.path == best.path.value
-    assert report.bonus.valuation.value_micro_major_per_point == 800_000
+    assert report.bonus.bonus_value_minor is None
+    assert "POINTS_PROGRAM_NOT_ESTABLISHED" in _codes(report)
+    # axis-atlas has a valuation too (INR 0.80/pt); it is equally unused.
+    atlas_offer = synthetic_offer("axis-atlas", bonus_points=12_345)
+    atlas = _run(kb, offer=atlas_offer, card_id="axis-atlas")
+    assert atlas.bonus is not None and atlas.bonus.bonus_value_minor is None
+
+
+def test_an_unvalued_points_bonus_keeps_the_stated_points_program_and_provenance(
+    kb: KnowledgeBase,
+) -> None:
+    offer = synthetic_offer(bonus_points=25_000, bonus_currency_id="some-airline-miles")
+    report = _run(kb, offer=offer)
+    assert report.bonus is not None
+    assert report.bonus.bonus_points == 25_000
+    assert report.bonus.bonus_currency_id == "some-airline-miles"
+    assert report.bonus.bonus_flat_minor is None
+    assert report.offer is not None
+    assert report.offer.provenance.verification_status == "synthetic_fixture"
+    assert report.offer.provenance.source_url == offer.provenance.source_url
+    assert report.offer.bonus_points == 25_000
+    # The status itself is unaffected by the bonus being unvalued.
+    assert report.status == "active" and report.window_closes_on is not None
+
+
+def test_a_card_with_no_valuation_at_all_is_equally_unvalued(kb: KnowledgeBase) -> None:
+    offer = synthetic_offer("no-such-card")
+    report = _run(kb, offer=offer, card_id="no-such-card")
+    assert report.bonus is not None
+    assert report.bonus.bonus_value_minor is None
+    assert "POINTS_PROGRAM_NOT_ESTABLISHED" in _codes(report)
 
 
 def test_flat_bonus_is_carried_unvalued_and_unchanged(kb: KnowledgeBase) -> None:
@@ -147,21 +191,9 @@ def test_flat_bonus_is_carried_unvalued_and_unchanged(kb: KnowledgeBase) -> None
     report = _run(kb, offer=offer)
     assert report.bonus is not None
     assert report.bonus.bonus_value_minor == 250_000
-    assert report.bonus.valuation is None
-
-
-def test_an_unvaluable_points_bonus_is_none_never_zero(kb: KnowledgeBase) -> None:
-    mismatched = synthetic_offer(currency="USD")  # valuation is INR
-    report = _run(kb, offer=mismatched)
-    assert report.bonus is not None
-    assert report.bonus.bonus_value_minor is None
-    assert "VALUATION_CURRENCY_MISMATCH" in _codes(report)
-
-    unknown_card = synthetic_offer("no-such-card")
-    report = _run(kb, offer=unknown_card, card_id="no-such-card")
-    assert report.bonus is not None
-    assert report.bonus.bonus_value_minor is None
-    assert "NO_POINT_VALUATION" in _codes(report)
+    assert report.bonus.bonus_flat_minor == 250_000
+    assert report.bonus.bonus_points is None and report.bonus.bonus_currency_id is None
+    assert "POINTS_PROGRAM_NOT_ESTABLISHED" not in _codes(report)
 
 
 # --- unknown stays unknown ------------------------------------------------- #
@@ -402,7 +434,13 @@ def test_the_report_does_not_mutate_or_add_to_the_assignments(kb: KnowledgeBase)
     assert [a.model_dump() for a in assignments] == before
     # The bonus is reported beside the spend, never folded into it.
     assert report.trip_assigned_spend_minor == 5_000_000
-    assert report.bonus is not None and report.bonus.bonus_value_minor == 1_000_000
+    # A flat bonus is reported beside the spend, never folded into it.
+    flat_offer = synthetic_offer(
+        bonus_points=None, bonus_currency_id=None, bonus_flat_minor=1_000_000
+    )
+    flat = _run(kb, offer=flat_offer, plan=_plan(assignments), prior=0)
+    assert flat.bonus is not None and flat.bonus.bonus_value_minor == 1_000_000
+    assert flat.trip_assigned_spend_minor == 5_000_000
     assert any("does not change them" in note for note in report.assumptions)
 
 

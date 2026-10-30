@@ -106,9 +106,13 @@ def test_status_is_computed_from_the_stored_plan_and_the_users_figure(
         0, 3_800_000 - body["conditional_trip_spend_minor"]
     )
 
-    # Bonus: 10_000 points through the card's existing best valuation (INR 1.00/pt).
-    assert body["bonus"]["bonus_value_minor"] == 10_000 * 1_000_000 // 10_000
-    assert body["bonus"]["valuation"]["valuation_id"] == "infinia-portal-val"
+    # The bonus is stated in points and no verified link ties the offer's program to the
+    # card's valuation, so it is reported unvalued (null, never 0) with a typed limitation.
+    assert body["bonus"]["bonus_points"] == 10_000
+    assert body["bonus"]["bonus_currency_id"] == "synthetic-card-points"
+    assert body["bonus"]["bonus_value_minor"] is None
+    assert "valuation" not in body["bonus"]
+    assert {item["code"] for item in body["limitations"]} == {"POINTS_PROGRAM_NOT_ESTABLISHED"}
 
     # Provenance and verification are carried, and labelled synthetic.
     provenance = body["offer"]["provenance"]
@@ -119,6 +123,19 @@ def test_status_is_computed_from_the_stored_plan_and_the_users_figure(
         "SYNTHETIC exclusion text, not an issuer term."
     ]
     assert body["assumptions"]
+
+
+def test_a_flat_cash_bonus_is_still_valued_through_the_api(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _store, trip_id, entry_id = _setup(tmp_path, monkeypatch)
+    flat = synthetic_offer(bonus_points=None, bonus_currency_id=None, bonus_flat_minor=250_000)
+    use_catalog([flat], as_of=AS_OF)
+    body = request_status(client, entry_id, trip_id, prior=0).json()
+    assert body["bonus"]["bonus_flat_minor"] == 250_000
+    assert body["bonus"]["bonus_value_minor"] == 250_000
+    assert body["bonus"]["bonus_points"] is None
+    assert body["limitations"] == []
 
 
 def test_the_stored_plan_is_unchanged_by_asking(

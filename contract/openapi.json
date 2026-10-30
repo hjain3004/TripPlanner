@@ -3632,6 +3632,17 @@
             ],
             "title": "Bonus Points"
           },
+          "bonus_currency_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Currency Id"
+          },
           "bonus_flat_minor": {
             "anyOf": [
               {
@@ -3657,26 +3668,16 @@
           "currency": {
             "type": "string",
             "title": "Currency"
-          },
-          "valuation": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ValuationOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "bonus_points",
+          "bonus_currency_id",
           "bonus_flat_minor",
           "bonus_value_minor",
-          "currency",
-          "valuation"
+          "currency"
         ],
         "title": "BonusOut"
       },
@@ -5683,8 +5684,7 @@
               "DUPLICATE_CARD_ENTRIES",
               "CARD_NOT_IN_PLANNED_WALLET",
               "CURRENCY_MISMATCH",
-              "NO_POINT_VALUATION",
-              "VALUATION_CURRENCY_MISMATCH"
+              "POINTS_PROGRAM_NOT_ESTABLISHED"
             ],
             "title": "Code"
           },
@@ -9828,58 +9828,6 @@
           "type"
         ],
         "title": "ValidationIssue"
-      },
-      "ValuationOut": {
-        "properties": {
-          "valuation_id": {
-            "type": "string",
-            "title": "Valuation Id"
-          },
-          "path": {
-            "type": "string",
-            "title": "Path"
-          },
-          "value_micro_major_per_point": {
-            "type": "integer",
-            "title": "Value Micro Major Per Point"
-          },
-          "currency": {
-            "type": "string",
-            "title": "Currency"
-          },
-          "conditions": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Conditions"
-          },
-          "needs_verification": {
-            "type": "boolean",
-            "title": "Needs Verification"
-          },
-          "verified_by": {
-            "type": "string",
-            "title": "Verified By"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "valuation_id",
-          "path",
-          "value_micro_major_per_point",
-          "currency",
-          "conditions",
-          "needs_verification",
-          "verified_by"
-        ],
-        "title": "ValuationOut",
-        "description": "The existing ``PointValuation`` row a points bonus was valued with."
       },
       "VersionRequest": {
         "properties": {

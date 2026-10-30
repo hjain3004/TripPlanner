@@ -8,7 +8,7 @@ Two groups live here:
   It extends spec 18 §2's ``WelcomeWindowStatus`` with the assumptions, the per-line
   timing assessment and the offer provenance the spec requires the report to state.
 
-Every amount is an integer in minor units (or micro-major per point for a valuation). An
+Every amount is an integer in minor units. An
 unknown input is ``None`` and stays ``None``: it is never defaulted to a date or to zero.
 """
 
@@ -91,8 +91,7 @@ LimitationCode = Literal[
     "DUPLICATE_CARD_ENTRIES",
     "CARD_NOT_IN_PLANNED_WALLET",
     "CURRENCY_MISMATCH",
-    "NO_POINT_VALUATION",
-    "VALUATION_CURRENCY_MISMATCH",
+    "POINTS_PROGRAM_NOT_ESTABLISHED",
 ]
 
 # Payment timing, not travel timing. ``advance_booking`` lines are paid when the traveler
@@ -151,29 +150,18 @@ class OfferOut(BaseModel):
     provenance: OfferProvenanceOut
 
 
-class ValuationOut(BaseModel):
-    """The existing ``PointValuation`` row a points bonus was valued with."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    valuation_id: str
-    path: str
-    value_micro_major_per_point: int
-    currency: str
-    conditions: str | None
-    needs_verification: bool
-    verified_by: str
-
-
 class BonusOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     bonus_points: int | None
+    # The points program the offer names, echoed as stated (never mapped or corrected).
+    bonus_currency_id: str | None
     bonus_flat_minor: int | None
-    # ``None`` when a points bonus cannot be valued from existing machinery; never 0.
+    # A flat bonus is its own value. A points bonus is ``None`` — never 0 — because the
+    # data model has no verified link from a card's point valuation to the offer's points
+    # program (see ``POINTS_PROGRAM_NOT_ESTABLISHED``).
     bonus_value_minor: int | None
     currency: str
-    valuation: ValuationOut | None
 
 
 class TripLineTiming(BaseModel):

@@ -330,6 +330,10 @@ export type BonusOut = {
      */
     bonus_points: number | null;
     /**
+     * Bonus Currency Id
+     */
+    bonus_currency_id: string | null;
+    /**
      * Bonus Flat Minor
      */
     bonus_flat_minor: number | null;
@@ -341,7 +345,6 @@ export type BonusOut = {
      * Currency
      */
     currency: string;
-    valuation: ValuationOut | null;
 };
 
 /**
@@ -1319,7 +1322,7 @@ export type Limitation = {
     /**
      * Code
      */
-    code: 'NO_APPROVED_OFFER' | 'AMBIGUOUS_OFFER' | 'OFFER_NOT_IN_FORCE_AT_OPEN_DATE' | 'OPENED_ON_UNKNOWN' | 'OPENED_ON_IN_FUTURE' | 'PRIOR_SPEND_UNKNOWN' | 'DUPLICATE_CARD_ENTRIES' | 'CARD_NOT_IN_PLANNED_WALLET' | 'CURRENCY_MISMATCH' | 'NO_POINT_VALUATION' | 'VALUATION_CURRENCY_MISMATCH';
+    code: 'NO_APPROVED_OFFER' | 'AMBIGUOUS_OFFER' | 'OFFER_NOT_IN_FORCE_AT_OPEN_DATE' | 'OPENED_ON_UNKNOWN' | 'OPENED_ON_IN_FUTURE' | 'PRIOR_SPEND_UNKNOWN' | 'DUPLICATE_CARD_ENTRIES' | 'CARD_NOT_IN_PLANNED_WALLET' | 'CURRENCY_MISMATCH' | 'POINTS_PROGRAM_NOT_ESTABLISHED';
     /**
      * Message
      */
@@ -3600,42 +3603,6 @@ export type ValidationIssue = {
      * Type
      */
     type: string;
-};
-
-/**
- * ValuationOut
- *
- * The existing ``PointValuation`` row a points bonus was valued with.
- */
-export type ValuationOut = {
-    /**
-     * Valuation Id
-     */
-    valuation_id: string;
-    /**
-     * Path
-     */
-    path: string;
-    /**
-     * Value Micro Major Per Point
-     */
-    value_micro_major_per_point: number;
-    /**
-     * Currency
-     */
-    currency: string;
-    /**
-     * Conditions
-     */
-    conditions: string | null;
-    /**
-     * Needs Verification
-     */
-    needs_verification: boolean;
-    /**
-     * Verified By
-     */
-    verified_by: string;
 };
 
 /**

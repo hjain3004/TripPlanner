@@ -26,7 +26,6 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from core.db import KnowledgeBase
 from core.models import Channel, CostedTrip, LineAssignment, OptimizerResult
-from core.optimizer.money import points_value_minor
 from welcome.catalog import OfferSelection, verification_status
 from welcome.models import (
     CLOSING_SOON_DAYS,
@@ -40,7 +39,6 @@ from welcome.models import (
     TimingBasis,
     TripLineTiming,
     TripWindow,
-    ValuationOut,
     WelcomeStatus,
     WelcomeWindowReport,
 )
@@ -88,12 +86,10 @@ _LIMITATION_MESSAGES: dict[LimitationCode, str] = {
         "The plan's spend currency differs from the offer's currency. The amounts "
         "are not converted or compared."
     ),
-    "NO_POINT_VALUATION": (
-        "No point valuation exists for this card, so the points bonus is not valued."
-    ),
-    "VALUATION_CURRENCY_MISMATCH": (
-        "The point valuation is in a different currency from the offer, so the "
-        "points bonus is not valued."
+    "POINTS_PROGRAM_NOT_ESTABLISHED": (
+        "The bonus is stated in points, but nothing verified links the offer's points "
+        "program to this card's point valuation, so no money value is computed. The "
+        "points are shown as the offer states them."
     ),
 }
 
@@ -220,52 +216,35 @@ def _assess(
     return "straddles_window_unknown"
 
 
-def _value_bonus(
-    offer: CardAcquisitionOffer, kb: KnowledgeBase
-) -> tuple[BonusOut, list[Limitation]]:
-    limits: list[Limitation] = []
+def _bonus(offer: CardAcquisitionOffer) -> tuple[BonusOut, list[Limitation]]:
+    """The offer's bonus as stated, valued only when its value is itself stated.
+
+    A flat (cash/voucher) bonus is already an amount. A points bonus would need the value
+    of *that points program*, but the data model keys point valuations by card and has no
+    verified card -> points-program link, and ``EarnRate.currency`` is the spend currency,
+    not a program. Matching ``bonus_currency_id`` to a valuation would be a guess, so a
+    points bonus is reported unvalued (``None``, never 0) with a typed limitation.
+    """
     if offer.bonus_flat_minor is not None:
         return (
             BonusOut(
                 bonus_points=None,
+                bonus_currency_id=None,
                 bonus_flat_minor=offer.bonus_flat_minor,
                 bonus_value_minor=offer.bonus_flat_minor,
                 currency=offer.currency,
-                valuation=None,
             ),
-            limits,
+            [],
         )
-    assert offer.bonus_points is not None  # the model guarantees exactly one bonus kind
-    valuation = kb.best_valuation_obj(offer.card_id) if kb.has_card(offer.card_id) else None
-    value_minor: int | None = None
-    shown: ValuationOut | None = None
-    if valuation is None:
-        limits.append(_limit("NO_POINT_VALUATION"))
-    else:
-        shown = ValuationOut(
-            valuation_id=valuation.id,
-            path=valuation.path.value,
-            value_micro_major_per_point=valuation.value_micro_major_per_point,
-            currency=valuation.currency,
-            conditions=valuation.conditions,
-            needs_verification=valuation.provenance.needs_verification,
-            verified_by=valuation.provenance.verified_by,
-        )
-        if valuation.currency != offer.currency:
-            limits.append(_limit("VALUATION_CURRENCY_MISMATCH"))
-        else:
-            value_minor = points_value_minor(
-                offer.bonus_points, valuation.value_micro_major_per_point
-            )
     return (
         BonusOut(
             bonus_points=offer.bonus_points,
+            bonus_currency_id=offer.bonus_currency_id,
             bonus_flat_minor=None,
-            bonus_value_minor=value_minor,
+            bonus_value_minor=None,
             currency=offer.currency,
-            valuation=shown,
         ),
-        limits,
+        [_limit("POINTS_PROGRAM_NOT_ESTABLISHED")],
     )
 
 
@@ -407,7 +386,7 @@ def compute_welcome_status(
 
     bonus: BonusOut | None = None
     if offer is not None:
-        bonus, bonus_limits = _value_bonus(offer, kb)
+        bonus, bonus_limits = _bonus(offer)
         limits.extend(bonus_limits)
 
     return WelcomeWindowReport(
@@ -443,14 +422,13 @@ def compute_welcome_status(
         omitted_zero_amount_lines=omitted_zero,
         lines=lines,
         bonus=bonus,
-        assumptions=_assumptions(offer=offer, bonus=bonus, prior=prior_spend_minor, as_of=as_of),
+        assumptions=_assumptions(offer=offer, prior=prior_spend_minor, as_of=as_of),
     )
 
 
 def _assumptions(
     *,
     offer: CardAcquisitionOffer | None,
-    bonus: BonusOut | None,
     prior: int | None,
     as_of: date,
 ) -> list[str]:
@@ -488,12 +466,5 @@ def _assumptions(
             "Spend already made is as you entered it, in the offer's currency, and "
             "is not verified. It must not include this plan's bookings: the figures "
             "that add the plan's spend to it would otherwise count that spend twice."
-        )
-    if bonus is not None and bonus.valuation is not None:
-        notes.append(
-            "A points bonus is valued with the card's best existing valuation path "
-            f"({bonus.valuation.path}), using the same integer valuation as the "
-            "optimizer. That valuation is per card; the offer's own points currency "
-            "is not cross-checked against it, and it may itself need verification."
         )
     return notes
