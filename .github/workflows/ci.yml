@@ -95,11 +95,13 @@ jobs:
         run: |
           .venv/bin/mypy --strict core/ accounts/ planning/ agents/ api/ gateway/
           .venv/bin/mypy --strict ingestion/
+          .venv/bin/mypy --strict welcome/
       - name: Ruff (zero-tolerance scope) and legacy ratchet
         working-directory: backend
         run: |
           .venv/bin/ruff check accounts/ planning/ agents/ gateway/ evals/
           .venv/bin/ruff check ingestion/
+          .venv/bin/ruff check welcome/
           COUNT=$(.venv/bin/ruff check core/ api/ 2>/dev/null | grep -c '^[A-Z][0-9]' || true)
           echo "core/ + api/ ruff findings: $COUNT (ceiling 12)"
           test "$COUNT" -le 12

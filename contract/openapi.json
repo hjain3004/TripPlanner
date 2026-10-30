@@ -1768,6 +1768,108 @@
         }
       }
     },
+    "/account/wallet/{entry_id}/welcome-status": {
+      "post": {
+        "tags": [
+          "welcome-status"
+        ],
+        "summary": "Post Welcome Status",
+        "operationId": "post_welcome_status_account_wallet__entry_id__welcome_status_post",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WelcomeStatusIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WelcomeWindowReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WelcomeStatusErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WelcomeStatusErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WelcomeStatusErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/planning/sessions/{session_id}/workspace": {
       "post": {
         "tags": [
@@ -3516,6 +3618,68 @@
           "client_event_id"
         ],
         "title": "BackRequest"
+      },
+      "BonusOut": {
+        "properties": {
+          "bonus_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Points"
+          },
+          "bonus_currency_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Currency Id"
+          },
+          "bonus_flat_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Flat Minor"
+          },
+          "bonus_value_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Value Minor"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "bonus_points",
+          "bonus_currency_id",
+          "bonus_flat_minor",
+          "bonus_value_minor",
+          "currency"
+        ],
+        "title": "BonusOut"
       },
       "BudgetObjectivePayload": {
         "properties": {
@@ -5506,6 +5670,37 @@
         ],
         "title": "KernelResult"
       },
+      "Limitation": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "NO_APPROVED_OFFER",
+              "AMBIGUOUS_OFFER",
+              "OFFER_NOT_IN_FORCE_AT_OPEN_DATE",
+              "OPENED_ON_UNKNOWN",
+              "OPENED_ON_IN_FUTURE",
+              "PRIOR_SPEND_UNKNOWN",
+              "DUPLICATE_CARD_ENTRIES",
+              "CARD_NOT_IN_PLANNED_WALLET",
+              "CURRENCY_MISMATCH",
+              "POINTS_PROGRAM_NOT_ESTABLISHED"
+            ],
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "Limitation"
+      },
       "LineAssignment": {
         "properties": {
           "line": {
@@ -5618,6 +5813,165 @@
           "position"
         ],
         "title": "MoveItem"
+      },
+      "OfferOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "bonus_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Points"
+          },
+          "bonus_currency_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Currency Id"
+          },
+          "bonus_flat_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Flat Minor"
+          },
+          "min_spend_minor": {
+            "type": "integer",
+            "title": "Min Spend Minor"
+          },
+          "spend_window_days": {
+            "type": "integer",
+            "title": "Spend Window Days"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "valid_to": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid To"
+          },
+          "eligibility_exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Eligibility Exclusions"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/OfferProvenanceOut"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "bonus_points",
+          "bonus_currency_id",
+          "bonus_flat_minor",
+          "min_spend_minor",
+          "spend_window_days",
+          "currency",
+          "valid_to",
+          "eligibility_exclusions",
+          "provenance"
+        ],
+        "title": "OfferOut",
+        "description": "The offer terms the status was computed from (never paraphrased)."
+      },
+      "OfferProvenanceOut": {
+        "properties": {
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "last_verified": {
+            "type": "string",
+            "format": "date",
+            "title": "Last Verified"
+          },
+          "verified_by": {
+            "type": "string",
+            "title": "Verified By"
+          },
+          "needs_verification": {
+            "type": "boolean",
+            "title": "Needs Verification"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "verification_status": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "needs_verification",
+              "synthetic_fixture"
+            ],
+            "title": "Verification Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_url",
+          "source_type",
+          "last_verified",
+          "verified_by",
+          "needs_verification",
+          "confidence",
+          "notes",
+          "verification_status"
+        ],
+        "title": "OfferProvenanceOut",
+        "description": "Provenance of the offer terms, with the verification state made explicit."
       },
       "OptimizationPreferences": {
         "properties": {
@@ -9063,6 +9417,78 @@
         ],
         "title": "TripIntakeRequest"
       },
+      "TripLineTiming": {
+        "properties": {
+          "line_id": {
+            "type": "string",
+            "title": "Line Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "timing_basis": {
+            "type": "string",
+            "enum": [
+              "advance_booking",
+              "on_trip"
+            ],
+            "title": "Timing Basis"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          },
+          "instant_discounts_minor": {
+            "type": "integer",
+            "title": "Instant Discounts Minor"
+          },
+          "counted_minor": {
+            "type": "integer",
+            "title": "Counted Minor"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "assessment": {
+            "type": "string",
+            "enum": [
+              "could_count_if_paid_by_close",
+              "outside_window",
+              "straddles_window_unknown",
+              "window_unknown",
+              "currency_mismatch",
+              "ambiguous_card_entry"
+            ],
+            "title": "Assessment"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line_id",
+          "label",
+          "category",
+          "channel",
+          "timing_basis",
+          "amount_minor",
+          "instant_discounts_minor",
+          "counted_minor",
+          "currency",
+          "assessment"
+        ],
+        "title": "TripLineTiming",
+        "description": "One of this card's assigned lines, with how its payment timing was judged."
+      },
       "TripSpec": {
         "properties": {
           "home_country": {
@@ -9234,6 +9660,54 @@
           "latest_computed_at"
         ],
         "title": "TripSummaryOut"
+      },
+      "TripWindow": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "revision_computed_at": {
+            "type": "string",
+            "title": "Revision Computed At"
+          },
+          "trip_start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Trip Start Date"
+          },
+          "trip_end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Trip End Date"
+          },
+          "plan_booking_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Plan Booking Date"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "trip_id",
+          "revision",
+          "revision_computed_at",
+          "trip_start_date",
+          "trip_end_date",
+          "plan_booking_date",
+          "currency"
+        ],
+        "title": "TripWindow",
+        "description": "What the stored plan says about *when*. Travel dates, not payment dates."
       },
       "UserOut": {
         "properties": {
@@ -9612,6 +10086,318 @@
         ],
         "title": "WalletEntryPatchIn",
         "description": "Patch body. Omitted fields are left alone; explicit ``null`` clears one."
+      },
+      "WelcomeStatusApiErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "WALLET_ENTRY_NOT_FOUND",
+              "TRIP_NOT_FOUND",
+              "REVISION_NOT_FOUND",
+              "REVISION_NOT_READABLE",
+              "WELCOME_STATUS_UNAVAILABLE"
+            ],
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "WelcomeStatusApiErrorBody"
+      },
+      "WelcomeStatusErrorResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/WelcomeStatusApiErrorBody"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "WelcomeStatusErrorResponse",
+        "description": "A typed welcome-status failure as it goes over the wire (wrapped in ``detail``)."
+      },
+      "WelcomeStatusIn": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Trip Id"
+          },
+          "revision": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Revision"
+          },
+          "prior_qualifying_spend_minor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000000000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prior Qualifying Spend Minor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "trip_id",
+          "revision"
+        ],
+        "title": "WelcomeStatusIn",
+        "description": "Which owned trip result to read, and the one optional figure only the user knows."
+      },
+      "WelcomeWindowReport": {
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "card_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Name"
+          },
+          "wallet_entry_id": {
+            "type": "string",
+            "title": "Wallet Entry Id"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "closing_soon",
+              "met",
+              "expired",
+              "unknown"
+            ],
+            "title": "Status"
+          },
+          "limitations": {
+            "items": {
+              "$ref": "#/components/schemas/Limitation"
+            },
+            "type": "array",
+            "title": "Limitations"
+          },
+          "opened_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened On"
+          },
+          "window_closes_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Closes On"
+          },
+          "days_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Remaining"
+          },
+          "offer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OfferOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ineligible_offer_count": {
+            "type": "integer",
+            "title": "Ineligible Offer Count"
+          },
+          "min_spend_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Spend Minor"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "qualifying_spend_to_date_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qualifying Spend To Date Minor"
+          },
+          "shortfall_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortfall Minor"
+          },
+          "trip": {
+            "$ref": "#/components/schemas/TripWindow"
+          },
+          "trip_assigned_spend_minor": {
+            "type": "integer",
+            "title": "Trip Assigned Spend Minor"
+          },
+          "trip_counted_spend_minor": {
+            "type": "integer",
+            "title": "Trip Counted Spend Minor"
+          },
+          "conditional_trip_spend_minor": {
+            "type": "integer",
+            "title": "Conditional Trip Spend Minor"
+          },
+          "shortfall_after_conditional_trip_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortfall After Conditional Trip Minor"
+          },
+          "trip_alone_clears_minimum_if_conditions_hold": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Alone Clears Minimum If Conditions Hold"
+          },
+          "omitted_zero_amount_lines": {
+            "type": "integer",
+            "title": "Omitted Zero Amount Lines"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/TripLineTiming"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "bonus": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BonusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "card_id",
+          "card_name",
+          "wallet_entry_id",
+          "as_of",
+          "status",
+          "limitations",
+          "opened_on",
+          "window_closes_on",
+          "days_remaining",
+          "offer",
+          "ineligible_offer_count",
+          "min_spend_minor",
+          "currency",
+          "qualifying_spend_to_date_minor",
+          "shortfall_minor",
+          "trip",
+          "trip_assigned_spend_minor",
+          "trip_counted_spend_minor",
+          "conditional_trip_spend_minor",
+          "shortfall_after_conditional_trip_minor",
+          "trip_alone_clears_minimum_if_conditions_hold",
+          "omitted_zero_amount_lines",
+          "lines",
+          "bonus",
+          "assumptions"
+        ],
+        "title": "WelcomeWindowReport",
+        "description": "Spec 18 \u00a72's ``WelcomeWindowStatus`` plus the context spec 18 \u00a73 requires."
       },
       "WorkspaceInitIn": {
         "properties": {
