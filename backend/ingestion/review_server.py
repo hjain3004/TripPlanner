@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import uuid
 from collections.abc import Callable, Mapping, Sequence
@@ -23,7 +24,7 @@ from ingestion.review_app import ReviewAppConfig, SessionRegistry, create_review
 from ingestion.review_rows import SeedRowSource
 from ingestion.review_types import CuratorFieldEdit, DecisionRequest
 from ingestion.snapshots import SnapshotService
-from ingestion.storage import FinancialIngestionStore
+from ingestion.storage import ConflictingWriteError, FinancialIngestionStore
 
 
 class LocalOnlyError(RuntimeError):
@@ -44,13 +45,13 @@ def assert_local_profile(env: Mapping[str, str]) -> None:
 
 
 def resolve_data_dir(arg: str | None, *, env: Mapping[str, str], repo_root: Path) -> Path:
-    candidate = Path(
-        arg
-        or (Path(env["TRIPWISE_DATA_DIR"]) / "ingestion" if env.get("TRIPWISE_DATA_DIR") else "")
+    # Decide on the raw text: `Path("")` is `.`, which would silently mean "the current directory".
+    raw = arg or (
+        str(Path(env["TRIPWISE_DATA_DIR"]) / "ingestion") if env.get("TRIPWISE_DATA_DIR") else ""
     )
-    if not str(candidate):
+    if not raw:
         raise LocalOnlyError("FI3 requires --data-dir or TRIPWISE_DATA_DIR")
-    resolved = candidate.expanduser().resolve()
+    resolved = Path(raw).expanduser().resolve()
     root = repo_root.resolve()
     if resolved == root or root in resolved.parents:
         raise LocalOnlyError("FI3 data directory must be outside the repository")
@@ -75,6 +76,43 @@ def build_runtime(
             store=store, artifacts=artifacts, rows=SeedRowSource(seeds_dir), service=service
         ),
     )
+
+
+def add_curator(
+    data_dir: Path, curator_id: str, display_name: str, *, now: Callable[[], datetime]
+) -> int:
+    """Register a named curator. Re-running for the same curator and name succeeds."""
+    from ingestion.contracts import CuratorRecord
+
+    store = FinancialIngestionStore(
+        data_dir / "ingestion.sqlite", now=now, id_factory=lambda: uuid.uuid4().hex
+    )
+
+    def settled(existing: CuratorRecord) -> int:
+        if existing.display_name == display_name:
+            print(f"curator {curator_id!r} already registered as {display_name!r}", file=sys.stderr)
+            return 0
+        print(
+            f"curator {curator_id!r} is already registered as {existing.display_name!r}, "
+            f"not {display_name!r}; nothing was changed",
+            file=sys.stderr,
+        )
+        return 2
+
+    existing = store.get_curator(curator_id)
+    if existing is not None:
+        return settled(existing)
+    try:
+        store.put_curator(
+            CuratorRecord(curator_id=curator_id, display_name=display_name, created_at=now())
+        )
+    except ConflictingWriteError:
+        # Another process registered the same curator between our lookup and our write.
+        existing = store.get_curator(curator_id)
+        if existing is None:
+            raise
+        return settled(existing)
+    return 0
 
 
 def create_scripted_demo_proposal(
@@ -190,29 +228,30 @@ def create_scripted_demo_proposal(
 
 
 def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = None) -> int:
-    environment = env or {}
+    # `env or {}` would make the real process environment unreachable from the CLI.
+    environment = os.environ if env is None else env
     parser = argparse.ArgumentParser(prog="python -m ingestion.review_server")
     sub = parser.add_subparsers(dest="command", required=True)
     add = sub.add_parser("add-curator")
-    add.add_argument("--data-dir", required=True)
+    add.add_argument("--data-dir", default=None)
     add.add_argument("--curator-id", required=True)
     add.add_argument("--display-name", required=True)
     serve = sub.add_parser("serve")
-    serve.add_argument("--data-dir", required=True)
+    serve.add_argument("--data-dir", default=None)
     serve.add_argument("--seeds-dir", default=None)
     serve.add_argument("--curator-id", required=True)
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument("--host", default="127.0.0.1")
     inspect = sub.add_parser("inspect")
-    inspect.add_argument("--data-dir", required=True)
+    inspect.add_argument("--data-dir", default=None)
     inspect.add_argument("--seeds-dir", default=None)
     inspect.add_argument("--proposal-id", required=True)
     reopen = sub.add_parser("reopen")
-    reopen.add_argument("--data-dir", required=True)
+    reopen.add_argument("--data-dir", default=None)
     reopen.add_argument("--seeds-dir", default=None)
     reopen.add_argument("--proposal-id", required=True)
     decide = sub.add_parser("decision")
-    decide.add_argument("--data-dir", required=True)
+    decide.add_argument("--data-dir", default=None)
     decide.add_argument("--seeds-dir", default=None)
     decide.add_argument("--proposal-id", required=True)
     decide.add_argument("--curator-id", required=True)
@@ -225,17 +264,17 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     decide.add_argument("--curator-confidence", type=float, default=None)
     decide.add_argument("--edits-json", default="[]")
     bundle = sub.add_parser("bundle")
-    bundle.add_argument("--data-dir", required=True)
+    bundle.add_argument("--data-dir", default=None)
     bundle.add_argument("--seeds-dir", default=None)
     bundle.add_argument("--curator-id", required=True)
     bundle.add_argument("--client-event-id", required=True)
     bundle.add_argument("--proposal-id", action="append", default=None)
     dry = sub.add_parser("dry-run")
-    dry.add_argument("--data-dir", required=True)
+    dry.add_argument("--data-dir", default=None)
     dry.add_argument("--seeds-dir", default=None)
     dry.add_argument("--bundle-sha256", required=True)
     demo = sub.add_parser("demo")
-    demo.add_argument("--data-dir", required=True)
+    demo.add_argument("--data-dir", default=None)
     demo.add_argument("--seeds-dir", default=None)
     args = parser.parse_args(argv)
     assert_local_profile(environment)
@@ -246,17 +285,7 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
         return datetime.now(UTC)
 
     if args.command == "add-curator":
-        from ingestion.contracts import CuratorRecord
-
-        store = FinancialIngestionStore(
-            data_dir / "ingestion.sqlite", now=now, id_factory=lambda: uuid.uuid4().hex
-        )
-        store.put_curator(
-            CuratorRecord(
-                curator_id=args.curator_id, display_name=args.display_name, created_at=now()
-            )
-        )
-        return 0
+        return add_curator(data_dir, args.curator_id, args.display_name, now=now)
     from core.db import SEEDS_DIR
 
     store, service, planner = build_runtime(
@@ -350,4 +379,8 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except LocalOnlyError as refusal:
+        print(f"refused: {refusal}", file=sys.stderr)
+        raise SystemExit(2) from None

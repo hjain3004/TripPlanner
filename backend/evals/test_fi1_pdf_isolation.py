@@ -867,6 +867,8 @@ def test_the_worker_ends_its_own_group_so_a_helper_cannot_outlive_a_normal_exit(
 
 INGESTION = BACKEND / "ingestion"
 PROCESS_MODULES = {"pdf_isolation.py"}
+# The operator CLI reads TRIPWISE_ENV / TRIPWISE_DATA_DIR from ``os.environ`` and nothing else.
+ENV_ONLY_MODULES = {"review_server.py"}
 
 
 def _modules(path: Path) -> set[str]:
@@ -906,6 +908,20 @@ def test_process_creation_is_confined_to_the_runner_and_never_uses_a_shell() -> 
         if path.name in PROCESS_MODULES:
             assert "shell=True" not in tree_text and "create_subprocess_shell" not in tree_text
             assert "os.system" not in tree_text and "os.popen" not in tree_text
+            continue
+        if path.name in ENV_ONLY_MODULES:
+            # Stricter than the blanket exemptions below: no spawning, and the only thing the
+            # module may touch on ``os`` is ``environ``.
+            assert not ({"subprocess", "multiprocessing"} & modules), path.name
+            used = {
+                node.attr
+                for node in ast.walk(ast.parse(tree_text))
+                if isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Name)
+                and node.value.id == "os"
+            }
+            assert used <= {"environ"}, (path.name, used)
+            assert "create_subprocess" not in tree_text, path.name
             continue
         assert not ({"subprocess", "multiprocessing", "os"} & modules) or path.name in {
             "artifacts.py",

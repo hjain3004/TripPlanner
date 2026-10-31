@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -272,7 +273,11 @@ def create_review_app(
             client_event_id=form.get("client_event_id", ""),
         )
         return JSONResponse(
-            {"bundle_sha256": record.bundle_sha256, "applicable": bundle.applicable},
+            {
+                "bundle_sha256": record.bundle_sha256,
+                "dry_run_consistent": bundle.dry_run_consistent,
+                "activation_authorized": bundle.activation_authorized,
+            },
             status_code=303,
             headers={"Location": f"/review/bundle?id={record.bundle_sha256}"},
         )
@@ -289,9 +294,15 @@ def create_review_app(
 
         record = ActivationBundleRecord.model_validate_json(record_json)
         body = planner.artifacts.read(record.artifact)
-        from ingestion.activation import ActivationBundle
+        from ingestion.activation import BUNDLE_SCHEMA, ActivationBundle
 
-        bundle = ActivationBundle.model_validate_json(body)
+        parsed = json.loads(body)
+        # A stored legacy (v1) bundle is described by its dry-run alone, never as consistent.
+        bundle = (
+            ActivationBundle.model_validate(parsed)
+            if parsed.get("schema_version") == BUNDLE_SCHEMA
+            else None
+        )
         report = planner.dry_run(bundle_id)
         session = session_for(request)
         assert session is not None
