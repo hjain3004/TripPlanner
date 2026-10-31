@@ -135,11 +135,14 @@ def create_review_app(
             response = HTMLResponse(render_error(403, "invalid_origin"), status_code=403)
         else:
             response = await call_next(request)  # type: ignore[misc]
+        # `no-referrer` makes browsers send `Origin: null` on same-origin form POSTs
+        # (Fetch standard), which the strict origin check above would reject; `same-origin`
+        # still sends no Referer cross-origin and keeps the real Origin on our own forms.
         response.headers.update(
             {
                 "X-Content-Type-Options": "nosniff",
                 "X-Frame-Options": "DENY",
-                "Referrer-Policy": "no-referrer",
+                "Referrer-Policy": "same-origin",
                 "Cache-Control": "no-store",
                 "Content-Security-Policy": "default-src 'none'; style-src 'self' "
                 "'unsafe-inline'; form-action 'self'; base-uri 'none'",
