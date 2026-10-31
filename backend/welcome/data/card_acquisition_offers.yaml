@@ -1,0 +1,11 @@
+# Welcome-offer terms for spec 18. SHIPPED EMPTY ON PURPOSE.
+#
+# Real issuer terms may only be added here after human verification (spec 18 §1, the
+# human-approval boundary): a verbatim issuer-page title, the minimum spend, the spend
+# window in days, VERBATIM T&C exclusion strings, and a provenance block with a
+# source_url and a real verified_by. Until then every status request reports honestly
+# that no approved offer exists. Do not add placeholder or invented values, and never a
+# verified_by starting with SYNTHETIC (the loader rejects it).
+#
+# Format: a YAML list of CardAcquisitionOffer rows (backend/welcome/models.py).
+[]

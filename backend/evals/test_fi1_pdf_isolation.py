@@ -140,11 +140,26 @@ def test_a_parser_exception_is_the_same_generic_unsupported_error(
         canon(mode, runner, b"not a pdf at all")
 
 
-def test_a_missing_optional_dependency_is_the_same_typed_error(mode: str) -> None:
-    bare = PdfProcessRunner(max_concurrent=1)  # no double on the path; pdfplumber is optional
+def _absent_pdfplumber(tmp_path: Path) -> Path:
+    """A search-path directory whose ``pdfplumber`` fails to import exactly as an absent
+    package does. The worker places it first on ``sys.path`` inside the child, so the
+    absence is simulated at the real worker boundary whether or not the optional
+    dependency is installed in this interpreter."""
+    shadow = tmp_path / "absent_pdfplumber"
+    shadow.mkdir()
+    (shadow / "pdfplumber.py").write_text(
+        'raise ModuleNotFoundError("No module named \'pdfplumber\'", name="pdfplumber")\n'
+    )
+    return shadow
+
+
+def test_a_missing_optional_dependency_is_the_same_typed_error(mode: str, tmp_path: Path) -> None:
+    bare = PdfProcessRunner(max_concurrent=1, search_paths=[_absent_pdfplumber(tmp_path)])
     with pytest.raises(UnsupportedContentError, match="optional ingestion-local extra"):
         canon(mode, bare, doc("ok", "x"))
+    assert len(bare.spawned_pids) == 1  # the child really ran and reported the absence
     assert bare.live_count() == 0
+    assert gone(bare.spawned_pids[0])
 
 
 @pytest.mark.parametrize("directive", ["crash", "segv"])

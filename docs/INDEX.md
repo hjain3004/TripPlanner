@@ -48,7 +48,7 @@ commit. They remain invisible to a fresh clone until deliberately committed:
 | `docs/examples/` | User-owned or unclear image set | untouched and untracked |
 | `docs/superpowers/plans/2026-08-22-japan-philatelic-landing-handoff.md` | Valuable historical/planned Japan handoff | committed on this branch; retained as historical context, not current authority |
 | `docs/superpowers/plans/2026-08-22-japan-philatelic-split-landing.md` | Valuable historical/planned implementation plan | committed on this branch; useful for deferred plan-page work, not current authority |
-| `docs/superpowers/plans/2026-10-07-robust-financial-ingestion.md` | Valuable planned FI0–FI6 design input | committed; FI0 (offline foundation, `backend/ingestion/`) is implemented, FI1 onward is not started |
+| `docs/superpowers/plans/2026-10-07-robust-financial-ingestion.md` | Valuable planned FI0–FI6 design input | committed; FI0–FI3 are implemented offline (`backend/ingestion/`, see their reports), FI4 onward is not started |
 
 This classification is intentional: the two Japan plans are already committed historical inputs;
 the image set remains user-owned/untracked and is not absorbed here; the financial-ingestion plan is committed with FI0.
@@ -63,4 +63,10 @@ the image set remains user-owned/untracked and is not absorbed here; the financi
   [Japan split-landing plan](superpowers/plans/2026-08-22-japan-philatelic-split-landing.md) are
   committed historical/planned records; the implemented CP2/Japan branch is the current evidence.
 - [Robust financial ingestion plan](superpowers/plans/2026-10-07-robust-financial-ingestion.md)
-  remains a plan; it does not authorize FI1 or any crawler work.
+  remains the design input; FI0–FI3 are implemented offline, and it does not authorize FI4/FI5
+  (applying facts to the knowledge base) or any live crawler activation.
+- [FI3, welcome-status and PDF integration report](../reports/integration_fi3_welcome_pdf.md)
+  is the combined-tree evidence for the FI3 operator review tool
+  ([source report](../reports/fi3_review_activation_dry_run.md)), the backend-only held-card
+  welcome-status route ([source report](../reports/held_card_welcome_status.md)) and real-library
+  PDF compatibility ([source report](../reports/pdf_real_library_compatibility.md)).

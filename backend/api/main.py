@@ -48,6 +48,7 @@ from api.post_plan import router as post_plan_router
 from api.runtime_config import assert_valid_runtime_config
 from api.saved_trips import router as saved_trips_router
 from api.wallet import router as wallet_router
+from api.welcome import router as welcome_router
 from core.db import DB_PATH, KnowledgeBase, load_kb, seed_database
 from core.runtime_paths import state_path
 from gateway.catalog.regions import get_region
@@ -76,6 +77,7 @@ app = FastAPI(
 app.include_router(conversation_router)
 app.include_router(wallet_router)
 app.include_router(saved_trips_router)
+app.include_router(welcome_router)
 app.include_router(health_router)
 app.include_router(post_plan_router)
 

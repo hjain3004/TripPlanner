@@ -1,7 +1,15 @@
 # Current state
 
-**Evidence date:** 2026-10-21 (D1 deployment foundation added; see `docs/DEPLOYMENT.md` and `reports/d1_deployment_foundation.md`)
-**Repository state:** local, unpublished integration branch `codex/integrate-fi0-g3-5-g4`, based on
+**Evidence date:** 2026-10-30 (FI3 review dry-run, held-card welcome-status backend slice and PDF
+real-library compatibility integrated; D1 deployment foundation was added 2026-10-21, see
+`docs/DEPLOYMENT.md` and `reports/d1_deployment_foundation.md`)
+**Latest integration (2026-10-30):** `codex/integrate-fi3-welcome-pdf`, based on `origin/main`
+`6f0859b`, merges three branches with real merge commits: FI3 (`codex/fi3-review-dry-run`),
+spec 18 Case A welcome-status (`codex/held-card-welcome-status`) and the PDF compatibility closure
+(`codex/pdf-compatibility-closure`). Combined verification, the one defect found, and the
+revision each check ran on are in `reports/integration_fi3_welcome_pdf.md`. The paragraph below
+describes the earlier 2026-10-21 integration and was not re-verified by this one.
+**Earlier repository state (2026-10-21):** local, unpublished integration branch `codex/integrate-fi0-g3-5-g4`, based on
 `eccb198` (CP2/Japan merged through PR #13). It merges, with real non-fast-forward merges, the G3.5
 Gondola contract closure (stacked on the implemented G3.4 and CP3 work), the G4 Open-Meteo
 weather-context adapter, and the FI0 offline financial-ingestion foundation. Combined verification,
@@ -48,6 +56,27 @@ separates shipped code, disabled experiments, and plans.
   synchronized. Live Gondola remains disabled and its structured responses remain unverified;
   no provider credentials or paid services were used. See
   `reports/g3_4_confirmed_brief_gateway.md`.
+- **FI3 financial review and activation dry-run** is an offline local operator tool
+  (`python -m ingestion.review_server`; schema version 4). A named curator inspects an FI2
+  proposal with its snapshot, exact evidence spans and findings, then approves, rejects, edits
+  through FI2 validation or requests re-verification. Decisions are durable across SQLite
+  reopen; approved decisions become a deterministic, content-addressed bundle that a read-only
+  dry-run checks against an in-memory knowledge base. **There is no KB apply**, no live source,
+  and nothing is authorized for activation; it is not traveler-facing and adds nothing to the
+  product OpenAPI or frontend. The loopback browser app was run in a real browser, which found
+  and fixed a login-blocking `Referrer-Policy` defect. See `reports/fi3_review_activation_dry_run.md`.
+- **Held-card welcome-window status (spec 18 Case A)** is a backend-only authenticated route,
+  `POST /account/wallet/{entry_id}/welcome-status`, owner-scoped (a foreign id reads as missing)
+  and computed from the server's stored trip revision. The shipped offer catalog is **empty**, so
+  it reports `unknown` / `NO_APPROVED_OFFER` until humans add verified offers. A points bonus is
+  never valued without a verified card-to-points-program mapping, which does not exist. Unknown
+  `opened_on` or prior spend stays unknown; spend is only ever "conditional". No traveler UI, no
+  Case B, and no change to the optimizer or any total. See `reports/held_card_welcome_status.md`.
+- **PDF parsing compatibility** with the real `pdfplumber` is demonstrated for benign generated
+  PDFs through the production isolation path; the missing-dependency simulation is deterministic.
+  The real-library module is skipped by `make gate` (the gate interpreter lacks the optional
+  dependency), so it must be run explicitly. The worker is a process boundary, **not** an OS
+  sandbox. See `reports/pdf_real_library_compatibility.md`.
 
 ## Gateway and provider status
 
@@ -93,10 +122,18 @@ The frontend is implemented beyond the old F1 handover:
 
 CP2/Japan is merged on GitHub. CP3, G3.4 and G3.5 (one stacked line), G4 and FI0 were developed in their own local
 worktrees from that merge and are combined only on the local integration branch. All source branches and worktrees,
-and the primary checkout's untracked files, remain preserved.
+and the primary checkout's untracked files, remain preserved. FI3, the welcome-status slice and
+the PDF compatibility closure were developed in their own worktrees from `origin/main` `6f0859b` and combined
+on `codex/integrate-fi3-welcome-pdf`; those source branches and worktrees are preserved too.
 
 ## What is explicitly not claimed
 
+- FI4/FI5 (applying approved financial facts to the knowledge base) are not started. FI3 only
+  dry-runs; no verified financial data was added and no seed or golden changed.
+- Spec 18 is not complete: Case A has a backend route only (no traveler UI, no approved offer
+  data, no valued points bonus) and Case B (new-card suggestions) is untouched.
+- PDF results are not exploit-resistance or sandbox results, and do not cover encrypted,
+  scanned, CJK/RTL or real issuer PDFs, or platforms other than macOS arm64.
 - CP4, FI1 and crawler work are not included in G3.4, G3.5, G4 or FI0. No credential, live
   provider/MCP/LLM call, booking, payment or transfer execution was activated during development.
 - A report saying “complete” for an older milestone does not mean its later live activation or
