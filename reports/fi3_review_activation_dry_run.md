@@ -135,3 +135,14 @@ manually captured real page, no network, nothing applied):
 
 Not claimed: this is one page and two rows by one curator, not evidence about other issuers;
 FI5 application, D1/D2 resolution, and any change to seed data remain out of scope.
+
+**Follow-up fix (2026-10-31): edits kept only the curator's `set` fields.** `ReviewService.apply_edits`
+(since `467be88`) built its response from `set` edits alone, so FI2 proposals the curator did not
+touch were dropped: with a proposal changing the fee (INR 15,000) and the forex markup (3.5%),
+reverting only the markup raised a raw pydantic error, and setting the fee to INR 14,000 was refused
+for "changing forex_markup_bp without a field proposal"; reverting both also raised the raw error.
+Now (a) revert markup gives decision `edited` with the fee change and the current markup, (b) setting
+the fee gives `edited` with fee 1,400,000 and markup 350 (the markup keeps its original evidence),
+and (c) reverting every changed field is a clean `ReviewRefusedError`. In bundles, `evidenced_fields`
+for an edited decision is the surviving proposals plus the `set` edits, so a reverted field lists as
+unevidenced. Regressions: `evals/test_fi3_edit_survivors.py`.

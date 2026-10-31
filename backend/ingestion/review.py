@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -33,7 +33,7 @@ from ingestion.review_types import (
     ReviewRefusedError,
 )
 from ingestion.storage import FinancialIngestionStore
-from ingestion.validation import ProposalValidationError, canonical_row_hash, validate_extraction
+from ingestion.validation import canonical_row_hash, validate_extraction
 
 CONTEXT_CHARS = 240
 SUPERSESSION_LIMIT = 50
@@ -41,6 +41,19 @@ SUPERSESSION_LIMIT = 50
 
 def _supported_edit_value(value: Any) -> bool:
     return isinstance(value, (date, int, str)) and not isinstance(value, bool)
+
+
+def evidenced_field_paths(
+    proposal: ChangeProposal, edits: Sequence[CuratorFieldEdit]
+) -> tuple[str, ...]:
+    """The fields an edited row has quoted evidence for.
+
+    Surviving FI2 proposals (neither reverted nor overridden by an edit) keep their original
+    evidence; each ``set`` edit brings its own. A reverted field is evidenced by nothing.
+    """
+    touched = {edit.field_path for edit in edits}
+    survivors = {p.field_path for p in proposal.field_proposals if p.field_path not in touched}
+    return tuple(sorted(survivors | {e.field_path for e in edits if e.action == "set"}))
 
 
 class ReviewService:
@@ -360,15 +373,41 @@ class ReviewService:
                     ),
                 ),
             )
-        response = ExtractionResponse(
-            target_table=ctx.proposal.target_table,
-            target_id=ctx.proposal.target_id,
-            proposed_row=row,
-            fields=tuple(fields),
-            change_summary=ctx.proposal.change_summary,
-            extractor_confidence=0.0,
-        )
+        # The edited row still carries every proposed value the curator did not touch, so the
+        # response must keep those FI2 proposals with their original evidence. Only a reverted
+        # or overridden field drops out; `fields` so far holds just the curator's `set` edits.
+        touched = {edit.field_path for edit in edits}
+        survivors = [
+            {
+                "field_path": proposal.field_path,
+                "proposed_raw_value": proposal.proposed_raw_value,
+                "evidence_spans": [
+                    span.model_dump(mode="json") for span in proposal.evidence_spans
+                ],
+            }
+            for proposal in ctx.proposal.field_proposals
+            if proposal.field_path not in touched
+        ]
+        response_fields = [*survivors, *fields]
+        if not response_fields:
+            message = "the edits leave no field with evidence; reject the proposal instead"
+            raise ReviewRefusedError(
+                message,
+                (
+                    ComputedFinding(
+                        code=FindingCode.INVALID_EDIT, severity="blocking", message=message
+                    ),
+                ),
+            )
         try:
+            response = ExtractionResponse(
+                target_table=ctx.proposal.target_table,
+                target_id=ctx.proposal.target_id,
+                proposed_row=row,
+                fields=tuple(response_fields),
+                change_summary=ctx.proposal.change_summary,
+                extractor_confidence=0.0,
+            )
             validated = validate_extraction(
                 response=response,
                 target_table=ctx.proposal.target_table,
@@ -381,12 +420,15 @@ class ReviewService:
                 extractor_version="fi3-curator",
                 manual_capture=ctx.lineage.watch_target.page_kind is PageKind.MANUAL_CAPTURE,
             )
-        except (ProposalValidationError, ValueError) as error:
+        except Exception as error:
+            # Anything unexpected here (a validation rule, a malformed stored proposal, a
+            # parser fault) is a refusal of this edit, never a raw exception for the caller.
+            message = str(error) or type(error).__name__
             raise ReviewRefusedError(
-                str(error),
+                message,
                 (
                     ComputedFinding(
-                        code=FindingCode.INVALID_EDIT, severity="blocking", message=str(error)
+                        code=FindingCode.INVALID_EDIT, severity="blocking", message=message
                     ),
                 ),
             ) from error

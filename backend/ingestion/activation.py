@@ -12,13 +12,14 @@ from core.db import KnowledgeBase
 from core.models import Card, Offer, PointValuation, RewardRule
 from ingestion.artifacts import ArtifactIntegrityError, ContentAddressedStore
 from ingestion.contracts import ImmutableArtifactRef, PageKind, ProposalStatus
-from ingestion.review import ReviewService
+from ingestion.review import ReviewService, evidenced_field_paths
 from ingestion.review_rows import (
     SUPPORTED_TABLES,
     SeedRowError,
     SeedRowSource,
     flatten_row,
 )
+from ingestion.review_types import CuratorFieldEdit
 from ingestion.storage import FinancialIngestionStore
 from ingestion.validation import canonical_row_hash
 
@@ -187,15 +188,14 @@ class ActivationPlanner:
                     or ctx.current_row_sha256 != ctx.proposal.current_row_hash
                 ):
                     raise ValueError("current row is stale or missing")
+                edits: tuple[CuratorFieldEdit, ...] = ()
                 if decision.status == "edited":
                     # Reconstruct from the stored typed edit payload; never trust stored row data.
-                    fields = tuple(
-                        __import__(
-                            "ingestion.review_types", fromlist=["CuratorFieldEdit"]
-                        ).CuratorFieldEdit.model_validate(value)
+                    edits = tuple(
+                        CuratorFieldEdit.model_validate(value)
                         for value in decision.edits.get("fields", [])
                     )
-                    new_row, _ = self.service.apply_edits(ctx, fields)
+                    new_row, _ = self.service.apply_edits(ctx, edits)
                 else:
                     new_row = ctx.proposal.proposed_row
                 if canonical_row_hash(new_row) != decision.attestation.resulting_row_sha256:
@@ -214,9 +214,9 @@ class ActivationPlanner:
                     for path, value in sorted(flatten_row(new_row).items())
                     if flatten_row(ctx.current_row).get(path) != value
                 )
-                covered = {field.field_path for field in ctx.proposal.field_proposals} | {
-                    change.field_path for change in changes
-                }
+                # What has quoted evidence: surviving FI2 proposals plus the curator's `set`
+                # edits. A field the curator reverted has none and lists as unevidenced.
+                covered = set(evidenced_field_paths(ctx.proposal, edits))
                 unevidenced = tuple(
                     path
                     for path in flatten_row(new_row)
