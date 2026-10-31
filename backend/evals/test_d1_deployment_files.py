@@ -430,3 +430,32 @@ class TestWorkflowShellAndSkipAccounting:
         )
         code, text = TestWorkflowShellAndSkipAccounting._run_accounting(tmp_path, out)
         assert code != 0 and "unexpected skipped tests" in text
+
+    def test_real_library_pdf_skips_are_accounted_separately_and_stay_visible(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression for CI on the FI3/welcome/PDF integration: the real-library PDF module
+        skips itself (51 tests) where the optional `pdfplumber` extra is absent, which CI's
+        lockfile does not include. Those skips are a named, visible category; they must not
+        count as 'other', and they must not hide a genuinely unrelated skip."""
+        why = (
+            "real pdfplumber is not installed in this interpreter; run this module with an "
+            "environment that has the declared optional dependency"
+        )
+        out = (
+            f"SKIPPED [14] evals/test_pdf_real_library_compatibility.py:536: {why}\n"
+            f"SKIPPED [37] evals/test_pdf_real_library_compatibility.py:578: {why}\n"
+            "SKIPPED [1] evals/test_cp1_boundaries.py:74: CP1_MERGE_BASE is required\n"
+        )
+        code, text = TestWorkflowShellAndSkipAccounting._run_accounting(tmp_path, out)
+        assert code == 0, text
+        assert "real `pdfplumber` is not installed: **51**" in text
+        assert "skipped for any other reason: **1**" in text
+
+    def test_a_pdf_skip_with_a_different_reason_is_still_flagged(self, tmp_path: Path) -> None:
+        out = (
+            "SKIPPED [1] evals/test_cp1_boundaries.py:74: CP1_MERGE_BASE is required\n"
+            "SKIPPED [1] evals/test_pdf_real_library_compatibility.py:9: flaky on this runner\n"
+        )
+        code, text = TestWorkflowShellAndSkipAccounting._run_accounting(tmp_path, out)
+        assert code != 0 and "unexpected skipped tests" in text

@@ -71,8 +71,8 @@ repeated for edit, reject, re-verify, bundle pages or logout.
 
 ## Measured verification
 
-Each row states the revision it ran on. `7339fec` is the last code revision; the documentation
-commit that follows changes no code.
+Each row states the revision it ran on. `7339fec` is the last product-code revision; later
+commits change only documentation, the CI skip-accounting step and its tests (see "CI finding").
 
 | Check | Revision | Result |
 |---|---|---|
@@ -109,6 +109,20 @@ frontend results verify that change on the combined tree.
   unknown; the build fetches Google Fonts, so it depends on that fetch working.
 - Running the product-shots spec rewrites tracked reference PNGs under `design/refs/f1_5/` and
   creates untracked `plan-*.png`; both were restored/removed afterwards and the tree is clean.
+
+## CI finding (first pull-request run)
+
+The first CI run on `1470211` failed the backend job's "Account for skipped tests" step; the
+other three jobs passed. The real-library PDF module skips its 51 tests where the optional
+`pdfplumber` extra is absent (CI's lockfile does not include it), and that step allows exactly one
+unexplained skip. This was branch-caused and invisible locally: `make gate` does not run the step.
+The tests had passed (the step runs after pytest), but the steps after it (frozen artifacts,
+strict mypy, ruff) never ran in CI on that run. Fix: a second named, visible skip category matched
+on the exact reason text, with the one-unexplained-skip threshold unchanged and regressions that
+an unrelated skip, including one in the same module, still fails (`DEVIATIONS.md`). Replaying the
+real skip lines from the failed log through the updated step gives 78 total = 26 catalog + 51
+real-library PDF + 1 other, exit 0. The real-library assertions remain verified only by an explicit
+run with the library installed, not by CI.
 
 ## Limitations and not claimed
 

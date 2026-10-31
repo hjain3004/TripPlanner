@@ -56,7 +56,7 @@ jobs:
           python3 - <<'PY'
           import os, re
           text = open(os.path.join(os.environ["RUNNER_TEMP"], "pytest.txt")).read()
-          total = catalog = 0
+          total = catalog = pdf_real = 0
           lines = []
           for line in text.splitlines():
               # "SKIPPED [n] path:line: reason" - classify on the REASON only, never the path
@@ -72,11 +72,18 @@ jobs:
                   m.group(2),
               ):
                   catalog += n
-          other = total - catalog
+              # The real-library PDF module skips itself, with this exact reason, where the
+              # optional `pdfplumber` extra is not installed (it is not in the CI lockfile).
+              elif re.search(r"real pdfplumber is not installed in this interpreter", m.group(2)):
+                  pdf_real += n
+          other = total - catalog - pdf_real
           summary = (
               f"### Skipped tests\n- total skipped: **{total}**\n"
               f"- skipped because the untracked regional catalogs are not provisioned: **{catalog}** "
               "(these assertions are verified by `make gate` on a provisioned machine, not by CI)\n"
+              f"- skipped because the optional real `pdfplumber` is not installed: **{pdf_real}** "
+              "(verified only by running `evals/test_pdf_real_library_compatibility.py` explicitly "
+              "with an interpreter that has the library, not by CI or `make gate`)\n"
               f"- skipped for any other reason: **{other}**\n"
           )
           open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(summary)
