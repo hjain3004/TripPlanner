@@ -1,8 +1,11 @@
 # FI3 — Human review and activation dry-run
 
-Status: ACCEPTANCE PENDING — offline operator workflow and independent review are complete;
-the required full checks and exact clean-tree gate remain outstanding. Live financial
-activation remains out of scope.
+Status: ACCEPTED on the combined integration tree — offline operator workflow and independent
+review are complete, and the required full checks passed on code revision `7339fec` of
+`codex/integrate-fi3-welcome-pdf` (see "Acceptance update" below and
+`reports/integration_fi3_welcome_pdf.md`). The exact-tree `make gate` result on the final
+integration commit is recorded with the pull request. Live financial activation remains out of
+scope; the body below is preserved as written for the source branch (`467be88`).
 
 ## Delivered operator path
 
@@ -69,3 +72,27 @@ remains bounded by the local operator surface's request handling and the latter 
 limitation: the normal form path is capped by `Content-Length`, while a future hardening pass
 should enforce streaming byte limits before parsing chunked bodies. No Critical findings were
 verified.
+
+## Acceptance update (2026-10-30, combined tree)
+
+Measured on `codex/integrate-fi3-welcome-pdf` at code revision `7339fec` (FI3 merged with the
+held-card welcome-status and PDF-compatibility branches); the full table, the commands and the
+revision of each run are in `reports/integration_fi3_welcome_pdf.md`:
+
+- complete backend suite 2766 passed, 52 skipped, 0 errors; `mypy --strict` and `ruff` clean in
+  every gate scope (ingestion: 26 files); `make seed`, contract drift, frontend checks and the
+  required Playwright gate checks pass; the schema-3 database still migrates to 4 without losing rows;
+- the CLI path (upload, snapshot, scripted FI2 extraction, inspect, validated approval, SQLite
+  reopen in a new process, deterministic bundle, read-only dry-run) was re-run on the combined tree
+  with a synthetic fixture: dry-run `would_update`, `kb_constructs: true`, seeds unchanged;
+- the loopback review app was run in a real browser. That found a defect the earlier acceptance
+  could not: `Referrer-Policy: no-referrer` made browsers send `Origin: null` on the app's own form
+  POSTs, which the strict origin check refuses, so login and decisions returned `403`. The policy is
+  now `same-origin` (allowlist unchanged), with HTTP-level regressions in
+  `evals/test_fi3_review_http.py`; before this the web app had no HTTP-level test. The browser
+  approval was read back from SQLite in a separate process. The browser run was manual and covered
+  login, queue, proposal inspection and approve only.
+
+Still open and unchanged: local-shell curator model, manual-capture provenance policy, no-expiry
+approvals, the chunked-body limit, and FI5 application semantics. FI3 remains an offline operator
+tool with no KB apply.

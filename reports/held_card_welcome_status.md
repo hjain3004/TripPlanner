@@ -6,6 +6,9 @@ it is not a traveler-facing feature (see "Deferred").
 **Base:** `6f0859b` (`origin/main`). **Branch:** `codex/held-card-welcome-status`.
 **Worktree:** `/Users/himanshu_jain/.codex/worktrees/held-card-welcome-status/TripPlanner`.
 **Pushed / merged:** no. Nothing was pushed, merged, rebased or opened as a PR.
+*(As written for the source branch at `31b9823`. It was later merged with FI3 and the PDF
+compatibility branch and re-verified as a combined tree; see
+`reports/integration_fi3_welcome_pdf.md`. The behavior and limits below are unchanged.)*
 
 Code commits, in order: `2a1ca53` (feature), `246c0b0` (review fixes), `fbbcce5` (packaging and
 gate lines), `814de14` (points-bonus valuation fix). This report is the final, docs-only commit.
