@@ -1,6 +1,8 @@
 # Card data bank: source permissions (Phase 1)
 
-**Status:** research record for owner approval. Nothing here activates a source.
+**Status:** research record. Owner decisions of 2026-11-01 are recorded in section 5A; the
+questions still open are marked in section 6. Nothing here activates a source: no source
+policy, watch target or fetch exists.
 **Plan:** `docs/superpowers/plans/2026-10-31-indian-card-data-bank.md` (branch `claude/card-data-bank-plan`, `0900d41`), Phase 1.
 **Date read:** 2026-11-01 (UTC). **Base:** `origin/main` `8d805e3`.
 **Governing rules:** spec 05 (terms-of-service gate; aggregator values are leads only; robots.txt, at least 10 s per domain, honest user agent) and the plan's source rule.
@@ -146,18 +148,33 @@ exists" and the issuer URL it points to.
 `terms_read_on` is 2026-11-01 for every row read today; `reviewed_by` and `reviewed_on` stay
 empty until you approve.
 
+## 5A. Owner decisions (2026-11-01)
+
+Approved by the owner in chat, in answer to questions 1, 2 and 4 below:
+
+| Decision | Applies to | Recorded effect |
+|---|---|---|
+| Local-only, personal, non-commercial research bank is acceptable under the issuers' terms | HDFC, Axis, SBI Card, ICICI | No captured text is published; stored facts are numbers with short quoted evidence. Revisit with counsel if this leaves the student profile. |
+| **Automated fetching approved** | `hdfc.bank.in`, `axis.bank.in`, `sbicard.com` | `automated_access_permitted: true`, `manual_only: false` for `card_page` and `tnc_pdf`. Understood as within each site's `robots.txt` and spec 05: honest custom user agent, at least 10 s per domain, no login-walled or protected pages. It does not set the build order; Phase 2 still starts from manual captures. |
+| **`manual_only` lead use approved** | `cardexpert.in`, `bankbazaar.com` | A human reads; only the card name and the issuer URL are recorded; no page text, ratings or numbers. No written-permission request is being drafted. |
+
+Not yet decided, so the conservative default applies: `icici.bank.in` (HTML automation not
+included in the approval; PDFs stay manual because robots disallows them) and `paisabazaar.com`
+(unused). `reviewed_by` and `reviewed_on` are still empty on every row because no source-policy
+record has been created.
+
 ## 6. Open questions for you
 
-1. **Personal, non-commercial, local-only.** Every issuer licence is personal or non-commercial
+1. **Answered yes (2026-11-01).** **Personal, non-commercial, local-only.** Every issuer licence is personal or non-commercial
    and reserves public or commercial reuse. Do you accept a local-only research bank under that
    reading, with no captured text published and facts stored as numbers with quotes only as
    short evidence? (Counsel, if this ever leaves the student profile.)
-2. **Automated fetching for issuers.** Robots and the clauses found allow it for HDFC, Axis
+2. **Answered yes for HDFC, Axis and SBI Card (2026-11-01); ICICI not covered.** **Automated fetching for issuers.** Robots and the clauses found allow it for HDFC, Axis
    and SBI Card. Do you want to approve automation now, or keep manual capture as the only path
    until Phase 5?
 3. **ICICI PDFs.** robots disallows them for automated agents. Confirm they are manual captures
    from your own browser.
-4. **CardExpert and BankBazaar.** Approve `manual_only` lead use (names and issuer URLs only),
+4. **Answered: `manual_only` lead use approved for both (2026-11-01); no permission request drafted.** **CardExpert and BankBazaar.** Approve `manual_only` lead use (names and issuer URLs only),
    or drop them? Do you want me to draft a written-permission request to CardExpert?
 5. **Paisabazaar.** Leave it unused, or will you read its terms in your browser?
 6. **HDFC.** I restated its terms from the plan. Should I re-read them before activation?
