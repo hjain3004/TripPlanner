@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "state": "draft",
+  "asset_id": "destination-hero-01",
+  "destination_id": null,
+  "role": "hero",
+  "placement": "destination_editorial",
+  "direction_approval": null,
+  "subject": null,
+  "artwork_family": null,
+  "subject_references": [],
+  "style_references": [],
+  "palette_roles": {},
+  "composition": {"aspect_ratio": "3:2", "subject_position": null, "crop_safe_area": null},
+  "light_or_print_process": null,
+  "required_source_width": 1440,
+  "prompt": null,
+  "budget": {"additional_usd": 0, "max_candidates": 3, "max_local_edits": 2, "max_included_credits": null},
+  "observed_surface": null,
+  "observed_model": null,
+  "observed_cost_per_output": null,
+  "generation_authorized": false
+}

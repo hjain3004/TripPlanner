@@ -10,10 +10,20 @@ Orientation: `docs/ARCHITECTURE.md` (one page). Product destination: specs `08` 
 
 ## Session start protocol (mandatory)
 
-1. Read `DEVIATIONS.md` and the newest file in `reports/` — this is how you recover context. Do NOT re-read all specs and re-decide settled questions.
+1. Read `docs/DEVELOPMENT_WORKFLOW.md`, `DEVIATIONS.md`, and the newest file in `reports/` — this is how you recover context. Check each report's branch/commit before applying its status to this checkout. Do NOT re-read all specs and re-decide settled questions.
 2. Read `docs/specs/06_implementation_protocol.md` (decision tiers, ambiguity protocol, gates).
 3. Read only the spec(s) for the current milestone (see build order below).
 4. Work the milestone. Log judgment calls to `DEVIATIONS.md` as you go. Pass the gate. Write `reports/<milestone>.md`.
+
+## Delivery priorities (human-directed, 2026-10-27)
+
+- Deliver the smallest useful end-to-end workflow in the existing application, API, or operator CLI. State who can do what, demonstrate it, and identify what remains unavailable. An internal tool is not a traveler-facing feature.
+- Test totals, coverage percentages, commit counts, and review counts are not progress goals. Lead updates with working behavior, the actual execution mode, and remaining blockers; retain measured checks as supporting evidence.
+- Exercise real installed dependencies and integration seams early. Distinguish synthetic fixtures, recorded replay, real-library local execution, and explicitly approved live calls. Passing mocks does not prove the real integration works; no credentials, spend, source permission, or deployment approval is implied.
+- Keep focused regressions and every required gate. Do not add blanket audit/mutation-test/report cycles, speculative infrastructure, or new acceptance gates without a concrete risk or demonstrated failure. Prepare documentation alongside the change to avoid unnecessary report-only verification loops.
+- Default to one implementation owner and one independent review of the completed change, not a fresh review for every trivial subtask. Parallelize only independent deliverables with clear file ownership; do not create work merely to occupy agents.
+- An unrelated optional-dependency check, future activation blocker, or broader hardening task does not automatically block another bounded feature. Explain the dependency or risk if it really blocks delivery. Respect disk limits; preserve user files and other worktrees.
+- Follow [the development workflow](docs/DEVELOPMENT_WORKFLOW.md). These priorities supplement, and do not waive, the frozen arithmetic, provenance, approval boundaries, existing gates, or explicit human permissions.
 
 ## The five non-negotiables
 
@@ -41,9 +51,11 @@ Target prototype: specs **08,09,16** are authoritative design now; provider/gate
 
 Accounts & acquisition: spec **17** (accounts + persistence) is authoritative design; `docs/superpowers/plans/2026-07-28-accounts-persistence.md` was written before it — a deliberate, human-approved process inversion logged as SCOPE+ in `DEVIATIONS.md`; where the two disagree, spec 17 wins. Backend **A1** persistence and **A2** email/password authentication are implemented, but account UI and wiring stored wallets/trips into the planning flow remain unimplemented. Spec **18** (card acquisition + welcome offers) is not implemented and depends on the remaining spec-17 product wiring. Spec 18's Case A (welcome window on an already-held card) is shippable independently of Case B (new-card suggestion) — do not build Case B first.
 
-Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (frontend). A milestone is not done because the code exists; it is done when its gate passes.
+Gate before advancing. Gates are in spec 06 §5 (backend) and spec 10 §5 (frontend). Passing the required gate is necessary, not sufficient: also demonstrate the agreed workflow and state its limits. An isolated, unwired, or disabled component may complete an explicitly offline engineering milestone; it is not a delivered live product feature.
 
 ## Current checkpoint (2026-10-08)
+
+**Historical checkpoint for this checkout, not current `main`.** The status and test counts below describe their recorded branch/commit. Verify the actual code and relevant milestone reports before using them as present-day progress claims.
 
 - **Documentation reconciliation is in progress on `codex/docs-fable-handoff`:** read [docs/INDEX.md](docs/INDEX.md), [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md), [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md), [frontend/ARCHITECTURE.md](frontend/ARCHITECTURE.md), and [frontend/FABLE_HANDOFF.md](frontend/FABLE_HANDOFF.md) for the evidence-linked handoff. This docs-only work does not change backend/frontend product behavior, OpenAPI, goldens, or provider activation.
 

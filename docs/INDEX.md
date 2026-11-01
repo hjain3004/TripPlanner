@@ -6,7 +6,12 @@ changing behavior.
 
 ## Read in this order
 
-1. [Current state](CURRENT_STATE.md) — what is actually on `main`, what is enabled, and what is
+Before planning work, read [Development workflow](DEVELOPMENT_WORKFLOW.md): deliver a demonstrated
+workflow, use tests as supporting evidence, and avoid unnecessary audit/infrastructure work.
+Existing gates and safety boundaries remain mandatory. State summaries and counts are scoped to
+their recorded branch/commit; an older checkout's documentation is not proof of current `main`.
+
+1. [Current state](CURRENT_STATE.md) — the recorded implementation, what is enabled, and what is
    still planned.
 2. [Infrastructure](INFRASTRUCTURE.md) — runtime boundaries, persistence, provider profile, and
    verification surfaces.
@@ -26,6 +31,7 @@ changing behavior.
 
 | Question | Source of truth |
 |---|---|
+| Delivery priorities and progress reporting | `DEVELOPMENT_WORKFLOW.md`, subordinate to authoritative scope, gates, and safety rules |
 | Product scope, target platform, provider profile | `docs/specs/08_product_vision.md`, `09_target_platform_architecture.md`, `16_data_gateway_and_adapters.md` |
 | Kernel money, optimizer, transfer, and provenance behavior | `docs/specs/00`–`07` and the committed tests/goldens |
 | API wire contract | `contract/openapi.json` and generated client output |

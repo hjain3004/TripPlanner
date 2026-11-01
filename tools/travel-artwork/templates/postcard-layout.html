@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Destination postcard proof · TripPlanner</title>
+<style>
+  :root { --paper: #f3f2ee; --ink: #283139; --accent: #465f70; --plate: #d7e1e3; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  header { border-bottom: 2px solid var(--ink); padding: 22px clamp(20px, 5vw, 72px); display: flex; gap: 20px; justify-content: space-between; align-items: baseline; }
+  header strong { font-size: 20px; letter-spacing: -.04em; }
+  header span { font-size: 12px; }
+  main { max-width: 1440px; margin: auto; padding: 32px clamp(20px, 5vw, 72px) 64px; }
+  h1 { margin: 0 0 12px; font: 400 clamp(32px, 4vw, 54px)/1.08 Georgia, serif; letter-spacing: -.03em; }
+  .intro { max-width: 700px; margin: 0 0 28px; }
+  .controls { display: flex; align-items: end; gap: 16px; flex-wrap: wrap; border-block: 1px solid var(--ink); padding: 20px 0; margin-bottom: 40px; }
+  label { display: grid; gap: 6px; font-size: 12px; }
+  input { font: inherit; border: 1px solid var(--ink); background: var(--paper); color: var(--ink); border-radius: 0; padding: 9px; min-height: 42px; }
+  input[type="color"] { width: 56px; padding: 4px; }
+  input:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+  .boards { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, .85fr); gap: 36px; align-items: start; }
+  .card { border: 2px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); background: var(--paper); min-width: 0; }
+  .hero { grid-column: 1 / -1; display: grid; grid-template-columns: 1.15fr 1fr; }
+  .art { position: relative; background: var(--plate); aspect-ratio: 3 / 2; overflow: hidden; display: grid; place-items: center; }
+  .portrait .art { aspect-ratio: 4 / 5; }
+  .detail .art { aspect-ratio: 1; }
+  .art img { display: none; width: 100%; height: 100%; position: absolute; inset: 0; object-fit: cover; }
+  .art[data-ready] img { display: block; }
+  .art[data-ready] .empty { display: none; }
+  .empty { text-align: center; padding: 24px; max-width: 270px; font-size: 14px; }
+  .empty span { display: block; margin-bottom: 12px; font: 32px/1 Georgia, serif; }
+  .copy { padding: clamp(22px, 3vw, 40px); }
+  .hero .copy { border-left: 2px solid var(--ink); display: flex; flex-direction: column; justify-content: center; }
+  .eyebrow { margin: 0 0 16px; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
+  h2 { font: 400 clamp(28px, 3vw, 44px)/1.08 Georgia, serif; margin: 0 0 20px; overflow-wrap: anywhere; }
+  .caption { margin: 0; }
+  .foot { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--ink); padding-top: 16px; margin-top: 24px; font-size: 11px; }
+  .picker { padding: 18px 22px; border-top: 2px solid var(--ink); }
+  .hero .picker { grid-column: 1 / -1; }
+  .picker input { max-width: 100%; width: 100%; }
+  .status { margin: 8px 0 0; font-size: 12px; min-height: 18px; }
+  details { border-block: 1px solid var(--ink); margin-top: 42px; padding: 18px 0; }
+  summary { cursor: pointer; }
+  .review { max-width: 800px; }
+  @media (max-width: 720px) { .boards, .hero { grid-template-columns: 1fr; } .hero .copy { border-left: 0; border-top: 2px solid var(--ink); } .hero .picker { grid-column: auto; } header { align-items: start; flex-direction: column; gap: 4px; } }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+  @media print { header span, .controls, .picker, details, .intro { display: none; } .card { break-inside: avoid; box-shadow: none; } main { padding: 20px; } }
+</style>
+<header><strong>TripPlanner/</strong><span>Local destination artwork proof</span></header>
+<main>
+  <h1>A place, in three compositions.</h1>
+  <p class="intro">Choose artwork for a hero, postcard and detail study. These neutral proof colors and system fonts are temporary; use your selected destination brief when comparing the finished collection.</p>
+  <div class="controls" aria-label="Proof settings">
+    <label>Destination<input id="destination" value="Your destination" maxlength="100"></label>
+    <label>Caption<input id="caption" value="A detail worth remembering." maxlength="180"></label>
+    <label>Paper<input type="color" value="#f3f2ee" data-color="--paper"></label>
+    <label>Ink<input type="color" value="#283139" data-color="--ink"></label>
+    <label>Accent<input type="color" value="#465f70" data-color="--accent"></label>
+    <label>Plate<input type="color" value="#d7e1e3" data-color="--plate"></label>
+  </div>
+  <div class="boards">
+    <article class="card hero">
+      <div class="art"><img alt="Selected hero artwork"><div class="empty"><span>Hero</span>A wide scene with a clear focal point.</div></div>
+      <div class="copy"><p class="eyebrow">Destination study</p><h2 data-destination>Your destination</h2><p class="caption" data-caption>A detail worth remembering.</p><div class="foot"><span>Hero composition</span><span>Review proof</span></div></div>
+      <div class="picker"><label>Choose hero artwork<input type="file" accept="image/*" data-role="hero"></label><p class="status" aria-live="polite"></p></div>
+    </article>
+    <article class="card portrait">
+      <div class="art"><img alt="Selected postcard artwork"><div class="empty"><span>Postcard</span>A separate portrait composition.</div></div>
+      <div class="copy"><p class="eyebrow">Postcard study</p><h2 data-destination>Your destination</h2><p class="caption" data-caption>A detail worth remembering.</p><div class="foot"><span>Portrait composition</span><span>Review proof</span></div></div>
+      <div class="picker"><label>Choose postcard artwork<input type="file" accept="image/*" data-role="postcard"></label><p class="status" aria-live="polite"></p></div>
+    </article>
+    <article class="card detail">
+      <div class="art"><img alt="Selected detail artwork"><div class="empty"><span>Detail</span>One specific material, landscape or architectural detail.</div></div>
+      <div class="copy"><p class="eyebrow">Material study</p><h2 data-destination>Your destination</h2><p class="caption" data-caption>A detail worth remembering.</p><div class="foot"><span>Square composition</span><span>Review proof</span></div></div>
+      <div class="picker"><label>Choose detail artwork<input type="file" accept="image/*" data-role="detail"></label><p class="status" aria-live="polite"></p></div>
+    </article>
+  </div>
+  <details><summary>Review the collection</summary><div class="review"><p>Check the actual originals at full size, then resize this page to 390, 768 and 1440 pixels. Compare subject geometry, material texture, palette, family consistency and crop losses. These frames preview crops; the exporter uses only the crop recorded in the manifest.</p><p>Files stay in this local browser page. Nothing is uploaded, stored across sessions, approved, exported or integrated by this proof. Record the exact selected revision and hash in the review log.</p></div></details>
+</main>
+<script>
+  for (const [id, attribute] of [['destination', 'data-destination'], ['caption', 'data-caption']]) {
+    document.getElementById(id).addEventListener('input', event => {
+      for (const element of document.querySelectorAll('[' + attribute + ']')) element.textContent = event.target.value;
+    });
+  }
+  for (const picker of document.querySelectorAll('[data-color]')) {
+    picker.addEventListener('input', () => document.documentElement.style.setProperty(picker.dataset.color, picker.value));
+  }
+  for (const input of document.querySelectorAll('input[type=file]')) {
+    let currentURL = null;
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return;
+      const card = input.closest('article');
+      const image = card.querySelector('img');
+      const art = card.querySelector('.art');
+      const status = card.querySelector('.status');
+      if (currentURL) URL.revokeObjectURL(currentURL);
+      currentURL = URL.createObjectURL(file);
+      art.removeAttribute('data-ready');
+      image.onload = () => {
+        art.setAttribute('data-ready', '');
+        status.textContent = file.name + ' · ' + image.naturalWidth + ' × ' + image.naturalHeight + ' px';
+      };
+      image.onerror = () => { status.textContent = 'This file could not be previewed. Choose a supported image.'; };
+      image.src = currentURL;
+    });
+  }
+</script>
+</html>

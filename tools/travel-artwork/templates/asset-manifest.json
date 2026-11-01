@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "destination_id": "replace-with-destination-id",
+  "assets": [
+    {
+      "id": "destination-hero-01",
+      "role": "hero",
+      "source_file": "originals/hero-01.png",
+      "source_sha256": null,
+      "origin": "ai_generated",
+      "generator": {"product": "Google Flow", "model": null},
+      "prompt": null,
+      "created_at": null,
+      "references": [],
+      "alt": null,
+      "allowed_placements": ["destination_editorial"],
+      "approval": {"status": "pending", "reviewer": null, "reviewed_at": null, "source_sha256": null},
+      "review": {"geometry": "pending", "destination": "pending", "texture": "pending", "composition": "pending", "crop": "pending", "visible_watermark": "unknown"},
+      "export": {"widths": [390, 768, 1440], "crop_box": null, "byte_budget": 250000}
+    }
+  ]
+}
