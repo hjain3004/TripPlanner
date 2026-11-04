@@ -82,10 +82,11 @@ def test_approve_restart_bundle_and_dry_run_are_durable(tmp_path: Path) -> None:
     record, bundle = planner.build(
         proposal_ids=(proposal_id,), curator_id="alice", client_event_id="bundle-event-fi3"
     )
-    assert bundle.applicable
+    assert bundle.dry_run_consistent and not bundle.activation_authorized
     report = planner.dry_run(record.bundle_sha256)
-    assert report.applicable and report.kb_constructs
-    assert report.entries[0].status == "would_update"
+    assert report.dry_run_consistent and report.kb_constructs
+    # The fixture quotes the seeded value, so the approved row changes nothing.
+    assert report.entries[0].status == "confirmed_unchanged"
 
 
 def test_stale_and_conflicting_reuse_fail_closed(tmp_path: Path) -> None:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
+from datetime import UTC
 from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -10,23 +12,42 @@ from core.db import KnowledgeBase
 from core.models import Card, Offer, PointValuation, RewardRule
 from ingestion.artifacts import ArtifactIntegrityError, ContentAddressedStore
 from ingestion.contracts import ImmutableArtifactRef, PageKind, ProposalStatus
-from ingestion.review import ReviewService
+from ingestion.review import ReviewService, evidenced_field_paths
 from ingestion.review_rows import (
     SUPPORTED_TABLES,
     SeedRowError,
     SeedRowSource,
     flatten_row,
 )
+from ingestion.review_types import CuratorFieldEdit
 from ingestion.storage import FinancialIngestionStore
 from ingestion.validation import canonical_row_hash
 
-BUNDLE_SCHEMA: Final = "tripwise.financial-activation-bundle/v1"
+BUNDLE_SCHEMA: Final = "tripwise.financial-activation-bundle/v2"
+# v1 reported `applicable: True` while D1/D2 were open; it is only ever dry-run as legacy.
+LEGACY_BUNDLE_SCHEMA: Final = "tripwise.financial-activation-bundle/v1"
+# D1: may an approval clear `needs_verification` for fields it never quoted (spec 05 provenance is
+# row-level, evidence is field-level)? D2: may a manual capture become `official_page`/`tnc_pdf`?
+Decision = Literal["D1", "D2"]
+UNRESOLVED_DECISIONS: Final[tuple[Decision, ...]] = ("D1", "D2")
 
 
 class FieldChange(BaseModel):
     field_path: str
     old: Any = None
     new: Any = None
+
+
+class ProvenanceCandidate(BaseModel):
+    """What spec 05 would write after approval. FI3 records it; it never applies it."""
+
+    model_config = ConfigDict(frozen=True)
+    source_type: Literal["official_page", "tnc_pdf", "manual_curation"]
+    verified_by: str
+    last_verified: str
+    source_url: str
+    confidence: float | None
+    needs_verification: None = None  # D1 must decide this, so it is never filled in here
 
 
 class ActivationEntry(BaseModel):
@@ -37,7 +58,10 @@ class ActivationEntry(BaseModel):
     new_row: dict[str, Any]
     new_row_sha256: str
     field_changes: tuple[FieldChange, ...]
+    evidenced_fields: tuple[str, ...]
     unevidenced_fields: tuple[str, ...]
+    provenance_candidate: ProvenanceCandidate
+    blocked_by: tuple[Decision, ...]
     proposal_id: str
     proposal_payload_sha256: str
     decision_id: str
@@ -57,11 +81,35 @@ class RefusedEntry(BaseModel):
 
 
 class ActivationBundle(BaseModel):
-    schema_version: Literal["tripwise.financial-activation-bundle/v1"] = BUNDLE_SCHEMA
+    schema_version: Literal["tripwise.financial-activation-bundle/v2"] = BUNDLE_SCHEMA
+    # FI3 approvals are review decisions, never authorization to apply (always false in v2).
+    activation_authorized: Literal[False] = False
+    unresolved_decisions: tuple[Decision, ...] = UNRESOLVED_DECISIONS
     seed_files: dict[str, str]
     entries: tuple[ActivationEntry, ...]
     refused: tuple[RefusedEntry, ...]
-    applicable: bool
+    # Internal consistency only (`refused == ()`); not readiness to apply.
+    dry_run_consistent: bool
+
+
+class LegacyActivationEntry(BaseModel):
+    """The part of a stored v1 entry that dry-run needs; v1 had no provenance candidate."""
+
+    model_config = ConfigDict(extra="ignore")
+    target_table: str
+    target_id: str
+    base_row_sha256: str
+    new_row: dict[str, Any]
+    field_changes: tuple[FieldChange, ...]
+
+
+class LegacyActivationBundle(BaseModel):
+    """A stored v1 bundle. Its `applicable` flag is deliberately not read."""
+
+    model_config = ConfigDict(extra="ignore")
+    schema_version: Literal["tripwise.financial-activation-bundle/v1"]
+    seed_files: dict[str, str]
+    entries: tuple[LegacyActivationEntry, ...]
 
 
 class ActivationBundleRecord(BaseModel):
@@ -73,17 +121,32 @@ class ActivationBundleRecord(BaseModel):
 class DryRunEntry(BaseModel):
     target_table: str
     target_id: str
-    status: Literal["would_update", "stale", "row_missing", "invalid_row"]
+    status: Literal["would_update", "confirmed_unchanged", "stale", "row_missing", "invalid_row"]
     field_changes: tuple[FieldChange, ...] = ()
 
 
 class DryRunReport(BaseModel):
     bundle_sha256: str
+    bundle_schema: str
+    legacy_bundle: bool
     entries: tuple[DryRunEntry, ...]
     kb_constructs: bool
     reference_errors: tuple[str, ...]
     seed_files_unchanged: bool
-    applicable: bool
+    activation_authorized: Literal[False] = False
+    unresolved_decisions: tuple[Decision, ...] = UNRESOLVED_DECISIONS
+    # Internal consistency only. A legacy (v1) bundle can never be consistent.
+    dry_run_consistent: bool
+
+
+def with_current_provenance(new_row: dict[str, Any], current_row: dict[str, Any]) -> dict[str, Any]:
+    """FI3 never upgrades trust: the new row carries the current row's provenance, unchanged."""
+    merged = copy.deepcopy(new_row)
+    if "provenance" in current_row:
+        merged["provenance"] = copy.deepcopy(current_row["provenance"])
+    else:
+        merged.pop("provenance", None)
+    return merged
 
 
 def canonical_bundle_bytes(bundle: ActivationBundle) -> bytes:
@@ -125,19 +188,21 @@ class ActivationPlanner:
                     or ctx.current_row_sha256 != ctx.proposal.current_row_hash
                 ):
                     raise ValueError("current row is stale or missing")
+                edits: tuple[CuratorFieldEdit, ...] = ()
                 if decision.status == "edited":
                     # Reconstruct from the stored typed edit payload; never trust stored row data.
-                    fields = tuple(
-                        __import__(
-                            "ingestion.review_types", fromlist=["CuratorFieldEdit"]
-                        ).CuratorFieldEdit.model_validate(value)
+                    edits = tuple(
+                        CuratorFieldEdit.model_validate(value)
                         for value in decision.edits.get("fields", [])
                     )
-                    new_row, _ = self.service.apply_edits(ctx, fields)
+                    new_row, _ = self.service.apply_edits(ctx, edits)
                 else:
                     new_row = ctx.proposal.proposed_row
                 if canonical_row_hash(new_row) != decision.attestation.resulting_row_sha256:
                     raise ValueError("resulting row attestation does not match")
+                # The attestation above covers the reviewed row. What the bundle carries as
+                # `new_row` never changes provenance: that is D1/D2's decision, not FI3's.
+                new_row = with_current_provenance(new_row, ctx.current_row)
                 targets.setdefault((ctx.proposal.target_table, ctx.proposal.target_id), []).append(
                     proposal_id
                 )
@@ -149,21 +214,31 @@ class ActivationPlanner:
                     for path, value in sorted(flatten_row(new_row).items())
                     if flatten_row(ctx.current_row).get(path) != value
                 )
-                covered = {field.field_path for field in ctx.proposal.field_proposals} | {
-                    change.field_path for change in changes
-                }
+                # What has quoted evidence: surviving FI2 proposals plus the curator's `set`
+                # edits. A field the curator reverted has none and lists as unevidenced.
+                covered = set(evidenced_field_paths(ctx.proposal, edits))
                 unevidenced = tuple(
                     path
                     for path in flatten_row(new_row)
                     if path != "id" and not path.startswith("provenance.") and path not in covered
                 )
                 page_kind = ctx.lineage.watch_target.page_kind
-                source_type = (
+                manual = page_kind is PageKind.MANUAL_CAPTURE
+                source_type: Literal["official_page", "tnc_pdf", "manual_curation"] = (
                     "manual_curation"
-                    if page_kind is PageKind.MANUAL_CAPTURE
+                    if manual
                     else "tnc_pdf"
                     if page_kind is PageKind.TNC_PDF
                     else "official_page"
+                )
+                canonical_url = ctx.lineage.watch_target.canonical_url
+                final_url = next(
+                    (
+                        attempt.final_url
+                        for attempt in reversed(snapshot.attempts)
+                        if attempt.response_class == "success" and attempt.final_url
+                    ),
+                    None,
                 )
                 entries.append(
                     ActivationEntry(
@@ -173,7 +248,17 @@ class ActivationPlanner:
                         new_row=new_row,
                         new_row_sha256=canonical_row_hash(new_row),
                         field_changes=changes,
+                        evidenced_fields=tuple(sorted(covered)),
                         unevidenced_fields=unevidenced,
+                        provenance_candidate=ProvenanceCandidate(
+                            source_type=source_type,
+                            verified_by=decision.reviewer_id,
+                            last_verified=decision.decided_at.astimezone(UTC).date().isoformat(),
+                            source_url=final_url or canonical_url,
+                            confidence=decision.curator_confidence,
+                        ),
+                        # D1 applies to every entry; D2 only where the source is a manual capture.
+                        blocked_by=("D1", "D2") if manual else ("D1",),
                         proposal_id=proposal_id,
                         proposal_payload_sha256=decision.attestation.proposal_payload_sha256,
                         decision_id=decision.decision_id,
@@ -183,7 +268,7 @@ class ActivationPlanner:
                         evidence=tuple(
                             d.model_dump(mode="json") for d in decision.attestation.evidence
                         ),
-                        source_url=ctx.lineage.watch_target.canonical_url,
+                        source_url=canonical_url,
                         source_type=source_type,
                         attribution_required=ctx.lineage.source_policy.attribution_required,
                     )
@@ -214,7 +299,7 @@ class ActivationPlanner:
             seed_files=seed_files,
             entries=tuple(sorted(entries, key=lambda e: (e.target_table, e.target_id))),
             refused=tuple(sorted(refused, key=lambda e: e.proposal_id)),
-            applicable=not refused,
+            dry_run_consistent=not refused,
         )
         body = canonical_bundle_bytes(bundle)
         digest = hashlib.sha256(body).hexdigest()
@@ -246,7 +331,15 @@ class ActivationPlanner:
         body = self.artifacts.read(record.artifact)
         if hashlib.sha256(body).hexdigest() != bundle_sha256:
             raise ArtifactIntegrityError("activation bundle hash mismatch")
-        bundle = ActivationBundle.model_validate_json(body)
+        schema = json.loads(body).get("schema_version")
+        bundle: ActivationBundle | LegacyActivationBundle
+        if schema == LEGACY_BUNDLE_SCHEMA:
+            bundle = LegacyActivationBundle.model_validate_json(body)
+        elif schema == BUNDLE_SCHEMA:
+            bundle = ActivationBundle.model_validate_json(body)
+        else:
+            raise ValueError(f"unsupported activation bundle schema: {schema!r}")
+        legacy = isinstance(bundle, LegacyActivationBundle)
         entries: list[DryRunEntry] = []
         models: dict[str, list[dict[str, Any]]] = {table: [] for table in SUPPORTED_TABLES}
         refs: list[str] = []
@@ -255,11 +348,16 @@ class ActivationPlanner:
         for entry in bundle.entries:
             try:
                 current = self.rows.current_row(entry.target_table, entry.target_id)
-                status = (
-                    "would_update"
-                    if canonical_row_hash(current) == entry.base_row_sha256
-                    else "stale"
-                )
+                status: Literal[
+                    "would_update", "confirmed_unchanged", "stale", "row_missing", "invalid_row"
+                ]
+                if canonical_row_hash(current) != entry.base_row_sha256:
+                    status = "stale"
+                elif entry.field_changes:
+                    status = "would_update"
+                else:
+                    # The evidence confirmed the stored value; nothing would change.
+                    status = "confirmed_unchanged"
                 entries.append(
                     DryRunEntry(
                         target_table=entry.target_table,
@@ -289,6 +387,9 @@ class ActivationPlanner:
                         status="invalid_row",
                     )
                 )
+        entries_ok = all(
+            entry.status in {"would_update", "confirmed_unchanged"} for entry in entries
+        )
         kb_constructs = False
         try:
             cards = [Card.model_validate(row) for row in models["cards"]]
@@ -306,9 +407,7 @@ class ActivationPlanner:
                 for value in vals
                 if value.card_id not in card_ids
             )
-            kb_constructs = not refs and not any(
-                entry.status != "would_update" for entry in entries
-            )
+            kb_constructs = not refs and entries_ok
             if kb_constructs:
                 KnowledgeBase.from_models(
                     cards=cards, reward_rules=rules, offers=offers, point_valuations=vals
@@ -320,17 +419,20 @@ class ActivationPlanner:
             for table, (filename, _model) in SUPPORTED_TABLES.items()
             for digest in (bundle.seed_files[filename],)
         )
-        applicable = (
-            bundle.applicable
-            and unchanged
-            and not refs
-            and all(entry.status == "would_update" for entry in entries)
-        )
         return DryRunReport(
             bundle_sha256=bundle_sha256,
+            bundle_schema=bundle.schema_version,
+            legacy_bundle=legacy,
             entries=tuple(entries),
             kb_constructs=kb_constructs,
             reference_errors=tuple(refs),
             seed_files_unchanged=unchanged,
-            applicable=applicable,
+            # Internal consistency only. A v1 bundle predates D1/D2 and is never consistent.
+            dry_run_consistent=(
+                not isinstance(bundle, LegacyActivationBundle)
+                and bundle.dry_run_consistent
+                and unchanged
+                and not refs
+                and entries_ok
+            ),
         )

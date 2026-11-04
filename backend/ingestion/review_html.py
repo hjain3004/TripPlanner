@@ -99,22 +99,34 @@ def render_raw_text(snapshot_id: str, text: str) -> str:
 
 def render_bundle(
     record: ActivationBundleRecord,
-    bundle: ActivationBundle,
+    bundle: ActivationBundle | None,
     report: DryRunReport | None,
     *,
     csrf_token: str,
     client_event_id: str,
 ) -> str:
-    body = (
-        f"<h1>Activation bundle {h(record.bundle_sha256)}</h1>"
-        f"<p>Applicable: {h(bundle.applicable)}</p>"
+    """``bundle`` is None for a stored legacy (v1) bundle, which only the dry-run can describe."""
+    body = f"<h1>Activation bundle {h(record.bundle_sha256)}</h1>"
+    if report:
+        legacy = " (legacy v1 bundle: never consistent)" if report.legacy_bundle else ""
+        body += (
+            f"<p>Schema: {h(report.bundle_schema)}{h(legacy)}</p>"
+            f"<p>Activation authorized: {h(report.activation_authorized)} "
+            "(an approval here is a review decision, not authorization to apply)</p>"
+            f"<p>Unresolved decisions: {h(', '.join(report.unresolved_decisions))}</p>"
+            f"<p>Dry-run consistent: {h(report.dry_run_consistent)} "
+            "(internal consistency only, not readiness to apply)</p>"
+        )
+    blocked = (
+        {(e.target_table, e.target_id): e.blocked_by for e in bundle.entries} if bundle else {}
     )
     if report:
-        body += (
-            "<ul>"
-            + "".join(f"<li>{h(e.target_id)}: {h(e.status)}</li>" for e in report.entries)
-            + "</ul>"
-        )
+        items = []
+        for e in report.entries:
+            by = blocked.get((e.target_table, e.target_id), ())
+            note = f" (blocked by {', '.join(by)})" if by else ""
+            items.append(f"<li>{h(e.target_id)}: {h(e.status)}{h(note)}</li>")
+        body += "<ul>" + "".join(items) + "</ul>"
     return page("Activation bundle", body)
 
 
