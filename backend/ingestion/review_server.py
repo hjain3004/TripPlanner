@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
+import unicodedata
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
@@ -17,6 +19,8 @@ from ingestion.artifacts import ContentAddressedStore
 from ingestion.config_loaders import (
     ConfigIssue,
     ConfigValidationError,
+    host_of,
+    is_aggregator_host,
     load_discovery_candidate,
     load_discovery_sources,
     load_source_policies,
@@ -297,6 +301,15 @@ def _select(items: Sequence[_T], wanted: str | None, key: str, path: str) -> _T:
     )
 
 
+def _name_key(name: str) -> str:
+    """A comparison key for issuer/product names: case, spacing and a trailing "card" ignored."""
+    folded = " ".join(unicodedata.normalize("NFKC", name).casefold().split())
+    return folded.removesuffix(" card").strip()
+
+
+_ROW_ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
+
+
 def _lead_refusal(code: str, message: str) -> int:
     print(json.dumps({"status": "refused", "kind": "lead", "code": code, "message": message}))
     print(f"refused: {code}: {message}", file=sys.stderr)
@@ -320,15 +333,11 @@ def run_add_lead(
             "lead_conflict",
             f"a different lead is already filed as {lead.id!r}; stored leads are immutable",
         )
-    wanted = (lead.issuer_guess.casefold(), lead.product_guess.casefold(), lead.corridor)
+    wanted = (_name_key(lead.issuer_guess), _name_key(lead.product_guess), lead.corridor)
     for other in store.list_discovery_candidates():
         if (
             other.id != lead.id
-            and (
-                other.issuer_guess.casefold(),
-                other.product_guess.casefold(),
-                other.corridor,
-            )
+            and (_name_key(other.issuer_guess), _name_key(other.product_guess), other.corridor)
             == wanted
         ):
             return _lead_refusal(
@@ -338,7 +347,7 @@ def run_add_lead(
     from ingestion.review_rows import SeedRowSource
 
     for card in SeedRowSource(seeds_dir).table_rows("cards"):
-        if (str(card["issuer"]).casefold(), str(card["name"]).casefold()) == wanted[:2]:
+        if (_name_key(str(card["issuer"])), _name_key(str(card["name"]))) == wanted[:2]:
             return _lead_refusal(
                 "lead_duplicate", f"the knowledge base already has the card {card['id']!r}"
             )
@@ -365,8 +374,22 @@ def run_promote_lead(
     now: Callable[[], datetime],
 ) -> int:
     """A curator turns a filed lead into a manual-capture target on the ISSUER's page."""
-    from ingestion.review_rows import SeedRowSource
+    from ingestion.review_rows import SUPPORTED_TABLES, SeedRowSource
 
+    if args.table not in SUPPORTED_TABLES:
+        return _lead_refusal(
+            "unsupported_target_table",
+            f"{args.table!r} is not a seed table ({', '.join(sorted(SUPPORTED_TABLES))})",
+        )
+    if not _ROW_ID.match(args.row_id):
+        return _lead_refusal(
+            "invalid_row_id", "a row id is lowercase letters, digits and hyphens, 2-64 characters"
+        )
+    out_path = Path(args.out)
+    if not out_path.parent.is_dir():
+        return _lead_refusal(
+            "output_directory_missing", f"the directory for {out_path} does not exist"
+        )
     lead = store.get_discovery_candidate(args.lead_id)
     if lead is None:
         return _lead_refusal("lead_not_found", f"no lead {args.lead_id!r}; file it with add-lead")
@@ -383,6 +406,12 @@ def run_promote_lead(
         Path(args.source_policy), aggregator_domains=tuple(s.domain for s in sources)
     )
     policy = _select(policies, args.policy_id, "policy_id", args.source_policy)
+    if is_aggregator_host(
+        host_of(lead.issuer_url_to_verify), extra_domains=tuple(s.domain for s in sources)
+    ):
+        return _lead_refusal(
+            "aggregator_domain", "the issuer page is an aggregator's, not the issuer's"
+        )
     try:
         SourcePreflight().check_redirect(
             lead.issuer_url_to_verify, lead.issuer_url_to_verify, policy
@@ -444,7 +473,9 @@ def run_promote_lead(
         return _lead_refusal(
             "output_exists", f"{out} exists with different content; not overwritten"
         )
-    out.write_text(text, encoding="utf-8")
+    staged_out = out.with_name(f".{out.name}.tmp")
+    staged_out.write_text(text, encoding="utf-8")
+    staged_out.replace(out)  # whole file or nothing, never a half-written watch-target file
     print(
         json.dumps(
             {
@@ -454,7 +485,7 @@ def run_promote_lead(
                 "issuer_url": target.canonical_url,
                 "target_fact_ids": list(target.target_fact_ids),
                 "watch_target_file": str(out),
-                "aggregator_url_carried": False,
+                "aggregator_url_carried": is_aggregator_host(host_of(target.canonical_url)),
             },
             sort_keys=True,
         )

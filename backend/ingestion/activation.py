@@ -366,8 +366,11 @@ class ActivationPlanner:
         covered = set(evidenced_field_paths(ctx.proposal, ()))
         unevidenced = tuple(
             path
-            for path in flat
-            if path != "id" and not path.startswith("provenance.") and path not in covered
+            for path, value in flat.items()
+            if path != "id"
+            and not path.startswith("provenance.")
+            and path not in covered
+            and value is not None
         )
         manual = ctx.lineage.watch_target.page_kind is PageKind.MANUAL_CAPTURE
         page_kind = ctx.lineage.watch_target.page_kind
@@ -533,6 +536,12 @@ class ActivationPlanner:
                 f"unknown card reference: {value.card_id}"
                 for value in vals
                 if value.card_id not in card_ids
+            )
+            refs.extend(
+                f"unknown card reference: {card_id}"
+                for offer in offers
+                for card_id in (offer.card_ids or [])
+                if card_id not in card_ids
             )
             kb_constructs = not refs and entries_ok
             if kb_constructs:

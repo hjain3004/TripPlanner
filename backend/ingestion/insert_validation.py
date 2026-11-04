@@ -209,6 +209,7 @@ def validate_insert(
         and provenance.get("source_type") == "crawl_draft"
         and provenance.get("needs_verification") is True
         and provenance.get("verified_by") == "UNVERIFIED"
+        and provenance.get("confidence") == 0.0
     ):
         raise ProposalValidationError(
             "an inserted row must carry unverified crawl_draft provenance"
@@ -266,8 +267,11 @@ def validate_insert(
             message="value supplied by the curator without quoted evidence",
             field_path=path,
         )
-        for path in sorted(flat)
-        if path != "id" and not path.startswith("provenance.") and path not in seen
+        for path, value in sorted(_flatten(typed_row.model_dump(mode="json")).items())
+        if path != "id"
+        and not path.startswith("provenance.")
+        and path not in seen
+        and value is not None  # an unknown optional value asserts nothing
     )
     return ChangeProposal(
         proposal_id=f"proposal:{target_id}:{snapshot.snapshot_id}",

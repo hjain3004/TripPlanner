@@ -412,7 +412,21 @@ def test_the_decision_binds_to_the_absence_of_the_id(env: InsertEnv) -> None:
     context = service.context(staged.proposal_id)
     assert context.current_row is None
     assert context.current_row_sha256 == absent_row_hash("cards", CARD)
-    assert [f.code.value for f in context.computed_findings] == ["manual_capture"]
+    assert sorted({f.code.value for f in context.computed_findings}) == [
+        "manual_capture",
+        "unevidenced_field",
+    ]
+    assert {
+        f.field_path for f in context.computed_findings if f.code.value == "unevidenced_field"
+    } == {
+        "issuer",
+        "network",
+        "country",
+        "name",
+        "fee_currency",
+        "forex_markup_tax_bp",
+        "base_earn.currency",
+    }
     assert all(d.current is None for d in context.field_diffs)
     decision = approve(service, staged.proposal_id)
     assert decision.attestation is not None

@@ -146,6 +146,17 @@ class ReviewService:
                     )
                 )
         for stored in proposal.validation_findings:
+            if proposal.intent == "insert" and stored.code == "unevidenced_field":
+                # The reviewer must see every value nobody quoted evidence for, and the
+                # attestation records that they were told.
+                findings.append(
+                    ComputedFinding(
+                        code=FindingCode.UNEVIDENCED_FIELD,
+                        severity="warning",
+                        message="value typed by the curator without quoted evidence",
+                        field_path=stored.field_path,
+                    )
+                )
             if stored.severity == "blocking":
                 findings.append(
                     ComputedFinding(

@@ -21,6 +21,7 @@ class FindingCode(StrEnum):
     CURRENT_ROW_MISSING = "current_row_missing"
     UNBOUND_BASE_ROW = "unbound_base_row"
     INSERT_ID_EXISTS = "insert_id_exists"
+    UNEVIDENCED_FIELD = "unevidenced_field"
     CURRENT_ROW_CHANGED = "current_row_changed"
     EVIDENCE_INTEGRITY_FAILED = "evidence_integrity_failed"
     EVIDENCE_SUPERSEDED = "evidence_superseded"

@@ -194,7 +194,12 @@ def normalize_host(host: str) -> str:
     A trust check must not be defeated by presentation: ``Example.COM.`` (the fully-qualified
     trailing dot) and full-width letters name the same host as ``example.com``.
     """
-    return unicodedata.normalize("NFKC", host).strip().lower().rstrip(".")
+    text = unicodedata.normalize("NFKC", host)
+    # Invisible format characters and the dot-like characters IDNA also treats as a dot
+    # (U+3002, U+FF0E and U+FF61) must not let a host spell itself differently.
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
+    text = text.replace("\u3002", ".").replace("\uff0e", ".").replace("\uff61", ".")
+    return text.strip().lower().rstrip(".")
 
 
 def host_of(url: str) -> str:
@@ -543,8 +548,23 @@ def load_watchlist(
 # Discovery leads
 # ----------------------------------------------------------------------------------------- #
 
-_FACT_CHARACTERS = re.compile(r"[0-9%$\u20b9\u20ac\u00a3]|\b(?:rs|inr|usd|aed)\b", re.IGNORECASE)
+_FACT_WORDS = re.compile(
+    r"\b(?:rs|inr|usd|aed|sgd|rupees?|dollars?|dirhams?|percent|per\s*cent|cashback|"
+    r"fees?|free|points?|miles?|lakh|crore|hundred|thousand|zero|one|two|three|four|five|"
+    r"six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|fifty)\b",
+    re.IGNORECASE,
+)
 MAX_LEAD_CLAIM = 120
+MAX_LEAD_NAME = 80
+
+
+def _carries_fact_characters(text: str) -> bool:
+    """A digit in any script, a currency symbol or a percent sign: all are facts' vocabulary."""
+    folded = unicodedata.normalize("NFKC", text)
+    return any(
+        unicodedata.category(ch) in {"Nd", "Nl", "No", "Sc"} or ch in "%\u066a\u2030"
+        for ch in folded
+    )
 
 
 def load_discovery_candidate(
@@ -595,17 +615,31 @@ def load_discovery_candidate(
                 )
             )
         if source.manual_only and (
-            len(lead.claim_summary) > MAX_LEAD_CLAIM or _FACT_CHARACTERS.search(lead.claim_summary)
+            len(lead.claim_summary) > MAX_LEAD_CLAIM
+            or _carries_fact_characters(lead.claim_summary)
+            or _FACT_WORDS.search(unicodedata.normalize("NFKC", lead.claim_summary))
         ):
             issues.append(
                 _issue(
                     "lead_carries_facts",
                     "lead.claim_summary",
                     "a lead from a manual-only source records only the card name and issuer "
-                    f"URL: at most {MAX_LEAD_CLAIM} characters, no digits, percentages or "
-                    "currency",
+                    f"URL: at most {MAX_LEAD_CLAIM} characters, no digits, percentages, "
+                    "currency or number words",
                 )
             )
+        for field_name in ("product_guess", "issuer_guess"):
+            guess = getattr(lead, field_name, None)
+            if source.manual_only and isinstance(guess, str):
+                if len(guess) > MAX_LEAD_NAME or _carries_fact_characters(guess):
+                    issues.append(
+                        _issue(
+                            "lead_carries_facts",
+                            f"lead.{field_name}",
+                            f"a name guess is at most {MAX_LEAD_NAME} characters with no digits, "
+                            "percentages or currency",
+                        )
+                    )
     if lead.status != "pending":
         issues.append(
             _issue(
