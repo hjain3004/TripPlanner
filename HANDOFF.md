@@ -8,8 +8,8 @@ Contains no credentials and no captured document text. Update at each checkpoint
 - Pilot base: `claude/fi3-real-capture-pilot` — PR #22.
 - A `codex/card-bank-phase2` — PR #23 → targets the pilot branch.
 - B `codex/card-bank-insert-proposals` — PR #24 → targets A.
-- C `codex/card-bank-controlled-apply` — stacked on B (PR: see the final report).
-- None of the PRs is independently mergeable; merge in order #22, #23, #24, C, retargeting each.
+- C `codex/card-bank-controlled-apply` — PR #25 → targets B.
+- None of the PRs is independently mergeable; merge in order #22, #23, #24, #25, retargeting each.
 
 ## Status
 
@@ -17,7 +17,7 @@ Contains no credentials and no captured document text. Update at each checkpoint
 |---|---|
 | A stage-capture + loaders | reviewed, fixed, gate-equivalent passed (`4a24fe3`) |
 | B insert proposals | reviewed, fixed, gate-equivalent passed (`987b258`: 2988 passed, 28 skipped) |
-| C controlled apply/rollback (scratch seeds only) | implemented; tests, demo, mutation checks done; independent review and gate-equivalent: see `reports/card_bank_controlled_apply.md` "Verification" |
+| C controlled apply/rollback (scratch seeds only) | reviewed, fixed, gate-equivalent passed (`c2a3d6c`: 3060 passed, 28 skipped) |
 
 ## Resume
 
