@@ -20,6 +20,7 @@ class FindingCode(StrEnum):
     UNSUPPORTED_TARGET_TABLE = "unsupported_target_table"
     CURRENT_ROW_MISSING = "current_row_missing"
     UNBOUND_BASE_ROW = "unbound_base_row"
+    INSERT_ID_EXISTS = "insert_id_exists"
     CURRENT_ROW_CHANGED = "current_row_changed"
     EVIDENCE_INTEGRITY_FAILED = "evidence_integrity_failed"
     EVIDENCE_SUPERSEDED = "evidence_superseded"

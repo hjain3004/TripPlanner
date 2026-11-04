@@ -100,6 +100,14 @@ CREATE TABLE IF NOT EXISTS activation_bundles (
 """
 
 
+def _snapshot_identity(snapshot: SnapshotBundle) -> dict[str, object]:
+    """A snapshot's content-addressed identity: not when or by which attempt it was captured,
+    and not its lineage pointer (a simultaneous loser can even point at the winner's own id)."""
+    return snapshot.model_dump(
+        mode="json", exclude={"captured_at", "attempts", "supersedes_snapshot_id"}
+    )
+
+
 class FinancialIngestionStore:
     """Small SQLite queue store; it never opens or writes the approved KB."""
 
@@ -373,6 +381,20 @@ class FinancialIngestionStore:
             )
         return candidate
 
+    def list_discovery_candidates(self) -> list[DiscoveryCandidate]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT payload FROM discovery_candidates ORDER BY id"
+            ).fetchall()
+        return [DiscoveryCandidate.model_validate_json(row[0]) for row in rows]
+
+    def get_discovery_candidate(self, candidate_id: str) -> DiscoveryCandidate | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload FROM discovery_candidates WHERE id = ?", (candidate_id,)
+            ).fetchone()
+        return None if row is None else DiscoveryCandidate.model_validate_json(row[0])
+
     def put_watch_target(self, target: WatchTarget) -> WatchTarget:
         with self._connect() as connection:
             # Serialize first-writers: without this two processes can both see "absent"
@@ -453,11 +475,17 @@ class FinancialIngestionStore:
             ).fetchone()
             payload = self._payload(snapshot)
             if existing is not None:
-                if existing[0] != payload:
+                stored = SnapshotBundle.model_validate_json(existing[0])
+                if existing[0] != payload and _snapshot_identity(stored) != _snapshot_identity(
+                    snapshot
+                ):
                     raise ConflictingWriteError(
                         f"conflicting payload for immutable snapshot {snapshot.snapshot_id}"
                     )
-                return snapshot
+                # A snapshot's identity is its content (the id embeds both hashes). Two
+                # simultaneous first captures differ only in when and by which attempt they
+                # were taken, so the later one is a replay and gets the stored record back.
+                return stored
             connection.execute(
                 "INSERT INTO snapshot_manifests(id, target_id, payload) VALUES (?, ?, ?)",
                 (snapshot.snapshot_id, snapshot.target_id, payload),
@@ -527,9 +555,16 @@ class FinancialIngestionStore:
             ).fetchone()
             payload = self._payload(proposal)
             if prior is not None:
-                if prior[0] != payload or (
-                    prior[1] and request_fingerprint and prior[1] != request_fingerprint
-                ):
+                if prior[1] and request_fingerprint:
+                    # Both sides carry a request fingerprint, so it is the request's identity.
+                    # The payload embeds `created_at`, which differs between two runs of the
+                    # same request, so comparing payloads would call a simultaneous replay a
+                    # conflict. A different request under the same event id still is one.
+                    if prior[1] != request_fingerprint:
+                        raise IdempotencyConflictError(
+                            "client event was already used for another proposal"
+                        )
+                elif prior[0] != payload:
                     raise IdempotencyConflictError(
                         "client event was already used for another proposal"
                     )

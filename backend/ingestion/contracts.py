@@ -5,7 +5,15 @@ from enum import StrEnum
 from typing import Any, Literal
 from urllib.parse import urlparse
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 SHA256 = r"^[0-9a-f]{64}$"
 
@@ -283,6 +291,24 @@ class ChangeProposal(BaseModel):
     version: int = Field(ge=1)
     created_at: AwareDatetime
     updated_at: AwareDatetime
+    # "update" changes an existing row and is bound to its hash; "insert" proposes a row that
+    # does not exist yet and has no base hash. Serialized only for inserts (below), so the
+    # stored bytes, and the payload hash a decision attests, of every update proposal made
+    # before this field existed are unchanged.
+    intent: Literal["update", "insert"] = "update"
+
+    @model_serializer(mode="wrap")
+    def _omit_default_intent(self, handler: Any) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if data.get("intent") == "update":
+            data.pop("intent")
+        return data
+
+    @model_validator(mode="after")
+    def _insert_has_no_base_row(self) -> ChangeProposal:
+        if self.intent == "insert" and self.current_row_hash is not None:
+            raise ValueError("an insert proposal has no base row to bind to")
+        return self
 
     @model_validator(mode="after")
     def _no_aggregator_fields(self) -> ChangeProposal:

@@ -6,12 +6,13 @@ import json
 from datetime import UTC
 from typing import Any, Final, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_serializer
 
 from core.db import KnowledgeBase
 from core.models import Card, Offer, PointValuation, RewardRule
 from ingestion.artifacts import ArtifactIntegrityError, ContentAddressedStore
 from ingestion.contracts import ImmutableArtifactRef, PageKind, ProposalStatus
+from ingestion.insert_validation import absent_row_hash
 from ingestion.review import ReviewService, evidenced_field_paths
 from ingestion.review_rows import (
     SUPPORTED_TABLES,
@@ -52,6 +53,9 @@ class ProvenanceCandidate(BaseModel):
 
 class ActivationEntry(BaseModel):
     model_config = ConfigDict(frozen=True)
+    # "insert" adds a row that does not exist (its base hash is the id's absence); omitted from
+    # the serialized entry when "update", so bundles built before inserts hash identically.
+    operation: Literal["update", "insert"] = "update"
     target_table: str
     target_id: str
     base_row_sha256: str
@@ -72,6 +76,13 @@ class ActivationEntry(BaseModel):
     source_url: str
     source_type: Literal["official_page", "tnc_pdf", "manual_curation"]
     attribution_required: bool
+
+    @model_serializer(mode="wrap")
+    def _omit_default_operation(self, handler: Any) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if data.get("operation") == "update":
+            data.pop("operation")
+        return data
 
 
 class RefusedEntry(BaseModel):
@@ -121,7 +132,15 @@ class ActivationBundleRecord(BaseModel):
 class DryRunEntry(BaseModel):
     target_table: str
     target_id: str
-    status: Literal["would_update", "confirmed_unchanged", "stale", "row_missing", "invalid_row"]
+    status: Literal[
+        "would_update",
+        "would_insert",
+        "confirmed_unchanged",
+        "stale",
+        "row_missing",
+        "id_conflict",
+        "invalid_row",
+    ]
     field_changes: tuple[FieldChange, ...] = ()
 
 
@@ -183,6 +202,12 @@ class ActivationPlanner:
                 decision = ctx.decisions[-1]
                 if decision.status not in {"approved", "edited"} or decision.attestation is None:
                     raise ValueError("decision is not an attested approval")
+                if ctx.proposal.intent == "insert":
+                    entries.append(self._insert_entry(ctx, decision))
+                    targets.setdefault(
+                        (ctx.proposal.target_table, ctx.proposal.target_id), []
+                    ).append(proposal_id)
+                    continue
                 if (
                     ctx.current_row is None
                     or ctx.current_row_sha256 != ctx.proposal.current_row_hash
@@ -323,6 +348,103 @@ class ActivationPlanner:
         )
         return ActivationBundleRecord.model_validate_json(record_json), bundle
 
+    def _insert_entry(self, ctx: Any, decision: Any) -> ActivationEntry:
+        """The bundle entry for an approved insert. Refuses anything that is no longer true."""
+        blocking = [f for f in ctx.computed_findings if f.severity == "blocking"]
+        if blocking:
+            raise ValueError(f"insert has blocking findings: {blocking[0].message}")
+        absent = absent_row_hash(ctx.proposal.target_table, ctx.proposal.target_id)
+        if ctx.current_row_sha256 != absent:
+            raise ValueError("the id is no longer absent")
+        new_row = ctx.proposal.proposed_row
+        if canonical_row_hash(new_row) != decision.attestation.resulting_row_sha256:
+            raise ValueError("resulting row attestation does not match")
+        snapshot = ctx.lineage.snapshots[0] if ctx.lineage else None
+        if snapshot is None or ctx.lineage is None:
+            raise ValueError("missing evidence lineage")
+        flat = flatten_row(new_row)
+        covered = set(evidenced_field_paths(ctx.proposal, ()))
+        unevidenced = tuple(
+            path
+            for path in flat
+            if path != "id" and not path.startswith("provenance.") and path not in covered
+        )
+        manual = ctx.lineage.watch_target.page_kind is PageKind.MANUAL_CAPTURE
+        page_kind = ctx.lineage.watch_target.page_kind
+        source_type: Literal["official_page", "tnc_pdf", "manual_curation"] = (
+            "manual_curation"
+            if manual
+            else "tnc_pdf"
+            if page_kind is PageKind.TNC_PDF
+            else "official_page"
+        )
+        canonical_url = ctx.lineage.watch_target.canonical_url
+        final_url = next(
+            (
+                attempt.final_url
+                for attempt in reversed(snapshot.attempts)
+                if attempt.response_class == "success" and attempt.final_url
+            ),
+            None,
+        )
+        return ActivationEntry(
+            operation="insert",
+            target_table=ctx.proposal.target_table,
+            target_id=ctx.proposal.target_id,
+            base_row_sha256=absent,
+            new_row=new_row,
+            new_row_sha256=canonical_row_hash(new_row),
+            field_changes=tuple(
+                FieldChange(field_path=path, old=None, new=value)
+                for path, value in sorted(flat.items())
+            ),
+            evidenced_fields=tuple(sorted(covered)),
+            unevidenced_fields=unevidenced,
+            provenance_candidate=ProvenanceCandidate(
+                source_type=source_type,
+                verified_by=decision.reviewer_id,
+                last_verified=decision.decided_at.astimezone(UTC).date().isoformat(),
+                source_url=final_url or canonical_url,
+                confidence=decision.curator_confidence,
+            ),
+            blocked_by=("D1", "D2") if manual else ("D1",),
+            proposal_id=ctx.proposal.proposal_id,
+            proposal_payload_sha256=decision.attestation.proposal_payload_sha256,
+            decision_id=decision.decision_id,
+            decision_status=decision.status.value,
+            reviewer_id=decision.reviewer_id,
+            decided_at=decision.decided_at.isoformat(),
+            evidence=tuple(d.model_dump(mode="json") for d in decision.attestation.evidence),
+            source_url=canonical_url,
+            source_type=source_type,
+            attribution_required=ctx.lineage.source_policy.attribution_required,
+        )
+
+    def _dry_run_insert(self, entry: Any, models: dict[str, list[dict[str, Any]]]) -> DryRunEntry:
+        """Would this insert still be valid against the seeds as they are now?"""
+
+        def outcome(
+            status: Literal["would_insert", "stale", "id_conflict", "invalid_row"],
+        ) -> DryRunEntry:
+            return DryRunEntry(
+                target_table=entry.target_table,
+                target_id=entry.target_id,
+                status=status,
+                field_changes=entry.field_changes if status == "would_insert" else (),
+            )
+
+        try:
+            present = any(row.get("id") == entry.target_id for row in models[entry.target_table])
+        except Exception:
+            return outcome("invalid_row")
+        if present:
+            # Another approval or a seed edit took the id since the proposal was made.
+            return outcome("id_conflict")
+        if entry.base_row_sha256 != absent_row_hash(entry.target_table, entry.target_id):
+            return outcome("stale")
+        models[entry.target_table] = [*models[entry.target_table], entry.new_row]
+        return outcome("would_insert")
+
     def dry_run(self, bundle_sha256: str) -> DryRunReport:
         record_json = self.store.get_activation_bundle(bundle_sha256)
         if record_json is None:
@@ -346,6 +468,10 @@ class ActivationPlanner:
         for table in SUPPORTED_TABLES:
             models[table] = self.rows.table_rows(table)
         for entry in bundle.entries:
+            if getattr(entry, "operation", "update") == "insert":
+                inserted = self._dry_run_insert(entry, models)
+                entries.append(inserted)
+                continue
             try:
                 current = self.rows.current_row(entry.target_table, entry.target_id)
                 status: Literal[
@@ -388,7 +514,8 @@ class ActivationPlanner:
                     )
                 )
         entries_ok = all(
-            entry.status in {"would_update", "confirmed_unchanged"} for entry in entries
+            entry.status in {"would_update", "would_insert", "confirmed_unchanged"}
+            for entry in entries
         )
         kb_constructs = False
         try:

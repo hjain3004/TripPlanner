@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Collection
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -22,6 +23,7 @@ from ingestion.contracts import ChangeProposal, SnapshotBundle
 from ingestion.diff import SnapshotDiff
 from ingestion.evidence import financial_draft_graph
 from ingestion.extraction_types import ExtractionResponse
+from ingestion.insert_validation import absent_row_hash, validate_insert
 from ingestion.storage import FinancialIngestionStore
 from ingestion.validation import ProposalValidationError, validate_extraction
 
@@ -183,6 +185,91 @@ class FinancialExtractor:
                 now=self.now(),
                 extractor_version=self.extractor_version,
                 manual_capture=manual_capture,
+            )
+            stored = self.store.create_proposal_with_fingerprint(
+                proposal,
+                client_event_id=client_event_id,
+                request_fingerprint=request_fingerprint,
+            )
+            if self.evidence_store is not None:
+                self.evidence_store.save(
+                    financial_draft_graph(
+                        run_id=f"run:{stored.proposal_id}",
+                        snapshot=snapshot,
+                        fields=[field.field_path for field in stored.field_proposals],
+                    )
+                )
+        except ProposalValidationError as error:
+            return ExtractionOutcome(status="invalid_response", calls=1, diagnostic=str(error))
+        return ExtractionOutcome(status="proposal_pending", proposal=stored, calls=1)
+
+    def extract_insert(
+        self,
+        *,
+        target_table: str,
+        target_id: str,
+        existing_ids: Collection[str],
+        snapshot: SnapshotBundle,
+        diff: SnapshotDiff,
+        client_event_id: str,
+    ) -> ExtractionOutcome:
+        """Build one draft *insert* proposal from one snapshot (a row that does not exist yet).
+
+        Same single-attempt, no-repair contract as :meth:`extract`; the difference is what the
+        response is validated against: the absence of ``target_id`` rather than a base row.
+        """
+        if not diff.changed:
+            return ExtractionOutcome(status="unchanged", calls=0)
+        request_fingerprint = _request_fingerprint(
+            target_table=target_table,
+            target_id=target_id,
+            current_row={"absent_row": absent_row_hash(target_table, target_id)},
+            current_row_hash=None,
+            snapshot=snapshot,
+            diff=diff,
+            manual_capture=True,
+            extractor_version=f"insert:{self.extractor_version}",
+        )
+        prior = self.store.get_proposal_by_client_event(client_event_id)
+        if prior is not None:
+            stored, prior_fingerprint = prior
+            if prior_fingerprint and prior_fingerprint != request_fingerprint:
+                return ExtractionOutcome(
+                    status="invalid_response",
+                    calls=0,
+                    diagnostic="client event was already used for another extraction request",
+                )
+            return ExtractionOutcome(status="proposal_pending", proposal=stored, calls=0)
+        system, user = _prompt(
+            target_table=target_table,
+            target_id=target_id,
+            current_row={},
+            snapshot=snapshot,
+            diff=diff,
+        )
+        try:
+            response = self.client.complete_json(
+                node="financial_extractor",
+                system=system,
+                user=user,
+                schema=ExtractionResponse,
+                temperature=0.0,
+                max_tokens=4096,
+            )
+        except Exception as error:
+            if isinstance(error, LLMCallError):
+                return ExtractionOutcome(status="extraction_failed", calls=1, diagnostic=str(error))
+            return ExtractionOutcome(status="invalid_response", calls=1, diagnostic=str(error))
+        try:
+            proposal = validate_insert(
+                response=response,
+                target_table=target_table,
+                target_id=target_id,
+                existing_ids=existing_ids,
+                snapshot=snapshot,
+                artifacts=self.artifacts,
+                now=self.now(),
+                extractor_version=self.extractor_version,
             )
             stored = self.store.create_proposal_with_fingerprint(
                 proposal,

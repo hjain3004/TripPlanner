@@ -17,6 +17,7 @@ from ingestion.artifacts import ContentAddressedStore
 from ingestion.config_loaders import (
     ConfigIssue,
     ConfigValidationError,
+    load_discovery_candidate,
     load_discovery_sources,
     load_source_policies,
     load_watchlist,
@@ -30,6 +31,8 @@ from ingestion.contracts import (
 )
 from ingestion.diff import diff_text
 from ingestion.extraction import FinancialExtractor
+from ingestion.policy import CuratorPromotion, promote_candidate_to_watch_target
+from ingestion.preflight import SourcePreflight
 from ingestion.review import ReviewService
 from ingestion.review_app import ReviewAppConfig, SessionRegistry, create_review_app
 from ingestion.review_rows import SeedRowSource
@@ -294,6 +297,171 @@ def _select(items: Sequence[_T], wanted: str | None, key: str, path: str) -> _T:
     )
 
 
+def _lead_refusal(code: str, message: str) -> int:
+    print(json.dumps({"status": "refused", "kind": "lead", "code": code, "message": message}))
+    print(f"refused: {code}: {message}", file=sys.stderr)
+    return 2
+
+
+def run_add_lead(
+    args: argparse.Namespace,
+    *,
+    store: FinancialIngestionStore,
+    seeds_dir: Path,
+    now: Callable[[], datetime],
+) -> int:
+    """File a discovery lead (a card exists, here is the issuer page): never a fact."""
+    sources = load_discovery_sources(Path(args.discovery_sources), today=now().date())
+    domains = tuple(source.domain for source in sources)
+    lead = load_discovery_candidate(Path(args.lead), sources=sources, aggregator_domains=domains)
+    stored = store.get_discovery_candidate(lead.id)
+    if stored is not None and stored != lead:
+        return _lead_refusal(
+            "lead_conflict",
+            f"a different lead is already filed as {lead.id!r}; stored leads are immutable",
+        )
+    wanted = (lead.issuer_guess.casefold(), lead.product_guess.casefold(), lead.corridor)
+    for other in store.list_discovery_candidates():
+        if (
+            other.id != lead.id
+            and (
+                other.issuer_guess.casefold(),
+                other.product_guess.casefold(),
+                other.corridor,
+            )
+            == wanted
+        ):
+            return _lead_refusal(
+                "lead_duplicate",
+                f"lead {other.id!r} already covers this issuer, product and corridor",
+            )
+    from ingestion.review_rows import SeedRowSource
+
+    for card in SeedRowSource(seeds_dir).table_rows("cards"):
+        if (str(card["issuer"]).casefold(), str(card["name"]).casefold()) == wanted[:2]:
+            return _lead_refusal(
+                "lead_duplicate", f"the knowledge base already has the card {card['id']!r}"
+            )
+    store.put_discovery_candidate(lead)
+    print(
+        json.dumps(
+            {
+                "status": "filed",
+                "lead_id": lead.id,
+                "state": "already_stored" if stored is not None else "stored",
+                "facts_carried": 0,
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def run_promote_lead(
+    args: argparse.Namespace,
+    *,
+    store: FinancialIngestionStore,
+    seeds_dir: Path,
+    now: Callable[[], datetime],
+) -> int:
+    """A curator turns a filed lead into a manual-capture target on the ISSUER's page."""
+    from ingestion.review_rows import SeedRowSource
+
+    lead = store.get_discovery_candidate(args.lead_id)
+    if lead is None:
+        return _lead_refusal("lead_not_found", f"no lead {args.lead_id!r}; file it with add-lead")
+    if store.get_curator(args.curator_id) is None:
+        return _lead_refusal("unknown_curator", f"curator {args.curator_id!r} is not registered")
+    if lead.issuer_url_to_verify is None:
+        return _lead_refusal("lead_without_issuer_url", "the lead names no issuer page to read")
+    sources = (
+        load_discovery_sources(Path(args.discovery_sources), today=now().date())
+        if args.discovery_sources
+        else ()
+    )
+    policies = load_source_policies(
+        Path(args.source_policy), aggregator_domains=tuple(s.domain for s in sources)
+    )
+    policy = _select(policies, args.policy_id, "policy_id", args.source_policy)
+    try:
+        SourcePreflight().check_redirect(
+            lead.issuer_url_to_verify, lead.issuer_url_to_verify, policy
+        )
+    except (ValueError, UnicodeError) as error:
+        return _lead_refusal(
+            "lead_outside_policy", f"the issuer page is outside the policy: {error}"
+        )
+    if any(row.get("id") == args.row_id for row in SeedRowSource(seeds_dir).table_rows(args.table)):
+        return _lead_refusal(
+            "insert_id_exists", f"a {args.table} row {args.row_id!r} already exists; use an update"
+        )
+    promoted = promote_candidate_to_watch_target(
+        lead,
+        CuratorPromotion(
+            curator_id=args.curator_id, decided_at=now(), source_policy_id=policy.policy_id
+        ),
+    )
+    # Phase 2 captures are manual: the document class is chosen at stage time, and review keys
+    # the manual-capture marking on this page kind. The row the curator intends to add is named.
+    target = promoted.model_copy(
+        update={
+            "page_kind": PageKind.MANUAL_CAPTURE,
+            "target_fact_ids": (f"candidate:{lead.id}", f"{args.table}:{args.row_id}"),
+        }
+    )
+    stored = store.get_watch_target(target.target_id)
+    if stored is not None:
+        if stored.model_copy(update={"promoted_at": None}) != target.model_copy(
+            update={"promoted_at": None}
+        ):
+            return _lead_refusal(
+                "target_conflict", f"a different target is already stored as {target.target_id!r}"
+            )
+        target = stored
+    try:
+        store.put_source_policy(policy)
+        store.put_watch_target(target)
+    except ConflictingWriteError as error:
+        return _lead_refusal("policy_conflict", str(error))
+    entry = {
+        "target_id": target.target_id,
+        "url": target.canonical_url,
+        "kind": target.page_kind.value,
+        "target": list(target.target_fact_ids),
+        "source_policy_id": target.source_policy_id,
+        "check_frequency_days": target.check_frequency_days,
+        "backend": target.preferred_backend,
+        "manual_only": target.manual_only,
+        "promoted_from_candidate_id": target.promoted_from_candidate_id,
+        "promoted_by": target.promoted_by,
+        "promoted_at": target.promoted_at.isoformat() if target.promoted_at else None,
+    }
+    import yaml
+
+    text = yaml.safe_dump([entry], sort_keys=False)
+    out = Path(args.out)
+    if out.exists() and out.read_text(encoding="utf-8") != text:
+        return _lead_refusal(
+            "output_exists", f"{out} exists with different content; not overwritten"
+        )
+    out.write_text(text, encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "status": "promoted",
+                "lead_id": lead.id,
+                "target_id": target.target_id,
+                "issuer_url": target.canonical_url,
+                "target_fact_ids": list(target.target_fact_ids),
+                "watch_target_file": str(out),
+                "aggregator_url_carried": False,
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
 def check_config(args: argparse.Namespace, *, today: datetime) -> int:
     """Validate configuration files without touching a data directory or the network."""
     summary: dict[str, object] = {"status": "ok", "network_calls": 0}
@@ -454,6 +622,22 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     stage.add_argument("--max-bytes", type=int, default=StageLimits.max_bytes)
     stage.add_argument("--max-pages", type=int, default=StageLimits.max_pages)
     stage.add_argument("--timeout-seconds", type=int, default=StageLimits.timeout_seconds)
+    lead = sub.add_parser("add-lead")
+    lead.add_argument("--data-dir", default=None)
+    lead.add_argument("--seeds-dir", default=None)
+    lead.add_argument("--lead", required=True)
+    lead.add_argument("--discovery-sources", required=True)
+    promote = sub.add_parser("promote-lead")
+    promote.add_argument("--data-dir", default=None)
+    promote.add_argument("--seeds-dir", default=None)
+    promote.add_argument("--lead-id", required=True)
+    promote.add_argument("--curator-id", required=True)
+    promote.add_argument("--source-policy", required=True)
+    promote.add_argument("--policy-id", default=None)
+    promote.add_argument("--discovery-sources", default=None)
+    promote.add_argument("--table", default="cards")
+    promote.add_argument("--row-id", required=True)
+    promote.add_argument("--out", required=True)
     check = sub.add_parser("check-config")
     check.add_argument("--source-policies", default=None)
     check.add_argument("--discovery-sources", default=None)
@@ -482,6 +666,17 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     store, service, planner = build_runtime(
         data_dir, Path(args.seeds_dir) if args.seeds_dir else SEEDS_DIR, now=now
     )
+    if args.command in {"add-lead", "promote-lead"}:
+        runner = run_add_lead if args.command == "add-lead" else run_promote_lead
+        try:
+            return runner(
+                args,
+                store=store,
+                seeds_dir=Path(args.seeds_dir) if args.seeds_dir else SEEDS_DIR,
+                now=now,
+            )
+        except ConfigValidationError as error:
+            return _config_refusal(error)
     if args.command == "stage-capture":
         try:
             return run_stage_capture(
