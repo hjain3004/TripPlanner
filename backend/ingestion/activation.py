@@ -185,6 +185,94 @@ class ActivationPlanner:
     ) -> None:
         self.store, self.artifacts, self.rows, self.service = store, artifacts, rows, service
 
+    def entry_for(self, proposal_id: str) -> ActivationEntry:
+        """The bundle entry the stored proposal and its latest approval support, or raise."""
+        ctx = self.service.context(proposal_id)
+        decision = ctx.decisions[-1]
+        if decision.status not in {"approved", "edited"} or decision.attestation is None:
+            raise ValueError("decision is not an attested approval")
+        if ctx.proposal.intent == "insert":
+            return self._insert_entry(ctx, decision)
+        if ctx.current_row is None or ctx.current_row_sha256 != ctx.proposal.current_row_hash:
+            raise ValueError("current row is stale or missing")
+        edits: tuple[CuratorFieldEdit, ...] = ()
+        if decision.status == "edited":
+            # Reconstruct from the stored typed edit payload; never trust stored row data.
+            edits = tuple(
+                CuratorFieldEdit.model_validate(value) for value in decision.edits.get("fields", [])
+            )
+            new_row, _ = self.service.apply_edits(ctx, edits)
+        else:
+            new_row = ctx.proposal.proposed_row
+        if canonical_row_hash(new_row) != decision.attestation.resulting_row_sha256:
+            raise ValueError("resulting row attestation does not match")
+        # The attestation above covers the reviewed row. What the bundle carries as
+        # `new_row` never changes provenance: that is D1/D2's decision, not FI3's.
+        new_row = with_current_provenance(new_row, ctx.current_row)
+        snapshot = ctx.lineage.snapshots[0] if ctx.lineage else None
+        if snapshot is None or ctx.lineage is None:
+            raise ValueError("missing evidence lineage")
+        changes = tuple(
+            FieldChange(field_path=path, old=flatten_row(ctx.current_row)[path], new=value)
+            for path, value in sorted(flatten_row(new_row).items())
+            if flatten_row(ctx.current_row).get(path) != value
+        )
+        # What has quoted evidence: surviving FI2 proposals plus the curator's `set`
+        # edits. A field the curator reverted has none and lists as unevidenced.
+        covered = set(evidenced_field_paths(ctx.proposal, edits))
+        unevidenced = tuple(
+            path
+            for path in flatten_row(new_row)
+            if path != "id" and not path.startswith("provenance.") and path not in covered
+        )
+        page_kind = ctx.lineage.watch_target.page_kind
+        manual = page_kind is PageKind.MANUAL_CAPTURE
+        source_type: Literal["official_page", "tnc_pdf", "manual_curation"] = (
+            "manual_curation"
+            if manual
+            else "tnc_pdf"
+            if page_kind is PageKind.TNC_PDF
+            else "official_page"
+        )
+        canonical_url = ctx.lineage.watch_target.canonical_url
+        final_url = next(
+            (
+                attempt.final_url
+                for attempt in reversed(snapshot.attempts)
+                if attempt.response_class == "success" and attempt.final_url
+            ),
+            None,
+        )
+        return ActivationEntry(
+            target_table=ctx.proposal.target_table,
+            target_id=ctx.proposal.target_id,
+            base_row_sha256=ctx.proposal.current_row_hash or "",
+            new_row=new_row,
+            new_row_sha256=canonical_row_hash(new_row),
+            field_changes=changes,
+            evidenced_fields=tuple(sorted(covered)),
+            unevidenced_fields=unevidenced,
+            provenance_candidate=ProvenanceCandidate(
+                source_type=source_type,
+                verified_by=decision.reviewer_id,
+                last_verified=decision.decided_at.astimezone(UTC).date().isoformat(),
+                source_url=final_url or canonical_url,
+                confidence=decision.curator_confidence,
+            ),
+            # D1 applies to every entry; D2 only where the source is a manual capture.
+            blocked_by=("D1", "D2") if manual else ("D1",),
+            proposal_id=proposal_id,
+            proposal_payload_sha256=decision.attestation.proposal_payload_sha256,
+            decision_id=decision.decision_id,
+            decision_status=decision.status.value,
+            reviewer_id=decision.reviewer_id,
+            decided_at=decision.decided_at.isoformat(),
+            evidence=tuple(d.model_dump(mode="json") for d in decision.attestation.evidence),
+            source_url=canonical_url,
+            source_type=source_type,
+            attribution_required=ctx.lineage.source_policy.attribution_required,
+        )
+
     def build(
         self, *, proposal_ids: tuple[str, ...] | None, curator_id: str, client_event_id: str
     ) -> tuple[ActivationBundleRecord, ActivationBundle]:
@@ -198,106 +286,9 @@ class ActivationPlanner:
         targets: dict[tuple[str, str], list[str]] = {}
         for proposal_id in sorted(selected):
             try:
-                ctx = self.service.context(proposal_id)
-                decision = ctx.decisions[-1]
-                if decision.status not in {"approved", "edited"} or decision.attestation is None:
-                    raise ValueError("decision is not an attested approval")
-                if ctx.proposal.intent == "insert":
-                    entries.append(self._insert_entry(ctx, decision))
-                    targets.setdefault(
-                        (ctx.proposal.target_table, ctx.proposal.target_id), []
-                    ).append(proposal_id)
-                    continue
-                if (
-                    ctx.current_row is None
-                    or ctx.current_row_sha256 != ctx.proposal.current_row_hash
-                ):
-                    raise ValueError("current row is stale or missing")
-                edits: tuple[CuratorFieldEdit, ...] = ()
-                if decision.status == "edited":
-                    # Reconstruct from the stored typed edit payload; never trust stored row data.
-                    edits = tuple(
-                        CuratorFieldEdit.model_validate(value)
-                        for value in decision.edits.get("fields", [])
-                    )
-                    new_row, _ = self.service.apply_edits(ctx, edits)
-                else:
-                    new_row = ctx.proposal.proposed_row
-                if canonical_row_hash(new_row) != decision.attestation.resulting_row_sha256:
-                    raise ValueError("resulting row attestation does not match")
-                # The attestation above covers the reviewed row. What the bundle carries as
-                # `new_row` never changes provenance: that is D1/D2's decision, not FI3's.
-                new_row = with_current_provenance(new_row, ctx.current_row)
-                targets.setdefault((ctx.proposal.target_table, ctx.proposal.target_id), []).append(
-                    proposal_id
-                )
-                snapshot = ctx.lineage.snapshots[0] if ctx.lineage else None
-                if snapshot is None or ctx.lineage is None:
-                    raise ValueError("missing evidence lineage")
-                changes = tuple(
-                    FieldChange(field_path=path, old=flatten_row(ctx.current_row)[path], new=value)
-                    for path, value in sorted(flatten_row(new_row).items())
-                    if flatten_row(ctx.current_row).get(path) != value
-                )
-                # What has quoted evidence: surviving FI2 proposals plus the curator's `set`
-                # edits. A field the curator reverted has none and lists as unevidenced.
-                covered = set(evidenced_field_paths(ctx.proposal, edits))
-                unevidenced = tuple(
-                    path
-                    for path in flatten_row(new_row)
-                    if path != "id" and not path.startswith("provenance.") and path not in covered
-                )
-                page_kind = ctx.lineage.watch_target.page_kind
-                manual = page_kind is PageKind.MANUAL_CAPTURE
-                source_type: Literal["official_page", "tnc_pdf", "manual_curation"] = (
-                    "manual_curation"
-                    if manual
-                    else "tnc_pdf"
-                    if page_kind is PageKind.TNC_PDF
-                    else "official_page"
-                )
-                canonical_url = ctx.lineage.watch_target.canonical_url
-                final_url = next(
-                    (
-                        attempt.final_url
-                        for attempt in reversed(snapshot.attempts)
-                        if attempt.response_class == "success" and attempt.final_url
-                    ),
-                    None,
-                )
-                entries.append(
-                    ActivationEntry(
-                        target_table=ctx.proposal.target_table,
-                        target_id=ctx.proposal.target_id,
-                        base_row_sha256=ctx.proposal.current_row_hash or "",
-                        new_row=new_row,
-                        new_row_sha256=canonical_row_hash(new_row),
-                        field_changes=changes,
-                        evidenced_fields=tuple(sorted(covered)),
-                        unevidenced_fields=unevidenced,
-                        provenance_candidate=ProvenanceCandidate(
-                            source_type=source_type,
-                            verified_by=decision.reviewer_id,
-                            last_verified=decision.decided_at.astimezone(UTC).date().isoformat(),
-                            source_url=final_url or canonical_url,
-                            confidence=decision.curator_confidence,
-                        ),
-                        # D1 applies to every entry; D2 only where the source is a manual capture.
-                        blocked_by=("D1", "D2") if manual else ("D1",),
-                        proposal_id=proposal_id,
-                        proposal_payload_sha256=decision.attestation.proposal_payload_sha256,
-                        decision_id=decision.decision_id,
-                        decision_status=decision.status.value,
-                        reviewer_id=decision.reviewer_id,
-                        decided_at=decision.decided_at.isoformat(),
-                        evidence=tuple(
-                            d.model_dump(mode="json") for d in decision.attestation.evidence
-                        ),
-                        source_url=canonical_url,
-                        source_type=source_type,
-                        attribution_required=ctx.lineage.source_policy.attribution_required,
-                    )
-                )
+                entry = self.entry_for(proposal_id)
+                entries.append(entry)
+                targets.setdefault((entry.target_table, entry.target_id), []).append(proposal_id)
             except Exception as error:
                 refused.append(
                     RefusedEntry(proposal_id=proposal_id, code="refused", message=str(error))

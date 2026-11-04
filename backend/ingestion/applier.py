@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from core.db import KnowledgeBase
 from core.models import Card, Offer, PointValuation, RewardRule
@@ -44,10 +44,11 @@ from ingestion.activation import (
     ActivationPlanner,
 )
 from ingestion.apply_store import ApplicationRecord, ApplyLedgerError, ApplyStore
+from ingestion.artifacts import ArtifactIntegrityError
 from ingestion.contracts import PageKind
-from ingestion.review import ReviewService, evidenced_field_paths
+from ingestion.review import ReviewService
 from ingestion.review_rows import SUPPORTED_TABLES, SeedRowSource, flatten_row
-from ingestion.review_types import CuratorFieldEdit
+from ingestion.review_types import CuratorFieldEdit, ReviewRefusedError
 from ingestion.seed_writer import Checkpoint, SeedWriteError, SeedWriter
 from ingestion.storage import FinancialIngestionStore
 from ingestion.validation import canonical_row_hash
@@ -149,9 +150,23 @@ class ControlledApplier:
                     f"{resolved} is inside the repository ({root}); controlled apply only writes "
                     "to an explicit seed directory outside it (a scratch copy)",
                 )
+        for parent in (resolved, *resolved.parents):
+            if (parent / ".git").exists():
+                raise ApplyRefused(
+                    "inside_git_checkout",
+                    f"{resolved} is inside a git checkout ({parent}); controlled apply only "
+                    "writes to a scratch directory that is not under version control",
+                )
         for name, _ in SUPPORTED_TABLES.values():
-            if not (resolved / name).is_file():
+            seed_file = resolved / name
+            if not seed_file.is_file():
                 raise ApplyRefused("not_a_seed_dir", f"{resolved} has no {name}")
+            if seed_file.is_symlink():
+                raise ApplyRefused(
+                    "seed_file_is_symlink",
+                    f"{seed_file} is a symbolic link; replacing it would change the file "
+                    "system object, not just its bytes",
+                )
         return resolved
 
     def _curator(self, curator_id: str) -> None:
@@ -176,7 +191,10 @@ class ControlledApplier:
         sufficient one.
         """
         self._curator(curator_id)
-        ctx = self.service_factory(seeds_dir).context(proposal_id)
+        try:
+            ctx = self.service_factory(seeds_dir).context(proposal_id)
+        except KeyError as error:
+            raise ApplyRefused("unknown_proposal", f"no proposal {proposal_id!r}") from error
         if ctx.lineage is None or len(ctx.lineage.snapshots) != 1:
             raise ApplyRefused("no_lineage", "the proposal has no single capture to confirm")
         snapshot = ctx.lineage.snapshots[0]
@@ -221,25 +239,25 @@ class ControlledApplier:
             raise ApplyRefused(
                 "bundle_schema", f"only {BUNDLE_SCHEMA} bundles can be applied, not {schema!r}"
             )
-        return ActivationBundle.model_validate_json(body)
-
-    def _expected_row(self, ctx: Any, decision: Any, service: ReviewService) -> dict[str, Any]:
-        if ctx.proposal.intent == "insert":
-            return dict(ctx.proposal.proposed_row)
-        if decision.status.value == "edited":
-            edits = tuple(
-                CuratorFieldEdit.model_validate(v) for v in decision.edits.get("fields", [])
-            )
-            row, _ = service.apply_edits(ctx, edits)
-        else:
-            row = ctx.proposal.proposed_row
-        merged = copy.deepcopy(row)
-        merged["provenance"] = copy.deepcopy((ctx.current_row or {})["provenance"])
-        return merged
+        try:
+            bundle = ActivationBundle.model_validate_json(body)
+        except ValidationError as error:
+            raise ApplyRefused("bundle_invalid", f"the bundle does not parse: {error}") from error
+        missing = [n for n, _ in SUPPORTED_TABLES.values() if n not in bundle.seed_files]
+        if missing:
+            raise ApplyRefused("bundle_invalid", f"the bundle has no hash for {missing}")
+        seen: set[tuple[str, str]] = set()
+        for item in bundle.entries:
+            key = (item.target_table, item.target_id)
+            if key in seen:
+                raise ApplyRefused("duplicate_entry", f"the bundle lists {key[0]}/{key[1]} twice")
+            seen.add(key)
+        return bundle
 
     def _revalidate(
-        self, entry: ActivationEntry, service: ReviewService
-    ) -> tuple[Any, Any, dict[str, Any]]:
+        self, entry: ActivationEntry, service: ReviewService, planner: ActivationPlanner
+    ) -> tuple[Any, Any]:
+        """Re-derive the entry from the stored proposal and approval; refuse any difference."""
         key = f"{entry.target_table}/{entry.target_id}"
         try:
             ctx = service.context(entry.proposal_id)
@@ -262,21 +280,47 @@ class ControlledApplier:
         blocking = [f for f in ctx.computed_findings if f.severity == "blocking"]
         if blocking:
             raise ApplyRefused("blocking_finding", f"{key}: {blocking[0].message}")
-        expected = self._expected_row(ctx, decision, service)
-        if (
-            canonical_row_hash(expected) != entry.new_row_sha256
-            or canonical_row_hash(entry.new_row) != entry.new_row_sha256
-            or entry.new_row != expected
-        ):
-            raise ApplyRefused("entry_tampered", f"{key}: the bundle row is not the approved row")
-        edits = tuple(
-            CuratorFieldEdit.model_validate(v) for v in (decision.edits or {}).get("fields", [])
-        )
-        if tuple(sorted(evidenced_field_paths(ctx.proposal, edits))) != tuple(
-            entry.evidenced_fields
-        ):
-            raise ApplyRefused("entry_tampered", f"{key}: evidenced fields differ from approval")
-        return ctx, decision, expected
+        try:
+            rebuilt = planner.entry_for(entry.proposal_id)
+        except (ValueError, KeyError, ReviewRefusedError, ArtifactIntegrityError) as error:
+            raise ApplyRefused("entry_invalid", f"{key}: {error}") from error
+        have, want = entry.model_dump(mode="json"), rebuilt.model_dump(mode="json")
+        if have != want:
+            differing = sorted(k for k in have.keys() | want.keys() if have.get(k) != want.get(k))
+            raise ApplyRefused(
+                "entry_tampered",
+                f"{key}: the bundle entry differs from what the stored approval supports "
+                f"({', '.join(differing)})",
+            )
+        return ctx, decision
+
+    def _origin_ok(self, snapshot_id: str, cache: dict[str, bool]) -> bool:
+        """May evidence quoted from this capture count? Manual captures need a valid D2."""
+        if snapshot_id in cache:
+            return cache[snapshot_id]
+        verdict = False
+        snapshot = self.store.get_snapshot(snapshot_id)
+        target = self.store.get_watch_target(snapshot.target_id) if snapshot else None
+        policy = self.store.get_source_policy(target.source_policy_id) if target else None
+        if snapshot is not None and target is not None and policy is not None:
+            if target.page_kind is not PageKind.MANUAL_CAPTURE:
+                verdict = True
+            else:
+                verdict = any(
+                    not confirmation_problems(c, snapshot=snapshot, target=target, policy=policy)
+                    for c in self.ledger.confirmations_for(snapshot_id)
+                )
+        cache[snapshot_id] = verdict
+        return verdict
+
+    def _usable_evidence(self, table: str, row_id: str, seeds: Path) -> list[LedgerEvidence]:
+        """Committed evidence on this seed directory whose capture's origin is established."""
+        cache: dict[str, bool] = {}
+        return [
+            item
+            for item in self.ledger.active_evidence(table, row_id, str(seeds))
+            if self._origin_ok(item.snapshot_id, cache)
+        ]
 
     def _prepare(
         self,
@@ -285,6 +329,7 @@ class ControlledApplier:
         decision: Any,
         *,
         apply_id: str,
+        seeds: Path,
     ) -> _Prepared:
         table, row_id = entry.target_table, entry.target_id
         row = copy.deepcopy(entry.new_row)
@@ -311,7 +356,9 @@ class ControlledApplier:
                 )
             )
         d1 = evaluate_row(
-            row, now_evidence=now_evidence, earlier=self.ledger.active_evidence(table, row_id)
+            row,
+            now_evidence=now_evidence,
+            earlier=self._usable_evidence(table, row_id, seeds),
         )
         manual = ctx.lineage.watch_target.page_kind is PageKind.MANUAL_CAPTURE
         d2: D2Status = "not_needed"
@@ -401,11 +448,29 @@ class ControlledApplier:
             raise ApplyRefused(
                 "reason_required", "an apply needs a reason of at least 10 characters"
             )
+        try:
+            with self.writer.locked(seeds):
+                return self._apply_locked(
+                    bundle_sha256, seeds, curator_id, reason, client_event_id, checkpoint
+                )
+        except SeedWriteError as error:
+            raise ApplyRefused(error.code, str(error)) from error
+
+    def _apply_locked(
+        self,
+        bundle_sha256: str,
+        seeds: Path,
+        curator_id: str,
+        reason: str,
+        client_event_id: str,
+        checkpoint: Checkpoint | None,
+    ) -> ApplicationRecord:
         fingerprint = hashlib.sha256(
             json.dumps(
                 [bundle_sha256, str(seeds), curator_id, reason], separators=(",", ":")
             ).encode()
         ).hexdigest()
+        self._reconcile_ledger(seeds)  # a rolled-back apply must not keep counting as evidence
         replay = self.ledger.application_for_event(client_event_id)
         if replay is not None:
             if self._fingerprint_of(replay) != fingerprint:
@@ -420,7 +485,13 @@ class ControlledApplier:
                 "an earlier apply or rollback on this seed directory did not finish: run recover",
             )
         bundle = self._load_bundle(bundle_sha256)
-        report = self.planner_factory(seeds).dry_run(bundle_sha256)
+        planner = self.planner_factory(seeds)
+        try:
+            report = planner.dry_run(bundle_sha256)
+        except (KeyError, ValueError, ArtifactIntegrityError) as error:
+            raise ApplyRefused(
+                "bundle_invalid", f"the bundle cannot be dry-run: {error}"
+            ) from error
         if not report.seed_files_unchanged:
             raise ApplyRefused(
                 "stale_bundle",
@@ -446,25 +517,32 @@ class ControlledApplier:
         service = self.service_factory(seeds)
         apply_id = "apply-" + hashlib.sha256(client_event_id.encode()).hexdigest()[:16]
         prepared: list[_Prepared] = []
+        evidence_only: list[_Prepared] = []
         for entry in bundle.entries:
-            ctx, decision, _ = self._revalidate(entry, service)
-            item = self._prepare(entry, ctx, decision, apply_id=apply_id)
-            # A confirmed-unchanged update still writes when its evidence changes the row's
-            # provenance (D1 newly satisfied); when the row would be byte-for-byte the same
-            # there is nothing to write and nothing to record.
+            ctx, decision = self._revalidate(entry, service, planner)
+            item = self._prepare(entry, ctx, decision, apply_id=apply_id, seeds=seeds)
+            # An update whose evidence only confirms what is stored writes the row when that
+            # evidence changes its provenance (D1 newly met). When the row would be identical
+            # there is nothing to write, but the evidence is still recorded so that it can be
+            # combined with later captures.
             if (
                 entry.operation == "update"
                 and item.outcome.final_row_sha256 == entry.base_row_sha256
             ):
-                continue
-            prepared.append(item)
-        if not prepared:
+                evidence_only.append(item)
+            else:
+                prepared.append(item)
+        evidence_items = [e for p in (*prepared, *evidence_only) for e in p.evidence]
+        if not prepared and not evidence_items:
             raise ApplyRefused("nothing_to_apply", "the bundle changes no seed row")
-        contents, files = self._build_files(seeds, bundle, prepared)
-        evidence_items = [e for p in prepared for e in p.evidence]
+        contents: dict[str, bytes] = {}
+        files: dict[str, dict[str, str]] = {}
+        if prepared:
+            contents, files = self._build_files(seeds, bundle, prepared)
         plan = {
             "files": files,
-            "rows": [p.outcome.model_dump(mode="json") for p in prepared],
+            "ledger_only": not prepared,
+            "rows": [p.outcome.model_dump(mode="json") for p in (*prepared, *evidence_only)],
             "evidence": [e.model_dump(mode="json") for e in evidence_items],
             "repository_seeds_touched": False,
         }
@@ -484,24 +562,32 @@ class ControlledApplier:
             raise ApplyRefused(error.code, str(error)) from error
         if not created:
             return record
-        try:
-            self.writer.apply(
-                seeds_dir=seeds,
-                apply_id=apply_id,
-                bundle_sha256=bundle_sha256,
-                contents=contents,
-                checkpoint=checkpoint,
-            )
-        except SeedWriteError as error:
-            self.ledger.set_status(apply_id, "failed", detail=f"{error.code}: {error}")
-            raise ApplyRefused(
-                error.code, f"{error}; run recover before any further operation"
-            ) from error
+        if prepared:
+            try:
+                self.writer.apply(
+                    seeds_dir=seeds,
+                    apply_id=apply_id,
+                    bundle_sha256=bundle_sha256,
+                    contents=contents,
+                    expected_priors={n: f["prior_sha256"] for n, f in files.items()},
+                    checkpoint=checkpoint,
+                )
+            except SeedWriteError as error:
+                if error.code in {"seeds_changed", "incomplete_apply", "apply_exists"}:
+                    # nothing was written: close the record instead of leaving it open
+                    self.ledger.set_status(apply_id, "aborted", detail=f"{error.code}: {error}")
+                    raise ApplyRefused(error.code, str(error)) from error
+                self.ledger.set_status(apply_id, "failed", detail=f"{error.code}: {error}")
+                raise ApplyRefused(
+                    error.code, f"{error}; run recover before any further operation"
+                ) from error
         return self.ledger.set_status(
             apply_id,
             "committed",
             evidence=evidence_items,
-            detail="seed files committed",
+            detail="seed files committed"
+            if prepared
+            else "evidence recorded; no seed file changed",
         )
 
     @staticmethod
@@ -541,6 +627,18 @@ class ControlledApplier:
                 raise ApplyRefused("row_missing", f"{table}: {sorted(replacements)} not found")
             out.extend(i.row for i in items if i.outcome.operation == "insert")
             contents[filename] = _render_yaml(original, out)
+            model = SUPPORTED_TABLES[table][1]
+            reloaded = [
+                model.model_validate(r).model_dump(mode="json")
+                for r in yaml.safe_load(contents[filename])
+            ]
+            planned = [model.model_validate(r).model_dump(mode="json") for r in out]
+            if reloaded != planned:
+                raise ApplyRefused(
+                    "render_mismatch",
+                    f"{filename} as it would be written does not load back to the approved "
+                    "rows (a value does not survive YAML round-tripping); nothing was written",
+                )
             files[filename] = {
                 "prior_sha256": hashlib.sha256(original).hexdigest(),
                 "new_sha256": hashlib.sha256(contents[filename]).hexdigest(),
@@ -574,7 +672,13 @@ class ControlledApplier:
     # ------------------------------------------------------------------ rollback / recover
 
     def rollback(
-        self, *, apply_id: str, curator_id: str, reason: str, checkpoint: Checkpoint | None = None
+        self,
+        *,
+        apply_id: str,
+        curator_id: str,
+        reason: str,
+        seeds_dir: Path | None = None,
+        checkpoint: Checkpoint | None = None,
     ) -> ApplicationRecord:
         self._curator(curator_id)
         if len(reason.strip()) < 10:
@@ -584,72 +688,107 @@ class ControlledApplier:
         record = self.ledger.get_application(apply_id)
         if record is None:
             raise ApplyRefused("unknown_apply", f"no apply {apply_id!r}")
-        if record.status == "rolled_back":
-            return record
-        if record.status != "committed":
+        seeds = self._check_destination(Path(record.seeds_dir))
+        if seeds_dir is not None and seeds_dir.resolve() != seeds:
             raise ApplyRefused(
-                "not_committed",
-                f"apply {apply_id} is {record.status}; only committed applies roll back",
+                "wrong_seeds_dir", f"apply {apply_id} was made on {seeds}, not {seeds_dir}"
             )
         try:
-            self.writer.rollback(apply_id=apply_id, checkpoint=checkpoint)
+            with self.writer.locked(seeds):
+                self._reconcile_ledger(seeds)
+                record = self.ledger.get_application(apply_id) or record
+                if record.status == "rolled_back":
+                    return record
+                if record.status != "committed":
+                    raise ApplyRefused(
+                        "not_committed",
+                        f"apply {apply_id} is {record.status}; only committed applies roll back",
+                    )
+                if not record.plan.get("ledger_only"):
+                    self.writer.rollback(apply_id=apply_id, checkpoint=checkpoint)
+                return self.ledger.set_status(
+                    apply_id, "rolled_back", detail=f"rolled back by {curator_id}: {reason}"
+                )
         except SeedWriteError as error:
             raise ApplyRefused(error.code, str(error)) from error
-        return self.ledger.set_status(
-            apply_id, "rolled_back", detail=f"rolled back by {curator_id}: {reason}"
-        )
 
     def recover(self, seeds_dir: Path) -> list[tuple[str, str]]:
         """Resolve interrupted operations, then bring the ledger in line with the journals."""
-        seeds = seeds_dir.resolve()
-        outcomes = self.writer.recover(seeds)
-        for apply_id, outcome in outcomes:
-            self._reconcile(apply_id, outcome)
-        # A crash after the journal committed but before the ledger did leaves no open journal.
-        for path in sorted(self.writer.journal_dir.glob("*.json")):
-            summary = self.writer.summary(path.stem)
-            if Path(summary.seeds_dir) != seeds:
-                continue
-            record = self.ledger.get_application(summary.apply_id)
-            if record is not None and (
-                (record.status in {"planned", "failed"} and summary.state == "committed")
-                or (record.status == "committed" and summary.state == "rolled_back")
-            ):
-                self._reconcile(summary.apply_id, summary.state)
-                outcomes.append((summary.apply_id, summary.state))
-        return outcomes
+        seeds = self._check_destination(seeds_dir)
+        try:
+            with self.writer.locked(seeds):
+                outcomes = self.writer.recover(seeds)
+                done = {apply_id for apply_id, _ in outcomes}
+                outcomes += [
+                    (apply_id, outcome)
+                    for apply_id, outcome in self._reconcile_ledger(seeds)
+                    if apply_id not in done
+                ]
+                return outcomes
+        except SeedWriteError as error:
+            raise ApplyRefused(error.code, str(error)) from error
 
-    def _reconcile(self, apply_id: str, outcome: str) -> None:
-        record = self.ledger.get_application(apply_id)
-        if record is None:
-            return
-        if outcome == "committed" and record.status in {"planned", "failed"}:
+    def _reconcile_ledger(self, seeds: Path) -> list[tuple[str, str]]:
+        """Make the ledger say what the journals (the record of the files) say. Lock held."""
+        changed: list[tuple[str, str]] = []
+        for record in self.ledger.applications_for(str(seeds)):
+            try:
+                state: str | None = self.writer.summary(record.apply_id).state
+            except SeedWriteError:
+                state = None
+            outcome = self._reconcile(record, state)
+            if outcome is not None:
+                changed.append((record.apply_id, outcome))
+        return changed
+
+    def _reconcile(self, record: ApplicationRecord, journal_state: str | None) -> str | None:
+        apply_id = record.apply_id
+        evidence = [LedgerEvidence.model_validate(e) for e in record.plan["evidence"]]
+        open_status = record.status in {"planned", "failed"}
+        if record.plan.get("ledger_only"):
+            if open_status:
+                self.ledger.set_status(apply_id, "aborted", detail="recovery: never committed")
+                return "aborted"
+            return None
+        if journal_state is None:
+            if open_status:  # died before the journal existed: nothing was written
+                self.ledger.set_status(apply_id, "aborted", detail="recovery: no journal")
+                return "aborted"
+            return None
+        if journal_state == "committed" and open_status:
             self.ledger.set_status(
                 apply_id,
                 "committed",
-                evidence=[LedgerEvidence.model_validate(e) for e in record.plan["evidence"]],
+                evidence=evidence,
                 detail="reconciled after recovery: the seed files had been committed",
             )
-        elif outcome in {"aborted", "rolled_back_by_recovery"} and record.status in {
-            "planned",
-            "failed",
-        }:
-            self.ledger.set_status(apply_id, "aborted", detail=f"recovery: {outcome}")
-        elif outcome == "rolled_back" and record.status == "committed":
+            return "committed"
+        if journal_state in {"aborted", "rolled_back_by_recovery"} and open_status:
+            self.ledger.set_status(apply_id, "aborted", detail=f"recovery: {journal_state}")
+            return "aborted"
+        if journal_state == "rolled_back" and record.status == "committed":
             self.ledger.set_status(apply_id, "rolled_back", detail="reconciled after recovery")
+            return "rolled_back"
+        return None
 
     # ------------------------------------------------------------------ coverage
 
     def coverage(self, seeds_dir: Path) -> list[dict[str, Any]]:
         """Per-row D1 coverage from the ledger alone (no decision is being applied)."""
-        rows = SeedRowSource(seeds_dir.resolve())
+        seeds = self._check_destination(seeds_dir)
+        try:
+            with self.writer.locked(seeds):
+                self._reconcile_ledger(seeds)
+        except SeedWriteError as error:
+            raise ApplyRefused(error.code, str(error)) from error
+        rows = SeedRowSource(seeds)
         report: list[dict[str, Any]] = []
         for table in SUPPORTED_TABLES:
             for row in rows.table_rows(table):
                 verification = evaluate_row(
                     row,
                     now_evidence={},
-                    earlier=self.ledger.active_evidence(table, str(row["id"])),
+                    earlier=self._usable_evidence(table, str(row["id"]), seeds),
                 )
                 report.append(
                     {

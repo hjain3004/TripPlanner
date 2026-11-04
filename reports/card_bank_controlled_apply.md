@@ -9,8 +9,9 @@ mergeable.** Decisions: `DEVIATIONS.md`, section "Card-bank Phase 4".
 ## Boundary (read first)
 
 * **The repository's real seeds are never written.** `apply` refuses any destination inside the
-  repository (`protected_seeds`); every test and the demonstration use a scratch copy; an autouse
-  test hashes the repository seed tree before and after every test.
+  repository of the running code (`protected_seeds`) or under *any* git checkout/worktree
+  (`inside_git_checkout`), and any seed file that is a symlink; every test and the demonstration
+  use a scratch copy; an autouse test hashes the repository seed tree before and after every test.
 * **No real financial fact is applied.** All documents are synthetic (`example.invalid`, "SYNTHETIC
   FIXTURE"); nothing says anything about any issuer.
 * No credentials, paid service, network, live model call, deployment, booking or transfer. Every
@@ -49,14 +50,17 @@ policy and document class. Re-checked at apply: issuer domain from the source po
 refused, class allowed by the policy and matching the capture's format. A URL inside the captured
 text confirms nothing. Without it the row keeps its manual provenance and `needs_verification=true`.
 
-**Apply** (`applier.py`) refuses, in order: destination in the repository / not a seed directory;
+**Apply** (`applier.py`) holds an exclusive per-directory lock throughout and refuses, in order: destination in a repository / not a seed directory;
 unknown curator; short reason; replay with different parameters; unfinished earlier operation;
 unknown or tampered bundle (hash), non-v2 schema; stale seeds (bundle built against different
 bytes); inconsistent dry-run (stale/conflicting/id-conflict/invalid rows, unknown references);
 refused entries in the bundle; for each entry — decision no longer the latest attested approval,
 unregistered approver, blocking finding (evidence integrity, superseded evidence, id now present),
-a row that is not the one the approval attests (forged bundle), evidenced-field mismatch; and a
-resulting KnowledgeBase that does not load. Only then are the ledger record and the writes made.
+any difference between the bundle entry and the entry rebuilt from the stored approval (row,
+provenance candidate, reviewer, evidence, evidenced fields: a hash-valid forged bundle is refused),
+a duplicate row; a resulting KnowledgeBase that does not load; and a rendered file that does not
+load back to the approved rows. Only then are the ledger record and the writes made; the writer
+re-checks the prior bytes under the lock.
 
 **Safe multi-file write** (`seed_writer.py`): journal → verified backups → verified temp files →
 renames one at a time → committed. **Not atomic across files and not claimed to be.** Interrupted
@@ -106,7 +110,7 @@ template values did not, which is the intended behavior.
 `evals/test_card_bank_seed_writer.py` (16): clean apply, exact-byte rollback, every interruption
 point, a mixed set observed before recovery, rollback refusal after a later change, corrupt/missing
 backups, interrupted rollback, foreign bytes, stacked applies.
-`evals/test_card_bank_apply.py` (38): D1 matrix (missing/stale/partial/None/identity/provenance/
+`evals/test_card_bank_apply.py` (55): D1 matrix (missing/stale/partial/None/identity/provenance/
 combination), D2 (capture, URL, issuer domain, aggregator, class/format, durability, immutability,
 curator), apply (insert, update, card+rule+optimizer, partial/full evidence, combine earlier
 evidence, stale evidence), refusals (protected seeds, curator, reason, stale, unapproved, forged
@@ -114,10 +118,23 @@ row, forged decision id, legacy schema, tampered artifact, id appeared, replay/c
 interruption (every point, via the applier, ledger reconciliation), coverage, reopen.
 `evals/test_card_bank_apply_cli.py` (1): the demonstration above through the CLI.
 Guard mutation checks (each reverted, each failed the suite): protected-root guard, stale
-evidence, D2 requirement, forged-row re-derivation, rollback moved-file guard, committed-only
-evidence, stale-seed guard, unfinished-operation guard. (The first of these briefly wrote the
+evidence, D2 requirement (current and earlier evidence), entry rebuild, rollback moved-file guard,
+committed-only evidence, stale-seed guard, unfinished-operation guard, write-time prior check,
+lock, ledger reconciliation, render check, git-checkout guard, symlink guard, blocking-finding
+refusal, evidence scoping, rollback directory check. (The first of these briefly wrote the
 real `cards.yaml` because the guard under test was disabled; the autouse test caught it and it
 was restored with git before anything was committed.)
+
+## Independent review
+
+A read-only reviewer found no Critical issue and nothing that writes outside the seed directory,
+and six Important findings, all reproduced and fixed with regressions: lost update (no write-time
+check, no lock); a rolled-back apply's evidence still counting; D2 not following combined
+evidence; unverified post-write content (U+0085); forged provenance/reviewer fields in a
+hash-valid bundle; a repository guard tied to one checkout. Minor: stuck ledger record after a
+crashed recover, evidence-only confirmations lost, evidence not scoped to a seed directory,
+unhandled exceptions in the CLI, `rollback --seeds-dir` ignored. It also found overclaims in the
+first draft of this report and DEVIATIONS, now corrected. See the last Phase 4 DEVIATIONS rows.
 
 ## Not done / limits
 
@@ -126,7 +143,9 @@ was restored with git before anything was committed.)
   comment block, row order, ids and values are preserved; rollback restores the original bytes).
 * Multi-file writes are recoverable, not atomic; the ledger and the journals are two stores
   reconciled by `recover`, not one transaction.
-* One operator at a time per seed directory (an unfinished journal blocks the next operation).
+* One operation at a time per seed directory, enforced by a lock file; a process killed outright leaves it and an operator must remove it (the refusal names the file).
+* The injected crashes are exceptions between steps, not power-loss simulation; directories are not fsynced after a rename.
+* The non-manual provenance branch is unreachable through `stage-capture` (manual captures only) and untested.
 * No UI for confirm/apply (CLI only). Offers are applied like any table but no offer demo exists.
 * Synthetic documents only; the real-document demonstration is pending (laptop-only inputs).
 

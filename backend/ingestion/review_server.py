@@ -633,7 +633,10 @@ def run_apply_command(args: argparse.Namespace, applier: ControlledApplier) -> i
             print(record.model_dump_json(indent=2))
         elif args.command == "rollback":
             record = applier.rollback(
-                apply_id=args.apply_id, curator_id=args.curator_id, reason=args.reason
+                apply_id=args.apply_id,
+                curator_id=args.curator_id,
+                reason=args.reason,
+                seeds_dir=Path(args.seeds_dir),
             )
             print(record.model_dump_json(indent=2))
         elif args.command == "recover":

@@ -25,7 +25,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS confirmations(
     id TEXT PRIMARY KEY, snapshot_id TEXT NOT NULL, payload TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS applications(
-    apply_id TEXT PRIMARY KEY, client_event_id TEXT NOT NULL UNIQUE,
+    apply_id TEXT PRIMARY KEY, seeds_dir TEXT NOT NULL, client_event_id TEXT NOT NULL UNIQUE,
     fingerprint TEXT NOT NULL, status TEXT NOT NULL, bundle_sha256 TEXT NOT NULL,
     payload TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS field_evidence(
@@ -148,10 +148,11 @@ class ApplyStore:
                     )
                 return ApplicationRecord.model_validate_json(row["payload"]), False
             connection.execute(
-                "INSERT INTO applications(apply_id, client_event_id, fingerprint, status, "
-                "bundle_sha256, payload) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO applications(apply_id, seeds_dir, client_event_id, fingerprint, "
+                "status, bundle_sha256, payload) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     record.apply_id,
+                    record.seeds_dir,
                     record.client_event_id,
                     fingerprint,
                     record.status,
@@ -223,14 +224,26 @@ class ApplyStore:
             self._event(connection, "application", apply_id, status, {"detail": detail})
         return record
 
-    def active_evidence(self, table_name: str, row_id: str) -> list[LedgerEvidence]:
-        """Evidence from applies that are currently committed (rolled-back applies drop out)."""
+    def applications_for(self, seeds_dir: str) -> list[ApplicationRecord]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT payload FROM applications WHERE seeds_dir = ? ORDER BY apply_id",
+                (seeds_dir,),
+            ).fetchall()
+        return [ApplicationRecord.model_validate_json(r[0]) for r in rows]
+
+    def active_evidence(self, table_name: str, row_id: str, seeds_dir: str) -> list[LedgerEvidence]:
+        """Evidence from applies on this seed directory that are currently committed.
+
+        Rolled-back, aborted and unfinished applies do not count, and neither does evidence from
+        an apply on some other seed directory (a scratch copy proves nothing about this one).
+        """
         with self._connect() as connection:
             rows = connection.execute(
                 "SELECT e.payload FROM field_evidence e JOIN applications a "
-                "ON a.apply_id = e.apply_id WHERE a.status = 'committed' "
+                "ON a.apply_id = e.apply_id WHERE a.status = 'committed' AND a.seeds_dir = ? "
                 "AND e.table_name = ? AND e.row_id = ? ORDER BY e.apply_id, e.field_path",
-                (table_name, row_id),
+                (seeds_dir, table_name, row_id),
             ).fetchall()
         return [LedgerEvidence.model_validate_json(r[0]) for r in rows]
 

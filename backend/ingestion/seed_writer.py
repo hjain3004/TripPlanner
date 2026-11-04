@@ -32,7 +32,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -90,9 +91,48 @@ class SeedWriter:
         self.state_dir = state_dir
         self.journal_dir = state_dir / "journals"
         self.backup_dir = state_dir / "backups"
+        self.lock_dir = state_dir / "locks"
         self.now = now
+        self._held: set[str] = set()
         self.journal_dir.mkdir(parents=True, exist_ok=True)
         self.backup_dir.mkdir(parents=True, exist_ok=True)
+        self.lock_dir.mkdir(parents=True, exist_ok=True)
+
+    # ------------------------------------------------------------------ exclusive access
+
+    @contextmanager
+    def locked(self, seeds_dir: Path) -> Iterator[None]:
+        """Exclusive use of one seed directory, across processes, for the whole operation.
+
+        The lock is a file created with exclusive-create semantics (atomic on a local file
+        system) and removed when the operation ends, however it ends. A process killed outright
+        leaves the file behind; that is deliberate (we cannot tell a dead process from a live one
+        without more of ``os`` than this module is allowed), and the refusal names the file so an
+        operator who has confirmed nothing is running can remove it. Re-entrant within one
+        writer instance.
+        """
+        key = hashlib.sha256(str(seeds_dir.resolve()).encode()).hexdigest()[:24]
+        if key in self._held:
+            yield
+            return
+        path = self.lock_dir / f"{key}.lock"
+        try:
+            with path.open("x", encoding="utf-8") as handle:
+                handle.write(
+                    json.dumps({"seeds_dir": str(seeds_dir), "at": self.now().isoformat()})
+                )
+        except FileExistsError as error:
+            raise SeedWriteError(
+                "locked",
+                f"another operation holds this seed directory (lock file {path}); if no other "
+                "process is running, a previous one was killed and that file can be removed",
+            ) from error
+        self._held.add(key)
+        try:
+            yield
+        finally:
+            self._held.discard(key)
+            path.unlink(missing_ok=True)
 
     # ------------------------------------------------------------------ journal
 
@@ -144,9 +184,29 @@ class SeedWriter:
         apply_id: str,
         bundle_sha256: str,
         contents: dict[str, bytes],
+        expected_priors: dict[str, str] | None = None,
         checkpoint: Checkpoint | None = None,
     ) -> JournalSummary:
-        """Replace the named seed files with ``contents``; recoverable at every step."""
+        """Replace the named seed files with ``contents``; recoverable at every step.
+
+        ``expected_priors`` (file name -> SHA-256 the caller planned against) is checked under
+        the lock against what is on disk now, so an edit made after planning is never silently
+        overwritten.
+        """
+        with self.locked(seeds_dir):
+            return self._apply_locked(
+                seeds_dir, apply_id, bundle_sha256, contents, expected_priors, checkpoint
+            )
+
+    def _apply_locked(
+        self,
+        seeds_dir: Path,
+        apply_id: str,
+        bundle_sha256: str,
+        contents: dict[str, bytes],
+        expected_priors: dict[str, str] | None,
+        checkpoint: Checkpoint | None,
+    ) -> JournalSummary:
         step = checkpoint or (lambda _name: None)
         if self.open_journals(seeds_dir):
             raise SeedWriteError(
@@ -161,6 +221,13 @@ class SeedWriter:
             if "/" in name or not target.is_file():
                 raise SeedWriteError("unknown_seed_file", f"{name!r} is not a seed file here")
             priors[name] = target.read_bytes()
+        for name, expected in (expected_priors or {}).items():
+            if name not in priors or _sha(priors[name]) != expected:
+                raise SeedWriteError(
+                    "seeds_changed",
+                    f"{name} no longer holds the bytes this apply was planned against; "
+                    "something changed it since planning, so nothing was written",
+                )
         journal: dict[str, Any] = {
             "version": 1,
             "apply_id": apply_id,
@@ -207,8 +274,9 @@ class SeedWriter:
     def recover(self, seeds_dir: Path) -> list[tuple[str, str]]:
         """Resolve every interrupted operation on ``seeds_dir``; returns (apply_id, outcome)."""
         outcomes: list[tuple[str, str]] = []
-        for summary in self.open_journals(seeds_dir):
-            outcomes.append((summary.apply_id, self._recover_one(summary)))
+        with self.locked(seeds_dir):
+            for summary in self.open_journals(seeds_dir):
+                outcomes.append((summary.apply_id, self._recover_one(summary)))
         return outcomes
 
     def _recover_one(self, summary: JournalSummary) -> str:
@@ -278,6 +346,11 @@ class SeedWriter:
 
     def rollback(self, *, apply_id: str, checkpoint: Checkpoint | None = None) -> JournalSummary:
         """Restore the exact prior bytes of a committed apply, refusing if anything moved on."""
+        summary = self.summary(apply_id)
+        with self.locked(Path(summary.seeds_dir)):
+            return self._rollback_locked(apply_id, checkpoint)
+
+    def _rollback_locked(self, apply_id: str, checkpoint: Checkpoint | None) -> JournalSummary:
         step = checkpoint or (lambda _name: None)
         summary = self.summary(apply_id)
         if summary.state != "committed":

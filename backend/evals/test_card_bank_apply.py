@@ -123,19 +123,28 @@ def remaining_records() -> list[dict[str, Any]]:
 
 
 def stage_second_capture(
-    env: ApplyEnv, *, extra_page: str = "", extra: list[dict[str, Any]] | None = None
+    env: ApplyEnv,
+    *,
+    extra_page: str = "",
+    extra: list[dict[str, Any]] | None = None,
+    records: list[dict[str, Any]] | None = None,
+    name: str = "detail",
 ) -> str:
     """A second, different page of the same issuer that quotes the facts the first one lacked."""
     env.capture.write_text(
-        REMAINING_PAGE.replace("</main>", extra_page + "</main>"), encoding="utf-8"
+        REMAINING_PAGE.replace("</main>", f"<p>page {name}</p>{extra_page}</main>"),
+        encoding="utf-8",
     )
     detail = env.target(
-        target_id="synth-card-detail",
-        canonical_url="https://www.example.invalid/card/details",
+        target_id=f"synth-card-{name}",
+        canonical_url=f"https://www.example.invalid/card/{name}",
         target_fact_ids=(CARD,),
     )
     outcome = env.put(
-        records=remaining_records() + (extra or []), inserts=[], target=detail, seeds=env.scratch
+        records=(remaining_records() if records is None else records) + (extra or []),
+        inserts=[],
+        target=detail,
+        seeds=env.scratch,
     )
     assert outcome.status == "staged", outcome.refusals
     (staged,) = outcome.proposals
@@ -159,6 +168,9 @@ class ApplyEnv(InsertEnv):
             now=lambda: NOW,
         )
         self.events = 0
+
+    def evidence(self, table: str, row_id: str) -> list[Any]:
+        return self.ledger.active_evidence(table, row_id, str(self.scratch.resolve()))
 
     def event(self, prefix: str = "evt") -> str:
         self.events += 1
@@ -417,7 +429,7 @@ def test_a_fully_evidenced_insert_stays_unverified_until_the_origin_is_confirmed
     assert outcome["d1"]["satisfied"] is True and outcome["d2"] == "unconfirmed"
     assert "D2 open" in outcome["reason"]
     # the ledger still holds the evidence it will combine later
-    assert len(env.ledger.active_evidence("cards", CARD)) == 11
+    assert len(env.evidence("cards", CARD)) == 11
 
 
 def test_a_fully_evidenced_insert_with_a_confirmed_origin_clears_needs_verification(
@@ -454,6 +466,7 @@ def test_earlier_applied_evidence_combines_with_a_later_capture_to_satisfy_d1(
 ) -> None:
     ids = env.stage_card(records=card_records())
     env.approve_all(ids)
+    env.confirm(ids[0])  # evidence from an unconfirmed manual capture would not count (D2)
     env.apply(env.bundle(ids))
     assert env.row("cards", CARD)["provenance"]["needs_verification"] is True
     # a second capture confirms the remaining facts, unchanged values
@@ -470,6 +483,7 @@ def test_earlier_applied_evidence_combines_with_a_later_capture_to_satisfy_d1(
 def test_evidence_for_a_value_changed_since_is_invalidated_not_reused(env: ApplyEnv) -> None:
     ids = env.stage_card(records=card_records())
     env.approve_all(ids)
+    env.confirm(ids[0])
     env.apply(env.bundle(ids))
     # someone edits the fee in the seeds out of band (the very case stale evidence protects)
     path = env.scratch / "cards.yaml"
@@ -726,13 +740,13 @@ def test_rollback_restores_exact_prior_bytes_and_withdraws_the_evidence(env: App
     env.approve_all(ids)
     record = env.apply(env.bundle(ids))
     assert file_hashes(env.scratch) != before
-    assert env.ledger.active_evidence("cards", CARD)
+    assert env.evidence("cards", CARD)
     rolled = env.applier.rollback(
         apply_id=record.apply_id, curator_id="alice", reason="synthetic demonstration rollback"
     )
     assert rolled.status == "rolled_back"
     assert file_hashes(env.scratch) == before
-    assert env.ledger.active_evidence("cards", CARD) == []  # rolled-back evidence no longer counts
+    assert env.evidence("cards", CARD) == []  # rolled-back evidence no longer counts
     events = [e["event"] for e in env.ledger.events(record.apply_id)]
     assert events == ["planned", "committed", "rolled_back"]  # history is retained
     again = env.applier.rollback(
@@ -799,7 +813,7 @@ def test_an_apply_interrupted_before_every_file_changed_is_rolled_back_by_recove
     assert not list(env.scratch.glob("*.tmp"))
     record = env.ledger.application_for_event("apply-interrupted-0001")
     assert record is not None and record.status == "aborted"
-    assert env.ledger.active_evidence("cards", CARD) == []
+    assert env.evidence("cards", CARD) == []
     # the system is usable again and the same bundle can be applied
     assert env.apply(sha, client_event_id="apply-retry-after-recover-1").status == "committed"
 
@@ -817,7 +831,7 @@ def test_an_apply_interrupted_after_every_file_changed_is_completed_by_recovery(
     assert file_hashes(env.scratch) == applied
     record = env.ledger.application_for_event("apply-interrupted-0002")
     assert record is not None and record.status == "committed"
-    assert len(env.ledger.active_evidence("cards", CARD)) == 11
+    assert len(env.evidence("cards", CARD)) == 11
 
 
 def test_a_crash_after_the_journal_committed_but_before_the_ledger_is_reconciled(
@@ -836,7 +850,7 @@ def test_a_crash_after_the_journal_committed_but_before_the_ledger_is_reconciled
     env.applier.recover(env.scratch)
     record = env.ledger.application_for_event("apply-interrupted-0003")
     assert record is not None and record.status == "committed"
-    assert env.ledger.active_evidence("cards", CARD)
+    assert env.evidence("cards", CARD)
 
 
 def test_an_interrupted_rollback_is_finished_by_recovery(env: ApplyEnv) -> None:
@@ -854,7 +868,7 @@ def test_an_interrupted_rollback_is_finished_by_recovery(env: ApplyEnv) -> None:
     env.applier.recover(env.scratch)
     assert file_hashes(env.scratch) == before
     assert env.ledger.get_application(record.apply_id).status == "rolled_back"  # type: ignore[union-attr]
-    assert env.ledger.active_evidence("cards", CARD) == []
+    assert env.evidence("cards", CARD) == []
 
 
 # ------------------------------------------------------------------ coverage and durability
@@ -878,7 +892,7 @@ def test_the_ledger_survives_reopening(env: ApplyEnv) -> None:
     reopened = ApplyStore(env.root / "apply.sqlite", now=lambda: NOW)
     stored = reopened.get_application(record.apply_id)
     assert stored is not None and stored.status == "committed"
-    assert len(reopened.active_evidence("cards", CARD)) == 11
+    assert len(reopened.active_evidence("cards", CARD, str(env.scratch.resolve()))) == 11
 
 
 def test_a_second_apply_on_a_different_scratch_copy_is_independent(
@@ -893,3 +907,367 @@ def test_a_second_apply_on_a_different_scratch_copy_is_independent(
     env.apply(sha)
     assert file_hashes(other) == one  # the other copy was never touched
     assert PageKind.MANUAL_CAPTURE and datetime.now(UTC)  # imports used
+
+
+# ================================================================== independent-review regressions
+
+
+def test_evidence_from_an_unconfirmed_capture_does_not_count_toward_d1(env: ApplyEnv) -> None:
+    """D2 follows the evidence: 4 facts from a never-confirmed capture cannot ride along."""
+    ids = env.stage_card(records=card_records())
+    env.approve_all(ids)
+    env.apply(env.bundle(ids))  # no confirmation for this capture
+    pid = stage_second_capture(env)
+    service, _ = env.runtime(env.scratch)
+    approve(service, pid, event="approve-second-capture-0001")
+    env.confirm(pid)  # only the second capture is confirmed
+    record = env.apply(env.bundle([pid]))
+    d1 = record.plan["rows"][0]["d1"]
+    assert not d1["satisfied"] and len(d1["missing"]) == 4 and d1["evidenced_earlier"] == []
+    assert env.row("cards", CARD)["provenance"]["needs_verification"] is True
+
+
+def test_evidence_only_confirmations_accumulate_across_captures(env: ApplyEnv) -> None:
+    """Three captures: 4 facts, then 3 more (nothing in the file changes), then the last 4."""
+    ids = env.stage_card(records=card_records())
+    env.approve_all(ids)
+    env.confirm(ids[0])
+    env.apply(env.bundle(ids))
+    remaining = remaining_records()
+    second = stage_second_capture(env, records=remaining[:3], name="second")
+    third = stage_second_capture(env, records=remaining[3:], name="third")
+    service, _ = env.runtime(env.scratch)
+    for index, pid in enumerate((second, third)):
+        approve(service, pid, event=f"approve-accumulate-{index:04d}-x")
+        env.confirm(pid)
+    before = file_hashes(env.scratch)
+    middle = env.apply(env.bundle([second]))
+    assert middle.plan["ledger_only"] is True and middle.status == "committed"
+    assert file_hashes(env.scratch) == before  # evidence recorded, no file touched
+    assert len(env.evidence("cards", CARD)) == 7
+    last = env.apply(env.bundle([third]))
+    assert last.plan["rows"][0]["d1"]["satisfied"] is True
+    assert env.row("cards", CARD)["provenance"]["needs_verification"] is False
+    # rolling a ledger-only application back withdraws its evidence and touches no file
+    env.applier.rollback(
+        apply_id=middle.apply_id, curator_id="alice", reason="withdraw the middle capture"
+    )
+    assert len(env.evidence("cards", CARD)) == 11 - 3
+
+
+def test_a_planned_write_is_refused_if_the_seeds_changed_after_planning(
+    env: ApplyEnv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ids = env.stage_card()
+    env.approve_all(ids)
+    sha = env.bundle(ids)
+    original = env.ledger.begin_application
+
+    def edit_then_begin(*args: Any, **kwargs: Any) -> Any:
+        path = env.scratch / "cards.yaml"
+        path.write_text(path.read_text() + "\n# a human edit made after planning\n")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(env.ledger, "begin_application", edit_then_begin)
+    with pytest.raises(ApplyRefused) as refused:
+        env.apply(sha, client_event_id="apply-raced-event-0001")
+    assert refused.value.code == "seeds_changed"
+    assert "a human edit made after planning" in (env.scratch / "cards.yaml").read_text()
+    record = env.ledger.application_for_event("apply-raced-event-0001")
+    assert record is not None and record.status == "aborted"
+    assert env.evidence("cards", CARD) == []
+
+
+def test_a_second_operation_on_the_same_seed_directory_is_refused_while_one_is_running(
+    env: ApplyEnv,
+) -> None:
+    ids = env.stage_card()
+    env.approve_all(ids)
+    sha = env.bundle(ids)
+    other_process = SeedWriter(state_dir=env.root / "apply_state", now=lambda: NOW)
+    with other_process.locked(env.scratch):
+        refuse(env, sha, "locked")
+        with pytest.raises(ApplyRefused) as refused:
+            env.applier.recover(env.scratch)
+        assert refused.value.code == "locked"
+    assert env.apply(sha).status == "committed"  # released: the lock never outlives its holder
+    assert not list((env.root / "apply_state" / "locks").glob("*.lock"))
+
+
+def test_a_rolled_back_apply_stops_counting_even_if_its_ledger_write_failed(
+    env: ApplyEnv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ids = env.stage_card()
+    env.approve_all(ids)
+    record = env.apply(env.bundle(ids))
+    real = env.ledger.set_status
+
+    def fail_once(apply_id: str, status: str, **kwargs: Any) -> Any:
+        if status == "rolled_back":
+            monkeypatch.setattr(env.ledger, "set_status", real)
+            raise RuntimeError("database is locked")
+        return real(apply_id, status, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(env.ledger, "set_status", fail_once)
+    with pytest.raises(RuntimeError):
+        env.applier.rollback(
+            apply_id=record.apply_id, curator_id="alice", reason="rollback whose ledger write dies"
+        )
+    assert env.evidence("cards", CARD)  # the ledger still (wrongly) says committed
+    env.applier.coverage(env.scratch)  # any apply or coverage reconciles first
+    assert env.evidence("cards", CARD) == []
+    assert env.ledger.get_application(record.apply_id).status == "rolled_back"  # type: ignore[union-attr]
+
+
+def test_an_apply_reconciles_the_ledger_before_it_counts_any_evidence(
+    env: ApplyEnv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ids = env.stage_card()
+    env.approve_all(ids)
+    record = env.apply(env.bundle(ids))
+    real = env.ledger.set_status
+
+    def fail_once(apply_id: str, status: str, **kwargs: Any) -> Any:
+        if status == "rolled_back":
+            monkeypatch.setattr(env.ledger, "set_status", real)
+            raise RuntimeError("database is locked")
+        return real(apply_id, status, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(env.ledger, "set_status", fail_once)
+    with pytest.raises(RuntimeError):
+        env.applier.rollback(
+            apply_id=record.apply_id, curator_id="alice", reason="rollback whose ledger write dies"
+        )
+    other = env.put(
+        records=[rec("cards", EXISTING, "forex_markup_bp", "3.5%", FX)],
+        inserts=[],
+        target=env.target(
+            target_id="synth-card-other",
+            canonical_url="https://www.example.invalid/card/other",
+            target_fact_ids=(EXISTING,),
+        ),
+        seeds=env.scratch,
+    )
+    assert other.status == "staged", other.refusals
+    other_ids = [p.proposal_id for p in other.proposals]
+    service, _ = env.runtime(env.scratch)
+    approve(service, other_ids[0], event="approve-other-event-0001")
+    env.apply(env.bundle(other_ids))  # no coverage call: the apply itself must reconcile
+    assert env.evidence("cards", CARD) == []
+
+
+def test_a_second_recover_finishes_a_ledger_left_open_by_a_crashed_recover(
+    env: ApplyEnv,
+) -> None:
+    ids = env.stage_card(with_rule=True)
+    env.approve_all(ids)
+    with pytest.raises(Crash):
+        env.apply(
+            env.bundle(ids), client_event_id="apply-m1-event-0001", checkpoint=crash_at("staged")
+        )
+    env.writer.recover(env.scratch)  # the journal is resolved, then the process "dies"
+    record = env.ledger.application_for_event("apply-m1-event-0001")
+    assert record is not None and record.status == "planned"
+    env.applier.recover(env.scratch)
+    record = env.ledger.application_for_event("apply-m1-event-0001")
+    assert record is not None and record.status == "aborted"
+
+
+def test_yaml_that_would_not_load_back_to_the_approved_row_is_refused(env: ApplyEnv) -> None:
+    """PyYAML turns U+0085 into a space on a round trip; the written file must be checked."""
+    # the template route is the only way an un-quoted string can reach a row
+    partial = env.put(
+        records=card_records(),
+        inserts=[card_insert(name="Example\u0085Voyager")],
+        target=env.facts(CARD),
+        seeds=env.scratch,
+    )
+    assert partial.status == "staged", partial.refusals
+    ids = [p.proposal_id for p in partial.proposals]
+    env.approve_all(ids)
+    refuse(env, env.bundle(ids), "render_mismatch")
+
+
+def test_a_hash_valid_bundle_cannot_forge_provenance_or_ledger_fields(env: ApplyEnv) -> None:
+    from ingestion.activation import ProvenanceCandidate
+
+    ids = env.stage_card()
+    env.approve_all(ids)
+    sha = env.bundle(ids)
+
+    def forge_candidate(bundle: ActivationBundle) -> ActivationBundle:
+        entry = bundle.entries[0]
+        candidate = ProvenanceCandidate(
+            source_type="official_page",
+            verified_by="bob-never-approved",
+            last_verified="2031-01-01",
+            source_url="https://www.example.invalid/NOT-THE-CAPTURE",
+            confidence=0.99,
+        )
+        forged = entry.model_copy(update={"provenance_candidate": candidate})
+        return bundle.model_copy(update={"entries": (forged,)})
+
+    def forge_reviewer(bundle: ActivationBundle) -> ActivationBundle:
+        forged = bundle.entries[0].model_copy(update={"reviewer_id": "mallory"})
+        return bundle.model_copy(update={"entries": (forged,)})
+
+    def forge_evidenced(bundle: ActivationBundle) -> ActivationBundle:
+        entry = bundle.entries[0]
+        forged = entry.model_copy(update={"evidenced_fields": entry.evidenced_fields[:-1]})
+        return bundle.model_copy(update={"entries": (forged,)})
+
+    for forge in (forge_candidate, forge_reviewer, forge_evidenced):
+        error = refuse(env, _forged_bundle(env, sha, forge), "entry_tampered")
+        assert "differs" in str(error)
+
+
+def test_a_bundle_listing_one_row_twice_is_refused(env: ApplyEnv) -> None:
+    ids = env.stage_card()
+    env.approve_all(ids)
+    sha = env.bundle(ids)
+
+    def twice(bundle: ActivationBundle) -> ActivationBundle:
+        return bundle.model_copy(update={"entries": (bundle.entries[0], bundle.entries[0])})
+
+    refuse(env, _forged_bundle(env, sha, twice), "duplicate_entry")
+
+
+def test_unknown_proposals_and_malformed_bundles_are_typed_refusals(env: ApplyEnv) -> None:
+    with pytest.raises(ApplyRefused) as unknown:
+        env.applier.confirm_origin(
+            proposal_id="proposal:nothing",
+            document_class="card_page",
+            curator_id="alice",
+            statement="there is no such proposal at all",
+            seeds_dir=env.scratch,
+        )
+    assert unknown.value.code == "unknown_proposal"
+    ids = env.stage_card()
+    env.approve_all(ids)
+    sha = env.bundle(ids)
+
+    def no_hashes(bundle: ActivationBundle) -> ActivationBundle:
+        return bundle.model_copy(update={"seed_files": {}})
+
+    refuse(env, _forged_bundle(env, sha, no_hashes), "bundle_invalid")
+
+
+def test_the_repository_guard_does_not_depend_on_which_checkout_is_running(
+    env: ApplyEnv, tmp_path: Path
+) -> None:
+    """Any directory under a git checkout is refused, e.g. a sibling clone's real seeds."""
+    clone = tmp_path / "some_other_clone"
+    (clone / ".git").mkdir(parents=True)
+    shutil.copytree(SEEDS_DIR, clone / "backend" / "core" / "seeds")
+    ids = env.stage_card()
+    env.approve_all(ids)
+    sha = env.bundle(ids)
+    with pytest.raises(ApplyRefused) as refused:
+        env.apply(sha, seeds_dir=clone / "backend" / "core" / "seeds")
+    assert refused.value.code == "inside_git_checkout"
+    # a clone that is a git *worktree* has a .git file, not a directory
+    worktree = tmp_path / "a_worktree"
+    worktree.mkdir()
+    (worktree / ".git").write_text("gitdir: /elsewhere")
+    shutil.copytree(SEEDS_DIR, worktree / "seeds")
+    with pytest.raises(ApplyRefused) as second:
+        env.apply(sha, seeds_dir=worktree / "seeds")
+    assert second.value.code == "inside_git_checkout"
+
+
+def test_symlinked_seed_files_are_refused(env: ApplyEnv, tmp_path: Path) -> None:
+    link_dir = tmp_path / "linked"
+    shutil.copytree(env.scratch, link_dir)
+    real = tmp_path / "real_cards.yaml"
+    shutil.move(link_dir / "cards.yaml", real)
+    (link_dir / "cards.yaml").symlink_to(real)
+    ids = env.stage_card()
+    env.approve_all(ids)
+    with pytest.raises(ApplyRefused) as refused:
+        env.apply(env.bundle(ids), seeds_dir=link_dir)
+    assert refused.value.code == "seed_file_is_symlink"
+
+
+def test_evidence_does_not_travel_between_seed_directories(env: ApplyEnv, tmp_path: Path) -> None:
+    ids = env.stage_card()
+    env.approve_all(ids)
+    env.apply(env.bundle(ids))
+    other = tmp_path / "second_scratch"
+    shutil.copytree(SEEDS_DIR, other)
+    assert env.ledger.active_evidence("cards", CARD, str(other.resolve())) == []
+    assert len(env.evidence("cards", CARD)) == 11
+
+
+def test_rollback_must_name_the_seed_directory_the_apply_was_made_on(
+    env: ApplyEnv, tmp_path: Path
+) -> None:
+    ids = env.stage_card()
+    env.approve_all(ids)
+    record = env.apply(env.bundle(ids))
+    other = tmp_path / "elsewhere"
+    shutil.copytree(SEEDS_DIR, other)
+    with pytest.raises(ApplyRefused) as refused:
+        env.applier.rollback(
+            apply_id=record.apply_id,
+            curator_id="alice",
+            reason="naming the wrong directory",
+            seeds_dir=other,
+        )
+    assert refused.value.code == "wrong_seeds_dir"
+
+
+def test_an_approval_superseded_by_a_newer_capture_is_refused_at_apply(env: ApplyEnv) -> None:
+    ids = env.stage_card()
+    env.approve_all(ids)
+    sha = env.bundle(ids)
+    env.capture.write_text(RICH_PAGE.replace("SYNTHETIC FIXTURE", "SYNTHETIC FIXTURE v2"))
+    env.put(
+        records=full_card_records(),
+        inserts=[{"table": "cards", "id": CARD, "row": {}}],
+        target=env.facts(CARD),
+        seeds=env.scratch,
+    )
+    refuse(env, sha, "blocking_finding")
+
+
+def test_an_edited_update_applies_exactly_the_edited_row(env: ApplyEnv) -> None:
+    from ingestion.review_types import CuratorFieldEdit, DecisionRequest
+
+    outcome = env.put(
+        records=[rec("cards", EXISTING, "forex_markup_bp", "3.5%", FX)],
+        inserts=[],
+        target=env.facts(EXISTING),
+        seeds=env.scratch,
+    )
+    (staged,) = outcome.proposals
+    service, _ = env.runtime(env.scratch)
+    ctx = service.context(staged.proposal_id)
+    assert ctx.lineage is not None
+    fee_quote = "The annual fee is INR 2,500 per year."
+    service.decide(
+        DecisionRequest(
+            proposal_id=staged.proposal_id,
+            action="edit",
+            reason="also take the fee from the same page",
+            expected_version=1,
+            client_event_id="edit-decision-event-0001",
+            curator_confidence=0.7,
+            edits=(
+                CuratorFieldEdit(
+                    field_path="annual_fee_minor",
+                    action="set",
+                    proposed_raw_value="INR 2,500",
+                    quote=fee_quote,
+                    occurrence=1,
+                    snapshot_id=ctx.lineage.snapshots[0].snapshot_id,
+                ),
+            ),
+        ),
+        curator_id="alice",
+    )
+    record = env.apply(env.bundle([staged.proposal_id]))
+    row = env.row("cards", EXISTING)
+    assert row["forex_markup_bp"] == 350 and row["annual_fee_minor"] == 250_000
+    evidenced = {e.field_path for e in env.evidence("cards", EXISTING)}
+    assert evidenced == {"forex_markup_bp", "annual_fee_minor"}
+    assert record.status == "committed"
