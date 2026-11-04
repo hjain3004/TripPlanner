@@ -91,13 +91,25 @@ def _row_hash(row: dict[str, Any]) -> str:
 canonical_row_hash = _row_hash
 
 
+def _contains_whole_token(quote: str, raw: str) -> bool:
+    """``raw`` appears in ``quote`` as a complete token, never inside a longer number or word.
+
+    A bare substring test let ``"5"``, ``"15"`` or ``"000"`` be "supported" by the quote
+    ``"INR 15,000"`` while parsing to a different amount (500, 1500, 0). The boundaries here
+    know money notation: ``Rs.15,000`` still matches ``15,000`` (the dot follows a word), but
+    ``15`` never matches inside ``0.15``, ``1,15,000`` or ``15,000``.
+    """
+    pattern = r"(?<!\w)(?<!\d[.,])" + re.escape(raw) + r"(?!\w)(?![.,]\d)"
+    return re.search(pattern, quote) is not None
+
+
 def _quote_supports_value(
     *, field_path: str, raw_value: Any, parsed_value: Any, expected: Any, quote: str
 ) -> bool:
     """Require the exact quote to contain the value it claims to evidence."""
     normalized_quote = " ".join(str(quote).split()).casefold()
     normalized_raw = " ".join(str(raw_value).split()).casefold()
-    if normalized_raw and normalized_raw in normalized_quote:
+    if normalized_raw and _contains_whole_token(normalized_quote, normalized_raw):
         return True
     if isinstance(parsed_value, date):
         return parsed_value.isoformat() in normalized_quote
@@ -287,9 +299,7 @@ def validate_extraction(
             raise ProposalValidationError(f"field path missing from proposed row: {path}")
         for span in extracted.evidence_spans:
             if span.field_path != path:
-                raise ProposalValidationError(
-                    f"evidence field path does not match {path}"
-                )
+                raise ProposalValidationError(f"evidence field path does not match {path}")
             try:
                 verify_evidence_span(span, snapshot=snapshot, artifacts=artifacts)
             except EvidenceVerificationError as error:
@@ -330,9 +340,7 @@ def validate_extraction(
     reconstructed_flat = _flatten(proposed)
     for path, value in proposed_flat.items():
         if not _same_value(value, reconstructed_flat[path]):
-            raise ProposalValidationError(
-                f"proposed row changes {path} without a field proposal"
-            )
+            raise ProposalValidationError(f"proposed row changes {path} without a field proposal")
     if _row_hash(current_row) != current_row_hash and current_row_hash is not None:
         findings.append(
             ValidationFinding(
@@ -354,9 +362,7 @@ def validate_extraction(
                 "manual captures cannot change provenance before human review"
             )
         if provenance is not None and not provenance.needs_verification:
-            raise ProposalValidationError(
-                "manual capture evidence must remain unverified"
-            )
+            raise ProposalValidationError("manual capture evidence must remain unverified")
     if (
         provenance is not None
         and provenance.source_type in {"official_page", "tnc_pdf"}

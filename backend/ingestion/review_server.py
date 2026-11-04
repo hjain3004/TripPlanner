@@ -8,12 +8,23 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TypeVar
+
+from pydantic import ValidationError
 
 from ingestion.activation import ActivationPlanner
 from ingestion.artifacts import ContentAddressedStore
+from ingestion.config_loaders import (
+    ConfigIssue,
+    ConfigValidationError,
+    load_discovery_sources,
+    load_source_policies,
+    load_watchlist,
+)
 from ingestion.contracts import (
     FetchAttempt,
     FetchResult,
+    PageKind,
     SourcePolicyRecord,
     WatchTarget,
 )
@@ -22,9 +33,12 @@ from ingestion.extraction import FinancialExtractor
 from ingestion.review import ReviewService
 from ingestion.review_app import ReviewAppConfig, SessionRegistry, create_review_app
 from ingestion.review_rows import SeedRowSource
-from ingestion.review_types import CuratorFieldEdit, DecisionRequest
+from ingestion.review_types import CuratorFieldEdit, DecisionRequest, ReviewRefusedError
 from ingestion.snapshots import SnapshotService
-from ingestion.storage import ConflictingWriteError, FinancialIngestionStore
+from ingestion.staging import StageLimits, StageOutcome, load_curator_extraction, stage_capture
+from ingestion.storage import ConflictingWriteError, FinancialIngestionStore, IngestionStoreError
+
+_T = TypeVar("_T")
 
 
 class LocalOnlyError(RuntimeError):
@@ -227,6 +241,157 @@ def create_scripted_demo_proposal(
     return outcome.proposal.proposal_id
 
 
+def _describe_invalid(error: ValueError) -> str:
+    if isinstance(error, ValidationError):
+        return "; ".join(
+            f"{'.'.join(str(part) for part in item['loc'])}: {item['msg']}"
+            for item in error.errors()
+        )
+    return str(error)
+
+
+def _config_refusal(error: ConfigValidationError, *, file_label: str | None = None) -> int:
+    """Print every problem in a refused file as typed JSON; exit code 2."""
+    issues = [
+        {"file": file_label or str(error.path), **issue.model_dump()} for issue in error.issues
+    ]
+    print(json.dumps({"status": "refused", "kind": "config", "issues": issues}, indent=2))
+    print(f"refused: {error}", file=sys.stderr)
+    return 2
+
+
+def _select(items: Sequence[_T], wanted: str | None, key: str, path: str) -> _T:
+    """Pick the one entry a command needs from a file that may list several."""
+    names = [str(getattr(item, key)) for item in items]
+    if wanted is None:
+        if len(items) == 1:
+            return items[0]
+        raise ConfigValidationError(
+            Path(path),
+            [
+                ConfigIssue(
+                    code="config_ambiguous_selection",
+                    location="file",
+                    message=(
+                        f"the file has {len(items)} entries; choose one with "
+                        f"--{key.replace('_', '-')} ({', '.join(names)})"
+                    ),
+                )
+            ],
+        )
+    for item, name in zip(items, names, strict=True):
+        if name == wanted:
+            return item
+    raise ConfigValidationError(
+        Path(path),
+        [
+            ConfigIssue(
+                code="config_selection_not_found",
+                location="file",
+                message=f"no entry with {key} {wanted!r} (found: {', '.join(names)})",
+            )
+        ],
+    )
+
+
+def check_config(args: argparse.Namespace, *, today: datetime) -> int:
+    """Validate configuration files without touching a data directory or the network."""
+    summary: dict[str, object] = {"status": "ok", "network_calls": 0}
+    sources = (
+        load_discovery_sources(Path(args.discovery_sources), today=today.date())
+        if (args.discovery_sources)
+        else ()
+    )
+    aggregator_domains = tuple(source.domain for source in sources)
+    if args.discovery_sources:
+        summary["discovery_sources"] = [
+            {
+                "name": source.name,
+                "domain": source.domain,
+                "access": "manual_only" if source.manual_only else "automated",
+            }
+            for source in sources
+        ]
+    policies = (
+        load_source_policies(Path(args.source_policies), aggregator_domains=aggregator_domains)
+        if args.source_policies
+        else ()
+    )
+    if args.source_policies:
+        summary["source_policies"] = [
+            {
+                "policy_id": policy.policy_id,
+                "domain": policy.domain,
+                "allowed_page_classes": list(policy.allowed_page_classes),
+            }
+            for policy in policies
+        ]
+    if args.watchlist:
+        targets = load_watchlist(
+            Path(args.watchlist),
+            policies={policy.policy_id: policy for policy in policies},
+            aggregator_domains=aggregator_domains,
+        )
+        summary["watchlist"] = [
+            {
+                "target_id": target.target_id,
+                "page_kind": target.page_kind.value,
+                "url": target.canonical_url,
+                "policy_id": target.source_policy_id,
+            }
+            for target in targets
+        ]
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
+
+
+def run_stage_capture(
+    args: argparse.Namespace,
+    *,
+    store: FinancialIngestionStore,
+    artifacts: ContentAddressedStore,
+    seeds_dir: Path,
+    now: Callable[[], datetime],
+) -> int:
+    sources = (
+        load_discovery_sources(Path(args.discovery_sources), today=now().date())
+        if (args.discovery_sources)
+        else ()
+    )
+    aggregator_domains = tuple(source.domain for source in sources)
+    policies = load_source_policies(Path(args.source_policy), aggregator_domains=aggregator_domains)
+    policy = _select(policies, args.policy_id, "policy_id", args.source_policy)
+    targets = load_watchlist(
+        Path(args.watch_target),
+        policies={policy.policy_id: policy},
+        aggregator_domains=aggregator_domains,
+    )
+    target = _select(targets, args.target_id, "target_id", args.watch_target)
+    extraction = load_curator_extraction(Path(args.extraction))
+    outcome: StageOutcome = stage_capture(
+        store=store,
+        artifacts=artifacts,
+        seeds_dir=seeds_dir,
+        capture_path=Path(args.capture),
+        policy=policy,
+        target=target,
+        extraction=extraction,
+        document_class=PageKind(args.document_class),
+        now=now,
+        limits=StageLimits(
+            max_bytes=args.max_bytes, max_pages=args.max_pages, timeout_seconds=args.timeout_seconds
+        ),
+        aggregator_domains=aggregator_domains,
+    )
+    print(outcome.model_dump_json(indent=2))
+    if outcome.status != "staged":
+        first = outcome.refusals[0]
+        extra = f" (+{len(outcome.refusals) - 1} more)" if len(outcome.refusals) > 1 else ""
+        print(f"refused: {first.code.value}: {first.message}{extra}", file=sys.stderr)
+        return 2
+    return 0
+
+
 def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = None) -> int:
     # `env or {}` would make the real process environment unreachable from the CLI.
     environment = os.environ if env is None else env
@@ -273,16 +438,42 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     dry.add_argument("--data-dir", default=None)
     dry.add_argument("--seeds-dir", default=None)
     dry.add_argument("--bundle-sha256", required=True)
+    stage = sub.add_parser("stage-capture")
+    stage.add_argument("--data-dir", default=None)
+    stage.add_argument("--seeds-dir", default=None)
+    stage.add_argument("--capture", required=True)
+    stage.add_argument("--source-policy", required=True)
+    stage.add_argument("--policy-id", default=None)
+    stage.add_argument("--watch-target", required=True)
+    stage.add_argument("--target-id", default=None)
+    stage.add_argument("--extraction", required=True)
+    stage.add_argument(
+        "--document-class", required=True, choices=("card_page", "offer_page", "tnc_pdf")
+    )
+    stage.add_argument("--discovery-sources", default=None)
+    stage.add_argument("--max-bytes", type=int, default=StageLimits.max_bytes)
+    stage.add_argument("--max-pages", type=int, default=StageLimits.max_pages)
+    stage.add_argument("--timeout-seconds", type=int, default=StageLimits.timeout_seconds)
+    check = sub.add_parser("check-config")
+    check.add_argument("--source-policies", default=None)
+    check.add_argument("--discovery-sources", default=None)
+    check.add_argument("--watchlist", default=None)
     demo = sub.add_parser("demo")
     demo.add_argument("--data-dir", default=None)
     demo.add_argument("--seeds-dir", default=None)
     args = parser.parse_args(argv)
     assert_local_profile(environment)
-    repo_root = Path(__file__).resolve().parents[2]
-    data_dir = resolve_data_dir(args.data_dir, env=environment, repo_root=repo_root)
 
     def now() -> datetime:
         return datetime.now(UTC)
+
+    if args.command == "check-config":
+        try:
+            return check_config(args, today=now())
+        except ConfigValidationError as error:
+            return _config_refusal(error)
+    repo_root = Path(__file__).resolve().parents[2]
+    data_dir = resolve_data_dir(args.data_dir, env=environment, repo_root=repo_root)
 
     if args.command == "add-curator":
         return add_curator(data_dir, args.curator_id, args.display_name, now=now)
@@ -291,6 +482,17 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     store, service, planner = build_runtime(
         data_dir, Path(args.seeds_dir) if args.seeds_dir else SEEDS_DIR, now=now
     )
+    if args.command == "stage-capture":
+        try:
+            return run_stage_capture(
+                args,
+                store=store,
+                artifacts=service.artifacts,
+                seeds_dir=Path(args.seeds_dir) if args.seeds_dir else SEEDS_DIR,
+                now=now,
+            )
+        except ConfigValidationError as error:
+            return _config_refusal(error)
     if args.command in {"inspect", "reopen"}:
         context = service.context(args.proposal_id)
         payload = {
@@ -306,16 +508,24 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
         print(json.dumps(payload, indent=2, sort_keys=True, default=str))
         return 0
     if args.command == "decision":
-        edits = tuple(CuratorFieldEdit.model_validate(item) for item in json.loads(args.edits_json))
-        request = DecisionRequest(
-            proposal_id=args.proposal_id,
-            action=args.action,
-            reason=args.reason,
-            expected_version=args.expected_version,
-            client_event_id=args.client_event_id,
-            curator_confidence=args.curator_confidence,
-            edits=edits,
-        )
+        try:
+            edits = tuple(
+                CuratorFieldEdit.model_validate(item) for item in json.loads(args.edits_json)
+            )
+            request = DecisionRequest(
+                proposal_id=args.proposal_id,
+                action=args.action,
+                reason=args.reason,
+                expected_version=args.expected_version,
+                client_event_id=args.client_event_id,
+                curator_confidence=args.curator_confidence,
+                edits=edits,
+            )
+        except (ValidationError, ValueError) as invalid:
+            # Only the arguments the operator typed are reported this way; a validation error
+            # raised anywhere else is a bug and keeps its traceback.
+            print(f"refused: invalid input: {_describe_invalid(invalid)}", file=sys.stderr)
+            return 2
         print(service.decide(request, curator_id=args.curator_id).model_dump_json(indent=2))
         return 0
     if args.command == "bundle":
@@ -383,4 +593,7 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except LocalOnlyError as refusal:
         print(f"refused: {refusal}", file=sys.stderr)
+        raise SystemExit(2) from None
+    except (IngestionStoreError, ReviewRefusedError) as refusal:
+        print(f"refused: {type(refusal).__name__}: {refusal}", file=sys.stderr)
         raise SystemExit(2) from None
