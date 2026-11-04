@@ -4,8 +4,10 @@ Branch `codex/card-bank-controlled-apply`, stacked on `codex/card-bank-insert-pr
 (Milestone B), itself stacked on `codex/card-bank-phase2` (Milestone A). **Not independently
 mergeable.** Decisions: `DEVIATIONS.md`, section "Card-bank Phase 4".
 
-**Status: implemented, independently reviewed (findings fixed), gate-equivalent passed (see
-"Verification").**
+**Status: implemented and independently reviewed (findings fixed). Cloud verification and
+additional laptop catalog-backed evidence are recorded below. See
+[PR #25](https://github.com/hjain3004/TripPlanner/pull/25) for the final committed-tree gate
+result and current CI status.**
 
 ## Boundary (read first)
 
@@ -168,3 +170,48 @@ Independent review: performed on `589de63`/`ef2fcc1`; every Important finding fi
 (see "Independent review"). The narrated demonstration (`python -m evals.card_bank_apply_demo`)
 and its acceptance test ran on the pre-review tree and again inside this suite. Repository seeds
 were byte-identical after every run (autouse hash test; `git status` clean at the gate).
+
+## Laptop catalog-backed acceptance evidence (2026-11-04)
+
+The combined code at `f7e26028013cee11ed0c6dbf2418ff2e60e0a28b` was checked in an isolated
+laptop worktree. All six ignored regional catalogs were available: SIN, BOM, DXB, NYC, LON
+and PAR. Each artifact was parsed as `CatalogArtifact`; its quality gate passed and its
+sources retained licence and attribution metadata. No catalog was fetched or committed.
+
+`make seed` created a task-local 42-row knowledge base. The actual `make gate` invocation
+set `TRIPWISE_REQUIRE_REGIONAL_CATALOGS=1`; its full pytest phase completed with **3055 passed,
+53 skipped, 3 warnings** in 199.03 seconds. There were **zero regional-catalog skips**. The
+remaining skips were 52 optional-`pdfplumber` checks (51 compatibility cases plus one staging
+case) and the existing missing-`CP1_MERGE_BASE` guard. This laptop run does not claim execution
+of the optional real-library PDF cases; the cloud PDF evidence above remains separate.
+
+That first gate stopped during strict mypy, rather than passing: the older shared laptop
+`types-PyYAML` stub declared `check_event` without types. The installed mypy, Ruff and stubs
+were older than this branch's lockfile. A task-private environment then installed the
+hash-checked lockfile entries for mypy 2.4.0, Ruff 0.17.1, types-PyYAML 6.0.12.20260906 and
+their required supporting packages; pytest is 9.1.1 and Python is 3.14.6. Compatible runtime
+packages are reused read-only from the existing environment. The shared environment and
+project dependency files were not modified. `pip check` passed in the private environment.
+
+With those pinned tools, strict mypy passed for all 200 existing source files, 33 ingestion
+files and 4 welcome files. Zero-tolerance Ruff scopes passed; a direct `core/` + `api/` check
+reported **9 legacy findings against ceiling 12**. The code and assertions were unchanged.
+
+The following local demonstrations also completed on this code:
+
+- The real CLI staging/configuration flow, approval and SQLite reopen, plus the lead-to-insert
+  flow and `id_conflict` refusal: three targeted acceptance checks passed in 8.13 seconds.
+- `python -m evals.card_bank_apply_demo`: one synthetic update and two inserts applied only to
+  scratch seeds; the resulting KB loaded and the optimizer produced 2000 dining points and
+  forex fees of 82600 then 144550 minor units; stale apply was refused; rollback and injected
+  interruption recovery restored exact prior bytes. Repository seeds stayed byte-identical.
+
+Inputs were synthetic, with no network or model call. No real issuer fact was applied. All
+four PRs (#22-#25) had four successful CI checks at their recorded heads when rechecked.
+No PR was merged or retargeted. The same existing limitations above remain in force.
+
+The final `make gate` is run on the clean documentation commit with the pinned tools and all
+six catalogs required. Its measured outcome and exact SHA belong in PR #25's acceptance
+record and the session handoff, rather than being pre-written as a successful future result.
+Local logs and the task-owned environment are under
+`/private/tmp/tripwise-card-bank-acceptance.s55sXR/`.
