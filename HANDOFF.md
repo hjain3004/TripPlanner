@@ -14,8 +14,8 @@ Update this file at each checkpoint. It contains no credentials and no captured 
 
 | Milestone | State |
 |---|---|
-| A — stage-capture + loaders | implemented and demonstrated locally; focused tests pass; gate-equivalent, review, report and commit **pending** |
-| B — new-row insert proposals | not started |
+| A — stage-capture + loaders | **accepted**: reviewed (all findings fixed), gate-equivalent passed on `4a24fe3`; PR targets the pilot branch |
+| B — new-row insert proposals | in progress on `codex/card-bank-insert-proposals` (worktree `/home/user/tp-b`, local only): contracts, validator, extractor, review, activation done; staging wiring just added; CLI lead commands, tests, demo, report pending |
 | C — controlled apply and rollback (scratch seeds) | not started |
 
 ## Required reading to resume
