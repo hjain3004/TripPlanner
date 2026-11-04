@@ -19,6 +19,7 @@ from ingestion.contracts import (
 )
 from ingestion.evidence import EvidenceVerificationError, verify_evidence_span
 from ingestion.extraction_types import ExtractionResponse
+from ingestion.insert_validation import absent_row_hash
 from ingestion.parsing import UnresolvedValueError, parse_field_value
 from ingestion.review_rows import SeedRowError, SeedRowSource, flatten_row
 from ingestion.review_types import (
@@ -82,35 +83,80 @@ class ReviewService:
         if proposal is None:
             raise KeyError(proposal_id)
         findings: list[ComputedFinding] = []
-        try:
-            current = self.rows.current_row(proposal.target_table, proposal.target_id)
-            current_hash = canonical_row_hash(current)
-        except SeedRowError as error:
+        current: dict[str, Any] | None
+        current_hash: str | None
+        if proposal.intent == "insert":
+            # There is no base row. The decision binds to the *absence* of the id, and an id
+            # that appears afterwards blocks approval instead of being merged or overwritten.
             current = None
             current_hash = None
-            code = (
-                FindingCode(error.code)
-                if error.code in FindingCode._value2member_map_
-                else FindingCode.CURRENT_ROW_MISSING
-            )
-            findings.append(ComputedFinding(code=code, severity="blocking", message=str(error)))
-        if proposal.current_row_hash is None:
-            findings.append(
-                ComputedFinding(
-                    code=FindingCode.UNBOUND_BASE_ROW,
-                    severity="blocking",
-                    message="proposal has no bound current-row hash",
+            try:
+                exists = any(
+                    row.get("id") == proposal.target_id
+                    for row in self.rows.table_rows(proposal.target_table)
                 )
-            )
-        elif current_hash is not None and current_hash != proposal.current_row_hash:
-            findings.append(
-                ComputedFinding(
-                    code=FindingCode.CURRENT_ROW_CHANGED,
-                    severity="blocking",
-                    message="current seed row changed since extraction",
+            except SeedRowError as error:
+                exists = False
+                code = (
+                    FindingCode(error.code)
+                    if error.code in FindingCode._value2member_map_
+                    else FindingCode.CURRENT_ROW_MISSING
                 )
-            )
+                findings.append(ComputedFinding(code=code, severity="blocking", message=str(error)))
+            if exists:
+                findings.append(
+                    ComputedFinding(
+                        code=FindingCode.INSERT_ID_EXISTS,
+                        severity="blocking",
+                        message=(
+                            f"a {proposal.target_table} row with id {proposal.target_id!r} now "
+                            "exists; an insert never merges into or replaces an existing row"
+                        ),
+                    )
+                )
+            elif not any(f.severity == "blocking" for f in findings):
+                current_hash = absent_row_hash(proposal.target_table, proposal.target_id)
+        else:
+            try:
+                current = self.rows.current_row(proposal.target_table, proposal.target_id)
+                current_hash = canonical_row_hash(current)
+            except SeedRowError as error:
+                current = None
+                current_hash = None
+                code = (
+                    FindingCode(error.code)
+                    if error.code in FindingCode._value2member_map_
+                    else FindingCode.CURRENT_ROW_MISSING
+                )
+                findings.append(ComputedFinding(code=code, severity="blocking", message=str(error)))
+            if proposal.current_row_hash is None:
+                findings.append(
+                    ComputedFinding(
+                        code=FindingCode.UNBOUND_BASE_ROW,
+                        severity="blocking",
+                        message="proposal has no bound current-row hash",
+                    )
+                )
+            elif current_hash is not None and current_hash != proposal.current_row_hash:
+                findings.append(
+                    ComputedFinding(
+                        code=FindingCode.CURRENT_ROW_CHANGED,
+                        severity="blocking",
+                        message="current seed row changed since extraction",
+                    )
+                )
         for stored in proposal.validation_findings:
+            if proposal.intent == "insert" and stored.code == "unevidenced_field":
+                # The reviewer must see every value nobody quoted evidence for, and the
+                # attestation records that they were told.
+                findings.append(
+                    ComputedFinding(
+                        code=FindingCode.UNEVIDENCED_FIELD,
+                        severity="warning",
+                        message="value typed by the curator without quoted evidence",
+                        field_path=stored.field_path,
+                    )
+                )
             if stored.severity == "blocking":
                 findings.append(
                     ComputedFinding(
@@ -268,6 +314,19 @@ class ReviewService:
     def apply_edits(
         self, ctx: ReviewContext, edits: tuple[CuratorFieldEdit, ...]
     ) -> tuple[dict[str, Any], ChangeProposal]:
+        if ctx.proposal.intent == "insert":
+            message = (
+                "edits are not supported on an insert proposal: reject it and stage a "
+                "corrected extraction instead"
+            )
+            raise ReviewRefusedError(
+                message,
+                (
+                    ComputedFinding(
+                        code=FindingCode.INVALID_EDIT, severity="blocking", message=message
+                    ),
+                ),
+            )
         if ctx.lineage is None or len(ctx.lineage.snapshots) != 1:
             raise ReviewRefusedError(
                 "edits require one complete snapshot lineage",

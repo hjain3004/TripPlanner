@@ -65,6 +65,12 @@ from ingestion.diff import diff_text
 from ingestion.extraction import FinancialExtractor
 from ingestion.extraction_types import ExtractionResponse
 from ingestion.fetch import ManualUploadBackend
+from ingestion.insert_validation import (
+    check_field_evidence,
+    draft_provenance,
+    type_guide,
+    validate_insert,
+)
 from ingestion.parsing import UnresolvedValueError, parse_field_value
 from ingestion.pdf_isolation import PdfPageOutOfRange, get_default_runner
 from ingestion.preflight import SourcePreflight
@@ -76,8 +82,10 @@ from ingestion.storage import (
     IdempotencyConflictError,
 )
 from ingestion.validation import (
+    TARGET_MODELS,
     ProposalValidationError,
     _get,
+    _same_value,
     _set,
     canonical_row_hash,
     validate_extraction,
@@ -125,6 +133,10 @@ class StageRefusalCode(StrEnum):
     ROW_SCHEMA_INVALID = "row_schema_invalid"
     VALIDATION_REFUSED = "validation_refused"
     PROPOSAL_CONFLICT = "proposal_conflict"
+    INSERT_ID_EXISTS = "insert_id_exists"
+    INSERT_INVALID = "insert_invalid"
+    NEEDS_MORE_EVIDENCE = "needs_more_evidence"
+    TEMPLATE_CONFLICTS_WITH_EVIDENCE = "template_conflicts_with_evidence"
 
 
 class StageRefusal(BaseModel):
@@ -160,6 +172,31 @@ class ExtractionRecord(BaseModel):
         return value
 
 
+class InsertRow(BaseModel):
+    """A row the curator proposes to add: values they supply, to be overlaid by quoted evidence.
+
+    ``row`` holds the values the curator types in. Every value in it is **unevidenced** unless a
+    record quotes it. ``id`` and ``provenance`` are never supplied here: the id is the key and
+    the provenance is built by code as an unverified draft.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    table: str = Field(min_length=1)
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,63}$")
+    row: dict[str, Any]
+
+    @field_validator("row")
+    @classmethod
+    def _no_identity_or_provenance(cls, value: dict[str, Any]) -> dict[str, Any]:
+        if {"id", "provenance"} & set(value):
+            raise ValueError(
+                "row must not contain id or provenance: the key is `id`, and a draft's "
+                "provenance is set by code"
+            )
+        return value
+
+
 class CuratorExtraction(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
@@ -167,6 +204,7 @@ class CuratorExtraction(BaseModel):
     curator_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,31}$")
     change_summary: str | None = Field(default=None, min_length=1, max_length=1500)
     records: tuple[ExtractionRecord, ...] = Field(min_length=1, max_length=500)
+    inserts: tuple[InsertRow, ...] = Field(default=(), max_length=50)
 
 
 def load_curator_extraction(path: Path) -> CuratorExtraction:
@@ -186,6 +224,7 @@ class StageLimits:
 
 
 class StagedProposal(BaseModel):
+    intent: Literal["update", "insert"] = "update"
     proposal_id: str
     target_table: str
     target_id: str
@@ -463,6 +502,29 @@ def _response(
     )
 
 
+def _present(row: dict[str, Any], path: str) -> Any:
+    """The value at a dotted path, or None when any part of it is absent."""
+    current: Any = row
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+def _set_creating(row: dict[str, Any], path: str, value: Any) -> None:
+    """Set a dotted path, creating intermediate groups: an inserted row starts incomplete."""
+    parts = path.split(".")
+    current = row
+    for part in parts[:-1]:
+        child = current.get(part)
+        if not isinstance(child, dict):
+            child = {}
+            current[part] = child
+        current = child
+    current[parts[-1]] = value
+
+
 def _bound(table: str, row_id: str, target: WatchTarget) -> bool:
     return row_id in target.target_fact_ids or f"{table}:{row_id}" in target.target_fact_ids
 
@@ -515,6 +577,23 @@ def _precheck(
                 "'manual' and manual_only true, so review keeps the capture marked as manual",
             )
         )
+    if target.promoted_from_candidate_id is not None:
+        lead = store.get_discovery_candidate(target.promoted_from_candidate_id)
+        if lead is None:
+            refusals.append(
+                _refusal(
+                    StageRefusalCode.TARGET_INVALID,
+                    f"the target was promoted from lead {target.promoted_from_candidate_id!r}, "
+                    "which is not in this data directory; file it with add-lead first",
+                )
+            )
+        elif lead.issuer_url_to_verify != target.canonical_url:
+            refusals.append(
+                _refusal(
+                    StageRefusalCode.TARGET_INVALID,
+                    "a promoted target must point at exactly the issuer URL its lead named",
+                )
+            )
     if target.status != "active":
         refusals.append(
             _refusal(StageRefusalCode.TARGET_INVALID, f"watch target is {target.status}")
@@ -601,9 +680,69 @@ def stage_capture(
     )
     rows = SeedRowSource(seeds_dir)
     current: dict[tuple[str, str], dict[str, Any]] = {}
+    insert_specs: dict[tuple[str, str], InsertRow] = {}
+    existing_ids: dict[str, set[str]] = {}
+    for spec in extraction.inserts:
+        key = (spec.table, spec.id)
+        if key in insert_specs:
+            refusals.append(
+                _refusal(
+                    StageRefusalCode.INSERT_INVALID,
+                    "the same row is declared twice in inserts",
+                    table=spec.table,
+                    row_id=spec.id,
+                )
+            )
+            continue
+        if spec.table not in SUPPORTED_TABLES:
+            refusals.append(
+                _refusal(
+                    StageRefusalCode.UNSUPPORTED_TABLE,
+                    f"unsupported table {spec.table!r}; supported: {sorted(SUPPORTED_TABLES)}",
+                    table=spec.table,
+                    row_id=spec.id,
+                )
+            )
+            continue
+        if spec.table not in existing_ids:
+            try:
+                existing_ids[spec.table] = {str(r["id"]) for r in rows.table_rows(spec.table)}
+            except SeedRowError as error:
+                refusals.append(
+                    _refusal(
+                        StageRefusalCode.VALIDATION_REFUSED,
+                        str(error),
+                        table=spec.table,
+                        row_id=spec.id,
+                    )
+                )
+                continue
+        if spec.id in existing_ids[spec.table]:
+            refusals.append(
+                _refusal(
+                    StageRefusalCode.INSERT_ID_EXISTS,
+                    f"a {spec.table} row with id {spec.id!r} already exists; an insert never "
+                    "merges into or replaces an existing row (use an update for that)",
+                    table=spec.table,
+                    row_id=spec.id,
+                )
+            )
+            continue
+        if not _bound(spec.table, spec.id, target):
+            refusals.append(
+                _refusal(
+                    StageRefusalCode.ROW_NOT_BOUND,
+                    f"the watch target {target.target_id!r} does not list {spec.id!r} in "
+                    "target_fact_ids (use the id or '<table>:<id>')",
+                    table=spec.table,
+                    row_id=spec.id,
+                )
+            )
+            continue
+        insert_specs[key] = spec
     for position, record in enumerate(extraction.records):
         key = (record.table, record.id)
-        if key in current:
+        if key in current or key in insert_specs:
             continue
         if record.table not in SUPPORTED_TABLES:
             refusals.append(
@@ -727,6 +866,17 @@ def stage_capture(
 
     # --- 3. Validate every record alone, then every row, before writing any proposal. -------
     text = snapshot.canonical_markdown
+    for key, spec in insert_specs.items():
+        template = copy.deepcopy(spec.row)
+        template["id"] = spec.id
+        # The draft's date is the snapshot's capture date, not today's, so staging the same
+        # input on another day is the same request rather than a conflicting one.
+        template["provenance"] = draft_provenance(
+            source_url=target.canonical_url,
+            today=snapshot.captured_at.date(),
+            curator_id=extraction.curator_id,
+        )
+        current[key] = template
     summary_suffix = extraction.change_summary or "fields quoted from a manual capture"
     summary = f"Curator-authored by {extraction.curator_id}: {summary_suffix}"
     grouped: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
@@ -807,8 +957,18 @@ def stage_capture(
                     )
                 )
                 continue
+        is_insert = (record.table, record.id) in insert_specs
         try:
-            expected = _get(row, record.field_path)
+            if is_insert:
+                supplied = _present(row, record.field_path)
+                expected = (
+                    supplied
+                    if supplied is not None
+                    else type_guide(TARGET_MODELS[record.table], record.field_path)
+                )
+            else:
+                supplied = None
+                expected = _get(row, record.field_path)
             parsed = parse_field_value(record.field_path, record.raw_value, expected=expected)
         except ProposalValidationError as error:
             problems.append(
@@ -838,6 +998,50 @@ def stage_capture(
             artifact_kind=kind,
             page_number=record.page,
         )
+        if is_insert and supplied is not None and not _same_value(supplied, parsed):
+            problems.append(
+                _refusal(
+                    StageRefusalCode.TEMPLATE_CONFLICTS_WITH_EVIDENCE,
+                    f"inserts[].row gives {supplied!r} for {record.field_path} but the quoted "
+                    f"evidence says {parsed!r}: drop the value from row or fix the quote",
+                    index=position,
+                    record=record,
+                )
+            )
+            continue
+        if is_insert:
+            try:
+                check_field_evidence(
+                    path=record.field_path,
+                    raw_value=record.raw_value,
+                    spans=(span,),
+                    expected=expected,
+                    proposed_value=parsed,
+                    snapshot=snapshot,
+                    artifacts=artifacts,
+                )
+            except ProposalValidationError as error:
+                problems.append(
+                    _refusal(_classify(str(error)), str(error), index=position, record=record)
+                )
+                continue
+            slot = grouped.setdefault((record.table, record.id), {})
+            known = slot.get(record.field_path)
+            if known is not None and str(known["raw"]) != str(record.raw_value):
+                problems.append(
+                    _refusal(
+                        StageRefusalCode.DUPLICATE_FIELD_CONFLICT,
+                        f"{record.field_path} is given two different values "
+                        f"({known['raw']!r} and {record.raw_value!r})",
+                        index=position,
+                        record=record,
+                    )
+                )
+                continue
+            if known is None:
+                slot[record.field_path] = {"raw": record.raw_value, "parsed": parsed, "spans": []}
+            slot[record.field_path]["spans"].append(span)
+            continue
         proposed_alone = copy.deepcopy(row)
         _set(proposed_alone, record.field_path, parsed)
         alone = _response(
@@ -890,14 +1094,28 @@ def stage_capture(
     if problems:
         return refused(problems)
 
-    staged: list[tuple[str, str, str, ExtractionResponse, dict[str, Any]]] = []
+    staged: list[tuple[str, str, str, ExtractionResponse, dict[str, Any], bool]] = []
+    for missing_key in insert_specs.keys() - grouped.keys():
+        problems.append(
+            _refusal(
+                StageRefusalCode.NEEDS_MORE_EVIDENCE,
+                "an insert needs quoted evidence for at least one of its fields: add records "
+                "for it",
+                table=missing_key[0],
+                row_id=missing_key[1],
+            )
+        )
     for (table, row_id), by_path in grouped.items():
         row = current[(table, row_id)]
+        inserting = (table, row_id) in insert_specs
         proposed = copy.deepcopy(row)
         fields: list[dict[str, Any]] = []
         keyed: dict[str, tuple[str, list[tuple[int, int, int | None]]]] = {}
         for path in sorted(by_path):
-            _set(proposed, path, by_path[path]["parsed"])
+            if inserting:
+                _set_creating(proposed, path, by_path[path]["parsed"])
+            else:
+                _set(proposed, path, by_path[path]["parsed"])
             # Canonical order: the same evidence given in a different order is the same request.
             spans: list[EvidenceSpan] = sorted(
                 by_path[path]["spans"],
@@ -923,26 +1141,46 @@ def stage_capture(
         )
         row_hash = canonical_row_hash(row)
         try:
-            validate_extraction(
-                response=response,
-                target_table=table,
-                target_id=row_id,
-                current_row=row,
-                current_row_hash=row_hash,
-                snapshot=snapshot,
-                artifacts=artifacts,
-                now=now(),
-                extractor_version=EXTRACTOR_VERSION,
-                manual_capture=True,
-            )
+            if inserting:
+                validate_insert(
+                    response=response,
+                    target_table=table,
+                    target_id=row_id,
+                    existing_ids=existing_ids[table],
+                    snapshot=snapshot,
+                    artifacts=artifacts,
+                    now=now(),
+                    extractor_version=EXTRACTOR_VERSION,
+                )
+            else:
+                validate_extraction(
+                    response=response,
+                    target_table=table,
+                    target_id=row_id,
+                    current_row=row,
+                    current_row_hash=row_hash,
+                    snapshot=snapshot,
+                    artifacts=artifacts,
+                    now=now(),
+                    extractor_version=EXTRACTOR_VERSION,
+                    manual_capture=True,
+                )
         except ProposalValidationError as error:
-            problems.append(_refusal(_classify(str(error)), str(error), table=table, row_id=row_id))
+            message = str(error)
+            code = (
+                StageRefusalCode.NEEDS_MORE_EVIDENCE
+                if message.startswith("needs more evidence")
+                else StageRefusalCode.INSERT_ID_EXISTS
+                if message.startswith("insert id already exists")
+                else _classify(message)
+            )
+            problems.append(_refusal(code, message, table=table, row_id=row_id))
             continue
         event = _event_id(
             snapshot=snapshot,
             table=table,
             row_id=row_id,
-            current_row_hash=row_hash,
+            current_row_hash=f"insert:{row_hash}" if inserting else row_hash,
             curator_id=extraction.curator_id,
             summary=summary,
             fields=keyed,
@@ -960,31 +1198,42 @@ def stage_capture(
                 )
             )
             continue
-        staged.append((table, row_id, event, response, row))
+        staged.append((table, row_id, event, response, row, inserting))
     if problems:
         return refused(problems)
 
     # --- 4. Write: one proposal per row through the real extractor. -------------------------
     stored: list[StagedProposal] = []
-    for table, row_id, event, response, row in staged:
+    for table, row_id, event, response, row, inserting in staged:
         client = ScriptedLLMClient({"financial_extractor": [response]})
+        extractor = FinancialExtractor(
+            client=client,
+            store=store,
+            artifacts=artifacts,
+            now=now,
+            extractor_version=EXTRACTOR_VERSION,
+        )
         try:
-            outcome = FinancialExtractor(
-                client=client,
-                store=store,
-                artifacts=artifacts,
-                now=now,
-                extractor_version=EXTRACTOR_VERSION,
-            ).extract(
-                target_table=table,
-                target_id=row_id,
-                current_row=row,
-                current_row_hash=canonical_row_hash(row),
-                snapshot=snapshot,
-                diff=diff_text(None, text),
-                client_event_id=event,
-                manual_capture=True,
-            )
+            if inserting:
+                outcome = extractor.extract_insert(
+                    target_table=table,
+                    target_id=row_id,
+                    existing_ids=existing_ids[table],
+                    snapshot=snapshot,
+                    diff=diff_text(None, text),
+                    client_event_id=event,
+                )
+            else:
+                outcome = extractor.extract(
+                    target_table=table,
+                    target_id=row_id,
+                    current_row=row,
+                    current_row_hash=canonical_row_hash(row),
+                    snapshot=snapshot,
+                    diff=diff_text(None, text),
+                    client_event_id=event,
+                    manual_capture=True,
+                )
         except (ConflictingWriteError, IdempotencyConflictError) as error:
             return refused(
                 [
@@ -1009,6 +1258,7 @@ def stage_capture(
         proposal = outcome.proposal
         stored.append(
             StagedProposal(
+                intent=proposal.intent,
                 proposal_id=proposal.proposal_id,
                 target_table=proposal.target_table,
                 target_id=proposal.target_id,

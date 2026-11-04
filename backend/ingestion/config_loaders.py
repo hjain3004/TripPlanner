@@ -17,6 +17,7 @@ never contact a network. Every problem in a file is collected and reported toget
 from __future__ import annotations
 
 import json
+import re
 import unicodedata
 from collections.abc import Iterable, Mapping
 from datetime import date
@@ -25,9 +26,23 @@ from typing import Any, Literal
 from urllib.parse import urlsplit
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
-from ingestion.contracts import PageKind, SourcePolicyRecord, WatchTarget, _https_url
+from ingestion.contracts import (
+    DiscoveryCandidate,
+    PageKind,
+    SourcePolicyRecord,
+    WatchTarget,
+    _https_url,
+)
 from ingestion.preflight import SourcePreflight, canonicalize_url
 
 MAX_CONFIG_BYTES = 1_048_576
@@ -179,7 +194,12 @@ def normalize_host(host: str) -> str:
     A trust check must not be defeated by presentation: ``Example.COM.`` (the fully-qualified
     trailing dot) and full-width letters name the same host as ``example.com``.
     """
-    return unicodedata.normalize("NFKC", host).strip().lower().rstrip(".")
+    text = unicodedata.normalize("NFKC", host)
+    # Invisible format characters and the dot-like characters IDNA also treats as a dot
+    # (U+3002, U+FF0E and U+FF61) must not let a host spell itself differently.
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
+    text = text.replace("\u3002", ".").replace("\uff0e", ".").replace("\uff61", ".")
+    return text.strip().lower().rstrip(".")
 
 
 def host_of(url: str) -> str:
@@ -370,6 +390,10 @@ class WatchlistEntry(BaseModel):
     css_hint: str | None = None
     backend: Literal["local", "firecrawl", "manual"] = "local"
     manual_only: bool = False
+    # Present only on a target promoted from a discovery lead (see `promote-lead`).
+    promoted_from_candidate_id: str | None = None
+    promoted_by: str | None = None
+    promoted_at: AwareDatetime | None = None
 
     _url = field_validator("url")(_https_url)
 
@@ -393,6 +417,9 @@ class WatchlistEntry(BaseModel):
             css_hint=self.css_hint,
             preferred_backend=self.backend,
             manual_only=self.manual_only,
+            promoted_from_candidate_id=self.promoted_from_candidate_id,
+            promoted_by=self.promoted_by,
+            promoted_at=self.promoted_at,
         )
 
 
@@ -515,3 +542,122 @@ def load_watchlist(
     if issues:
         raise ConfigValidationError(path, issues)
     return tuple(targets)
+
+
+# ----------------------------------------------------------------------------------------- #
+# Discovery leads
+# ----------------------------------------------------------------------------------------- #
+
+_FACT_WORDS = re.compile(
+    r"\b(?:rs|inr|usd|aed|sgd|rupees?|dollars?|dirhams?|percent|per\s*cent|cashback|"
+    r"fees?|free|points?|miles?|lakh|crore|hundred|thousand|zero|one|two|three|four|five|"
+    r"six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|fifty)\b",
+    re.IGNORECASE,
+)
+MAX_LEAD_CLAIM = 120
+MAX_LEAD_NAME = 80
+
+
+def _carries_fact_characters(text: str) -> bool:
+    """A digit in any script, a currency symbol or a percent sign: all are facts' vocabulary."""
+    folded = unicodedata.normalize("NFKC", text)
+    return any(
+        unicodedata.category(ch) in {"Nd", "Nl", "No", "Sc"} or ch in "%\u066a\u2030"
+        for ch in folded
+    )
+
+
+def load_discovery_candidate(
+    path: Path,
+    *,
+    sources: Iterable[DiscoverySource],
+    aggregator_domains: Iterable[str] = (),
+) -> DiscoveryCandidate:
+    """Load one discovery lead and check it against the source it came from.
+
+    A lead says a card exists and which issuer page to read; it never carries a fact. The
+    source must be a configured discovery source and the lead's page must be on its domain. For
+    a ``manual_only`` source (the owner's 2026-11-01 decision) only a card name and an issuer URL
+    may be recorded, so the claim text is short and holds no digits, percentages or currency.
+    """
+    raw = read_structured(path)
+    if not isinstance(raw, dict):
+        raise ConfigValidationError(
+            path, [_issue("config_invalid_shape", "file", "a lead file holds one mapping")]
+        )
+    unknown = _unknown_keys(raw, DiscoveryCandidate.model_fields, "lead")
+    if unknown:
+        raise ConfigValidationError(path, unknown)
+    try:
+        lead = DiscoveryCandidate.model_validate(raw)
+    except ValidationError as error:
+        raise ConfigValidationError(path, _validation_issues(error, "lead")) from error
+    issues: list[ConfigIssue] = []
+    by_name = {source.name: source for source in sources}
+    source = by_name.get(lead.hint_source)
+    if source is None:
+        issues.append(
+            _issue(
+                "lead_unknown_source",
+                "lead.hint_source",
+                f"{lead.hint_source!r} is not a configured discovery source "
+                f"({', '.join(sorted(by_name)) or 'none configured'})",
+            )
+        )
+    else:
+        host = host_of(lead.hint_url)
+        if not (host == source.domain or host.endswith(f".{source.domain}")):
+            issues.append(
+                _issue(
+                    "lead_source_mismatch",
+                    "lead.hint_url",
+                    f"hint_url host {host} is outside the source's domain {source.domain}",
+                )
+            )
+        if source.manual_only and (
+            len(lead.claim_summary) > MAX_LEAD_CLAIM
+            or _carries_fact_characters(lead.claim_summary)
+            or _FACT_WORDS.search(unicodedata.normalize("NFKC", lead.claim_summary))
+        ):
+            issues.append(
+                _issue(
+                    "lead_carries_facts",
+                    "lead.claim_summary",
+                    "a lead from a manual-only source records only the card name and issuer "
+                    f"URL: at most {MAX_LEAD_CLAIM} characters, no digits, percentages, "
+                    "currency or number words",
+                )
+            )
+        for field_name in ("product_guess", "issuer_guess"):
+            guess = getattr(lead, field_name, None)
+            if source.manual_only and isinstance(guess, str):
+                if len(guess) > MAX_LEAD_NAME or _carries_fact_characters(guess):
+                    issues.append(
+                        _issue(
+                            "lead_carries_facts",
+                            f"lead.{field_name}",
+                            f"a name guess is at most {MAX_LEAD_NAME} characters with no digits, "
+                            "percentages or currency",
+                        )
+                    )
+    if lead.status != "pending":
+        issues.append(
+            _issue(
+                "lead_not_pending",
+                "lead.status",
+                "a lead is filed as pending; a curator promotes it",
+            )
+        )
+    if lead.issuer_url_to_verify is not None and is_aggregator_host(
+        host_of(lead.issuer_url_to_verify), extra_domains=aggregator_domains
+    ):
+        issues.append(
+            _issue(
+                "aggregator_domain",
+                "lead.issuer_url_to_verify",
+                "the page to verify must be the issuer's, never an aggregator's",
+            )
+        )
+    if issues:
+        raise ConfigValidationError(path, issues)
+    return lead

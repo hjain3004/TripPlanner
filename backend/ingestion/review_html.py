@@ -63,8 +63,10 @@ def render_proposal(ctx: ReviewContext, *, csrf_token: str, client_event_id: str
     )
     disabled = " disabled" if ctx.blocking_for_approval else ""
     edit = ""
+    inserting = ctx.proposal.intent == "insert"
     changed = next((item for item in ctx.field_diffs if item.changed and item.evidence), None)
-    if changed is not None and changed.evidence:
+    # Edits are not offered on an insert: reject it and stage a corrected extraction instead.
+    if changed is not None and changed.evidence and not inserting:
         span = changed.evidence[0]
         edit = (
             f"<label>Edit {h(changed.field_path)}"
@@ -86,10 +88,32 @@ def render_proposal(ctx: ReviewContext, *, csrf_token: str, client_event_id: str
         "<button name='action' value='reject'>Reject</button>"
         "<button name='action' value='reverify'>Request re-verification</button></form>"
     )
+    values = ""
+    if inserting:
+        evidenced = {item.field_path for item in ctx.field_diffs if item.evidence}
+        values = (
+            "<table><caption>Proposed row</caption><tr><th>field</th><th>value</th>"
+            "<th>basis</th></tr>"
+            + "".join(
+                f"<tr><td>{h(item.field_path)}</td><td>{h(item.proposed)}</td>"
+                f"<td>{'quoted evidence' if item.field_path in evidenced else 'typed by curator'}"
+                "</td></tr>"
+                for item in ctx.field_diffs
+                if item.field_path != "id" and not item.field_path.startswith("provenance.")
+            )
+            + "</table>"
+        )
+    notice = (
+        f"<p><strong>Insert: a new {h(ctx.proposal.target_table)} row</strong> "
+        f"<code>{h(ctx.proposal.target_id)}</code>. No existing row; unevidenced values were "
+        "typed in by the curator, and the row starts as an unverified draft.</p>"
+        if inserting
+        else ""
+    )
     return page(
         "Proposal",
-        f"<h1>{h(ctx.proposal.proposal_id)}</h1>"
-        f"<p>{h(ctx.proposal.change_summary)}</p><ul>{findings}</ul>{evidence}{form}",
+        f"<h1>{h(ctx.proposal.proposal_id)}</h1>{notice}"
+        f"<p>{h(ctx.proposal.change_summary)}</p>{values}<ul>{findings}</ul>{evidence}{form}",
     )
 
 
