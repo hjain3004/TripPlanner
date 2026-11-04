@@ -17,6 +17,7 @@ never contact a network. Every problem in a file is collected and reported toget
 from __future__ import annotations
 
 import json
+import unicodedata
 from collections.abc import Iterable, Mapping
 from datetime import date
 from pathlib import Path
@@ -74,6 +75,20 @@ def _issue(code: str, location: str, message: str) -> ConfigIssue:
     return ConfigIssue(code=code, location=location, message=message)
 
 
+class _NoAliasLoader(yaml.SafeLoader):
+    """``safe_load`` without YAML aliases.
+
+    Aliases share objects, so a few hundred bytes load instantly and then exhaust memory when
+    the document is validated ("billion laughs"). A configuration file has no use for them,
+    which makes refusing them cheaper and safer than bounding the expansion.
+    """
+
+    def compose_node(self, parent: yaml.Node | None, index: int) -> yaml.Node | None:
+        if self.check_event(yaml.events.AliasEvent):
+            raise yaml.YAMLError("YAML aliases are not allowed in configuration files")
+        return super().compose_node(parent, index)
+
+
 def read_structured(path: Path) -> Any:
     """Read one bounded JSON or YAML document (``.json``, ``.yaml``, ``.yml``)."""
     try:
@@ -95,7 +110,7 @@ def read_structured(path: Path) -> Any:
         )
     try:
         text = path.read_text(encoding="utf-8")
-        return json.loads(text) if suffix == ".json" else yaml.safe_load(text)
+        return json.loads(text) if suffix == ".json" else yaml.load(text, Loader=_NoAliasLoader)
     except (OSError, UnicodeDecodeError) as error:
         raise ConfigValidationError(
             path, [_issue("config_unreadable", "file", f"cannot read file: {error}")]
@@ -158,14 +173,26 @@ def _unknown_keys(
     ]
 
 
+def normalize_host(host: str) -> str:
+    """One canonical spelling of a host for trust decisions.
+
+    A trust check must not be defeated by presentation: ``Example.COM.`` (the fully-qualified
+    trailing dot) and full-width letters name the same host as ``example.com``.
+    """
+    return unicodedata.normalize("NFKC", host).strip().lower().rstrip(".")
+
+
 def host_of(url: str) -> str:
-    return (urlsplit(url).hostname or "").lower()
+    return normalize_host(urlsplit(url).hostname or "")
 
 
 def is_aggregator_host(host: str, *, extra_domains: Iterable[str] = ()) -> bool:
     """True when ``host`` is (a subdomain of) a known or configured aggregator."""
-    candidates = {domain.lower().lstrip(".") for domain in (*AGGREGATOR_DOMAINS, *extra_domains)}
-    return any(host == domain or host.endswith(f".{domain}") for domain in candidates)
+    wanted = normalize_host(host)
+    candidates = {
+        normalize_host(domain).lstrip(".") for domain in (*AGGREGATOR_DOMAINS, *extra_domains)
+    }
+    return any(wanted == domain or wanted.endswith(f".{domain}") for domain in candidates)
 
 
 # ----------------------------------------------------------------------------------------- #
@@ -196,16 +223,7 @@ def load_source_policies(
         except ValidationError as error:
             issues.extend(_validation_issues(error, location))
             continue
-        domain = record.domain.strip().lower().lstrip(".")
-        if "/" in domain or ":" in domain or domain != record.domain.strip().lower():
-            issues.append(
-                _issue(
-                    "config_invalid_entry",
-                    f"{location}.domain",
-                    "domain must be a bare host name such as 'hdfc.bank.in'",
-                )
-            )
-            continue
+        domain = normalize_host(record.domain)
         if is_aggregator_host(domain, extra_domains=extra):
             issues.append(
                 _issue(
@@ -213,6 +231,15 @@ def load_source_policies(
                     f"{location}.domain",
                     f"{domain} is an aggregator: it can be a discovery lead source but never "
                     "a source of financial facts",
+                )
+            )
+            continue
+        if "/" in domain or ":" in domain or domain != record.domain:
+            issues.append(
+                _issue(
+                    "config_invalid_entry",
+                    f"{location}.domain",
+                    "domain must be a bare host name such as 'hdfc.bank.in'",
                 )
             )
             continue

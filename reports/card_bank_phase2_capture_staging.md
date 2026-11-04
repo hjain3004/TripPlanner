@@ -42,6 +42,8 @@ Evidence disambiguation: a quote must be an **exact** substring of the stored ca
 ambiguous quote is refused with its locations (`occurrence` is 1-based, or give `offset`); a PDF
 quote must cite its `page`, and the real page text is checked by the isolated PDF child process.
 A near miss (whitespace or NFKC difference) is refused with the exact stored text shown as a hint.
+For a PDF the pages' text is mapped onto the stored text, so a span must lie inside the page it
+cites (`page_offset_mismatch` otherwise) and an ambiguous quote lists the page of each candidate.
 
 ## Batch semantics (decision)
 
@@ -53,6 +55,9 @@ A near miss (whitespace or NFKC difference) is refused with the exact stored tex
 * A refused run keeps the capture evidence it stored (policy, target, snapshot), so a corrected
   extraction file can be staged against the same snapshot; an interrupted run is completed by
   repeating the same command.
+* Capture-dependent refusals (unreadable capture, byte bound, a declared class that does not
+  match the real format) happen **before** any policy or target row is written, so the operator
+  can correct the source description and try again.
 * Repeat behavior: identical input returns `already_stored` for every record and adds **no** row
   (counted in the tests). A *different* extraction for the same snapshot and row, curator, summary,
   or base row is refused as `proposal_conflict`; stored history is never overwritten. (FI2's
@@ -63,7 +68,7 @@ A near miss (whitespace or NFKC difference) is refused with the exact stored tex
 `unknown_curator`, `source_not_allowed`, `target_invalid`, `document_class_not_allowed`,
 `document_class_mismatch`, `policy_conflict`, `target_conflict`, `capture_rejected`,
 `unsupported_table`, `row_not_found`, `row_not_bound`, `duplicate_field_conflict`,
-`locator_conflict`, `quote_not_found`, `quote_ambiguous`, `offset_mismatch`,
+`locator_conflict`, `page_offset_mismatch`, `page_map_unavailable`, `quote_not_found`, `quote_ambiguous`, `offset_mismatch`,
 `occurrence_out_of_range`, `page_required`, `page_not_applicable`, `field_path_invalid`,
 `provenance_field_forbidden`, `value_unresolved`, `value_not_supported_by_quote`,
 `evidence_rejected`, `row_schema_invalid`, `validation_refused`, `proposal_conflict`; file-level

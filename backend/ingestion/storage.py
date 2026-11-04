@@ -225,6 +225,9 @@ class FinancialIngestionStore:
     def put_curator(self, curator: CuratorRecord) -> CuratorRecord:
         payload = self._payload(curator)
         with self._connect() as connection:
+            # Serialize first-writers: without this two processes can both see "absent"
+            # and the loser dies on the UNIQUE constraint instead of replaying.
+            connection.execute("BEGIN IMMEDIATE")
             prior = connection.execute(
                 "SELECT payload FROM curators WHERE id = ?", (curator.curator_id,)
             ).fetchone()
@@ -340,6 +343,9 @@ class FinancialIngestionStore:
 
     def put_source_policy(self, record: SourcePolicyRecord) -> SourcePolicyRecord:
         with self._connect() as connection:
+            # Serialize first-writers: without this two processes can both see "absent"
+            # and the loser dies on the UNIQUE constraint instead of replaying.
+            connection.execute("BEGIN IMMEDIATE")
             self._insert_immutable(
                 connection,
                 table="source_policies",
@@ -353,6 +359,9 @@ class FinancialIngestionStore:
 
     def put_discovery_candidate(self, candidate: DiscoveryCandidate) -> DiscoveryCandidate:
         with self._connect() as connection:
+            # Serialize first-writers: without this two processes can both see "absent"
+            # and the loser dies on the UNIQUE constraint instead of replaying.
+            connection.execute("BEGIN IMMEDIATE")
             self._insert_immutable(
                 connection,
                 table="discovery_candidates",
@@ -366,6 +375,9 @@ class FinancialIngestionStore:
 
     def put_watch_target(self, target: WatchTarget) -> WatchTarget:
         with self._connect() as connection:
+            # Serialize first-writers: without this two processes can both see "absent"
+            # and the loser dies on the UNIQUE constraint instead of replaying.
+            connection.execute("BEGIN IMMEDIATE")
             if (
                 connection.execute(
                     "SELECT 1 FROM source_policies WHERE id = ?", (target.source_policy_id,)
@@ -398,6 +410,9 @@ class FinancialIngestionStore:
 
     def put_fetch_attempt(self, attempt: FetchAttempt) -> FetchAttempt:
         with self._connect() as connection:
+            # Serialize first-writers: without this two processes can both see "absent"
+            # and the loser dies on the UNIQUE constraint instead of replaying.
+            connection.execute("BEGIN IMMEDIATE")
             payload = self._payload(attempt)
             existing = connection.execute(
                 "SELECT payload FROM fetch_attempts WHERE id = ?", (attempt.attempt_id,)
@@ -423,6 +438,9 @@ class FinancialIngestionStore:
 
     def put_snapshot(self, snapshot: SnapshotBundle) -> SnapshotBundle:
         with self._connect() as connection:
+            # Serialize first-writers: without this two processes can both see "absent"
+            # and the loser dies on the UNIQUE constraint instead of replaying.
+            connection.execute("BEGIN IMMEDIATE")
             if (
                 connection.execute(
                     "SELECT 1 FROM watch_targets WHERE id = ?", (snapshot.target_id,)
@@ -499,6 +517,9 @@ class FinancialIngestionStore:
         request_fingerprint: str,
     ) -> ChangeProposal:
         with self._connect() as connection:
+            # Serialize first-writers: without this two processes can both see "absent"
+            # and the loser dies on the UNIQUE constraint instead of replaying.
+            connection.execute("BEGIN IMMEDIATE")
             prior = connection.execute(
                 "SELECT payload, request_fingerprint FROM change_proposals "
                 "WHERE client_event_id = ?",

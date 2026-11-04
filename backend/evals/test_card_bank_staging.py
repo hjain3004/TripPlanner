@@ -21,6 +21,7 @@ from ingestion.contracts import CuratorRecord, PageKind, SourcePolicyRecord, Wat
 from ingestion.staging import (
     CuratorExtraction,
     ExtractionRecord,
+    StageLimits,
     StageOutcome,
     StageRefusalCode,
     stage_capture,
@@ -96,6 +97,7 @@ class Env:
         seeds: Path | None = None,
         summary: str | None = None,
         now: Callable[[], datetime] = lambda: NOW,
+        limits: StageLimits | None = None,
     ) -> StageOutcome:
         extraction = CuratorExtraction.model_validate(
             {
@@ -115,6 +117,7 @@ class Env:
             extraction=extraction,
             document_class=document_class,
             now=now,
+            limits=limits,
         )
 
 
@@ -550,3 +553,89 @@ def test_an_edited_base_row_changes_the_request_so_the_old_proposal_conflicts(
     cards.write_text(cards.read_text().replace("forex_markup_bp: 200", "forex_markup_bp: 210", 1))
     refused = env.stage([fee()], seeds=seeds)
     assert refusal_codes(refused) == [StageRefusalCode.PROPOSAL_CONFLICT]
+
+
+# ------------------------------------------------------------------ review findings
+
+
+@pytest.mark.parametrize("raw", ["5", "15", "INR 1", "000", "0", "1,5"])
+def test_a_fragment_of_the_quoted_number_is_not_support_for_a_different_amount(
+    env: Env, raw: str
+) -> None:
+    """A bare substring test let "5", "15" or "000" be 'supported' by "INR 15,000" while
+    parsing to INR 5, 15 or 0: a zero annual fee passed validation. Whole tokens only."""
+    refused = env.stage([fee(raw_value=raw)])
+    assert refused.status == "refused" and refused.proposals == ()
+    assert refusal_codes(refused) in (
+        [StageRefusalCode.VALUE_NOT_SUPPORTED_BY_QUOTE],
+        [StageRefusalCode.VALUE_UNRESOLVED],
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw", "quote", "supported"),
+    [
+        ("15,000", "The annual fee is INR 15,000 per year.", True),
+        ("INR 15,000", "The annual fee is INR 15,000 per year.", True),
+        ("15,000", "Annual fee Rs.15,000 plus GST.", True),  # "Rs." before the number
+        ("15,000", "Annual fee \u20b915,000.", True),
+        ("12,500", "The fee is INR 12,500.", True),  # sentence-final full stop
+        ("3.5%", "markup is 3.5% on every transaction", True),
+        ("15", "fee is INR 0.15 only", False),  # inside a decimal
+        ("15,000", "fee is INR 1,15,000", False),  # inside a longer grouped number
+        ("5%", "markup is 3.5% on every transaction", False),
+        ("2%", "markup is 12% on every transaction", False),
+    ],
+)
+def test_the_quote_supports_a_value_only_as_a_whole_token(
+    raw: str, quote: str, supported: bool
+) -> None:
+    from ingestion.parsing import parse_field_value
+    from ingestion.validation import _quote_supports_value
+
+    path = "forex_markup_bp" if "%" in raw else "annual_fee_minor"
+    parsed = parse_field_value(path, raw, expected=1)
+    assert (
+        _quote_supports_value(
+            field_path=path, raw_value=raw, parsed_value=parsed, expected=1, quote=quote
+        )
+        is supported
+    )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://www.bankbazaar.com./cards",  # fully-qualified trailing dot
+        "https://WWW.BANKBAZAAR.COM/cards",
+        "https://www.bankbazaar.com../cards",
+    ],
+)
+def test_the_aggregator_guard_is_not_defeated_by_how_a_host_is_spelled(env: Env, url: str) -> None:
+    policy = env.policy(domain="bankbazaar.com", source_url="https://www.bankbazaar.com/c")
+    refused = env.stage([fee()], policy=policy, target=env.target(canonical_url=url))
+    assert StageRefusalCode.SOURCE_NOT_ALLOWED in refusal_codes(refused)
+    assert rows(env)["source_policies"] == 0
+
+
+def test_the_same_evidence_given_in_a_different_order_is_the_same_request(env: Env) -> None:
+    first = env.stage([fx(quote="3.5%", occurrence=1), fx(quote="3.5%", occurrence=2)])
+    assert first.status == "staged"
+    before = rows(env)
+    reordered = env.stage([fx(quote="3.5%", occurrence=2), fx(quote="3.5%", occurrence=1)])
+    assert reordered.status == "staged", reordered.refusals
+    assert reordered.proposals[0].state == "already_stored"
+    assert rows(env) == before
+
+
+def test_a_refusal_that_depends_only_on_the_capture_stores_no_policy_or_target(
+    env: Env,
+) -> None:
+    """The operator must be able to correct a source description after such a refusal."""
+    mismatch = env.stage([fee()], document_class=PageKind.TNC_PDF)
+    assert refusal_codes(mismatch) == [StageRefusalCode.DOCUMENT_CLASS_MISMATCH]
+    too_big = env.stage([fee()], limits=StageLimits(max_bytes=10))
+    assert refusal_codes(too_big) == [StageRefusalCode.CAPTURE_REJECTED]
+    assert (rows(env)["source_policies"], rows(env)["watch_targets"]) == (0, 0)
+    corrected = env.policy(name="corrected description")
+    assert env.stage([fee()], policy=corrected).status == "staged"

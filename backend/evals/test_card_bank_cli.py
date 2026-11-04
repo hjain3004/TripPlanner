@@ -403,11 +403,23 @@ def test_a_pdf_capture_is_staged_with_page_cited_evidence_using_the_real_parser(
     ws.write("ambiguous.yaml", extraction(rec("forex_markup_bp", "3.5%", FX, ", page: 2")))
     ambiguous = js(ws.stage("ambiguous.yaml", **pdf))
     assert [r["code"] for r in ambiguous["refusals"]] == ["quote_ambiguous"]
+    # each candidate says which page it is on, so the right occurrence is easy to choose
+    assert "(page 1)" in ambiguous["refusals"][0]["message"]
+    assert "(page 2)" in ambiguous["refusals"][0]["message"]
 
     ws.write("wrong_page.yaml", extraction(rec("annual_fee_minor", "INR 15,000", FEE, ", page: 1")))
     wrong = js(ws.stage("wrong_page.yaml", **pdf))
-    assert [r["code"] for r in wrong["refusals"]] == ["evidence_rejected"]
-    assert "not present on the cited page" in wrong["refusals"][0]["message"]
+    assert [r["code"] for r in wrong["refusals"]] == ["page_offset_mismatch"]
+    assert "on page 2, not page 1" in wrong["refusals"][0]["message"]
+
+    # the quote is on both pages: occurrence 1 is on page 1, so citing page 2 must be refused
+    # (the offset would highlight page 1's text under a page-2 label)
+    ws.write(
+        "disagree.yaml", extraction(rec("forex_markup_bp", "3.5%", FX, ", occurrence: 1, page: 2"))
+    )
+    disagree = js(ws.stage("disagree.yaml", **pdf))
+    assert [r["code"] for r in disagree["refusals"]] == ["page_offset_mismatch"]
+    assert disagree["proposals"] == []
 
     ws.write(
         "ok.yaml",
@@ -436,3 +448,45 @@ def test_a_pdf_capture_is_staged_with_page_cited_evidence_using_the_real_parser(
     # a PDF can not be declared a card page
     mismatch = js(ws.stage("ok.yaml", **{**pdf, "doc": "card_page"}))
     assert [r["code"] for r in mismatch["refusals"]] == ["document_class_mismatch"]
+
+
+def test_a_bad_edits_argument_is_a_one_line_refusal(ws: Workspace) -> None:
+    result = cli(
+        [
+            "decision", "--data-dir", str(ws.data), "--proposal-id", "p",
+            "--curator-id", "alice", "--action", "edit", "--reason", "x",
+            "--expected-version", "1", "--client-event-id", "edit-card-bank-00001",
+            "--edits-json", "not json",
+        ]
+    )  # fmt: skip
+    assert result.returncode == 2 and "Traceback" not in result.stderr
+    assert result.stderr.startswith("refused: invalid input:")
+
+
+def test_a_validation_error_from_inside_the_tool_is_not_dressed_up_as_bad_input(
+    ws: Workspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only the operator's own arguments are reported as invalid input; a validation error
+    raised from deeper in the code is a bug and must keep its traceback."""
+    from pydantic import BaseModel, ValidationError
+
+    from ingestion import review_server
+    from ingestion.review import ReviewService
+
+    class Probe(BaseModel):
+        n: int
+
+    def broken(*_: Any, **__: Any) -> None:
+        Probe(n="not an int")  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ReviewService, "decide", broken)
+    with pytest.raises(ValidationError):
+        review_server.main(
+            [
+                "decision", "--data-dir", str(ws.data), "--proposal-id", "p",
+                "--curator-id", "alice", "--action", "approve", "--reason", "x",
+                "--expected-version", "1", "--client-event-id", "approve-card-bank-0009",
+                "--curator-confidence", "0.9",
+            ],
+            env={},
+        )  # fmt: skip

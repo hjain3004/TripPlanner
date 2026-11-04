@@ -43,12 +43,13 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from agents.llm import ScriptedLLMClient
 from ingestion.artifacts import ContentAddressedStore
-from ingestion.canonical import is_pdf_media_type
+from ingestion.canonical import _normalize_lines, is_pdf_media_type
 from ingestion.config_loaders import (
     ConfigValidationError,
     _validation_issues,
     host_of,
     is_aggregator_host,
+    normalize_host,
     read_structured,
 )
 from ingestion.contracts import (
@@ -65,6 +66,7 @@ from ingestion.extraction import FinancialExtractor
 from ingestion.extraction_types import ExtractionResponse
 from ingestion.fetch import ManualUploadBackend
 from ingestion.parsing import UnresolvedValueError, parse_field_value
+from ingestion.pdf_isolation import PdfPageOutOfRange, get_default_runner
 from ingestion.preflight import SourcePreflight
 from ingestion.review_rows import SUPPORTED_TABLES, SeedRowError, SeedRowSource
 from ingestion.snapshots import SnapshotService
@@ -113,6 +115,8 @@ class StageRefusalCode(StrEnum):
     OCCURRENCE_OUT_OF_RANGE = "occurrence_out_of_range"
     PAGE_REQUIRED = "page_required"
     PAGE_NOT_APPLICABLE = "page_not_applicable"
+    PAGE_OFFSET_MISMATCH = "page_offset_mismatch"
+    PAGE_MAP_UNAVAILABLE = "page_map_unavailable"
     FIELD_PATH_INVALID = "field_path_invalid"
     PROVENANCE_FIELD_FORBIDDEN = "provenance_field_forbidden"
     VALUE_UNRESOLVED = "value_unresolved"
@@ -277,7 +281,54 @@ def _context(text: str, start: int, length: int) -> str:
     return " ".join(text[lo:hi].split())
 
 
-def _locate(text: str, record: ExtractionRecord, index: int) -> _Located | StageRefusal:
+PageSegments = dict[int, tuple[int, int]]
+
+
+def _pdf_page_segments(
+    data: bytes, canonical: str, *, up_to: int, max_chars: int
+) -> PageSegments | None:
+    """Where each PDF page's text sits inside the stored canonical text (1-based pages).
+
+    The canonical text is the pages' text joined by newlines and normalized line by line, so
+    normalizing each page the same way and walking forward reproduces it exactly. If that ever
+    fails to hold, return ``None`` instead of guessing a page.
+    """
+    runner = get_default_runner()
+    segments: PageSegments = {}
+    cursor = 0
+    for number in range(1, up_to + 1):
+        try:
+            normalized = _normalize_lines(
+                runner.page_text(data, page_number=number), max_chars=max_chars
+            )
+        except PdfPageOutOfRange:
+            break
+        except Exception:  # a page that cannot be read or normalized cannot be mapped
+            return None
+        if not normalized:
+            continue  # a blank page adds no text
+        if canonical[cursor : cursor + len(normalized)] != normalized:
+            return None
+        segments[number] = (cursor, cursor + len(normalized))
+        cursor += len(normalized) + 1
+    return segments
+
+
+def _page_of(segments: PageSegments | None, offset: int) -> int | None:
+    if segments is None:
+        return None
+    for number, (start, end) in segments.items():
+        if start <= offset < end:
+            return number
+    return None
+
+
+def _locate(
+    text: str,
+    record: ExtractionRecord,
+    index: int,
+    segments: PageSegments | None = None,
+) -> _Located | StageRefusal:
     """Find the quote in the stored canonical text; ambiguity is refused, never guessed."""
     quote = record.quote
     if record.occurrence is not None and record.offset is not None:
@@ -318,8 +369,13 @@ def _locate(text: str, record: ExtractionRecord, index: int) -> _Located | Stage
         start = positions[record.occurrence - 1]
         return _Located(start, start + len(quote))
     if len(positions) > 1:
+
+        def where(start: int) -> str:
+            page = _page_of(segments, start)
+            return f" (page {page})" if page is not None else ""
+
         shown = "; ".join(
-            f"#{number} @{start}: …{_context(text, start, len(quote))}…"
+            f"#{number} @{start}{where(start)}: …{_context(text, start, len(quote))}…"
             for number, start in enumerate(positions[:MAX_QUOTE_LOCATIONS], start=1)
         )
         return _refusal(
@@ -430,7 +486,7 @@ def _precheck(
             )
         )
     extra = tuple(aggregator_domains)
-    for host in (policy.domain.lower().lstrip("."), host_of(target.canonical_url)):
+    for host in (normalize_host(policy.domain), host_of(target.canonical_url)):
         if is_aggregator_host(host, extra_domains=extra):
             refusals.append(
                 _refusal(
@@ -579,20 +635,7 @@ def stage_capture(
     if refusals:
         return refused(refusals)
 
-    # --- 2. Record the supplied source description and capture the document. ----------------
-    policy_state: Literal["stored", "already_stored"] = (
-        "already_stored" if store.get_source_policy(policy.policy_id) else "stored"
-    )
-    target_state: Literal["stored", "already_stored"] = (
-        "already_stored" if store.get_watch_target(target.target_id) else "stored"
-    )
-    try:
-        store.put_source_policy(policy)
-        store.put_watch_target(target)
-    except ConflictingWriteError as error:
-        return refused([_refusal(StageRefusalCode.POLICY_CONFLICT, str(error))])
-    base = base.model_copy(update={"policy_state": policy_state, "target_state": target_state})
-
+    # --- 2. Read the capture, then record the supplied source description and snapshot. ------
     request = FetchRequest(
         request_id=f"stage:{target.target_id}",
         canonical_url=target.canonical_url,
@@ -632,6 +675,21 @@ def stage_capture(
                 )
             ]
         )
+
+    # Everything above depends only on the capture itself and wrote no database row, so a
+    # refusal there cannot leave a policy or target behind that the operator then cannot correct.
+    policy_state: Literal["stored", "already_stored"] = (
+        "already_stored" if store.get_source_policy(policy.policy_id) else "stored"
+    )
+    target_state: Literal["stored", "already_stored"] = (
+        "already_stored" if store.get_watch_target(target.target_id) else "stored"
+    )
+    try:
+        store.put_source_policy(policy)
+        store.put_watch_target(target)
+    except ConflictingWriteError as error:
+        return refused([_refusal(StageRefusalCode.POLICY_CONFLICT, str(error))])
+    base = base.model_copy(update={"policy_state": policy_state, "target_state": target_state})
 
     normalized_hash = hashlib.sha256(result.normalized_text.encode("utf-8")).hexdigest()
     snapshot_id = f"snapshot:{target.target_id}:{normalized_hash}:{result.raw_artifact.sha256}"
@@ -673,6 +731,16 @@ def stage_capture(
     summary = f"Curator-authored by {extraction.curator_id}: {summary_suffix}"
     grouped: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
     problems: list[StageRefusal] = []
+    segments: PageSegments | None = None
+    if kind == "pdf" and any(r.page is not None for r in extraction.records):
+        # Whole document, not just the cited pages: a quote that actually sits on a later page
+        # must be attributable to that page to be refused (or its page listed) correctly.
+        segments = _pdf_page_segments(
+            artifacts.read(snapshot.raw_artifact),
+            text,
+            up_to=limits.max_pages,
+            max_chars=limits.max_bytes,
+        )
     for position, record in enumerate(extraction.records):
         row = current[(record.table, record.id)]
         if record.field_path == "id" or record.field_path.startswith("provenance"):
@@ -710,10 +778,35 @@ def stage_capture(
                 )
             )
             continue
-        located = _locate(text, record, position)
+        located = _locate(text, record, position, segments)
         if isinstance(located, StageRefusal):
             problems.append(located)
             continue
+        if kind == "pdf" and record.page is not None:
+            if segments is None:
+                problems.append(
+                    _refusal(
+                        StageRefusalCode.PAGE_MAP_UNAVAILABLE,
+                        "the PDF's pages could not be mapped onto the stored text, so a page "
+                        "citation cannot be confirmed against the offset",
+                        index=position,
+                        record=record,
+                    )
+                )
+                continue
+            actual = _page_of(segments, located.start)
+            if actual != record.page or _page_of(segments, located.end - 1) != record.page:
+                where = f"page {actual}" if actual is not None else "no page"
+                problems.append(
+                    _refusal(
+                        StageRefusalCode.PAGE_OFFSET_MISMATCH,
+                        f"the selected text is on {where}, not page {record.page}: choose the "
+                        "occurrence (or offset) that lies on the cited page",
+                        index=position,
+                        record=record,
+                    )
+                )
+                continue
         try:
             expected = _get(row, record.field_path)
             parsed = parse_field_value(record.field_path, record.raw_value, expected=expected)
@@ -805,7 +898,15 @@ def stage_capture(
         keyed: dict[str, tuple[str, list[tuple[int, int, int | None]]]] = {}
         for path in sorted(by_path):
             _set(proposed, path, by_path[path]["parsed"])
-            spans: list[EvidenceSpan] = by_path[path]["spans"]
+            # Canonical order: the same evidence given in a different order is the same request.
+            spans: list[EvidenceSpan] = sorted(
+                by_path[path]["spans"],
+                key=lambda span: (
+                    span.normalized_start,
+                    span.normalized_end,
+                    span.page_number or 0,
+                ),
+            )
             fields.append(
                 {
                     "field_path": path,

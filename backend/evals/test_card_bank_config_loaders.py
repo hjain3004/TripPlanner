@@ -291,3 +291,39 @@ def test_duplicate_target_ids_are_refused(tmp_path: Path) -> None:
     with pytest.raises(ConfigValidationError) as refused:
         load(tmp_path, [watch(), watch()])
     assert "config_duplicate_id" in codes(refused.value)
+
+
+@pytest.mark.parametrize(
+    "domain", ["bankbazaar.com.", "www.bankbazaar.com.", "BANKBAZAAR.COM", "\uff42ankbazaar.com"]
+)
+def test_an_aggregator_policy_is_refused_however_its_domain_is_spelled(
+    tmp_path: Path, domain: str
+) -> None:
+    with pytest.raises(ConfigValidationError) as refused:
+        load_source_policies(write(tmp_path / "p.yaml", [policy(domain=domain)]))
+    assert "aggregator_domain" in codes(refused.value)
+
+
+def test_an_aggregator_watch_url_is_refused_however_its_host_is_spelled(tmp_path: Path) -> None:
+    with pytest.raises(ConfigValidationError) as refused:
+        load(tmp_path, [watch(url="https://www.bankbazaar.com./c")])
+    assert "aggregator_domain" in codes(refused.value)
+
+
+def test_a_yaml_alias_bomb_is_refused_before_it_can_exhaust_memory(tmp_path: Path) -> None:
+    """A few hundred bytes of aliases expand to gigabytes when the document is validated."""
+    rows = ["a: &a [x,x,x,x,x,x,x,x,x]"]
+    previous = "a"
+    for name in "bcdefghi":
+        rows.append(f"{name}: &{name} [{','.join('*' + previous for _ in range(9))}]")
+        previous = name
+    bomb = tmp_path / "bomb.yaml"
+    bomb.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    with pytest.raises(ConfigValidationError) as refused:
+        load_source_policies(bomb)
+    assert codes(refused.value) == {"config_invalid_syntax"}
+    assert "aliases are not allowed" in refused.value.issues[0].message
+
+
+def test_plain_yaml_with_anchors_free_content_still_loads(tmp_path: Path) -> None:
+    assert load_source_policies(write(tmp_path / "p.yaml", [policy()]))[0].policy_id

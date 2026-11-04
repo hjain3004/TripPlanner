@@ -241,6 +241,15 @@ def create_scripted_demo_proposal(
     return outcome.proposal.proposal_id
 
 
+def _describe_invalid(error: ValueError) -> str:
+    if isinstance(error, ValidationError):
+        return "; ".join(
+            f"{'.'.join(str(part) for part in item['loc'])}: {item['msg']}"
+            for item in error.errors()
+        )
+    return str(error)
+
+
 def _config_refusal(error: ConfigValidationError, *, file_label: str | None = None) -> int:
     """Print every problem in a refused file as typed JSON; exit code 2."""
     issues = [
@@ -499,16 +508,24 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
         print(json.dumps(payload, indent=2, sort_keys=True, default=str))
         return 0
     if args.command == "decision":
-        edits = tuple(CuratorFieldEdit.model_validate(item) for item in json.loads(args.edits_json))
-        request = DecisionRequest(
-            proposal_id=args.proposal_id,
-            action=args.action,
-            reason=args.reason,
-            expected_version=args.expected_version,
-            client_event_id=args.client_event_id,
-            curator_confidence=args.curator_confidence,
-            edits=edits,
-        )
+        try:
+            edits = tuple(
+                CuratorFieldEdit.model_validate(item) for item in json.loads(args.edits_json)
+            )
+            request = DecisionRequest(
+                proposal_id=args.proposal_id,
+                action=args.action,
+                reason=args.reason,
+                expected_version=args.expected_version,
+                client_event_id=args.client_event_id,
+                curator_confidence=args.curator_confidence,
+                edits=edits,
+            )
+        except (ValidationError, ValueError) as invalid:
+            # Only the arguments the operator typed are reported this way; a validation error
+            # raised anywhere else is a bug and keeps its traceback.
+            print(f"refused: invalid input: {_describe_invalid(invalid)}", file=sys.stderr)
+            return 2
         print(service.decide(request, curator_id=args.curator_id).model_dump_json(indent=2))
         return 0
     if args.command == "bundle":
@@ -576,15 +593,6 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except LocalOnlyError as refusal:
         print(f"refused: {refusal}", file=sys.stderr)
-        raise SystemExit(2) from None
-    except ValidationError as invalid:
-        # A malformed argument (for example a too-short --client-event-id) is a refusal the
-        # operator can fix, not a traceback.
-        problems = "; ".join(
-            f"{'.'.join(str(part) for part in item['loc'])}: {item['msg']}"
-            for item in invalid.errors()
-        )
-        print(f"refused: invalid input: {problems}", file=sys.stderr)
         raise SystemExit(2) from None
     except (IngestionStoreError, ReviewRefusedError) as refusal:
         print(f"refused: {type(refusal).__name__}: {refusal}", file=sys.stderr)
