@@ -4,8 +4,8 @@ Branch `codex/card-bank-insert-proposals`, stacked on `codex/card-bank-phase2` (
 **not independently mergeable**. Plan: `docs/superpowers/plans/2026-10-31-indian-card-data-bank.md`
 Phase 3. Decisions: `DEVIATIONS.md`, section "Card-bank Phase 3".
 
-**Status: see "Verification" at the end. Everything above it describes behavior; only the
-Verification section claims a result.**
+**Status: implemented, independently reviewed (findings fixed), gate-equivalent passed (see
+"Verification").**
 
 ## Who can do what now
 
@@ -105,4 +105,19 @@ last DEVIATIONS rows (duplicate-lead check outside the write transaction; replay
 
 ## Verification
 
-_To be filled in with the actual runs on the final committed tree._
+Gate-equivalent run on `987b25812c5b9ce0dd60319eab546de770da9453` (clean tree, seeded database;
+`make gate` itself cannot run in this cloud checkout because the laptop-local regional catalogs are
+absent and `TRIPWISE_REQUIRE_REGIONAL_CATALOGS=1` aborts by design, so the same steps were run with
+that guard unset and **this is not a `make gate` result**; catalog tests skip with a visible reason):
+
+| Step | Result |
+|---|---|
+| full backend suite | **2988 passed, 28 skipped** |
+| `mypy --strict` core/accounts/planning/agents/api/gateway (200 files), ingestion (29), welcome (4) | clean |
+| `ruff check` (accounts, planning, agents, gateway, evals, ingestion, welcome) | clean |
+| core/+api/ ruff findings | 8 (ceiling 12) |
+| goldens, contract one-PR test, AGENTS.md == CLAUDE.md, clean tree | all OK |
+
+Milestone B tests: `test_card_bank_inserts.py` (34), `test_card_bank_insert_cli.py` (8),
+`test_card_bank_review_fixes.py` (23), plus the store-race tests. Repository seeds were not
+modified (checked by `git status` after every demonstration).
