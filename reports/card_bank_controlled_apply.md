@@ -4,7 +4,8 @@ Branch `codex/card-bank-controlled-apply`, stacked on `codex/card-bank-insert-pr
 (Milestone B), itself stacked on `codex/card-bank-phase2` (Milestone A). **Not independently
 mergeable.** Decisions: `DEVIATIONS.md`, section "Card-bank Phase 4".
 
-**Status: see "Verification" at the end; only that section claims a result.**
+**Status: implemented, independently reviewed (findings fixed), gate-equivalent passed (see
+"Verification").**
 
 ## Boundary (read first)
 
@@ -151,4 +152,19 @@ first draft of this report and DEVIATIONS, now corrected. See the last Phase 4 D
 
 ## Verification
 
-_To be filled in with the actual runs on the final committed tree._
+Gate-equivalent run on `c2a3d6c3689e6e1a43051b524f4b0f06d7dbd94f` (clean tree, seeded database).
+`make gate` itself cannot run in this cloud checkout (laptop-local regional catalogs absent;
+`TRIPWISE_REQUIRE_REGIONAL_CATALOGS=1` aborts by design), so the same steps ran with that guard
+unset; **this is not a `make gate` result**. Catalog tests skip with a visible reason.
+
+| Step | Result |
+|---|---|
+| full backend suite | **3060 passed, 28 skipped** |
+| `mypy --strict` core/accounts/planning/agents/api/gateway (200 files), ingestion (33), welcome (4) | clean |
+| `ruff check` (all gate scopes) | clean; core/+api/ findings 8 (ceiling 12) |
+| goldens, contract one-PR test, AGENTS.md == CLAUDE.md, clean tree | all OK |
+
+Independent review: performed on `589de63`/`ef2fcc1`; every Important finding fixed in `c2a3d6c`
+(see "Independent review"). The narrated demonstration (`python -m evals.card_bank_apply_demo`)
+and its acceptance test ran on the pre-review tree and again inside this suite. Repository seeds
+were byte-identical after every run (autouse hash test; `git status` clean at the gate).
