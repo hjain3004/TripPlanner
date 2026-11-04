@@ -869,6 +869,9 @@ INGESTION = BACKEND / "ingestion"
 PROCESS_MODULES = {"pdf_isolation.py"}
 # The operator CLI reads TRIPWISE_ENV / TRIPWISE_DATA_DIR from ``os.environ`` and nothing else.
 ENV_ONLY_MODULES = {"review_server.py"}
+# The seed writer renames and fsyncs files and nothing else: no spawning, and the only
+# attributes it may use on ``os`` are ``replace`` and ``fsync``.
+FILE_WRITER_MODULES = {"seed_writer.py"}
 
 
 def _modules(path: Path) -> set[str]:
@@ -921,6 +924,18 @@ def test_process_creation_is_confined_to_the_runner_and_never_uses_a_shell() -> 
                 and node.value.id == "os"
             }
             assert used <= {"environ"}, (path.name, used)
+            assert "create_subprocess" not in tree_text, path.name
+            continue
+        if path.name in FILE_WRITER_MODULES:
+            assert not ({"subprocess", "multiprocessing"} & modules), path.name
+            used = {
+                node.attr
+                for node in ast.walk(ast.parse(tree_text))
+                if isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Name)
+                and node.value.id == "os"
+            }
+            assert used <= {"replace", "fsync"}, (path.name, used)
             assert "create_subprocess" not in tree_text, path.name
             continue
         assert not ({"subprocess", "multiprocessing", "os"} & modules) or path.name in {

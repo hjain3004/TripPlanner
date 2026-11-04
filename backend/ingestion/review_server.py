@@ -15,6 +15,8 @@ from typing import TypeVar
 from pydantic import ValidationError
 
 from ingestion.activation import ActivationPlanner
+from ingestion.applier import ApplyRefused, ControlledApplier
+from ingestion.apply_store import ApplyLedgerError, ApplyStore
 from ingestion.artifacts import ContentAddressedStore
 from ingestion.config_loaders import (
     ConfigIssue,
@@ -41,6 +43,7 @@ from ingestion.review import ReviewService
 from ingestion.review_app import ReviewAppConfig, SessionRegistry, create_review_app
 from ingestion.review_rows import SeedRowSource
 from ingestion.review_types import CuratorFieldEdit, DecisionRequest, ReviewRefusedError
+from ingestion.seed_writer import SeedWriteError, SeedWriter
 from ingestion.snapshots import SnapshotService
 from ingestion.staging import StageLimits, StageOutcome, load_curator_extraction, stage_capture
 from ingestion.storage import ConflictingWriteError, FinancialIngestionStore, IngestionStoreError
@@ -591,6 +594,62 @@ def run_stage_capture(
     return 0
 
 
+def build_applier(
+    data_dir: Path, store: FinancialIngestionStore, *, now: Callable[[], datetime]
+) -> ControlledApplier:
+    """The controlled applier, with its ledger and journals beside the ingestion data."""
+    return ControlledApplier(
+        store=store,
+        service_factory=lambda seeds: build_runtime(data_dir, seeds, now=now)[1],
+        planner_factory=lambda seeds: build_runtime(data_dir, seeds, now=now)[2],
+        ledger=ApplyStore(data_dir / "apply.sqlite", now=now),
+        writer=SeedWriter(state_dir=data_dir / "apply_state", now=now),
+        now=now,
+    )
+
+
+def run_apply_command(args: argparse.Namespace, applier: ControlledApplier) -> int:
+    """confirm-origin, apply, rollback, recover and coverage: each an explicit operator action."""
+    try:
+        if args.command == "confirm-origin":
+            confirmation, created = applier.confirm_origin(
+                proposal_id=args.proposal_id,
+                document_class=args.document_class,
+                curator_id=args.curator_id,
+                statement=args.statement,
+                seeds_dir=Path(args.seeds_dir),
+            )
+            print(
+                json.dumps({"created": created, **confirmation.model_dump(mode="json")}, indent=2)
+            )
+        elif args.command == "apply":
+            record = applier.apply(
+                bundle_sha256=args.bundle_sha256,
+                seeds_dir=Path(args.seeds_dir),
+                curator_id=args.curator_id,
+                reason=args.reason,
+                client_event_id=args.client_event_id,
+            )
+            print(record.model_dump_json(indent=2))
+        elif args.command == "rollback":
+            record = applier.rollback(
+                apply_id=args.apply_id, curator_id=args.curator_id, reason=args.reason
+            )
+            print(record.model_dump_json(indent=2))
+        elif args.command == "recover":
+            outcomes = applier.recover(Path(args.seeds_dir))
+            print(json.dumps([{"apply_id": a, "outcome": o} for a, o in outcomes], indent=2))
+        else:
+            print(json.dumps(applier.coverage(Path(args.seeds_dir)), indent=2))
+    except ApplyRefused as refusal:
+        print(f"refused: {refusal.code}: {refusal}", file=sys.stderr)
+        return 2
+    except (SeedWriteError, ApplyLedgerError) as failure:
+        print(f"refused: {failure.code}: {failure}", file=sys.stderr)
+        return 2
+    return 0
+
+
 def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = None) -> int:
     # `env or {}` would make the real process environment unreachable from the CLI.
     environment = os.environ if env is None else env
@@ -673,6 +732,34 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     check.add_argument("--source-policies", default=None)
     check.add_argument("--discovery-sources", default=None)
     check.add_argument("--watchlist", default=None)
+    confirm = sub.add_parser("confirm-origin")
+    confirm.add_argument("--data-dir", default=None)
+    confirm.add_argument("--seeds-dir", required=True)
+    confirm.add_argument("--proposal-id", required=True)
+    confirm.add_argument(
+        "--document-class", required=True, choices=("card_page", "offer_page", "tnc_pdf")
+    )
+    confirm.add_argument("--curator-id", required=True)
+    confirm.add_argument("--statement", required=True)
+    apply_cmd = sub.add_parser("apply")
+    apply_cmd.add_argument("--data-dir", default=None)
+    apply_cmd.add_argument("--seeds-dir", required=True)
+    apply_cmd.add_argument("--bundle-sha256", required=True)
+    apply_cmd.add_argument("--curator-id", required=True)
+    apply_cmd.add_argument("--reason", required=True)
+    apply_cmd.add_argument("--client-event-id", required=True)
+    rollback = sub.add_parser("rollback")
+    rollback.add_argument("--data-dir", default=None)
+    rollback.add_argument("--seeds-dir", required=True)
+    rollback.add_argument("--apply-id", required=True)
+    rollback.add_argument("--curator-id", required=True)
+    rollback.add_argument("--reason", required=True)
+    recover = sub.add_parser("recover")
+    recover.add_argument("--data-dir", default=None)
+    recover.add_argument("--seeds-dir", required=True)
+    coverage = sub.add_parser("coverage")
+    coverage.add_argument("--data-dir", default=None)
+    coverage.add_argument("--seeds-dir", required=True)
     demo = sub.add_parser("demo")
     demo.add_argument("--data-dir", default=None)
     demo.add_argument("--seeds-dir", default=None)
@@ -697,6 +784,8 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     store, service, planner = build_runtime(
         data_dir, Path(args.seeds_dir) if args.seeds_dir else SEEDS_DIR, now=now
     )
+    if args.command in {"confirm-origin", "apply", "rollback", "recover", "coverage"}:
+        return run_apply_command(args, build_applier(data_dir, store, now=now))
     if args.command in {"add-lead", "promote-lead"}:
         runner = run_add_lead if args.command == "add-lead" else run_promote_lead
         try:
