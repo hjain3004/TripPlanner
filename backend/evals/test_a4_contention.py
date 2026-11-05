@@ -20,7 +20,6 @@ from sqlalchemy import create_engine
 
 from accounts.models import User
 from accounts.store import AccountStore
-from api import saved_trips
 from api.auth import current_user, get_store
 from api.main import app
 from evals.a4_support import PlanningKit, csrf, finished_plan, signed_in_client
@@ -42,11 +41,12 @@ def exclusive_lock(path: Path) -> Iterator[None]:
 
 @pytest.fixture(autouse=True)
 def _clean() -> Iterator[None]:
-    saved_trips._RERUNS.clear()
-    saved_trips._ACTIVE_BY_TRIP.clear()
-    saved_trips._START_EVENTS.clear()
     yield
     app.dependency_overrides.clear()
+
+
+def _user_id(client: TestClient) -> str:
+    return str(client.get("/auth/me").json()["id"])
 
 
 def _arrange(
@@ -118,13 +118,12 @@ def test_every_saved_trip_route_answers_a_locked_database_with_a_typed_503(
             raise AssertionError(f"{name}: {exc}") from exc
     # Nothing was left half-done: the lock released, the trip is intact and usable.
     assert client.get(f"/account/trips/{trip_id}").status_code == 200
-    assert saved_trips._ACTIVE_BY_TRIP == {}
 
 
 def test_a_lock_hit_while_launching_a_rerun_is_a_503_and_frees_the_trip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``_launch_rerun`` reads the attached session after the start has been reserved."""
+    """The attached session is read while preparing a re-run, before any job is recorded."""
     client, store, path, _session, trip_id = _arrange(tmp_path, monkeypatch)
     kit = PlanningKit(monkeypatch, tmp_path)
     original = store.planning_session_for_trip
@@ -140,7 +139,8 @@ def test_a_lock_hit_while_launching_a_rerun_is_a_503_and_frees_the_trip(
     contended = client.post(f"/account/trips/{trip_id}/reruns", headers=headers, json=body)
 
     _assert_typed_unavailable(contended)
-    assert saved_trips._ACTIVE_BY_TRIP == {} and saved_trips._START_EVENTS == {}
+    reruns = [j for j in store.planning_jobs(_user_id(client)) if j.kind == "rerun"]
+    assert reruns == []  # no job was recorded for a refused start
     monkeypatch.setattr(store, "planning_session_for_trip", original)
     kit.queue_run()
     retry = client.post(f"/account/trips/{trip_id}/reruns", headers=headers, json=body)
