@@ -46,6 +46,7 @@ from ingestion.review_types import CuratorFieldEdit, DecisionRequest, ReviewRefu
 from ingestion.seed_writer import SeedWriteError, SeedWriter
 from ingestion.snapshots import SnapshotService
 from ingestion.staging import StageLimits, StageOutcome, load_curator_extraction, stage_capture
+from ingestion.status_report import build_status
 from ingestion.storage import ConflictingWriteError, FinancialIngestionStore, IngestionStoreError
 
 _T = TypeVar("_T")
@@ -547,6 +548,19 @@ def check_config(args: argparse.Namespace, *, today: datetime) -> int:
     return 0
 
 
+def _aware_timestamp(text: str) -> datetime:
+    """argparse type: an ISO-8601 time that names its UTC offset (a capture time is a claim)."""
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not an ISO-8601 timestamp") from None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise argparse.ArgumentTypeError(
+            f"{text!r} needs a UTC offset, e.g. 2026-10-31T05:40:00+00:00"
+        )
+    return parsed
+
+
 def run_stage_capture(
     args: argparse.Namespace,
     *,
@@ -584,6 +598,7 @@ def run_stage_capture(
             max_bytes=args.max_bytes, max_pages=args.max_pages, timeout_seconds=args.timeout_seconds
         ),
         aggregator_domains=aggregator_domains,
+        captured_at=args.captured_at,
     )
     print(outcome.model_dump_json(indent=2))
     if outcome.status != "staged":
@@ -676,6 +691,9 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     reopen.add_argument("--data-dir", default=None)
     reopen.add_argument("--seeds-dir", default=None)
     reopen.add_argument("--proposal-id", required=True)
+    status = sub.add_parser("status")
+    status.add_argument("--data-dir", default=None)
+    status.add_argument("--seeds-dir", default=None)
     decide = sub.add_parser("decision")
     decide.add_argument("--data-dir", default=None)
     decide.add_argument("--seeds-dir", default=None)
@@ -715,6 +733,13 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     stage.add_argument("--max-bytes", type=int, default=StageLimits.max_bytes)
     stage.add_argument("--max-pages", type=int, default=StageLimits.max_pages)
     stage.add_argument("--timeout-seconds", type=int, default=StageLimits.timeout_seconds)
+    stage.add_argument(
+        "--captured-at",
+        type=_aware_timestamp,
+        default=None,
+        help="when the document was actually captured (ISO-8601 with a UTC offset); "
+        "default: now, which is only true for a document saved just now",
+    )
     lead = sub.add_parser("add-lead")
     lead.add_argument("--data-dir", default=None)
     lead.add_argument("--seeds-dir", default=None)
@@ -811,8 +836,22 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
             )
         except ConfigValidationError as error:
             return _config_refusal(error)
+    if args.command == "status":
+        print(
+            json.dumps(
+                build_status(store=store, service=service, planner=planner),
+                indent=2,
+                sort_keys=True,
+                default=str,
+            )
+        )
+        return 0
     if args.command in {"inspect", "reopen"}:
-        context = service.context(args.proposal_id)
+        try:
+            context = service.context(args.proposal_id)
+        except KeyError:
+            print(f"refused: unknown proposal {args.proposal_id!r}", file=sys.stderr)
+            return 2
         payload = {
             "proposal": context.proposal.model_dump(mode="json"),
             "current_row": context.current_row,

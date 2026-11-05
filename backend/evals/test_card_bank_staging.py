@@ -98,6 +98,7 @@ class Env:
         summary: str | None = None,
         now: Callable[[], datetime] = lambda: NOW,
         limits: StageLimits | None = None,
+        captured_at: datetime | None = None,
     ) -> StageOutcome:
         extraction = CuratorExtraction.model_validate(
             {
@@ -118,6 +119,7 @@ class Env:
             document_class=document_class,
             now=now,
             limits=limits,
+            captured_at=captured_at,
         )
 
 
