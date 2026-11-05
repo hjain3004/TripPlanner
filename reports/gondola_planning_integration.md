@@ -80,8 +80,8 @@ The final functional gate phases passed on the seeded tree: 3076 backend tests
 passed, 53 skipped, and 3 warnings; strict mypy passed for 201 core/runtime
 files, 34 ingestion files, and 4 welcome files; zero-tolerance Ruff passed;
 the legacy core/api ceiling was 8 findings against a ceiling of 12; goldens,
-contract drift and brief identity checks passed. The first exact gate stopped
-only because the tree was intentionally uncommitted. After the normal commit,
-  the exact clean-tree gate is rerun and recorded with the final commit.
+contract drift and brief identity checks passed. The exact clean-tree gate
+passed on the committed implementation tree: `TREE_CLEAN` and
+`================ GATE PASSED ================`.
 
 End of report.
