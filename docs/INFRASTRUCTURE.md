@@ -35,8 +35,10 @@ Browser `/plan/conversation` or `/profile`
         └── explicit confirmation → existing non-live planning job
 ```
 
-The job manager is currently process-local; durable session state and the confirmation event are
-the recovery boundary, not a claim of a distributed queue.
+Owned planning jobs (a confirmed brief, a saved-trip re-run) are rows in the accounts database: a finished job's
+status and report survive a restart, and a job whose process died reads `failed` / `JOB_INTERRUPTED` and is never
+resumed. Execution stays single-process (one thread per job); there is no distributed queue. Anonymous
+`POST /plan` jobs remain process-local. See `reports/durable_planning_jobs.md`.
 
 CP3's separate interview assistant uses `agents/interview_assistant.py` behind the authenticated
 session adapter. Every semantic call is reserved in SQLite before dispatch; failed/interrupted
@@ -94,7 +96,7 @@ discovery, and credentials in frontend/LLM context are outside the boundary.
 A production-like local stack (nginx same-origin proxy → FastAPI + Next.js standalone, named data volume, backend
 and frontend on a network with no outbound access) is defined in `deploy/compose.yaml` and documented in
 [DEPLOYMENT.md](DEPLOYMENT.md). It is **single-instance by design** (SQLite files, process-local planning jobs and
-locks) and runs sample mode only; every live provider is refused at startup in production. `make compose-up` builds
+locks, anonymous-plan jobs) and runs sample mode only; every live provider is refused at startup in production. `make compose-up` builds
 and starts it; `make d1-smoke` drives a genuine browser → proxy → backend journey including a backend restart.
 
 ## Environment matrix
