@@ -48,7 +48,10 @@ from gateway.travel.adapters.gondola.requests import (
 from gateway.travel.adapters.gondola.tool_policy import ALLOWED_TOOLS, DENIED_TOOLS
 from gateway.travel.errors import TravelGatewayError
 
-MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp"
+# Gondola separates anonymous registry discovery from authenticated calls.
+# ``/mcp`` remains the public tools/list endpoint; every tools/call goes to
+# the interactive OAuth-protected endpoint.
+MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp/auth"
 LIVE_SMOKE_ENV_VAR = "TRIPWISE_GONDOLA_LIVE_SMOKE"
 BUDGET_DB_PATH = Path(__file__).parent / ".gondola_smoke_budget.sqlite"
 GONDOLA_FIXTURES_DIR = (

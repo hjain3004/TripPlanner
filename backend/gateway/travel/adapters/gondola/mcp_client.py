@@ -21,6 +21,7 @@ from gateway.travel.adapters.gondola.tool_policy import assert_tool_allowed
 from gateway.travel.errors import TravelGatewayError
 
 ALLOWED_HOST = "mcp.gondola.ai"
+ALLOWED_PATHS = frozenset({"/mcp", "/mcp/auth"})
 MAX_PAYLOAD_BYTES = 512_000
 CONNECT_TIMEOUT_S = 10.0
 TOTAL_TIMEOUT_S = 20.0
@@ -34,7 +35,13 @@ class LiveGondolaTransport:
         header is sent in that case. Authenticated tools (``search_flights``)
         require a callable that returns a real ``mcp:read`` token."""
         parsed = urlparse(base_url)
-        if parsed.scheme != "https" or parsed.hostname != ALLOWED_HOST:
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != ALLOWED_HOST
+            or parsed.path not in ALLOWED_PATHS
+            or parsed.query
+            or parsed.fragment
+        ):
             raise TravelGatewayError(
                 "permission_denied",
                 f"Gondola live transport refuses non-allowlisted endpoint: {base_url!r}",

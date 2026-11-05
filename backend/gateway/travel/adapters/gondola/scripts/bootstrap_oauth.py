@@ -34,7 +34,7 @@ from gateway.travel.adapters.gondola.oauth import (
 )
 from gateway.travel.adapters.gondola.requests import build_flight_search_arguments
 
-MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp"
+MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp/auth"
 LOOPBACK_HOST = "127.0.0.1"
 LOOPBACK_PORT = 8734
 CALLBACK_PATH = "/gondola-oauth-callback"

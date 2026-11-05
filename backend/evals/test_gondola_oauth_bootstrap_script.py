@@ -22,7 +22,7 @@ def _source() -> str:
 def test_module_imports_without_executing_the_network_flow() -> None:
     import gateway.travel.adapters.gondola.scripts.bootstrap_oauth as module
 
-    assert module.MCP_ENDPOINT == "https://mcp.gondola.ai/mcp"
+    assert module.MCP_ENDPOINT == "https://mcp.gondola.ai/mcp/auth"
 
 
 def test_requests_only_mcp_read_scope() -> None:

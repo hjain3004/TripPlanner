@@ -19,10 +19,10 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from datetime import date
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from urllib.parse import urlsplit
 
 import yaml
@@ -99,7 +99,8 @@ class _NoAliasLoader(yaml.SafeLoader):
     """
 
     def compose_node(self, parent: yaml.Node | None, index: int) -> yaml.Node | None:
-        if self.check_event(yaml.events.AliasEvent):
+        check_event = cast(Callable[[type[yaml.events.Event]], bool], self.check_event)
+        if check_event(yaml.events.AliasEvent):
             raise yaml.YAMLError("YAML aliases are not allowed in configuration files")
         return super().compose_node(parent, index)
 

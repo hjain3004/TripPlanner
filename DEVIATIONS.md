@@ -1,5 +1,12 @@
 # DEVIATIONS
 
+## Gondola planning integration — live evidence boundary (2026-11-05)
+
+| date | doc§ | question | decision | rationale | affected_files |
+|---|---|---|---|---|---|
+| 2026-11-05 | specs 09/16; G3.2 live contract | Could the current Gondola account establish a typed priced response for planning? | Stop the bounded diagnostic after the existing OS-keychain `mcp:read` registration returned HTTP 404 on refresh and the SDK required interactive reauthorization. Keep the new adapter explicit and offline-only; do not activate live traffic or fabricate a quote fixture. | The user authorized only existing credentials, read scope, and three tool calls, and prohibited inbox/broader onboarding. Prior provider Markdown is discovery-only and non-costable. No current typed rate or quote response was established. | `backend/gateway/travel/adapters/gondola/live_adapter.py`, `backend/gateway/travel/adapters/gondola/requests.py`, `reports/gondola_planning_integration.md` |
+| 2026-11-05 | gate strict typing | How should an unchanged ingestion loader's third-party untyped callback satisfy the mandatory strict gate? | Add a local `typing.cast` at the PyYAML boundary; runtime behavior is unchanged. | The exact gate otherwise stops on a baseline `no-untyped-call`; this is a type-only annotation at an existing safety check, not ingestion behavior or scope expansion. | `backend/ingestion/config_loaders.py` |
+
 ## G3.4 — implementation planning (2026-10-11)
 
 | date | doc§ | question | decision | rationale | affected_files |

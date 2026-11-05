@@ -30,6 +30,13 @@ def test_constructor_refuses_every_non_allowlisted_host(bad_url: str) -> None:
     assert exc_info.value.code == "permission_denied"
 
 
+def test_constructor_refuses_unreviewed_path_on_allowlisted_host() -> None:
+    with pytest.raises(TravelGatewayError, match="allowlisted endpoint"):
+        LiveGondolaTransport(
+            base_url=f"https://{ALLOWED_HOST}/unreviewed", get_access_token=lambda: "t"
+        )
+
+
 def test_dispatch_tool_rejects_denied_tool_before_any_network_call() -> None:
     transport = LiveGondolaTransport(
         base_url=f"https://{ALLOWED_HOST}/mcp", get_access_token=lambda: "t"
