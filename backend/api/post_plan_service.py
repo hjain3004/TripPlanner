@@ -115,7 +115,13 @@ def parse_stored_report(report_json: str) -> FinalReport:
         report = FinalReport.model_validate_json(report_json)
     except ValidationError as exc:
         raise WorkspaceRebuildRequiredError("the stored plan uses an older report shape") from exc
-    if json.loads(report.model_dump_json()) != json.loads(report_json):
+    stored = json.loads(report_json)
+    # FI3 weather context is additive. Existing saved reports remain readable
+    # and retain their original bytes; only newly saved reports serialize the
+    # optional context field.
+    if "weather_context" not in stored:
+        return report
+    if json.loads(report.model_dump_json()) != stored:
         raise WorkspaceRebuildRequiredError("the stored plan differs from the current report shape")
     return report
 

@@ -28,6 +28,7 @@ from gateway.catalog.activate import active_catalog_summary
 from gateway.catalog.regions import get_region
 from gateway.travel.product import TravelInventorySnapshot
 from gateway.travel.service import TravelInventoryService
+from gateway.weather.planning import WeatherContextService
 
 MAX_CRITIC_REPLAN_LOOPS = load_agent_config().llm["critic"].max_replan_loops or 2
 
@@ -79,6 +80,7 @@ def run_pipeline(
     confirmed_input: ConfirmedTripInput | None = None,
     inventory_service: TravelInventoryService | None = None,
     on_inventory: Callable[[GatewayEstimateResult], None] | None = None,
+    weather_service: WeatherContextService | None = None,
 ) -> PlanResponse:
     trace_id = uuid4().hex
     trace = TraceRecorder(trace_id, trace_dir)
@@ -220,5 +222,16 @@ def run_pipeline(
         report = report.model_copy(update={"travel_inventory": gateway_estimate.summary})
         if on_inventory is not None:
             on_inventory(gateway_estimate)
+    if weather_service is not None:
+        report = report.model_copy(
+            update={
+                "weather_context": weather_service.get_context_sync(
+                    destination_iata=spec.destination_city,
+                    trip_start=spec.start_date,
+                    trip_end=spec.end_date,
+                    plan_id=trace_id,
+                )
+            }
+        )
     trace.record("explainer", report, model="llm:explainer")
     return PlanResponse(status=PipelineStatus.OK, trace_id=trace_id, report=report)
