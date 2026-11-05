@@ -137,6 +137,8 @@ class StageRefusalCode(StrEnum):
     INSERT_INVALID = "insert_invalid"
     NEEDS_MORE_EVIDENCE = "needs_more_evidence"
     TEMPLATE_CONFLICTS_WITH_EVIDENCE = "template_conflicts_with_evidence"
+    CAPTURED_AT_INVALID = "captured_at_invalid"
+    CAPTURED_AT_CONFLICT = "captured_at_conflict"
 
 
 class StageRefusal(BaseModel):
@@ -250,6 +252,12 @@ class StageOutcome(BaseModel):
     artifact_kind: Literal["html", "pdf", "text"] | None = None
     raw_sha256: str | None = None
     normalized_sha256: str | None = None
+    # When the document was captured, and who said so. ``staging_time`` means the operator made
+    # no claim, so the capture is treated as taken at the moment it was staged.
+    captured_at: datetime | None = None
+    captured_at_source: Literal["operator_supplied", "staging_time", "stored_snapshot"] | None = (
+        None
+    )
     proposals: tuple[StagedProposal, ...] = ()
     refusals: tuple[StageRefusal, ...] = ()
     atomicity: str = ATOMICITY
@@ -656,8 +664,15 @@ def stage_capture(
     now: Callable[[], datetime],
     limits: StageLimits | None = None,
     aggregator_domains: Iterable[str] = (),
+    captured_at: datetime | None = None,
 ) -> StageOutcome:
-    """Stage one local capture and its curator-authored extraction. See the module docstring."""
+    """Stage one local capture and its curator-authored extraction. See the module docstring.
+
+    ``captured_at`` is the operator's statement of when the document was actually captured. It
+    becomes the snapshot's and fetch attempt's capture time (and the date of an insert draft's
+    provenance). An applied row's ``last_verified`` is still the decision date, not this time.
+    Without it the capture is treated as taken now, which is only true for a document saved now.
+    """
     limits = limits or StageLimits()
     base = StageOutcome(
         status="refused",
@@ -678,6 +693,15 @@ def stage_capture(
         document_class=document_class,
         aggregator_domains=aggregator_domains,
     )
+    if captured_at is not None and (
+        captured_at.tzinfo is None or captured_at.utcoffset() is None or captured_at > now()
+    ):
+        refusals.append(
+            _refusal(
+                StageRefusalCode.CAPTURED_AT_INVALID,
+                "captured_at must be a timezone-aware time that is not in the future",
+            )
+        )
     rows = SeedRowSource(seeds_dir)
     current: dict[tuple[str, str], dict[str, Any]] = {}
     insert_specs: dict[tuple[str, str], InsertRow] = {}
@@ -834,8 +858,35 @@ def stage_capture(
     snapshot_id = f"snapshot:{target.target_id}:{normalized_hash}:{result.raw_artifact.sha256}"
     snapshot = store.get_snapshot(snapshot_id)
     snapshot_state: Literal["stored", "already_stored"] = "already_stored"
+    if snapshot is not None and captured_at is not None and snapshot.captured_at != captured_at:
+        # Stored evidence is immutable: a different claim about when it was captured is refused.
+        return refused(
+            [
+                _refusal(
+                    StageRefusalCode.CAPTURED_AT_CONFLICT,
+                    f"snapshot {snapshot.snapshot_id} was stored as captured at "
+                    f"{snapshot.captured_at.isoformat()}, not {captured_at.isoformat()}",
+                )
+            ]
+        )
+    if snapshot is None and captured_at is not None:
+        latest = store.latest_snapshot(target.target_id)
+        if latest is not None and captured_at < latest.captured_at:
+            # A new snapshot supersedes the latest one, so it cannot claim to be older than it.
+            return refused(
+                [
+                    _refusal(
+                        StageRefusalCode.CAPTURED_AT_CONFLICT,
+                        f"a snapshot of this target was already stored as captured at "
+                        f"{latest.captured_at.isoformat()}; a newer capture cannot be dated "
+                        f"{captured_at.isoformat()}",
+                    )
+                ]
+            )
+    source: Literal["operator_supplied", "staging_time", "stored_snapshot"] = "stored_snapshot"
     if snapshot is None:
-        stamp = now()
+        stamp = captured_at or now()
+        source = "operator_supplied" if captured_at is not None else "staging_time"
         attempt = FetchAttempt(
             attempt_id=f"stage-attempt:{target.target_id}:{stamp.strftime('%Y%m%dT%H%M%S%f')}",
             request_id=request.request_id,
@@ -847,7 +898,7 @@ def stage_capture(
             response_class="success",
             retry_index=0,
         )
-        snapshot = SnapshotService(store=store, artifacts=artifacts, now=now).capture(
+        snapshot = SnapshotService(store=store, artifacts=artifacts, now=lambda: stamp).capture(
             target_id=target.target_id, result=result, attempt=attempt
         )
         snapshot_state = "stored"
@@ -861,6 +912,8 @@ def stage_capture(
             "artifact_kind": kind,
             "raw_sha256": snapshot.raw_sha256,
             "normalized_sha256": snapshot.normalized_sha256,
+            "captured_at": snapshot.captured_at,
+            "captured_at_source": source,
         }
     )
 

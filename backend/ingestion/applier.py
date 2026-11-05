@@ -785,10 +785,19 @@ class ControlledApplier:
         report: list[dict[str, Any]] = []
         for table in SUPPORTED_TABLES:
             for row in rows.table_rows(table):
-                verification = evaluate_row(
-                    row,
-                    now_evidence={},
-                    earlier=self._usable_evidence(table, str(row["id"]), seeds),
+                row_id = str(row["id"])
+                usable = self._usable_evidence(table, row_id, seeds)
+                verification = evaluate_row(row, now_evidence={}, earlier=usable)
+                # Evidence a committed apply recorded but that does not count yet because the
+                # capture's origin (D2) is unconfirmed: without this a ledger-only apply would
+                # read as "nothing happened".
+                counted = {item.field_path for item in usable}
+                awaiting = sorted(
+                    {
+                        item.field_path
+                        for item in self.ledger.active_evidence(table, row_id, str(seeds))
+                        if item.field_path not in counted
+                    }
                 )
                 report.append(
                     {
@@ -797,6 +806,7 @@ class ControlledApplier:
                         "needs_verification": row["provenance"]["needs_verification"],
                         "d1_satisfied": verification.satisfied,
                         "evidenced": len(verification.evidenced_earlier),
+                        "awaiting_origin_confirmation": awaiting,
                         "missing": len(verification.missing),
                         "stale": list(verification.stale),
                     }

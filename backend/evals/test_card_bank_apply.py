@@ -885,6 +885,21 @@ def test_coverage_reports_per_row_d1_state_from_the_ledger(env: ApplyEnv) -> Non
     assert by_id[("cards", EXISTING)]["d1_satisfied"] is False
 
 
+def test_coverage_names_evidence_that_is_recorded_but_awaits_origin_confirmation(
+    env: ApplyEnv,
+) -> None:
+    """Recorded is not counted: without a D2 confirmation the operator must be told why."""
+    ids = env.stage_card()
+    env.approve_all(ids)
+    env.apply(env.bundle(ids))  # the capture's origin is never confirmed
+    row = {(r["table"], r["row_id"]): r for r in env.applier.coverage(env.scratch)}[("cards", CARD)]
+    assert row["evidenced"] == 0 and row["d1_satisfied"] is False
+    assert len(row["awaiting_origin_confirmation"]) == 11
+    env.confirm(ids[0])
+    row = {(r["table"], r["row_id"]): r for r in env.applier.coverage(env.scratch)}[("cards", CARD)]
+    assert row["evidenced"] == 11 and row["awaiting_origin_confirmation"] == []
+
+
 def test_the_ledger_survives_reopening(env: ApplyEnv) -> None:
     ids = env.stage_card()
     env.approve_all(ids)
