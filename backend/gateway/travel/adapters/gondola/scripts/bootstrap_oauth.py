@@ -45,8 +45,24 @@ class _CallbackResult:
     def __init__(self) -> None:
         self.code: str | None = None
         self.state: str | None = None
+        self.iss: str | None = None
         self.error: str | None = None
         self.event = threading.Event()
+
+
+_SECURITY_PARAMETERS = frozenset(("code", "state", "error", "iss"))
+
+
+def _single_callback_parameters(query: str) -> dict[str, str | None]:
+    """Decode callback parameters without silently accepting duplicates."""
+    values: dict[str, list[str]] = {}
+    for key, value in parse_qsl(query, keep_blank_values=True):
+        if key in _SECURITY_PARAMETERS:
+            values.setdefault(key, []).append(value)
+    duplicates = [key for key, entries in values.items() if len(entries) > 1]
+    if duplicates:
+        raise ValueError("ambiguous OAuth callback security parameter")
+    return {key: entries[0] for key, entries in values.items()}
 
 
 def _make_handler(result: _CallbackResult) -> type[BaseHTTPRequestHandler]:
@@ -57,10 +73,21 @@ def _make_handler(result: _CallbackResult) -> type[BaseHTTPRequestHandler]:
                 self.send_response(404)
                 self.end_headers()
                 return
-            params = parse_qs(parsed.query)
-            result.code = params.get("code", [None])[0]
-            result.state = params.get("state", [None])[0]
-            result.error = params.get("error", [None])[0]
+            try:
+                params = _single_callback_parameters(parsed.query)
+            except ValueError:
+                result.code = None
+                result.state = None
+                result.iss = None
+                result.error = "ambiguous OAuth callback security parameter"
+                result.event.set()
+                self.send_response(400)
+                self.end_headers()
+                return
+            result.code = params.get("code")
+            result.state = params.get("state")
+            result.iss = params.get("iss")
+            result.error = params.get("error")
             result.event.set()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
@@ -149,7 +176,11 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
             raise RuntimeError(f"Gondola OAuth authorization failed: {result.error}")
         if result.code is None:
             raise RuntimeError("Gondola OAuth redirect carried no authorization code")
-        return AuthorizationCodeResult(code=result.code, state=result.state)
+        return AuthorizationCodeResult(
+            code=result.code,
+            state=result.state,
+            iss=result.iss,
+        )
 
     storage = _CaptureStorage()
     redirect_uri = f"http://{LOOPBACK_HOST}:{LOOPBACK_PORT}{CALLBACK_PATH}"

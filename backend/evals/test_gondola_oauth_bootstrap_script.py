@@ -8,6 +8,8 @@ tests only inspect its source/structure.
 from __future__ import annotations
 
 import inspect
+from io import BytesIO
+import threading
 from pathlib import Path
 
 BACKEND = Path(__file__).parent.parent
@@ -107,3 +109,94 @@ def test_token_exchange_refuses_to_store_a_token_with_an_unexpected_granted_scop
     assert "SAFETY VIOLATION" in source
     assert "effective_scope != REQUIRED_SCOPE" in source
     assert "Refusing to store this token" in source
+
+
+def _callback_request(query: str) -> tuple[object, int]:
+    import gateway.travel.adapters.gondola.scripts.bootstrap_oauth as module
+
+    result = module._CallbackResult()
+    handler_type = module._make_handler(result)
+    handler = handler_type.__new__(handler_type)
+    handler.path = f"{module.CALLBACK_PATH}?{query}"
+    handler.wfile = BytesIO()
+    statuses: list[int] = []
+    handler.send_response = statuses.append
+    handler.send_header = lambda *_args: None
+    handler.end_headers = lambda: None
+    handler_type.do_GET(handler)
+    return result, statuses[0]
+
+
+def test_callback_handler_forwards_decoded_issuer_to_sdk_result() -> None:
+    from mcp.shared.auth import AuthorizationCodeResult
+
+    result, status = _callback_request(
+        "code=authorization%2Fcode&state=expected&iss=https%3A%2F%2Fissuer.example"
+    )
+    assert status == 200
+    assert result.iss == "https://issuer.example"
+    assert AuthorizationCodeResult(
+        code=result.code, state=result.state, iss=result.iss
+    ).iss == "https://issuer.example"
+
+
+def test_callback_handler_preserves_absent_issuer_for_sdk_validation() -> None:
+    from mcp.client.auth.exceptions import OAuthFlowError
+    from mcp.client.auth.utils import validate_authorization_response_iss
+    from mcp.shared.auth import OAuthMetadata
+
+    result, status = _callback_request("code=authorization%2Fcode&state=expected")
+    assert status == 200
+    assert result.iss is None
+    metadata = OAuthMetadata(
+        issuer="https://issuer.example",
+        authorization_endpoint="https://issuer.example/authorize",
+        token_endpoint="https://issuer.example/token",
+        authorization_response_iss_parameter_supported=True,
+    )
+    try:
+        validate_authorization_response_iss(result.iss, metadata)
+    except OAuthFlowError:
+        pass
+    else:
+        raise AssertionError("missing issuer must remain rejected when required")
+
+
+def test_callback_handler_mismatched_issuer_remains_rejected_by_sdk() -> None:
+    from mcp.client.auth.exceptions import OAuthFlowError
+    from mcp.client.auth.utils import validate_authorization_response_iss
+    from mcp.shared.auth import OAuthMetadata
+
+    result, status = _callback_request(
+        "code=authorization%2Fcode&state=expected&iss=https%3A%2F%2Fevil.example"
+    )
+    assert status == 200
+    try:
+        validate_authorization_response_iss(
+            result.iss,
+            OAuthMetadata(
+                issuer="https://issuer.example",
+                authorization_endpoint="https://issuer.example/authorize",
+                token_endpoint="https://issuer.example/token",
+            ),
+        )
+    except OAuthFlowError:
+        pass
+    else:
+        raise AssertionError("mismatched issuer must be rejected")
+
+
+def test_callback_handler_preserves_state_and_rejects_ambiguous_security_values() -> None:
+    result, status = _callback_request("code=one&code=two&state=expected")
+    assert status == 400
+    assert result.event.is_set()
+    assert result.error == "ambiguous OAuth callback security parameter"
+    assert result.state is None
+
+
+def test_callback_source_does_not_log_callback_query_or_secret_values() -> None:
+    source = _source()
+    assert "print(self.path" not in source
+    assert "print(result.code" not in source
+    assert "print(result.iss" not in source
+    assert "print(tokens.access_token" not in source

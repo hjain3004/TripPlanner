@@ -28,11 +28,15 @@ reviewed fields for `search_hotels`, `get_hotel_rates`, and `search_flights`.
 The persisted OS-keychain token was checked to have exactly `mcp:read` scope.
 
 The existing OAuth client registration's refresh request returned HTTP 404.
-The SDK then required a fresh interactive authorization. The diagnostic
-stopped at that boundary; no inbox connection, payment, broader access,
-additional scope, booking, mutation, or ongoing application traffic was
-attempted. No `tools/call` response was retained or used as a fixture, and no
-provider quote was promoted.
+The bootstrap callback initially failed to forward the RFC 9207 `iss` value;
+that was a local callback-parser defect, not evidence of a non-conforming
+Gondola response. The corrected handler forwarded the decoded value unchanged,
+and the installed SDK accepted the authorization response with `iss` present
+and matching. The bootstrap's single authenticated `search_flights` request
+then timed out before a token was persisted. That invocation counts against
+the bounded diagnostic budget and was not retried. No inbox connection,
+payment, broader access, additional scope, booking, mutation, or ongoing
+application traffic was attempted. No provider quote was promoted.
 
 Consequently, the following remain separate and explicit:
 
@@ -63,9 +67,14 @@ disabled. It does not claim live provider coverage.
 
 ## Limitations and deviations
 
-- A valid refreshed credential or interactive reauthorization is required
-  before any future human-supervised diagnostic. The current stored OAuth
-  registration cannot refresh (HTTP 404), so live activation remains disabled.
+- The stored OAuth credential remains expired because the authenticated flight
+  request timed out before the bootstrap could persist its newly obtained
+  token. One of the three authorized diagnostic calls was consumed by that
+  flight attempt; it will not be repeated. Live activation remains disabled.
+- The OAuth callback fix is covered by focused tests against the installed MCP
+  SDK: decoded `iss` is forwarded unchanged, absent/mismatched issuers remain
+  subject to SDK rejection, state is preserved, duplicate security parameters
+  fail closed, and callback secrets are not logged.
 - Gondola's previously observed Markdown response still lacks a typed,
   independently verified quote contract. No `SampleFlight`/`SampleHotel`
   record was manufactured from it.
