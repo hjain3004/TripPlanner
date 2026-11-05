@@ -1,7 +1,6 @@
 # Weather planning integration
 
-**Status: ACCEPTANCE PENDING** — implementation is offline-complete pending the
-independent review, full verification, and exact-tree gate.
+**Status: OFFLINE DEVELOPMENT COMPLETE — LIVE ACTIVATION PENDING**.
 
 ## Delivered path
 
@@ -33,12 +32,31 @@ context only: it does not rewrite an itinerary or enter financial arithmetic.
 
 ## Verification evidence
 
-- Focused weather, boundary, CP4, and API tests: measured during completion.
-- `make seed` completed against a task-local `TRIPWISE_DATA_DIR`.
-- OpenAPI export is byte-stable across repeated exports and the generated client
-  is synchronized with the committed contract.
-- Full backend, typing, frontend, browser applicability, review, and exact-tree
-  gate results will be recorded here before changing this status.
+- `make seed PY=.venv/bin/python`: passed; 42 seeded rows.
+- Complete backend suite: **3,082 passed, 53 skipped, 3 warnings**.
+- Focused weather/boundary/CP4/API regressions: **77 passed**; the dedicated
+  weather integration module has **8 passed** tests.
+- Strict mypy: **201 + 34 + 4 source files**, all clean. Ruff zero-tolerance
+  scopes passed; legacy core/api scope measured **8 findings** under the ceiling
+  of 12.
+- OpenAPI export twice and generated-client regeneration twice: byte-stable;
+  contract drift check passed. The public contract, generated client, and MSW
+  fixtures shipped together.
+- Frontend: TypeScript passed; Vitest **229 passed**; ESLint **0 errors, 14
+  existing warnings**; token lint passed; production build passed; dead-class
+  check passed; frontend contract tests **27 passed**.
+- Browser mock suite: **107 passed, 13 skipped** across the normal projects;
+  no live provider tests were enabled.
+- Exact final-tree `make gate`: **PASSED** with the backend counts above,
+  frozen goldens, contract one-PR check, identical briefs, and `TREE_CLEAN`.
+
+## Independent review
+
+An independent whole-branch review found no Critical or Important defects. It
+identified one Minor coverage gap: CP4 weather preservation/invalidation was
+implemented but not directly exercised. Two dedicated regressions were added
+and passed, proving same-trip edits preserve evidence and destination changes
+invalidate it without a weather dispatch.
 
 ## Limitations
 
