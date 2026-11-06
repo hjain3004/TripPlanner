@@ -31,6 +31,7 @@ from agents.models import (
 from agents.pipeline import run_pipeline
 from agents.recompute import recompute_itinerary, refresh_prose
 from agents.search import search_catalog_places
+from api.acquisition import router as acquisition_router
 from api.auth import (
     CSRF_HEADER,
     SESSION_COOKIE,
@@ -158,6 +159,7 @@ app.include_router(conversation_router)
 app.include_router(wallet_router)
 app.include_router(saved_trips_router)
 app.include_router(welcome_router)
+app.include_router(acquisition_router)
 app.include_router(health_router)
 app.include_router(post_plan_router)
 

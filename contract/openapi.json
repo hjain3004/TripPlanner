@@ -1870,6 +1870,117 @@
         }
       }
     },
+    "/account/acquisition/trips/{trip_id}/revisions/{revision}": {
+      "post": {
+        "tags": [
+          "card-acquisition"
+        ],
+        "summary": "Post Acquisition Assessment",
+        "operationId": "post_acquisition_assessment_account_acquisition_trips__trip_id__revisions__revision__post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Revision"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcquisitionAssessmentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcquisitionAssessmentReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcquisitionErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcquisitionErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestValidationErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcquisitionErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/planning/sessions/{session_id}/workspace": {
       "post": {
         "tags": [
@@ -2998,6 +3109,417 @@
   },
   "components": {
     "schemas": {
+      "AcquisitionApiErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "TRIP_NOT_FOUND",
+              "REVISION_NOT_FOUND",
+              "REVISION_NOT_READABLE",
+              "ACQUISITION_ASSESSMENT_UNAVAILABLE"
+            ],
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "AcquisitionApiErrorBody"
+      },
+      "AcquisitionAssessmentIn": {
+        "properties": {
+          "candidate_card_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Card Id"
+          },
+          "payment_timing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentTimingIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AcquisitionAssessmentIn",
+        "description": "Request payload to assess an unheld card welcome offer against a saved revision."
+      },
+      "AcquisitionAssessmentReport": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of"
+          },
+          "held_cards_strategy": {
+            "$ref": "#/components/schemas/HeldCardsStrategySummary"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/AcquisitionSuggestion"
+            },
+            "type": "array",
+            "title": "Suggestions"
+          },
+          "refusals": {
+            "items": {
+              "$ref": "#/components/schemas/AcquisitionRefusal"
+            },
+            "type": "array",
+            "title": "Refusals"
+          },
+          "limitations": {
+            "items": {
+              "$ref": "#/components/schemas/Limitation"
+            },
+            "type": "array",
+            "title": "Limitations"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "trip_id",
+          "revision",
+          "as_of",
+          "held_cards_strategy",
+          "suggestions",
+          "refusals",
+          "limitations",
+          "assumptions"
+        ],
+        "title": "AcquisitionAssessmentReport",
+        "description": "Full Case B assessment response (spec 18 \u00a73-6)."
+      },
+      "AcquisitionErrorResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/AcquisitionApiErrorBody"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "AcquisitionErrorResponse",
+        "description": "A typed card-acquisition assessment failure over the wire (wrapped in ``detail``)."
+      },
+      "AcquisitionOfferOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "bonus_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Points"
+          },
+          "bonus_currency_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Currency Id"
+          },
+          "bonus_flat_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Flat Minor"
+          },
+          "min_spend_minor": {
+            "type": "integer",
+            "title": "Min Spend Minor"
+          },
+          "spend_window_days": {
+            "type": "integer",
+            "title": "Spend Window Days"
+          },
+          "expected_approval_days": {
+            "type": "integer",
+            "title": "Expected Approval Days"
+          },
+          "expected_card_in_hand_days": {
+            "type": "integer",
+            "title": "Expected Card In Hand Days"
+          },
+          "annual_fee_minor": {
+            "type": "integer",
+            "title": "Annual Fee Minor"
+          },
+          "fee_waiver_condition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Waiver Condition"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "valid_to": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid To"
+          },
+          "eligibility_exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Eligibility Exclusions"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/OfferProvenanceOut"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "card_id",
+          "title",
+          "bonus_points",
+          "bonus_currency_id",
+          "bonus_flat_minor",
+          "min_spend_minor",
+          "spend_window_days",
+          "expected_approval_days",
+          "expected_card_in_hand_days",
+          "annual_fee_minor",
+          "fee_waiver_condition",
+          "currency",
+          "valid_to",
+          "eligibility_exclusions",
+          "provenance"
+        ],
+        "title": "AcquisitionOfferOut",
+        "description": "Terms for an unheld card acquisition offer (spec 18 \u00a71)."
+      },
+      "AcquisitionRefusal": {
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "card_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Name"
+          },
+          "offer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Id"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "PAYMENT_TIMING_UNKNOWN",
+              "TIMING_GATE_FAILED",
+              "SPEND_WINDOW_EXCEEDED",
+              "MINIMUM_SPEND_NOT_MET",
+              "NONPOSITIVE_NET_VALUE",
+              "OFFER_EXPIRED",
+              "POINTS_PROGRAM_NOT_ESTABLISHED",
+              "ALREADY_HELD_CARD",
+              "CURRENCY_MISMATCH",
+              "NO_APPROVED_OFFER",
+              "AMBIGUOUS_OFFER"
+            ],
+            "title": "Reason"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "card_id",
+          "card_name",
+          "offer_id",
+          "reason",
+          "message"
+        ],
+        "title": "AcquisitionRefusal",
+        "description": "Evaluation of an unheld card offer that failed one or more gates (spec 18 \u00a74)."
+      },
+      "AcquisitionSuggestion": {
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "card_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Name"
+          },
+          "offer": {
+            "$ref": "#/components/schemas/AcquisitionOfferOut"
+          },
+          "verbatim_framing": {
+            "type": "string",
+            "title": "Verbatim Framing"
+          },
+          "timing": {
+            "$ref": "#/components/schemas/CandidateTimingAssessment"
+          },
+          "trip_eligible_spend_minor": {
+            "type": "integer",
+            "title": "Trip Eligible Spend Minor"
+          },
+          "min_spend_minor": {
+            "type": "integer",
+            "title": "Min Spend Minor"
+          },
+          "bonus_value_minor": {
+            "type": "integer",
+            "title": "Bonus Value Minor"
+          },
+          "trip_earn_delta_minor": {
+            "type": "integer",
+            "title": "Trip Earn Delta Minor"
+          },
+          "annual_fee_minor": {
+            "type": "integer",
+            "title": "Annual Fee Minor"
+          },
+          "net_first_year_minor": {
+            "type": "integer",
+            "title": "Net First Year Minor"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "eligibility_exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Eligibility Exclusions"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "card_id",
+          "card_name",
+          "offer",
+          "verbatim_framing",
+          "timing",
+          "trip_eligible_spend_minor",
+          "min_spend_minor",
+          "bonus_value_minor",
+          "trip_earn_delta_minor",
+          "annual_fee_minor",
+          "net_first_year_minor",
+          "currency",
+          "eligibility_exclusions",
+          "assumptions"
+        ],
+        "title": "AcquisitionSuggestion",
+        "description": "A qualifying published welcome offer for an unheld card (spec 18 \u00a73-5)."
+      },
       "ActionIn": {
         "properties": {
           "client_event_id": {
@@ -3792,6 +4314,68 @@
           "savings_pct_bp"
         ],
         "title": "BudgetTotals"
+      },
+      "CandidateTimingAssessment": {
+        "properties": {
+          "booking_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Booking Date"
+          },
+          "first_bookable_spend_date": {
+            "type": "string",
+            "format": "date",
+            "title": "First Bookable Spend Date"
+          },
+          "latest_spend_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Spend Date"
+          },
+          "expected_lead_time_days": {
+            "type": "integer",
+            "title": "Expected Lead Time Days"
+          },
+          "earliest_usable_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Earliest Usable Date"
+          },
+          "window_closes_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Window Closes On"
+          },
+          "lead_time_sufficient": {
+            "type": "boolean",
+            "title": "Lead Time Sufficient"
+          },
+          "spend_within_window": {
+            "type": "boolean",
+            "title": "Spend Within Window"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "booking_date",
+          "first_bookable_spend_date",
+          "latest_spend_date",
+          "expected_lead_time_days",
+          "earliest_usable_date",
+          "window_closes_on",
+          "lead_time_sufficient",
+          "spend_within_window"
+        ],
+        "title": "CandidateTimingAssessment",
+        "description": "Timing gate evaluation for a candidate card (spec 18 \u00a74)."
       },
       "CardProductOut": {
         "properties": {
@@ -5597,6 +6181,59 @@
         ],
         "title": "HardConstraintsPayload"
       },
+      "HeldCardsStrategySummary": {
+        "properties": {
+          "card_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Card Ids"
+          },
+          "gross_minor": {
+            "type": "integer",
+            "title": "Gross Minor"
+          },
+          "discounts_minor": {
+            "type": "integer",
+            "title": "Discounts Minor"
+          },
+          "rewards_value_minor": {
+            "type": "integer",
+            "title": "Rewards Value Minor"
+          },
+          "forex_fees_minor": {
+            "type": "integer",
+            "title": "Forex Fees Minor"
+          },
+          "effective_cost_minor": {
+            "type": "integer",
+            "title": "Effective Cost Minor"
+          },
+          "total_benefit_minor": {
+            "type": "integer",
+            "title": "Total Benefit Minor"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "card_ids",
+          "gross_minor",
+          "discounts_minor",
+          "rewards_value_minor",
+          "forex_fees_minor",
+          "effective_cost_minor",
+          "total_benefit_minor",
+          "currency"
+        ],
+        "title": "HeldCardsStrategySummary",
+        "description": "The held-cards strategy remains complete, untouched, and separate (spec 18 \u00a76)."
+      },
       "HistoricalObservation": {
         "properties": {
           "kind": {
@@ -6316,7 +6953,14 @@
               "DUPLICATE_CARD_ENTRIES",
               "CARD_NOT_IN_PLANNED_WALLET",
               "CURRENCY_MISMATCH",
-              "POINTS_PROGRAM_NOT_ESTABLISHED"
+              "POINTS_PROGRAM_NOT_ESTABLISHED",
+              "PAYMENT_TIMING_UNKNOWN",
+              "TIMING_GATE_FAILED",
+              "SPEND_WINDOW_EXCEEDED",
+              "MINIMUM_SPEND_NOT_MET",
+              "NONPOSITIVE_NET_VALUE",
+              "OFFER_EXPIRED",
+              "ALREADY_HELD_CARD"
             ],
             "title": "Code"
           },
@@ -6855,6 +7499,40 @@
           "action_sentence"
         ],
         "title": "PaymentStrategyRow"
+      },
+      "PaymentTimingIn": {
+        "properties": {
+          "booking_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Booking Date"
+          },
+          "first_bookable_spend_date": {
+            "type": "string",
+            "format": "date",
+            "title": "First Bookable Spend Date"
+          },
+          "latest_spend_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Spend Date"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "booking_date",
+          "first_bookable_spend_date"
+        ],
+        "title": "PaymentTimingIn",
+        "description": "Explicit payment timing supplied by the traveler (spec 18 \u00a74).\n\nTravel dates are not payment dates. The application requires explicit payment timing\nso whether a card can arrive and spend can clear within the window is never guessed."
       },
       "PipelineStatus": {
         "type": "string",

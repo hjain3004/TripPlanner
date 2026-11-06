@@ -1,5 +1,13 @@
 # DEVIATIONS
 
+## Spec 18 Case B — card acquisition assessment (2026-11-06)
+
+| date | doc§ | question | decision | rationale | affected_files |
+|---|---|---|---|---|---|
+| 2026-11-06 | spec 18 §§3–5; Tier C | Route path selection for Case B assessment against saved trip revision | Mount at `POST /account/acquisition/trips/{trip_id}/revisions/{revision}` under a dedicated `card-acquisition` APIRouter. | Preserves clear separation between saved-trip CRUD routes (`/account/trips/*`) and acquisition assessment (`/account/acquisition/*`), keeping the A4 boundary inventory invariant intact while providing a clean, authenticated, RESTful revision evaluation route. | `api/acquisition.py`, `evals/welcome_support.py`, `evals/test_acquisition_api.py`, `contract/openapi.json`, frontend client & MSW mocks |
+| 2026-11-06 | spec 18 §4; Tier F | Arithmetic reuse for candidate incremental benefit | Re-run the existing deterministic optimizer with `UserWallet([*stored_card_ids, candidate_id])` and difference against held-wallet benefit. | Directly satisfies the non-negotiable arithmetic reuse constraint (no parallel reward calculator). Reuses exact fee/reward/discount calculations. | `welcome/acquisition.py` |
+| 2026-11-06 | spec 18 §4; Tier C | Catalog state for initial shipping | Real offer catalog shipped empty (`[]`), returning honest `NO_APPROVED_OFFER` limitation. Synthetic fixtures used for automated evals. | Prevents unverified financial facts from entering the codebase without human approval. Agent 2 owns financial evidence curation. | `welcome/catalog.py`, `backend/welcome/` |
+
 ## Gondola planning integration — live evidence boundary (2026-11-05)
 
 Current closure: the original refresh/capture failures below are historical.

@@ -78,6 +78,32 @@ class OfferCatalog:
     def offers_for_card(self, card_id: str) -> list[CardAcquisitionOffer]:
         return [o for o in self._offers if o.card_id == card_id]
 
+    def all_offers(self) -> list[CardAcquisitionOffer]:
+        return list(self._offers)
+
+    def approved_offers(self) -> list[CardAcquisitionOffer]:
+        return [o for o in self._offers if is_approved(o)]
+
+    def select_acquisition_offer(
+        self, card_id: str, booking_date: date | None
+    ) -> OfferSelection:
+        """The one approved offer that could apply to this unheld card, or none and why."""
+        rows = self.offers_for_card(card_id)
+        approved = [o for o in rows if is_approved(o)]
+        ineligible = len(rows) - len(approved)
+        if not approved:
+            return OfferSelection(None, "NO_APPROVED_OFFER", ineligible)
+        in_force = (
+            approved
+            if booking_date is None
+            else [o for o in approved if booking_date <= o.valid_to]
+        )
+        if not in_force:
+            return OfferSelection(None, "OFFER_NOT_IN_FORCE_AT_OPEN_DATE", ineligible)
+        if len(in_force) > 1:
+            return OfferSelection(None, "AMBIGUOUS_OFFER", ineligible)
+        return OfferSelection(in_force[0], None, ineligible)
+
     def select_offer(self, card_id: str, opened_on: date | None) -> OfferSelection:
         """The one approved offer that could have applied, or none and why.
 
