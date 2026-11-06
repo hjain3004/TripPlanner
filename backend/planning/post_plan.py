@@ -309,6 +309,54 @@ class HotelSelectionAction(BaseModel):
         return self
 
 
+class FlightSelectionAction(BaseModel):
+    """Select an admitted flight quote or record a separately scoped planning total.
+
+    Observed flight prices are intentionally not an input here: they are not quotes
+    and cannot fill in an itinerary that the provider did not return.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["flight_selection"] = "flight_selection"
+    source: Literal["inventory_quote", "user_provided_total"]
+    quote_id: str | None = Field(default=None, min_length=1, max_length=200)
+    amount_minor: int | None = Field(default=None, ge=0)
+    currency: str | None = None
+    covers: str | None = Field(default=None, min_length=1, max_length=300)
+    amount_scope: Literal["party_total", "per_traveler"] | None = None
+    payment_channel: Channel | None = None
+    assumptions: list[str] = Field(default_factory=list, max_length=8)
+
+    @field_validator("currency")
+    @classmethod
+    def normalize_currency(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        if len(normalized) != 3 or not normalized.isalpha():
+            raise ValueError("currency must be a 3-letter code")
+        return normalized
+
+    @model_validator(mode="after")
+    def source_fields_match(self) -> FlightSelectionAction:
+        if self.source == "inventory_quote":
+            if (
+                self.quote_id is None
+                or self.amount_minor is not None
+                or self.currency is not None
+                or self.amount_scope is not None
+            ):
+                raise ValueError("an inventory selection names only a quote")
+        elif (
+            self.amount_minor is None
+            or self.currency is None
+            or self.covers is None
+            or self.amount_scope is None
+        ):
+            raise ValueError("a user total requires amount, currency, coverage and explicit scope")
+        return self
+
+
 ExplanationTargetKind = Literal[
     "cost_line",
     "payment_assignment",
@@ -401,6 +449,7 @@ PostPlanAction = Annotated[
     | ProviderInvalidatingChange
     | WalletOrObjectiveChange
     | HotelSelectionAction
+    | FlightSelectionAction
     | ExplanationRequest
     | ProfileUpdateAction
     | ClarificationRequired,
@@ -413,6 +462,7 @@ ACTION_KINDS: tuple[str, ...] = (
     "provider_invalidating_change",
     "wallet_or_objective_change",
     "hotel_selection",
+    "flight_selection",
     "explanation_request",
     "profile_update_proposal",
     "clarification_required",
@@ -846,8 +896,8 @@ def validate_action_references(action: PostPlanAction, context: RoutingContext) 
         apply_brief_patch(context.brief, action.patch)
     elif isinstance(action, WalletOrObjectiveChange):
         objective_patch(context.brief, action)
-    elif isinstance(action, HotelSelectionAction):
-        _no_brief_change(context.brief, context.brief, "a hotel selection")
+    elif isinstance(action, (HotelSelectionAction, FlightSelectionAction)):
+        _no_brief_change(context.brief, context.brief, "an inventory selection")
     elif isinstance(action, ExplanationRequest):
         known = {(ref.kind, ref.ref_id) for ref in context.explainable}
         if (action.target_kind, action.target_id) not in known:
@@ -935,6 +985,25 @@ def compute_impact(
                 "flights remain unchanged.",
                 *(
                     ["The amount is a traveler-provided planning estimate."]
+                    if action.source == "user_provided_total"
+                    else []
+                ),
+            ],
+        )
+    if isinstance(action, FlightSelectionAction):
+        _no_brief_change(before, after, "a flight selection")
+        return ActionImpact(
+            invalidated_domains=_sorted_domains({_D.FLIGHT, _D.COST, _D.CARD_STRATEGY}),
+            affected_dates=_dates_of(before),
+            refetch_domains=[],
+            inventory_reuse="full",
+            requires_confirmation=True,
+            changes_trip=True,
+            explanation_only=False,
+            limitations=[
+                "Flight selection changes the deterministic flight spend line only; hotels remain unchanged.",
+                *(
+                    ["The amount is a traveler-provided planning estimate, not a provider quote."]
                     if action.source == "user_provided_total"
                     else []
                 ),

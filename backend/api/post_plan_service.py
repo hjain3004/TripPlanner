@@ -121,7 +121,11 @@ def parse_stored_report(report_json: str) -> FinalReport:
     # FI3 weather context and hotel selection are additive. Existing saved reports
     # remain readable and retain their original bytes; only newly saved reports
     # serialize these optional fields.
-    if "weather_context" not in stored or "hotel_selection" not in stored:
+    if (
+        "weather_context" not in stored
+        or "hotel_selection" not in stored
+        or "flight_selection" not in stored
+    ):
         return report
     if json.loads(report.model_dump_json()) != stored:
         raise WorkspaceRebuildRequiredError("the stored plan differs from the current report shape")

@@ -21,6 +21,7 @@ from agents.models import (
     DraftItinerary,
     EstimatorResult,
     FinalReport,
+    FlightSelectionRecord,
     HotelSelectionRecord,
     SectionFreshness,
     SectionState,
@@ -101,8 +102,48 @@ def recompute_hotel_selection(
             "travel_inventory": report.travel_inventory,
             "weather_context": report.weather_context,
             "hotel_selection": record,
+            "flight_selection": report.flight_selection,
         }
     )
+
+
+def recompute_flight_selection(
+    report: FinalReport,
+    *,
+    flight_line: SpendLineItem,
+    record: FlightSelectionRecord,
+    kb: KnowledgeBase,
+    now: datetime,
+) -> FinalReport:
+    """Re-run the frozen financial engine with one explicitly selected flight line."""
+    existing = [line for line in report.costed_trip.lines if line.category is SpendCategory.FLIGHTS]
+    if not existing:
+        raise ValueError("the accepted plan has no flight spend line")
+    lines = [flight_line if line.category is SpendCategory.FLIGHTS else line for line in report.costed_trip.lines]
+    previous_assumptions = [
+        assumption for assumption in report.assumptions if assumption not in report.optimizer_result.assumptions
+    ]
+    estimate = EstimatorResult(
+        costed_trip=report.costed_trip.model_copy(update={"lines": lines}),
+        flight=report.flights_pick,
+        hotel=report.hotel_pick,
+        assumptions=[*previous_assumptions, *record.assumptions, *record.limitations],
+    )
+    kernel = run_kernel(report.trip_spec, estimate, kb, booking_date=report.costed_trip.booking_date)
+    rebuilt = build_final_report(
+        report.trip_spec, report.itinerary, estimate, kernel, retrieve_candidates(report.trip_spec, kb),
+        critic_caveats=report.caveats, explainer=_template_explainer(kernel), trace_id=report.trace_id,
+        region_capability=report.region_capability,
+        freshness=SectionFreshness(
+            budget=SectionState.RECOMPUTED, payment_strategy=SectionState.RECOMPUTED,
+            itinerary=report.freshness.itinerary, prose=SectionState.STALE,
+            critic_verdict=report.freshness.critic_verdict, edit_count=report.freshness.edit_count + 1,
+        ),
+    )
+    return rebuilt.model_copy(update={
+        "travel_inventory": report.travel_inventory, "weather_context": report.weather_context,
+        "hotel_selection": report.hotel_selection, "flight_selection": record,
+    })
 
 
 def spec_for_brief(base: TripSpec, brief: TripBrief) -> TripSpec:
@@ -183,6 +224,7 @@ def _report_from_estimate(
             "travel_inventory": inventory,
             "weather_context": weather_context,
             "hotel_selection": report.hotel_selection,
+            "flight_selection": report.flight_selection,
         }
     )
 
@@ -297,6 +339,26 @@ def refresh_provider_inventory(
         now=now,
         inventory=estimate_result.summary,
     )
+    # A refreshed search domain has different server-owned evidence.  A previously
+    # accepted estimate must not silently survive an incompatible request.
+    if "flight" in requested_domains:
+        rebuilt = rebuilt.model_copy(update={"flight_selection": None})
+    elif report.flight_selection is not None:
+        # Rebuilding a hotel-only refresh selects the gateway default flight. Put
+        # the already accepted line back through the same frozen kernel instead of
+        # retaining a selection record that no longer matches the budget.
+        accepted_flight = next(
+            line for line in report.costed_trip.lines if line.category is SpendCategory.FLIGHTS
+        )
+        rebuilt = recompute_flight_selection(
+            rebuilt,
+            flight_line=accepted_flight,
+            record=report.flight_selection,
+            kb=kb,
+            now=now,
+        )
+    if "hotel" in requested_domains:
+        rebuilt = rebuilt.model_copy(update={"hotel_selection": None})
     return PostPlanExecutionResult(report=rebuilt, brief=brief, inventory_snapshot=fresh)
 
 
@@ -419,9 +481,10 @@ def recompute_confirmed_report(
         )
         else rebuilt.weather_context
     )
-    return rebuilt.model_copy(
-        update={"travel_inventory": inventory, "weather_context": weather_context}
-    )
+    return rebuilt.model_copy(update={
+        "travel_inventory": inventory, "weather_context": weather_context,
+        "hotel_selection": report.hotel_selection, "flight_selection": report.flight_selection,
+    })
 
 
 def recompute_confirmed_edit(

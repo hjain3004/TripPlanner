@@ -1070,6 +1070,30 @@ export const handlers = [
       },
     });
   }),
+  http.get("*/planning/sessions/:sessionId/flight-selection", () => HttpResponse.json({
+    request: {},
+    selected: null,
+    alternatives: [],
+    observations: [],
+    limitations: ["MSW fixture: flight observations are non-bookable synthetic data."],
+  })),
+  http.post("*/planning/sessions/:sessionId/flight-selection/preview", async ({ request }) => {
+    const body = await request.json() as { selection?: unknown };
+    const selection = body.selection ?? { kind: "flight_selection", source: "inventory_quote", quote_id: "msw-flight" };
+    return HttpResponse.json({
+      proposal_id: "msw-flight-selection-proposal",
+      operation_id: "msw-flight-selection-operation",
+      status: "complete",
+      action: selection,
+      impact: { invalidated_domains: ["flight", "cost", "card_strategy"], affected_dates: [], refetch_domains: [], inventory_reuse: "full", requires_confirmation: true, changes_trip: true, explanation_only: false },
+      decision: "pending",
+      preview: {
+        before: { flight_amount_minor: 0, flight_currency: "INR", trip_cost_minor: 0, rewards_value_minor: 0, forex_fees_minor: 0, effective_cost_minor: 0, payment_strategy: [], assumptions: [], limitations: [] },
+        after: { flight_amount_minor: 0, flight_currency: "INR", trip_cost_minor: 0, rewards_value_minor: 0, forex_fees_minor: 0, effective_cost_minor: 0, payment_strategy: [], assumptions: ["MSW synthetic fixture"], limitations: ["Not provider evidence."] },
+        selection,
+      },
+    });
+  }),
   http.post("*/planning/sessions/:sessionId/actions", async ({ request }) => {
     const body = await request.json() as { client_event_id?: string; action?: unknown };
     const eventId = body.client_event_id ?? "1";

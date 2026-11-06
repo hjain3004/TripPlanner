@@ -64,7 +64,10 @@ export type ActionProposalOut = {
      * Decision
      */
     decision: string | null;
-    preview?: HotelSelectionPreviewOut | null;
+    /**
+     * Preview
+     */
+    preview?: HotelSelectionPreviewOut | FlightSelectionPreviewOut | null;
 };
 
 /**
@@ -1054,6 +1057,7 @@ export type FinalReport = {
     freshness?: SectionFreshness;
     travel_inventory?: TravelInventorySummary | null;
     hotel_selection?: HotelSelectionRecord | null;
+    flight_selection?: FlightSelectionRecord | null;
     weather_context?: WeatherContextOutcome;
 };
 
@@ -1172,6 +1176,206 @@ export type FlightPriceObservation = {
      */
     is_bookable?: false;
     evidence: EvidenceMeta;
+};
+
+/**
+ * FlightSelectionAction
+ *
+ * Select an admitted flight quote or record a separately scoped planning total.
+ *
+ * Observed flight prices are intentionally not an input here: they are not quotes
+ * and cannot fill in an itinerary that the provider did not return.
+ */
+export type FlightSelectionAction = {
+    /**
+     * Kind
+     */
+    kind?: 'flight_selection';
+    /**
+     * Source
+     */
+    source: 'inventory_quote' | 'user_provided_total';
+    /**
+     * Quote Id
+     */
+    quote_id?: string | null;
+    /**
+     * Amount Minor
+     */
+    amount_minor?: number | null;
+    /**
+     * Currency
+     */
+    currency?: string | null;
+    /**
+     * Covers
+     */
+    covers?: string | null;
+    /**
+     * Amount Scope
+     */
+    amount_scope?: 'party_total' | 'per_traveler' | null;
+    payment_channel?: Channel | null;
+    /**
+     * Assumptions
+     */
+    assumptions?: Array<string>;
+};
+
+/**
+ * FlightSelectionComputedOut
+ */
+export type FlightSelectionComputedOut = {
+    /**
+     * Flight Amount Minor
+     */
+    flight_amount_minor: number;
+    /**
+     * Flight Currency
+     */
+    flight_currency: string;
+    /**
+     * Trip Cost Minor
+     */
+    trip_cost_minor: number;
+    /**
+     * Rewards Value Minor
+     */
+    rewards_value_minor: number;
+    /**
+     * Forex Fees Minor
+     */
+    forex_fees_minor: number;
+    /**
+     * Effective Cost Minor
+     */
+    effective_cost_minor: number;
+    /**
+     * Payment Strategy
+     */
+    payment_strategy: Array<PaymentStrategyRow>;
+    /**
+     * Assumptions
+     */
+    assumptions: Array<string>;
+    /**
+     * Limitations
+     */
+    limitations: Array<string>;
+};
+
+/**
+ * FlightSelectionOptionsOut
+ */
+export type FlightSelectionOptionsOut = {
+    /**
+     * Request
+     */
+    request: {
+        [key: string]: unknown;
+    };
+    selected: InventoryQuoteSummary | null;
+    /**
+     * Alternatives
+     */
+    alternatives: Array<InventoryQuoteSummary>;
+    /**
+     * Observations
+     */
+    observations: Array<FlightPriceObservation>;
+    /**
+     * Limitations
+     */
+    limitations: Array<string>;
+};
+
+/**
+ * FlightSelectionPreviewIn
+ */
+export type FlightSelectionPreviewIn = {
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Expected Session Version
+     */
+    expected_session_version: number;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version: number;
+    selection: FlightSelectionAction;
+};
+
+/**
+ * FlightSelectionPreviewOut
+ */
+export type FlightSelectionPreviewOut = {
+    before: FlightSelectionComputedOut;
+    after: FlightSelectionComputedOut;
+    selection: FlightSelectionAction;
+};
+
+/**
+ * FlightSelectionRecord
+ *
+ * The accepted flight choice or traveler estimate, distinct from evidence.
+ */
+export type FlightSelectionRecord = {
+    /**
+     * Source
+     */
+    source: 'inventory_quote' | 'user_provided_total';
+    /**
+     * Quote Id
+     */
+    quote_id?: string | null;
+    /**
+     * Provider Id
+     */
+    provider_id?: string | null;
+    /**
+     * Amount Minor
+     */
+    amount_minor: number;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Covers
+     */
+    covers: string;
+    /**
+     * Amount Scope
+     */
+    amount_scope: 'party_total' | 'per_traveler';
+    payment_channel?: Channel | null;
+    /**
+     * Assumptions
+     */
+    assumptions?: Array<string>;
+    /**
+     * Limitations
+     */
+    limitations?: Array<string>;
+    /**
+     * Recorded At
+     */
+    recorded_at: string;
+    /**
+     * Recorded By
+     */
+    recorded_by: string;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Trip Id
+     */
+    trip_id?: string | null;
 };
 
 /**
@@ -5951,6 +6155,130 @@ export type PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewP
 };
 
 export type PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostResponse = PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostResponses[keyof PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostResponses];
+
+export type FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/flight-selection';
+};
+
+export type FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetError = FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetErrors[keyof FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetErrors];
+
+export type FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FlightSelectionOptionsOut;
+};
+
+export type FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetResponse = FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetResponses[keyof FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetResponses];
+
+export type PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostData = {
+    body: FlightSelectionPreviewIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/flight-selection/preview';
+};
+
+export type PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostError = PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostErrors[keyof PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostErrors];
+
+export type PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ActionProposalOut;
+};
+
+export type PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostResponse = PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostResponses[keyof PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostResponses];
 
 export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostData = {
     body: DecisionIn;
