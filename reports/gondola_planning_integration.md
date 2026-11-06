@@ -47,8 +47,22 @@ made. The lifecycle fix now persists validated credentials from the SDK's
 `set_tokens()` callback before any downstream request can time out, including
 rotated refresh tokens; client registration remains OS-keychain-only.
 
+The corrected auth-only bootstrap was then exercised live: the callback was
+accepted, the token was persisted, and a fresh OS-keychain reload showed
+non-expired `mcp:read` credentials. The first remaining hotel call was sent
+with `Singapore`, `2027-02-10` through `2027-02-13`, and one adult. Gondola's
+MCP response timed out at the existing bounded transport timeout before any
+hotel result or identifier arrived. That call counts as consumed; the dated
+rate call was not made because there was no returned identifier to use.
+
 Consequently, the following remain separate and explicit:
 
+- authentication: successful on the corrected callback/storage path and
+  confirmed by safe metadata reload;
+- hotel search: attempted once with the approved exact dates and occupancy but
+  timed out before returning a result;
+- dated hotel rates: not attempted because the first call returned no hotel
+  identifier;
 - current cash evidence: not captured in this diagnostic;
 - cached award information: not captured and never promoted to availability;
 - incomplete discovery: prior sanitized Markdown captures remain
@@ -76,19 +90,19 @@ disabled. It does not claim live provider coverage.
 
 ## Limitations and deviations
 
-- The stored OAuth credential remains expired because the authenticated flight
-  request timed out before the bootstrap could persist its newly obtained
-  token. One of the three authorized diagnostic calls was consumed by that
-  flight attempt; it will not be repeated. Live activation remains disabled.
+- The fresh OAuth credential persisted successfully and survives safe reload.
+  Two of the three authorized diagnostic calls are now consumed: the earlier
+  flight timeout and the hotel-search timeout. The final rate call was not
+  spent without a provider-returned hotel identifier. Live activation remains
+  disabled.
 - The OAuth callback fix is covered by focused tests against the installed MCP
   SDK: decoded `iss` is forwarded unchanged, absent/mismatched issuers remain
   subject to SDK rejection, state is preserved, duplicate security parameters
   fail closed, and callback secrets are not logged.
 - The authentication lifecycle regressions cover persistence before a
   downstream timeout, omitted-scope handling, unexpected-scope rejection,
-  refresh-token rotation, and secure-storage failure propagation. The two
-  remaining hotel calls were not dispatched because no valid persisted token
-  is available and the authorized flight call cannot be repeated.
+  refresh-token rotation, and secure-storage failure propagation. The final
+  rate call was not dispatched because the hotel search returned no identifier.
 - Gondola's previously observed Markdown response still lacks a typed,
   independently verified quote contract. No `SampleFlight`/`SampleHotel`
   record was manufactured from it.

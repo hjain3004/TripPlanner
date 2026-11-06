@@ -33,7 +33,6 @@ from gateway.travel.adapters.gondola.oauth import (
     KeychainTokenStore,
     OAuthTokens,
 )
-from gateway.travel.adapters.gondola.requests import build_flight_search_arguments
 
 MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp/auth"
 LOOPBACK_HOST = "127.0.0.1"
@@ -242,35 +241,20 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
         from mcp.client.streamable_http import streamable_http_client
 
         async with httpx2.AsyncClient(auth=provider, timeout=30.0) as client:
-            # Neither a bare GET nor session.initialize() triggers Gondola's
-            # 401 challenge (both succeed anonymously -- confirmed live: the
-            # anonymous tools/list and search_hotels smoke calls both
-            # succeeded with no auth). Only an actually sign-in-gated
-            # operation does. search_flights is both the one tool this
-            # milestone needs mcp:read for and the natural trigger: the SDK's
-            # OAuthClientProvider intercepts the resulting 401, runs the
-            # PKCE/DCR flow via redirect_handler/callback_handler, and
-            # automatically retries the original request with the new
-            # token. This call's own result is discarded here (bootstrap's
-            # job is only to obtain and store tokens); Phase 6's dedicated,
-            # budget-tracked authenticated search_flights call happens
-            # separately via scripts/smoke_gondola.py.
+            # A bare GET and session.initialize() are anonymous on Gondola.
+            # Use the standard non-tool ``tools/list`` MCP request on the
+            # authenticated endpoint as the SDK's 401 challenge. The
+            # OAuthClientProvider intercepts that response, runs PKCE/DCR via
+            # the redirect/callback handlers, and retries the same request
+            # with the new token. This avoids consuming a travel ``tools/call``
+            # merely to bootstrap authentication.
             async with streamable_http_client(MCP_ENDPOINT, http_client=client) as (
                 read_stream,
                 write_stream,
             ):
                 async with ClientSession(read_stream, write_stream) as session:
                     await session.initialize()
-                    await session.call_tool(
-                        "search_flights",
-                        build_flight_search_arguments(
-                            origin="DEL",
-                            destination="SIN",
-                            departure_date=datetime.now(UTC).date() + timedelta(days=90),
-                            num_passengers=1,
-                            cabin_class="economy",
-                        ),
-                    )
+                    await session.list_tools()
     finally:
         server.shutdown()
 

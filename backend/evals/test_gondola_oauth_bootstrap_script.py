@@ -43,6 +43,13 @@ def test_requests_only_mcp_read_scope() -> None:
     assert 'scope="mcp:book"' not in source
 
 
+def test_bootstrap_uses_non_tool_mcp_request_and_never_spends_a_travel_call() -> None:
+    source = _source()
+    assert "await session.list_tools()" in source
+    assert "session.call_tool(" not in source
+    assert "search_flights" not in source
+
+
 def test_never_logs_or_prints_a_raw_access_token() -> None:
     source = _source()
     # The only print of a token-adjacent value is the redacted expiry, never
