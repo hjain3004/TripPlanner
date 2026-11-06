@@ -128,6 +128,12 @@ disabled. It does not claim live provider coverage.
   `num_adults=1`, using a 45-second end-to-end deadline and no retry. If it
   returns a valid identifier, the remaining authorized call will be
   `get_hotel_rates` for that identifier and identical dates/occupancy.
+- The newly authorized retry was not dispatched: the safe keychain check found
+  the persisted token expired, and the official SDK refresh attempt fell back
+  to interactive authorization. No additional `tools/call` was made, so the
+  diagnostic count remains one flight timeout plus one hotel-search timeout,
+  with the rates call unused. A fresh human-supervised authorization is now
+  the blocker before another search can safely run.
 - No `agents/pipeline.py`, Kernel arithmetic, seed, OpenAPI, frontend, OpenBnB,
   or weather code was changed.
 ## Verification
