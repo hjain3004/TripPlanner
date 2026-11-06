@@ -1,6 +1,6 @@
 # Durable jobs, weather context, and Gondola integration
 
-Status: acceptance pending until the final committed-tree gate and PR checks pass.
+Status: accepted for offline integration; live provider activation remains disabled.
 
 ## Integrated history
 
@@ -59,5 +59,16 @@ arithmetic, seeds, goldens, provenance rules, and fallback behavior remain
 unchanged. The source branches, primary checkout, and other worktrees remain
 preserved.
 
-Measured verification and final acceptance status will be filled after the
-exact committed clean-tree gate and the PR #29 checks complete.
+## Verification
+
+On the exact committed integration tree, `make seed` completed successfully.
+The full `make gate` passed with 3,148 backend tests passed, 53 skipped and 3
+warnings; strict mypy passed for 207 core source files, 34 ingestion files and
+4 welcome files; all required Ruff scopes passed; frozen artifacts, OpenAPI
+contract drift, briefs and clean-tree checks passed. The first gate run had a
+single non-reproducible warm-catalog timing miss; the isolated test passed and
+the complete gate was rerun successfully.
+
+PR #29's final head `86c64960fcfb3faede420604b1db2c1dfa0be22a` passed backend,
+frontend, OpenAPI/client drift, and container/full-stack smoke checks before
+normal merge. The merge commit is `871c08d387e18a8761364f503cfd00cc398f7180`.
