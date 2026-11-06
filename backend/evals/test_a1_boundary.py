@@ -18,6 +18,7 @@ ACCOUNTS_TABLES = {
     "post_plan_workspaces",
     "post_plan_results",
     "post_plan_operations",
+    "planning_jobs",
     "saved_trips",
     "trip_revisions",
     "user_credentials",

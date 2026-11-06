@@ -39,6 +39,11 @@ MAX_INTERPRETER_CALLS_PER_SESSION = 20
 MAX_SCOPED_REPLANS_PER_SESSION = 10
 MAX_POST_PLAN_RECORDS_PER_SESSION = 100
 
+# Durable planning jobs: a finished job (report included) is kept this long after its
+# last update, then swept. It bounds disk use and privacy exposure; it is not an archive.
+# A saved trip's revisions, not the job, are the long-term record of a plan.
+PLANNING_JOB_RETENTION_DAYS = 30
+
 # Field names that may never appear on a stored account model. ``password_hash``
 # is deliberately absent — the (separate, later) auth plan owns credential storage
 # and will add it to ``User``. ``password`` in the clear is forbidden forever.
@@ -584,6 +589,49 @@ class TripMutationEvent(AccountModel):
     created_at: datetime | None = None
 
 
+PlanningJobStatus = Literal[
+    "queued", "running", "needs_clarification", "complete", "failed", "interrupted"
+]
+PlanningJobKind = Literal["confirmed", "rerun"]
+JOB_INTERRUPTED_CODE = "JOB_INTERRUPTED"
+
+
+class PlanningJob(AccountModel):
+    """One user-owned planning job: its lifecycle state and, when finished, its report.
+
+    ``interrupted`` is persisted, not inferred: it means the process that was running
+    the job is gone and the job did not finish. Whether provider or model calls were
+    already made cannot be established, so the record says only what is known
+    (``calls_may_have_started``: planning had begun) and nothing re-dispatches it. The
+    traveler retries through the ordinary confirm / re-run action, which creates a new
+    job. Only bounded metadata is stored: the report as the traveler saw it and the
+    admitted-inventory snapshot, never credentials or raw provider bodies.
+    """
+
+    job_id: str = Field(min_length=1, max_length=64)
+    user_id: str
+    session_id: str
+    kind: PlanningJobKind
+    trip_id: str | None = None
+    status: PlanningJobStatus = "queued"
+    stage: str | None = None
+    stage_index: int | None = None
+    unresolved: list[str] | None = None
+    report_json: str | None = None
+    inventory_snapshot_json: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+    error_trace_id: str | None = None
+    revision: int | None = None
+    process_id: str
+    start_event_id: str | None = Field(default=None, min_length=1, max_length=200)
+    start_fingerprint: str | None = None
+    calls_may_have_started: bool = False
+    created_at: datetime
+    updated_at: datetime
+    finished_at: datetime | None = None
+
+
 class UserExport(AccountModel):
     """Everything the system stores about one user, for subject-access export."""
 
@@ -599,6 +647,7 @@ class UserExport(AccountModel):
     post_plan_operations: list[PostPlanOperation] = Field(default_factory=list)
     travel_preferences: TravelPreferenceProfile | None = None
     planning_sessions: list[PlanningSessionSnapshot] = Field(default_factory=list)
+    planning_jobs: list[PlanningJob] = Field(default_factory=list)
     exported_at: datetime
 
 

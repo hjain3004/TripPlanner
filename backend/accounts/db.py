@@ -146,6 +146,31 @@ class PostPlanOperationRow(AccountsBase):
     payload: Mapped[str] = mapped_column(Text)
 
 
+class PlanningJobRow(AccountsBase):
+    """A durable planning job (one row per job, updated only by its current execution).
+
+    ``(user_id, start_event_id)`` is the idempotency key of a re-run start; SQLite treats
+    NULLs as distinct, so confirmed jobs (no start event) never collide. A job row is only
+    ever updated in place with a status guard, never upserted: a late completion for a
+    deleted user, trip or job finds no row and writes nothing.
+    """
+
+    __tablename__ = "planning_jobs"
+    __table_args__ = (
+        Index("uq_planning_jobs_user_start_event", "user_id", "start_event_id", unique=True),
+    )
+    job_id: Mapped[str] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(index=True)
+    session_id: Mapped[str] = mapped_column(index=True)
+    trip_id: Mapped[str | None] = mapped_column(index=True, nullable=True)
+    kind: Mapped[str] = mapped_column()
+    status: Mapped[str] = mapped_column(index=True)
+    process_id: Mapped[str] = mapped_column()
+    start_event_id: Mapped[str | None] = mapped_column(nullable=True)
+    expires_at: Mapped[str] = mapped_column(index=True)  # ISO datetime, for sweeping
+    payload: Mapped[str] = mapped_column(Text)
+
+
 class SavedTripRow(AccountsBase):
     __tablename__ = "saved_trips"
     id: Mapped[str] = mapped_column(primary_key=True)

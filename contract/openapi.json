@@ -1684,7 +1684,7 @@
           "saved-trips"
         ],
         "summary": "Rerun Status",
-        "description": "Progress of a re-run. After a restart the job is unknown (404); the trip is unchanged.",
+        "description": "Progress of a re-run, read from the stored job: it survives a restart.\n\nA re-run whose worker was lost in a restart reads ``failed`` with code\n``JOB_INTERRUPTED``; the trip is unchanged and nothing was repeated automatically.",
         "operationId": "rerun_status_account_trips__trip_id__reruns__job_id__get",
         "parameters": [
           {

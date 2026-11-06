@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from accounts import passwords
 from accounts.db import (
     ACCOUNTS_DB_PATH,
+    PlanningJobRow,
     PlanningSessionRow,
     PostPlanOperationRow,
     PostPlanResultRow,
@@ -44,12 +45,16 @@ from accounts.db import (
     create_accounts_engine,
 )
 from accounts.models import (
+    JOB_INTERRUPTED_CODE,
     MAX_INTERPRETER_CALLS_PER_SESSION,
     MAX_POST_PLAN_RECORDS_PER_SESSION,
     MAX_REPORT_BYTES,
     MAX_REVISIONS_PER_TRIP,
     MAX_SAVED_TRIPS,
     MAX_SCOPED_REPLANS_PER_SESSION,
+    PLANNING_JOB_RETENTION_DAYS,
+    PlanningJob,
+    PlanningJobStatus,
     PlanningSessionSnapshot,
     PostPlanOperation,
     PostPlanResult,
@@ -109,6 +114,14 @@ class RevisionLimitReachedError(ValueError):
 
 class ReportTooLargeError(ValueError):
     """Raised when a report to be stored exceeds the per-revision size bound."""
+
+
+class PlanningJobConflictError(ValueError):
+    """A re-run start event id was reused for a different request."""
+
+
+class RerunInProgressError(ValueError):
+    """The trip already has a live re-run."""
 
 
 class UnknownPlanningSessionError(ValueError):
@@ -566,6 +579,10 @@ class AccountStore:
             )
             # A workspace follows its parent session: it is swept with it.
             self._delete_post_plan_rows(session, user_id=None, session_ids=expired)
+            if expired:
+                session.execute(
+                    delete(PlanningJobRow).where(PlanningJobRow.session_id.in_(expired))
+                )
             result = session.execute(
                 delete(PlanningSessionRow).where(
                     PlanningSessionRow.expires_at < now.isoformat(),
@@ -1645,6 +1662,13 @@ class AccountStore:
                 )
                 self._delete_post_plan_rows(session, user_id=None, session_ids=attached)
                 session.execute(
+                    delete(PlanningJobRow).where(
+                        PlanningJobRow.user_id == user_id,
+                        (PlanningJobRow.trip_id == trip_id)
+                        | PlanningJobRow.session_id.in_(attached),
+                    )
+                )
+                session.execute(
                     delete(PlanningSessionRow).where(
                         PlanningSessionRow.user_id == user_id,
                         PlanningSessionRow.saved_trip_id == trip_id,
@@ -2275,6 +2299,370 @@ class AccountStore:
             elif session_ids:
                 session.execute(delete(model).where(model.session_id.in_(session_ids)))
 
+
+    # -- durable planning jobs ----------------------------------------------- #
+    #
+    # One row per owned planning job. Every write is a status-guarded UPDATE inside a
+    # BEGIN IMMEDIATE transaction and never an upsert, so a stale or late execution
+    # cannot overwrite a newer state, and a completion that races account, trip or
+    # session deletion finds no row and recreates nothing. No transaction is held open
+    # while the pipeline runs: the worker commits one short transaction per stage and
+    # one at the end. ``process_id`` identifies the process running the job; a queued or
+    # running row owned by any other process has lost its worker and is marked
+    # ``interrupted`` rather than left "running" forever. Nothing here dispatches work.
+
+    _ACTIVE_JOB_STATUSES = ("queued", "running")
+
+    @staticmethod
+    def _job_from_row(row: PlanningJobRow) -> PlanningJob:
+        return PlanningJob.model_validate_json(row.payload)
+
+    @staticmethod
+    def _store_job(row: PlanningJobRow, job: PlanningJob) -> None:
+        row.status = job.status
+        row.process_id = job.process_id
+        row.trip_id = job.trip_id
+        row.start_event_id = job.start_event_id
+        row.expires_at = (
+            job.updated_at + timedelta(days=PLANNING_JOB_RETENTION_DAYS)
+        ).isoformat()
+        row.payload = job.model_dump_json()
+
+    @staticmethod
+    def interrupted_message(job: PlanningJob) -> str:
+        if not job.calls_may_have_started:
+            return (
+                "Planning was interrupted (the service restarted or its worker stopped) before "
+                "any planning stage had begun, so no model or provider call was started. "
+                "Nothing was repeated automatically; start planning again."
+            )
+        where = f" during the {job.stage} stage" if job.stage else ""
+        return (
+            f"Planning was interrupted{where} (the service restarted or its worker stopped). "
+            "Model or provider calls may already have been made and cannot be confirmed. "
+            "Nothing was repeated automatically; start planning again."
+        )
+
+    def _interrupt_orphans(
+        self,
+        db: Session,
+        *,
+        process_id: str,
+        now: datetime,
+        job_id: str | None = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        trip_id: str | None = None,
+        own_worker_alive: bool = True,
+    ) -> list[str]:
+        """Mark live-looking jobs whose worker is gone interrupted. Write lock held.
+
+        A job of another process has lost its worker. A job of *this* process has lost its
+        too when the caller knows no worker handle is registered for it (``own_worker_alive``
+        false), e.g. the worker died or could not write its final state.
+        """
+        query = select(PlanningJobRow).where(
+            PlanningJobRow.status.in_(self._ACTIVE_JOB_STATUSES)
+        )
+        if own_worker_alive:
+            query = query.where(PlanningJobRow.process_id != process_id)
+        for column, value in (
+            (PlanningJobRow.job_id, job_id),
+            (PlanningJobRow.user_id, user_id),
+            (PlanningJobRow.session_id, session_id),
+            (PlanningJobRow.trip_id, trip_id),
+        ):
+            if value is not None:
+                query = query.where(column == value)
+        marked: list[str] = []
+        for row in db.scalars(query).all():
+            job = self._job_from_row(row)
+            ended = job.model_copy(
+                update={
+                    "status": "interrupted",
+                    "error_code": JOB_INTERRUPTED_CODE,
+                    "error_message": "",
+                    "updated_at": now,
+                    "finished_at": now,
+                }
+            )
+            ended = ended.model_copy(update={"error_message": self.interrupted_message(job)})
+            self._store_job(row, ended)
+            marked.append(job.job_id)
+        return marked
+
+    def interrupt_orphaned_planning_jobs(self, *, process_id: str, now: datetime) -> list[str]:
+        """Startup sweep: every queued/running job not owned by this process is interrupted."""
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            marked = self._interrupt_orphans(db, process_id=process_id, now=now)
+            db.commit()
+        return marked
+
+    def start_planning_job(
+        self,
+        job: PlanningJob,
+        *,
+        one_live_per_trip: bool = False,
+        live_job_ids: frozenset[str] = frozenset(),
+    ) -> tuple[PlanningJob, bool]:
+        """Persist a new queued job before anything is dispatched. ``(job, created)``.
+
+        A repeated start event returns the original job and ``created=False`` (never a
+        second dispatch); the same event id for a different request is a conflict. The
+        owner must exist at insert time, so a job can never be created for a deleted user.
+        """
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            if db.get(UserRow, job.user_id) is None:
+                raise UnknownUserError(f"no such user: {job.user_id}")
+            if job.start_event_id is not None:
+                prior_row = db.scalar(
+                    select(PlanningJobRow).where(
+                        PlanningJobRow.user_id == job.user_id,
+                        PlanningJobRow.start_event_id == job.start_event_id,
+                    )
+                )
+                if prior_row is not None:
+                    prior = self._job_from_row(prior_row)
+                    if prior.start_fingerprint != job.start_fingerprint:
+                        raise PlanningJobConflictError(
+                            "this client event id was already used for a different request"
+                        )
+                    return prior, False
+            existing = db.get(PlanningJobRow, job.job_id)
+            if existing is not None:
+                if existing.user_id != job.user_id:
+                    raise PlanningJobConflictError("job id already in use")
+                return self._job_from_row(existing), False
+            if one_live_per_trip and job.trip_id is not None:
+                self._interrupt_orphans(
+                    db, process_id=job.process_id, now=job.created_at, trip_id=job.trip_id
+                )
+                # A row of this very process whose worker is gone (it could not write its
+                # final state) must not block the trip until someone happens to poll it.
+                for stuck in db.scalars(
+                    select(PlanningJobRow.job_id).where(
+                        PlanningJobRow.trip_id == job.trip_id,
+                        PlanningJobRow.kind == "rerun",
+                        PlanningJobRow.status.in_(self._ACTIVE_JOB_STATUSES),
+                    )
+                ).all():
+                    if stuck not in live_job_ids:
+                        self._interrupt_orphans(
+                            db,
+                            process_id=job.process_id,
+                            now=job.created_at,
+                            job_id=stuck,
+                            own_worker_alive=False,
+                        )
+                live = db.scalar(
+                    select(PlanningJobRow.job_id).where(
+                        PlanningJobRow.trip_id == job.trip_id,
+                        PlanningJobRow.kind == "rerun",
+                        PlanningJobRow.status.in_(self._ACTIVE_JOB_STATUSES),
+                    )
+                )
+                if live is not None:
+                    db.commit()  # keep the interruptions just recorded
+                    raise RerunInProgressError("this trip is already being planned again")
+            row = PlanningJobRow(
+                job_id=job.job_id,
+                user_id=job.user_id,
+                session_id=job.session_id,
+                kind=job.kind,
+                status=job.status,
+                process_id=job.process_id,
+                expires_at="",
+                payload="",
+            )
+            self._store_job(row, job)
+            db.add(row)
+            db.commit()
+        return job, True
+
+    def get_planning_job(
+        self, job_id: str, *, process_id: str, now: datetime, worker_alive: bool = True
+    ) -> PlanningJob | None:
+        """The job, with a lost worker reported as ``interrupted`` (never ``running``).
+
+        ``worker_alive`` says whether this process holds a live worker handle for the job; a
+        queued/running row of this process without one has no worker and is interrupted too.
+        """
+        with Session(self._engine) as db:
+            row = db.get(PlanningJobRow, job_id)
+            if row is None:
+                return None
+            if row.status not in self._ACTIVE_JOB_STATUSES or (
+                row.process_id == process_id and worker_alive
+            ):
+                return self._job_from_row(row)
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            self._interrupt_orphans(
+                db,
+                process_id=process_id,
+                now=now,
+                job_id=job_id,
+                own_worker_alive=worker_alive,
+            )
+            db.commit()
+            row = db.get(PlanningJobRow, job_id)
+            return None if row is None else self._job_from_row(row)
+
+    def advance_planning_job(
+        self, job_id: str, *, process_id: str, stage: str, stage_index: int, now: datetime
+    ) -> bool:
+        """Record a stage start. Refused (``False``) unless this process still owns a live job."""
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            row = db.get(PlanningJobRow, job_id)
+            if (
+                row is None
+                or row.process_id != process_id
+                or row.status not in self._ACTIVE_JOB_STATUSES
+            ):
+                return False
+            job = self._job_from_row(row).model_copy(
+                update={
+                    "status": "running",
+                    "stage": stage,
+                    "stage_index": stage_index,
+                    "calls_may_have_started": True,
+                    "updated_at": now,
+                }
+            )
+            self._store_job(row, job)
+            db.commit()
+        return True
+
+    def finish_planning_job(
+        self,
+        job_id: str,
+        *,
+        process_id: str,
+        status: PlanningJobStatus,
+        now: datetime,
+        report_json: str | None = None,
+        unresolved: list[str] | None = None,
+        error: dict[str, str] | None = None,
+        inventory_snapshot_json: str | None = None,
+        revision: int | None = None,
+    ) -> bool:
+        """Publish a terminal outcome once, only from the process that owns the live job.
+
+        ``False`` means nothing was written: the job was interrupted, already finished,
+        deleted with its user/trip/session, or belongs to another process. A report or
+        snapshot over the storage limit is published as a typed failure instead.
+        """
+        update: dict[str, object] = {}
+        for value in (report_json, inventory_snapshot_json):
+            if value is not None and len(value.encode("utf-8")) > MAX_REPORT_BYTES:
+                status = "failed"
+                report_json = inventory_snapshot_json = None
+                error = {
+                    "code": "REPORT_TOO_LARGE",
+                    "message": "This plan is too large to store.",
+                    "trace_id": (error or {}).get("trace_id", ""),
+                }
+                break
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            row = db.get(PlanningJobRow, job_id)
+            if (
+                row is None
+                or row.process_id != process_id
+                or row.status not in self._ACTIVE_JOB_STATUSES
+            ):
+                return False
+            update = {
+                "status": status,
+                "unresolved": unresolved,
+                "report_json": report_json,
+                "inventory_snapshot_json": inventory_snapshot_json,
+                "revision": revision,
+                "updated_at": now,
+                "finished_at": now,
+            }
+            if error is not None:
+                update |= {
+                    "error_code": error.get("code"),
+                    "error_message": error.get("message"),
+                    "error_trace_id": error.get("trace_id", ""),
+                }
+            job = self._job_from_row(row).model_copy(update=update)
+            self._store_job(row, job)
+            db.commit()
+        return True
+
+    def replace_planning_job_report(
+        self,
+        job_id: str,
+        *,
+        user_id: str,
+        report_json: str,
+        expected_inventory_revision: int,
+        now: datetime,
+    ) -> bool:
+        """Replace a finished job's current report (a traveler's edit), atomically.
+
+        The compare-and-swap is the report's own inventory revision, checked inside the
+        write transaction, so two edits against the same revision cannot both apply.
+        ``False`` means nothing was written: no such job for this user, not finished, or
+        the stored report is no longer at the expected revision.
+        """
+        self._check_report_size(report_json)
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            row = db.get(PlanningJobRow, job_id)
+            if row is None or row.user_id != user_id or row.status != "complete":
+                return False
+            job = self._job_from_row(row)
+            if job.report_json is None:
+                return False
+            current = json.loads(job.report_json).get("travel_inventory") or {}
+            if current.get("inventory_revision") != expected_inventory_revision:
+                return False
+            self._store_job(
+                row, job.model_copy(update={"report_json": report_json, "updated_at": now})
+            )
+            db.commit()
+        return True
+
+    def planning_job_for_start_event(
+        self, user_id: str, start_event_id: str
+    ) -> PlanningJob | None:
+        """The job a re-run start event already created for this user, if any."""
+        with Session(self._engine) as db:
+            row = db.scalar(
+                select(PlanningJobRow).where(
+                    PlanningJobRow.user_id == user_id,
+                    PlanningJobRow.start_event_id == start_event_id,
+                )
+            )
+            return None if row is None else self._job_from_row(row)
+
+    def planning_jobs(self, user_id: str) -> list[PlanningJob]:
+        with Session(self._engine) as db:
+            rows = db.scalars(
+                select(PlanningJobRow).where(PlanningJobRow.user_id == user_id)
+            ).all()
+            items = [self._job_from_row(r) for r in rows]
+        return sorted(items, key=lambda j: (j.created_at, j.job_id))
+
+    def delete_expired_planning_jobs(self, *, now: datetime) -> int:
+        """Sweep jobs past their retention. A live job is never swept."""
+        with Session(self._engine) as db:
+            self._begin_write(db)
+            result = db.execute(
+                delete(PlanningJobRow).where(
+                    PlanningJobRow.expires_at < now.isoformat(),
+                    PlanningJobRow.status.notin_(self._ACTIVE_JOB_STATUSES),
+                )
+            )
+            db.commit()
+        return int(result.rowcount or 0)  # type: ignore[attr-defined]
+
     # -- privacy ------------------------------------------------------------ #
 
     def _export_post_plan_workspaces(self, user_id: str) -> list[PostPlanWorkspaceSnapshot]:
@@ -2323,6 +2711,7 @@ class AccountStore:
             post_plan_operations=self._export_post_plan_operations(user_id),
             travel_preferences=self.get_travel_preferences(user_id),
             planning_sessions=self.planning_session_snapshots(user_id),
+            planning_jobs=self.planning_jobs(user_id),
             exported_at=now,
         )
 
@@ -2361,6 +2750,7 @@ class AccountStore:
                 )
             )
             self._delete_post_plan_rows(session, user_id=user_id, session_ids=[])
+            session.execute(delete(PlanningJobRow).where(PlanningJobRow.user_id == user_id))
             session.execute(
                 delete(PlanningSessionRow).where(
                     PlanningSessionRow.user_id == user_id

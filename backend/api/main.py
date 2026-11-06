@@ -139,6 +139,12 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     real schema path (creates tables, applies additive migrations, never drops)."""
     assert_valid_runtime_config()
     accounts_db.create_accounts_engine(accounts_db.ACCOUNTS_DB_PATH).dispose()
+    # A previous process may have died mid-plan. Its queued/running jobs have lost their
+    # worker: mark them interrupted now (never resumed or re-dispatched), and sweep
+    # finished jobs past their retention.
+    startup_store = AccountStore.open(accounts_db.ACCOUNTS_DB_PATH)
+    job_manager.reconcile(startup_store)
+    startup_store.delete_expired_planning_jobs(now=now_utc())
     yield
 
 
@@ -280,7 +286,7 @@ def plan(
 def get_job_status(
     job_id: str, request: Request, store: Annotated[AccountStore, Depends(get_store)]
 ) -> PlanJobStatus:
-    state = job_manager.get_job(job_id)
+    state = job_manager.get_job(job_id, store)
     if state is None:
         raise HTTPException(status_code=404, detail="Job not found")
     if state.owner_id is not None:
@@ -363,13 +369,8 @@ def _run_job(
             job_manager.set_stage(job_id, stage_index, stage)
 
         def on_inventory(result: object) -> None:
-            state = job_manager.get_job(job_id)
-            if state is not None and hasattr(result, "summary"):
-                with state._lock:
-                    state.inventory_summary = result.summary
-                    snapshot = getattr(result, "snapshot", None)
-                    if snapshot is not None:
-                        state.inventory_snapshot = snapshot.model_copy(deep=True)
+            if hasattr(result, "summary"):
+                job_manager.record_inventory(job_id, result)
 
         result = run_pipeline(
             request.raw_request,
