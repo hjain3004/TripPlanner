@@ -15,6 +15,10 @@ from gateway.travel.errors import TravelGatewayError
 ALLOWED_TOOLS: frozenset[str] = frozenset(
     {
         "search_hotels",
+        # Official Gondola documentation identifies this as the dated-rate
+        # endpoint needed to turn a discovered hotel into rate evidence. It is
+        # read-only and remains subject to the same response validation.
+        "get_hotel_rates",
         "get_hotel_details",
         "compare_rates",
         "get_booking_link",

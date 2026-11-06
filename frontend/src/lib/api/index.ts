@@ -94,6 +94,8 @@ export type {
   DraftItineraryInput,
   DraftItineraryOutput,
   FinalReport,
+  FlightPriceObservation,
+  EvidenceMeta,
   ConversationEvent,
   ControlOption,
   SelectControl,

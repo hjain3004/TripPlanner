@@ -8,6 +8,8 @@ from typing import Literal, cast
 from urllib.parse import urlsplit
 
 from gateway.travel.contracts import (
+    FlexibleFlightSearchRequest,
+    FlightPriceObservation,
     FlightQuote,
     FlightSearchRequest,
     HotelQuote,
@@ -72,6 +74,7 @@ class TravelInventoryService:
             raise ValueError("unsupported inventory domain")
         retrieved = self.now()
         flights: list[FlightQuote] = []
+        flight_observations: list[FlightPriceObservation] = []
         hotels: list[HotelQuote] = []
         diagnostics: list[GatewayDiagnostic] = []
         scopes: dict[str, QuotePriceScope] = {}
@@ -140,6 +143,46 @@ class TravelInventoryService:
                 )
             if flights:
                 break
+        for provider_id, adapter in self._eligible("flight_trend") if "flight" in requested else []:
+            exact_dates = FlexibleFlightSearchRequest(
+                origin=flight.origin,
+                destination=flight.destination,
+                depart_window_start=flight.depart_date,
+                depart_window_end=flight.depart_date,
+                return_window_start=flight.return_date,
+                return_window_end=flight.return_date,
+                travelers=flight.travelers,
+                cabin=flight.cabin,
+                nearby_airports=flight.nearby_airports,
+                nonstop_only=flight.nonstop_only,
+                currency=flight.currency,
+                max_date_pairs=1,
+            )
+            try:
+                observed = await adapter.search_flight_price_trends(exact_dates)
+            except Exception:
+                diagnostics.append(
+                    GatewayDiagnostic(
+                        code="provider_unavailable",
+                        domain="flight",
+                        provider_id=provider_id,
+                        message="Flight discovery unavailable; eligible budget fallback remains.",
+                    )
+                )
+                continue
+            for item in observed[:20]:
+                if (
+                    item.evidence.provider_id == provider_id
+                    and item.origin == flight.origin
+                    and item.destination == flight.destination
+                    and item.depart_date == flight.depart_date
+                    and item.return_date == flight.return_date
+                    and item.cabin == flight.cabin
+                    and item.evidence.status != "stale"
+                    and (not flight.nonstop_only or item.stops == 0)
+                ):
+                    # Observations stay separate from quotes regardless of currency.
+                    flight_observations.append(item)
         for provider_id, adapter in self._eligible("hotel") if "hotel" in requested else []:
             try:
                 hotel_candidates = await adapter.search_hotels(hotel)
@@ -156,7 +199,14 @@ class TravelInventoryService:
             for hotel_quote in hotel_candidates:
                 if (
                     hotel_quote.travelers != hotel.travelers
-                    or hotel_quote.currency != hotel.currency
+                    or (
+                        hotel_quote.currency != hotel.currency
+                        and not (
+                            adapter.capabilities.source_currency_alternatives
+                            and hotel_quote.evidence.completeness != "complete"
+                            and not hotel_quote.purchasable_channels
+                        )
+                    )
                     or hotel_quote.check_in != hotel.check_in
                     or hotel_quote.check_out != hotel.check_out
                 ):
@@ -191,7 +241,9 @@ class TravelInventoryService:
                     hotel_scopes[hotel_quote.id] = QuotePriceScope(
                         basis="unknown", scope_verified=False, rooms=hotel_quote.rooms
                     )
-            if hotels:
+            # Incomplete provider evidence is useful for display, but must not
+            # prevent a cost-eligible sample fallback from being searched.
+            if any(hotel_scopes[quote.id].cost_eligible for quote in hotels):
                 break
         if hotel.rooms > 1 and hotels:
             diagnostics.append(
@@ -205,6 +257,7 @@ class TravelInventoryService:
             flight_request=flight,
             hotel_request=hotel,
             flights=flights,
+            flight_observations=flight_observations,
             hotels=hotels,
             flight_scopes=scopes,
             hotel_scopes=hotel_scopes,
@@ -248,6 +301,14 @@ class TravelInventoryService:
                 update={
                     "flights": flights,
                     "hotels": hotels,
+                    "flight_observations": [
+                        item.model_copy(
+                            update={
+                                "evidence": item.evidence.model_copy(update={"status": "stale"})
+                            }
+                        )
+                        for item in snapshot.flight_observations
+                    ],
                     "diagnostics": [
                         *snapshot.diagnostics,
                         GatewayDiagnostic(

@@ -19,14 +19,28 @@ from gateway.travel.errors import TravelGatewayError
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
+def gondola_kill_switch_active() -> bool:
+    return os.environ.get("TRIPWISE_GONDOLA_KILL_SWITCH", "").strip().lower() in _TRUTHY
+
+
+def gondola_search_mode() -> Literal["hotels", "flights"]:
+    mode = os.environ.get("TRIPWISE_GONDOLA_SEARCH_MODE", "hotels").strip().lower()
+    if mode == "hotels":
+        return "hotels"
+    if mode == "flights":
+        return "flights"
+    raise ValueError("Gondola search mode must be hotels or flights")
+
+
 def _gondola_live_enabled_from_env() -> bool:
     """Read-once, at registry-construction time only — never inside the
     adapter's call path. The kill switch overrides the live-enabled flag
     unconditionally, matching the parent milestone's explicit fail-safe
     ordering: TRIPWISE_GONDOLA_KILL_SWITCH always wins."""
-    if os.environ.get("TRIPWISE_GONDOLA_KILL_SWITCH", "").strip().lower() in _TRUTHY:
+    if gondola_kill_switch_active():
         return False
     return os.environ.get("TRIPWISE_GONDOLA_LIVE_ENABLED", "").strip().lower() in _TRUTHY
+
 
 Domain = Literal["flight", "flight_trend", "hotel", "award", "fx", "poi"]
 SourceMethod = Literal[
@@ -89,7 +103,7 @@ def get_default_travel_registry() -> TravelProviderRegistry:
         provider_id="gondola",
         enabled=_gondola_live_enabled_from_env(),
         allowed_profiles={"student_noncommercial"},
-        domains={"flight", "hotel"},
+        domains={"flight", "hotel", "flight_trend"},
         countries="configured",
         source_method="provider_mcp",
         live_data=True,

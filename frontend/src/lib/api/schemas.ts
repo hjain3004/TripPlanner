@@ -48,6 +48,8 @@ const inventoryQuoteSchema = z.object({
   quote_id: z.string(),
   provider_id: z.string(),
   provider_quote_id: z.string().optional().nullable(),
+  property_name: z.string().optional().nullable(),
+  room_name: z.string().optional().nullable(),
   status: z.enum(["live", "cached", "estimated", "stale", "verify_required"]),
   needs_verification: z.boolean(),
   source_url: z.string().url().optional().nullable(),
@@ -69,10 +71,37 @@ const inventoryQuoteSchema = z.object({
   }
 });
 
+const flightObservationSchema = z.object({
+  id: z.string(), origin: z.string(), destination: z.string(),
+  depart_date: z.string(), return_date: z.string().optional().nullable(),
+  cabin: z.enum(["economy", "premium", "business", "first"]).optional().nullable(),
+  stops: z.number().int().nonnegative().optional().nullable(),
+  observed_total_minor: z.number().int().nonnegative(), currency: z.string().length(3),
+  observed_at: z.string(), itinerary_detail: z.enum(["route_only", "partial"]),
+  is_bookable: z.literal(false),
+  carrier_name: z.string().optional().nullable(),
+  outbound_departure_local: z.string().optional().nullable(),
+  outbound_arrival_local: z.string().optional().nullable(),
+  price_scope: z.enum(["one_way_total", "round_trip_total", "unknown"]),
+  return_itinerary_confirmed: z.boolean(),
+  evidence: z.object({
+    provider_id: z.string(), provider_quote_id: z.string().optional().nullable(),
+    source_url: z.string().url().optional().nullable(),
+    deep_link_url: z.string().url().optional().nullable(),
+    retrieved_at: z.string(), expires_at: z.string().optional().nullable(),
+    status: z.enum(["cached", "estimated", "stale", "verify_required"]),
+    cache_age_seconds: z.number().int().nonnegative().optional().nullable(),
+    terms_version: z.string(), attribution: z.string().optional().nullable(),
+    completeness: z.enum(["complete", "taxes_uncertain", "fees_uncertain", "partial"]),
+    needs_verification: z.boolean(), notes: z.array(z.string()),
+  }),
+});
+
 const travelInventorySchema = z.object({
   flight: inventoryQuoteSchema.optional().nullable(),
   hotel: inventoryQuoteSchema.optional().nullable(),
   alternatives: z.array(inventoryQuoteSchema).optional(),
+  flight_observations: z.array(flightObservationSchema).optional(),
   limitations: z.array(z.string()).optional(),
   diagnostics: z.array(z.object({ code: z.string(), domain: z.enum(["flight", "hotel", "general"]), message: z.string(), provider_id: z.string().optional().nullable() })).optional(),
   reference_only_awards: z.boolean().optional(),

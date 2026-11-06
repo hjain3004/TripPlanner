@@ -32,6 +32,35 @@ def build_hotel_search_arguments(
     }
 
 
+def build_hotel_rates_arguments(
+    *, hotel_id: int, checkin: date, checkout: date, num_adults: int, room_type: str | None = None
+) -> dict[str, Any]:
+    """Build the reviewed dated-rate diagnostic request.
+
+    ``hotel_id`` is accepted only from the immediately preceding typed search
+    result by the diagnostic workflow; callers may not manufacture a booking or
+    selection token here.
+    """
+    if (
+        type(hotel_id) is not int
+        or not 0 < hotel_id < 10**18
+        or checkout <= checkin
+        or num_adults < 1
+    ):
+        raise TravelGatewayError("invalid_response", "Gondola hotel-rate dimensions are invalid")
+    arguments: dict[str, Any] = {
+        "hotel_id": hotel_id,
+        "checkin": checkin.isoformat(),
+        "checkout": checkout.isoformat(),
+        "num_adults": num_adults,
+    }
+    if room_type is not None:
+        if not room_type.strip():
+            raise TravelGatewayError("invalid_response", "Gondola room_type cannot be blank")
+        arguments["room_type"] = room_type
+    return arguments
+
+
 def build_flight_search_arguments(
     *,
     origin: str,
@@ -96,12 +125,14 @@ def build_flight_request_arguments(request: FlightSearchRequest) -> dict[str, An
             "unsupported_domain",
             "Gondola flight search does not advertise child or infant passenger dimensions",
         )
-    if request.nearby_airports or request.nonstop_only or request.currency:
+    if request.nearby_airports or request.nonstop_only:
         raise TravelGatewayError(
             "unsupported_domain",
-            "Gondola flight search does not advertise nearby-airport, nonstop, or "
-            "currency dimensions",
+            "Gondola flight search does not advertise nearby-airport or nonstop dimensions",
         )
+    # ``request.currency`` is the product's display/target currency, not a
+    # provider filter. Gondola does not advertise a currency argument, so keep
+    # it local and let response normalization report the provider currency.
     return build_flight_search_arguments(
         origin=request.origin,
         destination=request.destination,

@@ -23,7 +23,8 @@ import threading
 import webbrowser
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse
+from typing import Protocol
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from gateway.travel.adapters.gondola.mcp_client import ALLOWED_HOST
 from gateway.travel.adapters.gondola.oauth import (
@@ -32,21 +33,89 @@ from gateway.travel.adapters.gondola.oauth import (
     KeychainTokenStore,
     OAuthTokens,
 )
-from gateway.travel.adapters.gondola.requests import build_flight_search_arguments
 
-MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp"
+MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp/auth"
 LOOPBACK_HOST = "127.0.0.1"
 LOOPBACK_PORT = 8734
 CALLBACK_PATH = "/gondola-oauth-callback"
 CALLBACK_TIMEOUT_S = 300.0
 
 
+class _TokenSink(Protocol):
+    def save(self, tokens: OAuthTokens) -> None: ...
+
+
+class _ClientInfoSink(Protocol):
+    def save(self, client_info_json: str) -> None: ...
+
+
+class _BootstrapStorage:
+    """SDK storage that persists validated credentials at each SDK callback."""
+
+    def __init__(self, token_sink: _TokenSink, client_info_sink: _ClientInfoSink) -> None:
+        self.token_sink = token_sink
+        self.client_info_sink = client_info_sink
+        self.tokens: object | None = None
+        self.client_info: object | None = None
+        self.persisted_tokens: OAuthTokens | None = None
+        self.persisted_client_info: str | None = None
+
+    async def get_tokens(self) -> object | None:
+        return self.tokens
+
+    async def set_tokens(self, tokens: object) -> None:
+        granted_scope = getattr(tokens, "scope", None)
+        effective_scope = granted_scope if granted_scope else REQUIRED_SCOPE
+        if effective_scope != REQUIRED_SCOPE:
+            raise RuntimeError(
+                f"SAFETY VIOLATION: Gondola granted scope {effective_scope!r}, not exactly "
+                f"{REQUIRED_SCOPE!r}. Refusing to store this token. No token was persisted."
+            )
+        self.tokens = tokens
+        expires_in = getattr(tokens, "expires_in", None)
+        retrieved_at = datetime.now(UTC)
+        expires_at = retrieved_at + timedelta(seconds=expires_in) if expires_in else retrieved_at
+        persisted = OAuthTokens(
+            access_token=tokens.access_token,  # type: ignore[attr-defined]
+            refresh_token=getattr(tokens, "refresh_token", None),
+            expires_at=expires_at,
+            scope=effective_scope,
+        )
+        self.token_sink.save(persisted)
+        self.persisted_tokens = persisted
+
+    async def get_client_info(self) -> object | None:
+        return self.client_info
+
+    async def set_client_info(self, client_info: object) -> None:
+        serialized = client_info.model_dump_json()  # type: ignore[attr-defined]
+        self.client_info_sink.save(serialized)
+        self.client_info = client_info
+        self.persisted_client_info = serialized
+
+
 class _CallbackResult:
     def __init__(self) -> None:
         self.code: str | None = None
         self.state: str | None = None
+        self.iss: str | None = None
         self.error: str | None = None
         self.event = threading.Event()
+
+
+_SECURITY_PARAMETERS = frozenset(("code", "state", "error", "iss"))
+
+
+def _single_callback_parameters(query: str) -> dict[str, str | None]:
+    """Decode callback parameters without silently accepting duplicates."""
+    values: dict[str, list[str]] = {}
+    for key, value in parse_qsl(query, keep_blank_values=True):
+        if key in _SECURITY_PARAMETERS:
+            values.setdefault(key, []).append(value)
+    duplicates = [key for key, entries in values.items() if len(entries) > 1]
+    if duplicates:
+        raise ValueError("ambiguous OAuth callback security parameter")
+    return {key: entries[0] for key, entries in values.items()}
 
 
 def _make_handler(result: _CallbackResult) -> type[BaseHTTPRequestHandler]:
@@ -57,10 +126,21 @@ def _make_handler(result: _CallbackResult) -> type[BaseHTTPRequestHandler]:
                 self.send_response(404)
                 self.end_headers()
                 return
-            params = parse_qs(parsed.query)
-            result.code = params.get("code", [None])[0]
-            result.state = params.get("state", [None])[0]
-            result.error = params.get("error", [None])[0]
+            try:
+                params = _single_callback_parameters(parsed.query)
+            except ValueError:
+                result.code = None
+                result.state = None
+                result.iss = None
+                result.error = "ambiguous OAuth callback security parameter"
+                result.event.set()
+                self.send_response(400)
+                self.end_headers()
+                return
+            result.code = params.get("code")
+            result.state = params.get("state")
+            result.iss = params.get("iss")
+            result.error = params.get("error")
             result.event.set()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
@@ -116,23 +196,6 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
 
-    class _CaptureStorage:
-        def __init__(self) -> None:
-            self.tokens: object | None = None
-            self.client_info: object | None = None
-
-        async def get_tokens(self) -> object | None:
-            return self.tokens
-
-        async def set_tokens(self, tokens: object) -> None:
-            self.tokens = tokens
-
-        async def get_client_info(self) -> object | None:
-            return self.client_info
-
-        async def set_client_info(self, client_info: object) -> None:
-            self.client_info = client_info
-
     async def _redirect_handler(authorization_url: str) -> None:
         authorization_url = pin_scope_to_read_only(authorization_url)
         print("Opening your browser to Gondola's sign-in page...")
@@ -149,9 +212,13 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
             raise RuntimeError(f"Gondola OAuth authorization failed: {result.error}")
         if result.code is None:
             raise RuntimeError("Gondola OAuth redirect carried no authorization code")
-        return AuthorizationCodeResult(code=result.code, state=result.state)
+        return AuthorizationCodeResult(
+            code=result.code,
+            state=result.state,
+            iss=result.iss,
+        )
 
-    storage = _CaptureStorage()
+    storage = _BootstrapStorage(KeychainTokenStore(), KeychainClientInfoStore())
     redirect_uri = f"http://{LOOPBACK_HOST}:{LOOPBACK_PORT}{CALLBACK_PATH}"
 
     provider = OAuthClientProvider(
@@ -174,39 +241,24 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
         from mcp.client.streamable_http import streamable_http_client
 
         async with httpx2.AsyncClient(auth=provider, timeout=30.0) as client:
-            # Neither a bare GET nor session.initialize() triggers Gondola's
-            # 401 challenge (both succeed anonymously -- confirmed live: the
-            # anonymous tools/list and search_hotels smoke calls both
-            # succeeded with no auth). Only an actually sign-in-gated
-            # operation does. search_flights is both the one tool this
-            # milestone needs mcp:read for and the natural trigger: the SDK's
-            # OAuthClientProvider intercepts the resulting 401, runs the
-            # PKCE/DCR flow via redirect_handler/callback_handler, and
-            # automatically retries the original request with the new
-            # token. This call's own result is discarded here (bootstrap's
-            # job is only to obtain and store tokens); Phase 6's dedicated,
-            # budget-tracked authenticated search_flights call happens
-            # separately via scripts/smoke_gondola.py.
+            # A bare GET and session.initialize() are anonymous on Gondola.
+            # Use the standard non-tool ``tools/list`` MCP request on the
+            # authenticated endpoint as the SDK's 401 challenge. The
+            # OAuthClientProvider intercepts that response, runs PKCE/DCR via
+            # the redirect/callback handlers, and retries the same request
+            # with the new token. This avoids consuming a travel ``tools/call``
+            # merely to bootstrap authentication.
             async with streamable_http_client(MCP_ENDPOINT, http_client=client) as (
                 read_stream,
                 write_stream,
             ):
                 async with ClientSession(read_stream, write_stream) as session:
                     await session.initialize()
-                    await session.call_tool(
-                        "search_flights",
-                        build_flight_search_arguments(
-                            origin="DEL",
-                            destination="SIN",
-                            departure_date=datetime.now(UTC).date() + timedelta(days=90),
-                            num_passengers=1,
-                            cabin_class="economy",
-                        ),
-                    )
+                    await session.list_tools()
     finally:
         server.shutdown()
 
-    if storage.tokens is None:
+    if storage.tokens is None or storage.persisted_tokens is None:
         raise RuntimeError("Gondola OAuth exchange did not produce tokens")
 
     # Absolute backstop: RFC 6749 §5.1 says a token response that omits
@@ -225,21 +277,9 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
             f"{REQUIRED_SCOPE!r}. Refusing to store this token. No token was persisted."
         )
 
-    retrieved_at = datetime.now(UTC)
-    expires_in = getattr(storage.tokens, "expires_in", None)
-    expires_at = retrieved_at + timedelta(seconds=expires_in) if expires_in else retrieved_at
-    tokens = OAuthTokens(
-        access_token=storage.tokens.access_token,  # type: ignore[attr-defined]
-        refresh_token=getattr(storage.tokens, "refresh_token", None),
-        expires_at=expires_at,
-        scope=effective_scope,
-    )
+    tokens = storage.persisted_tokens
 
-    client_info_json = None
-    if storage.client_info is not None:
-        # Persisting this is what makes a later refresh possible without
-        # re-running Dynamic Client Registration (see KeychainClientInfoStore).
-        client_info_json = storage.client_info.model_dump_json()  # type: ignore[attr-defined]
+    client_info_json = storage.persisted_client_info
 
     return tokens, client_info_json
 
@@ -247,9 +287,6 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
 def main() -> None:
     print(f"Gondola OAuth bootstrap: requesting scope={REQUIRED_SCOPE!r} only.")
     tokens, client_info_json = asyncio.run(_exchange_via_real_mcp_sdk())
-    KeychainTokenStore().save(tokens)
-    if client_info_json is not None:
-        KeychainClientInfoStore().save(client_info_json)
     print("Gondola OAuth bootstrap complete. Tokens stored in the OS keychain.")
     print(f"Token expires at: {tokens.expires_at.isoformat()}")
     print(f"client_info_persisted={client_info_json is not None}")

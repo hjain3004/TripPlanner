@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import inspect
 from pathlib import Path
 
@@ -28,6 +29,13 @@ def test_constructor_refuses_every_non_allowlisted_host(bad_url: str) -> None:
     with pytest.raises(TravelGatewayError) as exc_info:
         LiveGondolaTransport(base_url=bad_url, get_access_token=lambda: "t")
     assert exc_info.value.code == "permission_denied"
+
+
+def test_constructor_refuses_unreviewed_path_on_allowlisted_host() -> None:
+    with pytest.raises(TravelGatewayError, match="allowlisted endpoint"):
+        LiveGondolaTransport(
+            base_url=f"https://{ALLOWED_HOST}/unreviewed", get_access_token=lambda: "t"
+        )
 
 
 def test_dispatch_tool_rejects_denied_tool_before_any_network_call() -> None:
@@ -118,6 +126,72 @@ def test_constructor_accepts_no_token_for_anonymous_use() -> None:
         base_url=f"https://{ALLOWED_HOST}/mcp", get_access_token=lambda: None
     )
     assert transport is not None
+
+
+def test_delayed_mcp_response_is_cancelled_by_the_explicit_end_to_end_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mcp
+    import mcp.client.streamable_http as streamable_http
+
+    from gateway.travel.adapters.gondola import mcp_client as module
+
+    class FakeHttpClient:
+        async def aclose(self) -> None:
+            return None
+
+    class FakeStream:
+        async def __aenter__(self) -> tuple[str, str]:
+            return "read", "write"
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    class DelayedSession:
+        def __init__(self, _read: str, _write: str) -> None:
+            pass
+
+        async def __aenter__(self) -> DelayedSession:
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+        async def initialize(self) -> None:
+            return None
+
+        async def call_tool(self, _name: str, _arguments: dict[str, object]) -> object:
+            await asyncio.sleep(0.05)
+            raise AssertionError("the delayed response should have been cancelled")
+
+    monkeypatch.setattr(module, "TOTAL_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(
+        LiveGondolaTransport,
+        "_build_http_client",
+        lambda _self: FakeHttpClient(),
+    )
+    monkeypatch.setattr(mcp, "ClientSession", DelayedSession)
+    monkeypatch.setattr(
+        streamable_http,
+        "streamable_http_client",
+        lambda *_args, **_kwargs: FakeStream(),
+    )
+
+    with pytest.raises(TravelGatewayError) as exc_info:
+        asyncio.run(
+            _transport().call_tool(
+                "search_hotels",
+                {
+                    "location": "Singapore",
+                    "checkin": "2027-01-11",
+                    "checkout": "2027-01-14",
+                    "num_adults": 1,
+                },
+            )
+        )
+    assert exc_info.value.code == "timeout"
+    assert "45s" not in exc_info.value.message
+    assert "deadline" in exc_info.value.message
 
 
 def test_transport_exposes_a_list_tools_method() -> None:

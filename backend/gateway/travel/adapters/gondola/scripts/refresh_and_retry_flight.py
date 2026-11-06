@@ -34,7 +34,7 @@ from gateway.travel.adapters.gondola.oauth import (
 from gateway.travel.adapters.gondola.requests import build_flight_search_arguments
 from gateway.travel.adapters.gondola.tool_policy import assert_tool_allowed
 
-MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp"
+MCP_ENDPOINT = f"https://{ALLOWED_HOST}/mcp/auth"
 LIVE_SMOKE_ENV_VAR = "TRIPWISE_GONDOLA_LIVE_SMOKE"
 BUDGET_DB_PATH = (
     Path(__file__).parent.parent.parent.parent.parent.parent

@@ -306,7 +306,11 @@ def _summary_quote(
             "Sample flight packaging is a per-traveler one-way estimate; "
             "it is not proof of a current return itinerary."
         )
-    if domain == "hotel" and isinstance(quote, HotelQuote):
+    if (
+        domain == "hotel"
+        and isinstance(quote, HotelQuote)
+        and evidence.provider_id.startswith("sample_")
+    ):
         limitations.append(
             "Sample hotel packaging is a nightly fixture estimate; verify room "
             "availability and taxes before booking."
@@ -316,6 +320,8 @@ def _summary_quote(
         quote_id=quote.id,
         provider_id=evidence.provider_id,
         provider_quote_id=evidence.provider_quote_id,
+        property_name=quote.name if isinstance(quote, HotelQuote) else None,
+        room_name=quote.room_name if isinstance(quote, HotelQuote) else None,
         source_url=source_url,
         deep_link_url=deep_link_url,
         attribution=evidence.attribution,
@@ -351,8 +357,15 @@ def estimate_confirmed_inventory(
     diagnostics = list(snapshot.diagnostics)
     current_flights = [quote for quote in snapshot.flights if quote.evidence.status != "stale"]
     current_hotels = [quote for quote in snapshot.hotels if quote.evidence.status != "stale"]
+    eligible_hotels = [
+        quote
+        for quote in current_hotels
+        if quote.id in snapshot.hotel_scopes and snapshot.hotel_scopes[quote.id].cost_eligible
+    ]
     flight = min(current_flights, key=lambda q: (q.total_minor, q.id), default=None)
-    hotel = min(current_hotels, key=lambda q: (q.total_minor, q.id), default=None)
+    hotel = min(
+        eligible_hotels or current_hotels, key=lambda q: (q.total_minor, q.id), default=None
+    )
     flight_scope = snapshot.flight_scopes.get(flight.id) if flight else None
     hotel_scope = snapshot.hotel_scopes.get(hotel.id) if hotel else None
     if flight is not None and flight_scope is not None and not flight_scope.cost_eligible:
@@ -545,7 +558,7 @@ def estimate_confirmed_inventory(
         *[
             _summary_quote("hotel", q, selected=False, scope=snapshot.hotel_scopes[q.id])
             for q in snapshot.hotels
-            if hotel is not None and q.id != hotel.id and q.id in snapshot.hotel_scopes
+            if (hotel is None or q.id != hotel.id) and q.id in snapshot.hotel_scopes
         ],
     ]
     return GatewayEstimateResult(
@@ -555,6 +568,7 @@ def estimate_confirmed_inventory(
             flight=selected_flight_summary,
             hotel=selected_hotel_summary,
             alternatives=alternatives,
+            flight_observations=snapshot.flight_observations,
             diagnostics=diagnostics,
             limitations=[
                 "Award guidance remains seed-backed reference only; verify "

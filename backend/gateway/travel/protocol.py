@@ -41,6 +41,9 @@ class AdapterCapabilities(BaseModel):
     stability: Literal["stable", "experimental"]
     requires_user_initiated_search: bool
     max_concurrency: int = Field(ge=1)
+    # Discovery-only source prices may be displayed without claiming that the
+    # provider accepted the requested display currency. They remain non-costable.
+    source_currency_alternatives: bool = False
 
 
 class TravelProviderAdapter(Protocol):

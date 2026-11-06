@@ -897,6 +897,64 @@ export type DraftItineraryOutput = {
 };
 
 /**
+ * EvidenceMeta
+ */
+export type EvidenceMeta = {
+    /**
+     * Provider Id
+     */
+    provider_id: string;
+    /**
+     * Provider Quote Id
+     */
+    provider_quote_id?: string | null;
+    /**
+     * Source Url
+     */
+    source_url?: string | null;
+    /**
+     * Deep Link Url
+     */
+    deep_link_url?: string | null;
+    /**
+     * Retrieved At
+     */
+    retrieved_at: string;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
+    /**
+     * Status
+     */
+    status: 'live' | 'cached' | 'estimated' | 'stale' | 'verify_required';
+    /**
+     * Cache Age Seconds
+     */
+    cache_age_seconds?: number | null;
+    /**
+     * Terms Version
+     */
+    terms_version: string;
+    /**
+     * Attribution
+     */
+    attribution?: string | null;
+    /**
+     * Completeness
+     */
+    completeness: 'complete' | 'taxes_uncertain' | 'fees_uncertain' | 'partial';
+    /**
+     * Needs Verification
+     */
+    needs_verification: boolean;
+    /**
+     * Notes
+     */
+    notes?: Array<string>;
+};
+
+/**
  * ExperiencePreferences
  */
 export type ExperiencePreferences = {
@@ -1037,6 +1095,81 @@ export type FlightPreferencesPayload = {
      * Seat
      */
     seat?: 'aisle' | 'window' | 'middle' | 'no_preference';
+};
+
+/**
+ * FlightPriceObservation
+ */
+export type FlightPriceObservation = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Origin
+     */
+    origin: string;
+    /**
+     * Destination
+     */
+    destination: string;
+    /**
+     * Depart Date
+     */
+    depart_date: string;
+    /**
+     * Return Date
+     */
+    return_date?: string | null;
+    /**
+     * Cabin
+     */
+    cabin?: 'economy' | 'premium' | 'business' | 'first' | null;
+    /**
+     * Stops
+     */
+    stops?: number | null;
+    /**
+     * Observed Total Minor
+     */
+    observed_total_minor: number;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Observed At
+     */
+    observed_at: string;
+    /**
+     * Itinerary Detail
+     */
+    itinerary_detail: 'route_only' | 'partial';
+    /**
+     * Carrier Name
+     */
+    carrier_name?: string | null;
+    /**
+     * Outbound Departure Local
+     */
+    outbound_departure_local?: string | null;
+    /**
+     * Outbound Arrival Local
+     */
+    outbound_arrival_local?: string | null;
+    /**
+     * Price Scope
+     */
+    price_scope?: 'one_way_total' | 'round_trip_total' | 'unknown';
+    /**
+     * Return Itinerary Confirmed
+     */
+    return_itinerary_confirmed?: boolean;
+    /**
+     * Is Bookable
+     */
+    is_bookable?: false;
+    evidence: EvidenceMeta;
 };
 
 /**
@@ -1245,6 +1378,14 @@ export type InventoryQuoteSummary = {
      * Provider Quote Id
      */
     provider_quote_id?: string | null;
+    /**
+     * Property Name
+     */
+    property_name?: string | null;
+    /**
+     * Room Name
+     */
+    room_name?: string | null;
     /**
      * Status
      */
@@ -3275,6 +3416,10 @@ export type TravelInventorySummary = {
      * Alternatives
      */
     alternatives?: Array<InventoryQuoteSummary>;
+    /**
+     * Flight Observations
+     */
+    flight_observations?: Array<FlightPriceObservation>;
     /**
      * Diagnostics
      */

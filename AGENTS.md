@@ -15,6 +15,11 @@ Orientation: `docs/ARCHITECTURE.md` (one page). Product destination: specs `08` 
 3. Read only the spec(s) for the current milestone (see build order below).
 4. Work the milestone. Log judgment calls to `DEVIATIONS.md` as you go. Pass the gate. Write `reports/<milestone>.md`.
 
+## Delivery priorities (human-directed, 2026-11-05)
+
+- Progress means demonstrated behavior through the actual application, API or operator CLI. Lines of code, test counts, coverage, added complexity and counts of commits/reviews are not progress metrics or achievements. Lead updates with what works and the remaining blocker. Report checks as pass/fail; numeric totals belong only in explicitly requested answers or required acceptance records.
+- User time and paid agent usage are real costs. Prove one permitted real provider response through the product path before expanding assumed-schema adapters. Check installed SDK behavior early, fix observed failures narrowly and rerun promptly within authorization. Keep necessary identifiers transiently through dependent calls; do not discard them or insert avoidable handoffs/report cycles between approved steps. Keep focused regressions and existing gates; do not substitute speculative infrastructure or broad audit/test campaigns for delivery. Financial, security and permission boundaries remain intact.
+
 ## The five non-negotiables
 
 1. **LLMs never do money math.** All reward/fee/discount/points arithmetic is deterministic Python. Any number in LLM prose must be copied from a computed artifact, never generated. Same rule on the frontend: render fields, never compute.

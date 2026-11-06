@@ -175,7 +175,7 @@ def test_gondola_mcp_camel_case_aliases_are_unwrapped() -> None:
     from gateway.travel.adapters.gondola.mcp_client import LiveGondolaTransport
 
     transport = LiveGondolaTransport(
-        base_url="https://mcp.gondola.ai",
+        base_url="https://mcp.gondola.ai/mcp",
         get_access_token=lambda: None,
     )
     result = SimpleNamespace(isError=False, structuredContent={"result": {"ok": True}})

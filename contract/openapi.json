@@ -4758,6 +4758,135 @@
         ],
         "title": "DraftItinerary"
       },
+      "EvidenceMeta": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Provider Id"
+          },
+          "provider_quote_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Quote Id"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "deep_link_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deep Link Url"
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Retrieved At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "live",
+              "cached",
+              "estimated",
+              "stale",
+              "verify_required"
+            ],
+            "title": "Status"
+          },
+          "cache_age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Age Seconds"
+          },
+          "terms_version": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Terms Version"
+          },
+          "attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution"
+          },
+          "completeness": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "taxes_uncertain",
+              "fees_uncertain",
+              "partial"
+            ],
+            "title": "Completeness"
+          },
+          "needs_verification": {
+            "type": "boolean",
+            "title": "Needs Verification"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_id",
+          "retrieved_at",
+          "status",
+          "terms_version",
+          "completeness",
+          "needs_verification"
+        ],
+        "title": "EvidenceMeta"
+      },
       "ExperiencePreferences": {
         "properties": {
           "interests": {
@@ -5175,6 +5304,161 @@
         ],
         "title": "FlightPreferencesPayload"
       },
+      "FlightPriceObservation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "destination": {
+            "type": "string",
+            "title": "Destination"
+          },
+          "depart_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Depart Date"
+          },
+          "return_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Date"
+          },
+          "cabin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "economy",
+                  "premium",
+                  "business",
+                  "first"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cabin"
+          },
+          "stops": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stops"
+          },
+          "observed_total_minor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Observed Total Minor"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Observed At"
+          },
+          "itinerary_detail": {
+            "type": "string",
+            "enum": [
+              "route_only",
+              "partial"
+            ],
+            "title": "Itinerary Detail"
+          },
+          "carrier_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carrier Name"
+          },
+          "outbound_departure_local": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outbound Departure Local"
+          },
+          "outbound_arrival_local": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outbound Arrival Local"
+          },
+          "price_scope": {
+            "type": "string",
+            "enum": [
+              "one_way_total",
+              "round_trip_total",
+              "unknown"
+            ],
+            "title": "Price Scope",
+            "default": "unknown"
+          },
+          "return_itinerary_confirmed": {
+            "type": "boolean",
+            "title": "Return Itinerary Confirmed",
+            "default": false
+          },
+          "is_bookable": {
+            "type": "boolean",
+            "const": false,
+            "title": "Is Bookable",
+            "default": false
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/EvidenceMeta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "origin",
+          "destination",
+          "depart_date",
+          "observed_total_minor",
+          "currency",
+          "observed_at",
+          "itinerary_detail",
+          "evidence"
+        ],
+        "title": "FlightPriceObservation"
+      },
       "GatewayDiagnostic": {
         "properties": {
           "code": {
@@ -5550,6 +5834,28 @@
               }
             ],
             "title": "Provider Quote Id"
+          },
+          "property_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Property Name"
+          },
+          "room_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Name"
           },
           "status": {
             "type": "string",
@@ -9356,6 +9662,13 @@
             },
             "type": "array",
             "title": "Alternatives"
+          },
+          "flight_observations": {
+            "items": {
+              "$ref": "#/components/schemas/FlightPriceObservation"
+            },
+            "type": "array",
+            "title": "Flight Observations"
           },
           "diagnostics": {
             "items": {
