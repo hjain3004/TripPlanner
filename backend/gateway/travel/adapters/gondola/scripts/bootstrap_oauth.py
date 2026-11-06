@@ -23,7 +23,8 @@ import threading
 import webbrowser
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse
+from typing import Protocol
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from gateway.travel.adapters.gondola.mcp_client import ALLOWED_HOST
 from gateway.travel.adapters.gondola.oauth import (
@@ -39,6 +40,59 @@ LOOPBACK_HOST = "127.0.0.1"
 LOOPBACK_PORT = 8734
 CALLBACK_PATH = "/gondola-oauth-callback"
 CALLBACK_TIMEOUT_S = 300.0
+
+
+class _TokenSink(Protocol):
+    def save(self, tokens: OAuthTokens) -> None: ...
+
+
+class _ClientInfoSink(Protocol):
+    def save(self, client_info_json: str) -> None: ...
+
+
+class _BootstrapStorage:
+    """SDK storage that persists validated credentials at each SDK callback."""
+
+    def __init__(self, token_sink: _TokenSink, client_info_sink: _ClientInfoSink) -> None:
+        self.token_sink = token_sink
+        self.client_info_sink = client_info_sink
+        self.tokens: object | None = None
+        self.client_info: object | None = None
+        self.persisted_tokens: OAuthTokens | None = None
+        self.persisted_client_info: str | None = None
+
+    async def get_tokens(self) -> object | None:
+        return self.tokens
+
+    async def set_tokens(self, tokens: object) -> None:
+        granted_scope = getattr(tokens, "scope", None)
+        effective_scope = granted_scope if granted_scope else REQUIRED_SCOPE
+        if effective_scope != REQUIRED_SCOPE:
+            raise RuntimeError(
+                f"SAFETY VIOLATION: Gondola granted scope {effective_scope!r}, not exactly "
+                f"{REQUIRED_SCOPE!r}. Refusing to store this token. No token was persisted."
+            )
+        self.tokens = tokens
+        expires_in = getattr(tokens, "expires_in", None)
+        retrieved_at = datetime.now(UTC)
+        expires_at = retrieved_at + timedelta(seconds=expires_in) if expires_in else retrieved_at
+        persisted = OAuthTokens(
+            access_token=tokens.access_token,  # type: ignore[attr-defined]
+            refresh_token=getattr(tokens, "refresh_token", None),
+            expires_at=expires_at,
+            scope=effective_scope,
+        )
+        self.token_sink.save(persisted)
+        self.persisted_tokens = persisted
+
+    async def get_client_info(self) -> object | None:
+        return self.client_info
+
+    async def set_client_info(self, client_info: object) -> None:
+        serialized = client_info.model_dump_json()  # type: ignore[attr-defined]
+        self.client_info_sink.save(serialized)
+        self.client_info = client_info
+        self.persisted_client_info = serialized
 
 
 class _CallbackResult:
@@ -143,23 +197,6 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
 
-    class _CaptureStorage:
-        def __init__(self) -> None:
-            self.tokens: object | None = None
-            self.client_info: object | None = None
-
-        async def get_tokens(self) -> object | None:
-            return self.tokens
-
-        async def set_tokens(self, tokens: object) -> None:
-            self.tokens = tokens
-
-        async def get_client_info(self) -> object | None:
-            return self.client_info
-
-        async def set_client_info(self, client_info: object) -> None:
-            self.client_info = client_info
-
     async def _redirect_handler(authorization_url: str) -> None:
         authorization_url = pin_scope_to_read_only(authorization_url)
         print("Opening your browser to Gondola's sign-in page...")
@@ -182,7 +219,7 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
             iss=result.iss,
         )
 
-    storage = _CaptureStorage()
+    storage = _BootstrapStorage(KeychainTokenStore(), KeychainClientInfoStore())
     redirect_uri = f"http://{LOOPBACK_HOST}:{LOOPBACK_PORT}{CALLBACK_PATH}"
 
     provider = OAuthClientProvider(
@@ -237,7 +274,7 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
     finally:
         server.shutdown()
 
-    if storage.tokens is None:
+    if storage.tokens is None or storage.persisted_tokens is None:
         raise RuntimeError("Gondola OAuth exchange did not produce tokens")
 
     # Absolute backstop: RFC 6749 §5.1 says a token response that omits
@@ -256,21 +293,9 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
             f"{REQUIRED_SCOPE!r}. Refusing to store this token. No token was persisted."
         )
 
-    retrieved_at = datetime.now(UTC)
-    expires_in = getattr(storage.tokens, "expires_in", None)
-    expires_at = retrieved_at + timedelta(seconds=expires_in) if expires_in else retrieved_at
-    tokens = OAuthTokens(
-        access_token=storage.tokens.access_token,  # type: ignore[attr-defined]
-        refresh_token=getattr(storage.tokens, "refresh_token", None),
-        expires_at=expires_at,
-        scope=effective_scope,
-    )
+    tokens = storage.persisted_tokens
 
-    client_info_json = None
-    if storage.client_info is not None:
-        # Persisting this is what makes a later refresh possible without
-        # re-running Dynamic Client Registration (see KeychainClientInfoStore).
-        client_info_json = storage.client_info.model_dump_json()  # type: ignore[attr-defined]
+    client_info_json = storage.persisted_client_info
 
     return tokens, client_info_json
 
@@ -278,9 +303,6 @@ async def _exchange_via_real_mcp_sdk() -> tuple[OAuthTokens, str | None]:
 def main() -> None:
     print(f"Gondola OAuth bootstrap: requesting scope={REQUIRED_SCOPE!r} only.")
     tokens, client_info_json = asyncio.run(_exchange_via_real_mcp_sdk())
-    KeychainTokenStore().save(tokens)
-    if client_info_json is not None:
-        KeychainClientInfoStore().save(client_info_json)
     print("Gondola OAuth bootstrap complete. Tokens stored in the OS keychain.")
     print(f"Token expires at: {tokens.expires_at.isoformat()}")
     print(f"client_info_persisted={client_info_json is not None}")

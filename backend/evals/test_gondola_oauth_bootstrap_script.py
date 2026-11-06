@@ -7,10 +7,13 @@ tests only inspect its source/structure.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 from io import BytesIO
-import threading
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 BACKEND = Path(__file__).parent.parent
 
@@ -51,7 +54,7 @@ def test_never_logs_or_prints_a_raw_access_token() -> None:
 
 def test_stores_tokens_only_via_the_keychain_token_store() -> None:
     source = _source()
-    assert "KeychainTokenStore().save(tokens)" in source
+    assert "_BootstrapStorage(KeychainTokenStore(), KeychainClientInfoStore())" in source
     # No direct file/DB write of token material anywhere in the module:
     assert "with open(" not in source
     assert ".sqlite" not in source
@@ -200,3 +203,114 @@ def test_callback_source_does_not_log_callback_query_or_secret_values() -> None:
     assert "print(result.code" not in source
     assert "print(result.iss" not in source
     assert "print(tokens.access_token" not in source
+
+
+class _TokenSink:
+    def __init__(self) -> None:
+        self.saved = []
+
+    def save(self, tokens: object) -> None:
+        self.saved.append(tokens)
+
+
+class _ClientInfoSink:
+    def __init__(self) -> None:
+        self.saved = []
+
+    def save(self, client_info_json: str) -> None:
+        self.saved.append(client_info_json)
+
+
+def test_sdk_token_callback_persists_before_downstream_failure() -> None:
+    import gateway.travel.adapters.gondola.scripts.bootstrap_oauth as module
+
+    token_sink = _TokenSink()
+    storage = module._BootstrapStorage(token_sink, _ClientInfoSink())
+    asyncio.run(
+        storage.set_tokens(
+            SimpleNamespace(
+                access_token="access",
+                refresh_token="refresh",
+                expires_in=3600,
+                scope="mcp:read",
+            )
+        )
+    )
+    assert len(token_sink.saved) == 1
+    assert token_sink.saved[0].scope == "mcp:read"
+    assert token_sink.saved[0].refresh_token == "refresh"
+    with pytest.raises(TimeoutError):
+        raise TimeoutError("downstream MCP request timed out")
+
+
+def test_omitted_scope_uses_only_the_requested_read_scope() -> None:
+    import gateway.travel.adapters.gondola.scripts.bootstrap_oauth as module
+
+    token_sink = _TokenSink()
+    storage = module._BootstrapStorage(token_sink, _ClientInfoSink())
+    asyncio.run(
+        storage.set_tokens(
+            SimpleNamespace(
+                access_token="access",
+                refresh_token="refresh",
+                expires_in=60,
+                scope=None,
+            )
+        )
+    )
+    assert token_sink.saved[0].scope == "mcp:read"
+
+
+def test_unexpected_scope_is_rejected_without_overwriting_storage() -> None:
+    import gateway.travel.adapters.gondola.scripts.bootstrap_oauth as module
+    token_sink = _TokenSink()
+    storage = module._BootstrapStorage(token_sink, _ClientInfoSink())
+    with pytest.raises(RuntimeError, match="No token was persisted"):
+        asyncio.run(
+            storage.set_tokens(
+                SimpleNamespace(
+                    access_token="access",
+                    refresh_token="refresh",
+                    expires_in=3600,
+                    scope="mcp:read mcp:write",
+                )
+            )
+        )
+    assert token_sink.saved == []
+
+
+def test_refresh_rotation_persists_the_new_refresh_token() -> None:
+    import gateway.travel.adapters.gondola.scripts.bootstrap_oauth as module
+
+    token_sink = _TokenSink()
+    storage = module._BootstrapStorage(token_sink, _ClientInfoSink())
+    for refresh in ("old-refresh", "rotated-refresh"):
+        asyncio.run(
+            storage.set_tokens(
+                SimpleNamespace(
+                    access_token="access",
+                    refresh_token=refresh,
+                    expires_in=3600,
+                    scope="mcp:read",
+                )
+            )
+        )
+    assert token_sink.saved[-1].refresh_token == "rotated-refresh"
+
+
+def test_persistence_failure_is_propagated_without_repository_fallback() -> None:
+    import gateway.travel.adapters.gondola.scripts.bootstrap_oauth as module
+    class FailingSink:
+        def save(self, _tokens: object) -> None:
+            raise OSError("keychain unavailable")
+
+    storage = module._BootstrapStorage(FailingSink(), _ClientInfoSink())
+    with pytest.raises(OSError, match="keychain unavailable"):
+        asyncio.run(
+            storage.set_tokens(
+                SimpleNamespace(
+                    access_token="access", refresh_token="refresh", expires_in=60, scope="mcp:read"
+                )
+            )
+        )
+    assert storage.persisted_tokens is None

@@ -38,6 +38,15 @@ the bounded diagnostic budget and was not retried. No inbox connection,
 payment, broader access, additional scope, booking, mutation, or ongoing
 application traffic was attempted. No provider quote was promoted.
 
+The installed MCP SDK was also inspected for an auth-only public route. Its
+standard `ping`, `resources/list`, and `resource-templates/list` requests are
+ordinary MCP requests; the SDK exposes no public authorization-only method.
+The bootstrap therefore retains the provider's existing authenticated-tool
+challenge as the only observed trigger, but no second flight invocation was
+made. The lifecycle fix now persists validated credentials from the SDK's
+`set_tokens()` callback before any downstream request can time out, including
+rotated refresh tokens; client registration remains OS-keychain-only.
+
 Consequently, the following remain separate and explicit:
 
 - current cash evidence: not captured in this diagnostic;
@@ -75,6 +84,11 @@ disabled. It does not claim live provider coverage.
   SDK: decoded `iss` is forwarded unchanged, absent/mismatched issuers remain
   subject to SDK rejection, state is preserved, duplicate security parameters
   fail closed, and callback secrets are not logged.
+- The authentication lifecycle regressions cover persistence before a
+  downstream timeout, omitted-scope handling, unexpected-scope rejection,
+  refresh-token rotation, and secure-storage failure propagation. The two
+  remaining hotel calls were not dispatched because no valid persisted token
+  is available and the authorized flight call cannot be repeated.
 - Gondola's previously observed Markdown response still lacks a typed,
   independently verified quote contract. No `SampleFlight`/`SampleHotel`
   record was manufactured from it.
@@ -85,7 +99,7 @@ disabled. It does not claim live provider coverage.
   or weather code was changed.
 ## Verification
 
-The final functional gate phases passed on the seeded tree: 3076 backend tests
+The prior final functional gate phases passed on the seeded tree: 3076 backend tests
 passed, 53 skipped, and 3 warnings; strict mypy passed for 201 core/runtime
 files, 34 ingestion files, and 4 welcome files; zero-tolerance Ruff passed;
 the legacy core/api ceiling was 8 findings against a ceiling of 12; goldens,
