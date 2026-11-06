@@ -55,6 +55,17 @@ MCP response timed out at the existing bounded transport timeout before any
 hotel result or identifier arrived. That call counts as consumed; the dated
 rate call was not made because there was no returned identifier to use.
 
+The timeout was traced to the HTTP layer: the exception chain was an AnyIO
+`BaseExceptionGroup` containing `httpx2.ReadTimeout` while waiting for MCP POST
+response headers, with roughly 25 seconds elapsed. It was not a provider
+timeout response, an outer application deadline, or an MCP session error.
+`httpx2.Timeout(20, connect=10)` supplied a 20-second per-operation read
+timeout, not an end-to-end deadline. The transport now uses a 40-second finite
+HTTP operation timeout and an explicit 45-second cancellation deadline, within
+the 60-second request budget, and maps wrapped timeout chains to the existing
+typed timeout fallback. A delayed MCP-response regression exercises
+cancellation locally.
+
 Consequently, the following remain separate and explicit:
 
 - authentication: successful on the corrected callback/storage path and
@@ -109,6 +120,14 @@ disabled. It does not claim live provider coverage.
 - The existing application request dimensions that Gondola does not advertise
   (hotel style/currency and flight currency/nonstop/nearby-airport) continue to
   fail closed in the request builders; they are never silently dropped.
+- A fresh live-search authorization is required before retrying the corrected
+  hotel search: the original three-call authorization has one call reserved
+  for `get_hotel_rates`, while the prior hotel-search call was consumed by its
+  HTTP timeout. The prepared request is exactly `search_hotels` with
+  `location=Singapore`, `checkin=2027-02-10`, `checkout=2027-02-13`, and
+  `num_adults=1`, using a 45-second end-to-end deadline and no retry. If it
+  returns a valid identifier, the remaining authorized call will be
+  `get_hotel_rates` for that identifier and identical dates/occupancy.
 - No `agents/pipeline.py`, Kernel arithmetic, seed, OpenAPI, frontend, OpenBnB,
   or weather code was changed.
 ## Verification

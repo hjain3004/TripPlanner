@@ -12,6 +12,7 @@ test suite, and never autonomously by an agent.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Callable
 from typing import Any
@@ -24,7 +25,8 @@ ALLOWED_HOST = "mcp.gondola.ai"
 ALLOWED_PATHS = frozenset({"/mcp", "/mcp/auth"})
 MAX_PAYLOAD_BYTES = 512_000
 CONNECT_TIMEOUT_S = 10.0
-TOTAL_TIMEOUT_S = 20.0
+HTTP_OPERATION_TIMEOUT_S = 40.0
+TOTAL_TIMEOUT_S = 45.0
 MAX_ERROR_SUMMARY_CHARS = 300
 
 
@@ -69,7 +71,23 @@ class LiveGondolaTransport:
         token = self._get_access_token()
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         return httpx2.AsyncClient(
-            headers=headers, timeout=httpx2.Timeout(TOTAL_TIMEOUT_S, connect=CONNECT_TIMEOUT_S)
+            headers=headers,
+            timeout=httpx2.Timeout(HTTP_OPERATION_TIMEOUT_S, connect=CONNECT_TIMEOUT_S),
+        )
+
+    @staticmethod
+    def _contains_timeout(exc: BaseException) -> bool:
+        if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+            return True
+        try:
+            import httpx2
+
+            if isinstance(exc, httpx2.TimeoutException):
+                return True
+        except ImportError:  # pragma: no cover - httpx2 is a pinned dependency
+            pass
+        return isinstance(exc, BaseExceptionGroup) and any(
+            LiveGondolaTransport._contains_timeout(child) for child in exc.exceptions
         )
 
     def build_tool_call(
@@ -96,14 +114,27 @@ class LiveGondolaTransport:
 
         http_client = self._build_http_client()
         try:
-            async with streamable_http_client(self._base_url, http_client=http_client) as (
-                read_stream,
-                write_stream,
-            ):
-                async with ClientSession(read_stream, write_stream) as session:
-                    await session.initialize()
-                    result = await session.call_tool(name, validated_arguments)
-                    return self._unwrap_tool_result(result)
+            async with asyncio.timeout(TOTAL_TIMEOUT_S):
+                async with streamable_http_client(self._base_url, http_client=http_client) as (
+                    read_stream,
+                    write_stream,
+                ):
+                    async with ClientSession(read_stream, write_stream) as session:
+                        await session.initialize()
+                        result = await session.call_tool(name, validated_arguments)
+                        return self._unwrap_tool_result(result)
+        except BaseExceptionGroup as exc:
+            if self._contains_timeout(exc):
+                raise TravelGatewayError(
+                    "timeout",
+                    f"Gondola {name} request exceeded its {TOTAL_TIMEOUT_S:.0f}s deadline",
+                ) from exc
+            raise
+        except TimeoutError as exc:
+            raise TravelGatewayError(
+                "timeout",
+                f"Gondola {name} request exceeded its {TOTAL_TIMEOUT_S:.0f}s deadline",
+            ) from exc
         finally:
             await http_client.aclose()
 
