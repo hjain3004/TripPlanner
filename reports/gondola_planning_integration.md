@@ -70,10 +70,9 @@ Consequently, the following remain separate and explicit:
 
 - authentication: successful on the corrected callback/storage path and
   confirmed by safe metadata reload;
-- hotel search: attempted once with the approved exact dates and occupancy but
-  timed out before returning a result;
-- dated hotel rates: not attempted because the first call returned no hotel
-  identifier;
+- hotel search: the corrected retry completed within the revised deadline but
+  returned only a Markdown envelope and no hotel identifier;
+- dated hotel rates: not attempted because no valid identifier was returned;
 - current cash evidence: not captured in this diagnostic;
 - cached award information: not captured and never promoted to availability;
 - incomplete discovery: prior sanitized Markdown captures remain
@@ -120,30 +119,31 @@ disabled. It does not claim live provider coverage.
 - The existing application request dimensions that Gondola does not advertise
   (hotel style/currency and flight currency/nonstop/nearby-airport) continue to
   fail closed in the request builders; they are never silently dropped.
-- A fresh live-search authorization is required before retrying the corrected
-  hotel search: the original three-call authorization has one call reserved
-  for `get_hotel_rates`, while the prior hotel-search call was consumed by its
-  HTTP timeout. The prepared request is exactly `search_hotels` with
-  `location=Singapore`, `checkin=2027-02-10`, `checkout=2027-02-13`, and
-  `num_adults=1`, using a 45-second end-to-end deadline and no retry. If it
-  returns a valid identifier, the remaining authorized call will be
-  `get_hotel_rates` for that identifier and identical dates/occupancy.
-- The newly authorized retry was not dispatched: the safe keychain check found
-  the persisted token expired, and the official SDK refresh attempt fell back
-  to interactive authorization. No additional `tools/call` was made, so the
-  diagnostic count remains one flight timeout plus one hotel-search timeout,
-  with the rates call unused. A fresh human-supervised authorization is now
-  the blocker before another search can safely run.
+- The original three-call authorization had one call reserved for
+  `get_hotel_rates`; the prior hotel-search call was consumed by its HTTP
+  timeout. A subsequent fresh human-supervised authorization was completed and
+  the corrected search retry was dispatched without retrying the flight.
+- The corrected transport deadline was exercised live successfully at the HTTP
+  boundary, but the response contract remains discovery Markdown rather than
+  typed inventory. Existing planning replay proves this envelope remains
+  non-costable and the application keeps its sample fallback.
+- The subsequent human-authorized run completed authentication and immediately
+  retried the corrected hotel search. The token was present, scoped exactly to
+  `mcp:read`, and non-expired at dispatch. The search completed within the new
+  45-second deadline, but Gondola returned only the observed
+  `{"result": "..."}` Markdown envelope; no hotel identifier was available.
+  The remaining `get_hotel_rates` call was therefore not dispatched. The live
+  response was not retained beyond its bounded structural classification.
 - No `agents/pipeline.py`, Kernel arithmetic, seed, OpenAPI, frontend, OpenBnB,
   or weather code was changed.
 ## Verification
 
-The exact gate on commit `b1f106e9bcce22b2ff535cfaeeff621cbf771c9b` passed:
-3,087 backend tests passed, 53 skipped, and 3 warnings; strict mypy passed for
+The exact gate on commit `9876e2d41976e26c6ec023b99839804b8677ae82` passed:
+3,088 backend tests passed, 53 skipped, and 3 warnings; strict mypy passed for
 201 core/runtime files, 34 ingestion files, and 4 welcome files; zero-tolerance
 Ruff passed; the legacy core/api ceiling was 8 findings against a ceiling of
 12; `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, and `TREE_CLEAN` all
-passed. The same exact gate passed again on the final documentation commit
-`ef8f59a03e42f54deae28986609d487ed69216d7`.
+passed. This report-only update records the live result after that gate; no
+source behavior changed afterward.
 
 End of report.
