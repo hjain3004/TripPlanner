@@ -2,7 +2,28 @@
 
 Status: live hotel search and dated-rate retrieval demonstrated; real reported
 rates reach authenticated planning and saved revisions as verify-required
-alternatives. Final payable costing and live flight acceptance remain incomplete.
+alternatives. The single newly authorized flight attempt was blocked by an
+expired local token before a provider response; live flight acceptance remains
+incomplete.
+
+## Flight acceptance attempt (2026-11-05)
+
+The one newly authorized flight request was dispatched with the exact reviewed
+read-only arguments: DEL to SIN, departure 2027-02-10, return 2027-02-13, one
+adult, economy, first page, discovery mode (`points=false`, `test=false`). The
+token loaded from the OS keychain had exactly `mcp:read`, but the subsequent
+local metadata check showed that token had expired. The installed MCP client
+surfaced an outer `ExceptionGroup` from its task group during the authenticated
+MCP session, before returning a tool result. No provider error payload,
+structured content, text block, flight identifier, price, fare condition or
+evidence timestamp was available to inspect.
+
+This attempt counts as the single authorized flight call and was not retried.
+No flight response can therefore be mapped into the gateway, planning API,
+saved revision or replay fixture. The existing typed flight adapter and its
+synthetic offline fixture remain unchanged and continue to fail closed on the
+observed provider Markdown envelope. Live application traffic remains disabled;
+the hotel workflow and its sample-backed costing policy are unchanged.
 
 ## Current delivered workflow (2026-11-05)
 
