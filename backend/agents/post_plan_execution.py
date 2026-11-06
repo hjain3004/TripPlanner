@@ -192,6 +192,9 @@ def refresh_provider_inventory(
         fresh = fresh.model_copy(
             update={
                 "flights": fresh.flights if "flight" in requested else retained_snapshot.flights,
+                "flight_observations": fresh.flight_observations
+                if "flight" in requested
+                else retained_snapshot.flight_observations,
                 "hotels": fresh.hotels if "hotel" in requested else retained_snapshot.hotels,
                 "flight_scopes": fresh.flight_scopes
                 if "flight" in requested

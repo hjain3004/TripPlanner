@@ -22,32 +22,36 @@ def build_travel_service(
     now: Callable[[], datetime],
     country: str = "IN",
     gondola_hotel_adapter: TravelProviderAdapter | None = None,
+    gondola_adapter: TravelProviderAdapter | None = None,
 ) -> TravelInventoryService:
-    """Default sample inventory, plus explicitly enabled hotel alternatives.
+    """Default sample inventory, plus explicitly enabled Gondola evidence.
 
     An injected adapter is for controlled replay. It never sets an environment
     flag or creates credentials. Production startup's activation guard remains.
     """
     from core.db import KnowledgeBase
-    from gateway.travel.adapters.gondola.dated_hotel_adapter import build_keychain_hotel_adapter
-    from gateway.travel.registry import gondola_kill_switch_active
+    from gateway.travel.adapters.gondola.dated_hotel_adapter import build_keychain_gondola_adapter
+    from gateway.travel.registry import gondola_kill_switch_active, gondola_search_mode
 
     if not isinstance(kb, KnowledgeBase):
         raise TypeError("confirmed planning requires a KnowledgeBase")
+    if gondola_adapter is not None and gondola_hotel_adapter is not None:
+        raise ValueError("Supply one Gondola replay adapter")
+    injected = gondola_adapter or gondola_hotel_adapter
     current = now()
     adapter = SampleAdapter(kb, now=lambda: current)
     registry = get_default_travel_registry().model_copy(deep=True)
     adapters: dict[str, TravelProviderAdapter] = {"sample_travel_adapter": adapter}
     gondola_entry = registry.get_entry("gondola")
-    if not gondola_kill_switch_active() and (
-        gondola_entry.enabled or gondola_hotel_adapter is not None
-    ):
-        if gondola_hotel_adapter is not None:
-            if gondola_hotel_adapter.capabilities.provider_id != "gondola":
+    if not gondola_kill_switch_active() and (gondola_entry.enabled or injected is not None):
+        if injected is not None:
+            if injected.capabilities.provider_id != "gondola":
                 raise ValueError("Gondola replay adapter must identify its provider")
-            adapters["gondola"] = gondola_hotel_adapter
+            adapters["gondola"] = injected
         else:
-            adapters["gondola"] = build_keychain_hotel_adapter(plan_id=plan_id, now=now)
+            adapters["gondola"] = build_keychain_gondola_adapter(
+                plan_id=plan_id, now=now, mode=gondola_search_mode()
+            )
     registry.entries = [
         entry.model_copy(update={"enabled": entry.provider_id in adapters})
         for entry in registry.entries

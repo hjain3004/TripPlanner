@@ -261,6 +261,11 @@ class FlightPriceObservation(BaseModel):
     currency: str
     observed_at: AwareDatetime
     itinerary_detail: Literal["route_only", "partial"]
+    carrier_name: str | None = None
+    outbound_departure_local: str | None = None
+    outbound_arrival_local: str | None = None
+    price_scope: Literal["one_way_total", "round_trip_total", "unknown"] = "unknown"
+    return_itinerary_confirmed: bool = False
     is_bookable: Literal[False] = False
     evidence: EvidenceMeta
 

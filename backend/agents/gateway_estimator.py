@@ -568,6 +568,7 @@ def estimate_confirmed_inventory(
             flight=selected_flight_summary,
             hotel=selected_hotel_summary,
             alternatives=alternatives,
+            flight_observations=snapshot.flight_observations,
             diagnostics=diagnostics,
             limitations=[
                 "Award guidance remains seed-backed reference only; verify "

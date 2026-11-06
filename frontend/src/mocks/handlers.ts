@@ -3,6 +3,7 @@ import type {
   ApiErrorBody,
   CredentialsIn,
   FinalReport,
+  FlightPriceObservation,
   PlanJobStatus,
   RecomputeRequest,
   RefreshProseRequest,
@@ -19,6 +20,24 @@ import type {
 import { createJapanVisualReport } from "./japan-visual-fixture";
 
 const SPEED_MULTIPLIER = 1;
+
+// Synthetic leaf values with the observed discovery semantics, never live inventory.
+export const GONDOLA_FLIGHT_OBSERVATION_FIXTURE: FlightPriceObservation = {
+  id: "synthetic-flight-observation", origin: "DEL", destination: "SIN",
+  depart_date: "2027-02-10", return_date: "2027-02-13", cabin: "economy", stops: 0,
+  observed_total_minor: 42000, currency: "USD", observed_at: "2026-11-05T00:00:00Z",
+  itinerary_detail: "partial", is_bookable: false, carrier_name: "Synthetic Airlines",
+  outbound_departure_local: "Wed Feb 10 09:45", outbound_arrival_local: "Wed Feb 10 18:00",
+  price_scope: "round_trip_total", return_itinerary_confirmed: false,
+  evidence: {
+    provider_id: "gondola", provider_quote_id: null,
+    source_url: "https://example.invalid/synthetic-flight", deep_link_url: null,
+    retrieved_at: "2026-11-05T00:00:00Z", expires_at: null,
+    status: "verify_required", cache_age_seconds: null, terms_version: "synthetic-fixture",
+    attribution: "Synthetic fixture; not live inventory", completeness: "partial",
+    needs_verification: true, notes: ["Return itinerary unselected; synthetic fixture."],
+  },
+};
 
 const jobStore: Record<string, { status: PlanJobStatus; timer: ReturnType<typeof setInterval> | null }> = {};
 const questionCatalog = [{ id: "trip_essentials", prompt: "Where are you headed, and what are your travel dates?", phase: "core", answer_kind: "trip_essentials", required: true, allow_delegate: false, control: { type: "trip_essentials", fields: ["origin", "destination", "start_date", "end_date", "travelers"], allow_skip: false, options: [] } }];
@@ -183,6 +202,7 @@ function baseReport(): Omit<FinalReport, "summary" | "itinerary_overview" | "pay
       },
       hotel: null,
       alternatives: [],
+      flight_observations: [],
       diagnostics: [],
       limitations: ["Award guidance is reference-only; verify before transfer."],
       reference_only_awards: true,

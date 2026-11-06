@@ -61,9 +61,7 @@ class GondolaDatedHotelAdapter(GondolaAdapter):
         parent = self
 
         class ReservedTransport:
-            async def call_tool(
-                self, tool_name: str, arguments: dict[str, Any]
-            ) -> dict[str, Any]:
+            async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 parent._guard()
                 return await parent._transport.call_tool(tool_name, arguments)
 
@@ -89,6 +87,15 @@ def build_keychain_hotel_adapter(
     *, plan_id: str, now: Callable[[], datetime]
 ) -> GondolaDatedHotelAdapter:
     """Construct only after the runtime registry explicitly enables Gondola."""
+    transport, budget = _keychain_resources(plan_id=plan_id, now=now)
+    return GondolaDatedHotelAdapter(
+        transport=transport, budget=budget, plan_id=plan_id, now=now, live_enabled=True
+    )
+
+
+def _keychain_resources(
+    *, plan_id: str, now: Callable[[], datetime]
+) -> tuple[HotelToolTransport, GondolaCallBudget]:
     from core.runtime_paths import state_path
     from gateway.travel.adapters.gondola.mcp_client import LiveGondolaTransport
     from gateway.travel.adapters.gondola.oauth import KeychainTokenStore
@@ -110,12 +117,22 @@ def build_keychain_hotel_adapter(
         "gondola-budget.sqlite", Path(__file__).resolve().parents[4] / "gondola-budget.sqlite"
     )
     ledger.parent.mkdir(parents=True, exist_ok=True)
-    return GondolaDatedHotelAdapter(
-        transport=LiveGondolaTransport(
+    return (
+        LiveGondolaTransport(
             base_url="https://mcp.gondola.ai/mcp/auth", get_access_token=access_token
         ),
-        budget=GondolaCallBudget(ledger),
-        plan_id=plan_id,
-        now=now,
-        live_enabled=True,
+        GondolaCallBudget(ledger),
+    )
+
+
+def build_keychain_gondola_adapter(
+    *, plan_id: str, now: Callable[[], datetime], mode: Literal["hotels", "flights"]
+) -> GondolaAdapter:
+    if mode == "hotels":
+        return build_keychain_hotel_adapter(plan_id=plan_id, now=now)
+    from gateway.travel.adapters.gondola.flight_discovery import GondolaFlightDiscoveryAdapter
+
+    transport, budget = _keychain_resources(plan_id=plan_id, now=now)
+    return GondolaFlightDiscoveryAdapter(
+        transport=transport, budget=budget, plan_id=plan_id, now=now, live_enabled=True
     )

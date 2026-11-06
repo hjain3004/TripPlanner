@@ -31,7 +31,9 @@ _RATE = re.compile(
 _TWO_DECIMAL = frozenset({"SGD", "INR", "USD", "EUR", "GBP", "AED"})
 
 
-def _minor(text: str) -> int:
+def parse_cash_minor(text: str, currency: str) -> int:
+    if currency not in _TWO_DECIMAL or not re.fullmatch(_AMOUNT, text):
+        raise TravelGatewayError("invalid_response", "Unsupported or ambiguous cash amount")
     whole, _, fraction = text.replace(",", "").partition(".")
     return int(whole) * 100 + int(fraction.ljust(2, "0") or "0")
 
@@ -94,7 +96,7 @@ def parse_dated_hotel_rates(
         currency = match["currency"]
         if currency != match["total_currency"] or currency not in _TWO_DECIMAL:
             continue
-        amount = _minor(match["total"])
+        amount = parse_cash_minor(match["total"], currency)
         if amount <= 0:
             continue
         conditions = _public_conditions(match["conditions"])

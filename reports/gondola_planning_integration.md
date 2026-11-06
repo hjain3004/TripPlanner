@@ -2,11 +2,94 @@
 
 Status: live hotel search and dated-rate retrieval demonstrated; real reported
 rates reach authenticated planning and saved revisions as verify-required
-alternatives. A fresh authenticated flight search completed, but Gondola
-returned only provider Markdown discovery evidence rather than typed flight
-inventory; live flight acceptance remains incomplete.
+alternatives. Real flight fares now reach the same API and saved revisions as
+non-bookable price observations. Final budgeting remains sample-backed, and
+continuing live application traffic remains disabled. This is an API integration;
+no new traveler-facing flight/hotel selection screen is delivered here.
 
-## Flight acceptance attempt (2026-11-05)
+## Current flight workflow (2026-11-05 local / 2026-11-06 UTC)
+
+The additional explicitly authorized, read-only DEL–SIN search completed for
+10–13 February 2027, one adult, economy. Exactly one `search_flights` call was
+used, with no retry, rate call, booking, model call or spending. Authentication
+used the working `tools/list` bootstrap and human consent; it did not consume a
+travel search. The body was retained before inspection, so the prior diagnostic
+capture failure did not recur.
+
+The actual response is Markdown with eight options. It explicitly identifies
+Google Flights as its source and states that each price covers both directions.
+For example, Singapore Airlines is USD 466 round trip with outbound DEL–SIN
+local departure `Wed Feb 10 09:45`. The return date is stated, but the return
+flight is selected later on Google Flights. Other explicit fields include
+carrier name, outbound arrival text, cabin and stop count. Missing fields are
+flight numbers, a selected return itinerary, timezones, tax/fee coverage,
+fare/baggage conditions and the source's cache age. Those remain unknown.
+
+`GondolaFlightDiscoveryAdapter` parses the observed grammar into the existing
+`FlightPriceObservation` type, extended with carrier/local-time/scope fields.
+It does not require Gondola to emit JSON and does not manufacture FlightSegments.
+The reported price is retained in USD as integer minor units; it is not converted
+to the requested INR display currency, halved, or treated as a one-way amount.
+Every observation is partial, `verify_required`, `is_bookable=false`, and has
+`return_itinerary_confirmed=false`. No award availability is inferred.
+
+`TravelInventoryService` carries these through `flight_observations`, separate
+from costable flight quotes. The estimator copies them into the public report;
+the payable budget and rewards continue to use eligible sample quotes. Snapshot
+expiry marks observations stale. Scoped post-plan refresh retains observations
+only while their flight request remains applicable. Supported fresh discovery
+is deliberately narrow: one adult, economy, exact outbound/return dates, no nearby-airport
+expansion; an explicit nonstop preference filters the returned stop counts.
+
+### Application execution and retained evidence
+
+The normalized real flight capture and earlier normalized real hotel capture
+were replayed through actual sign-in, interview, confirmation, planning, trip
+save and revision read after reopening SQLite. The script used a scripted model
+and dispatched no provider calls. The saved report preserved the source amounts,
+receipt times, unconfirmed-return flag and source attribution. The standard
+demo asks for nonstop, so its result correctly retained only the nonstop options.
+
+Sanitized body (private, outside Git):
+`/private/tmp/tripwise-gondola-finish/flight-sanitized-20261106T071824Z.json`.
+Normalized observations:
+`/private/tmp/tripwise-gondola-finish/flight-observations.json`.
+The body capture records the exact response-receipt timestamp and original-body
+hash. Capability URLs/tokens and private context are omitted; public fare fields
+remain. Neither raw provider output nor actual live data is committed as a fixture.
+Regression fixtures use the observed grammar with invented names and amounts.
+
+```sh
+cd backend
+PYTHONPATH="$PWD" .venv/bin/python -m evals.demo_gondola_hotel_plan \
+  /private/tmp/tripwise-gondola-finish/normalized-hotel-quote.json \
+  --flight-observations /private/tmp/tripwise-gondola-finish/flight-observations.json
+```
+
+### Runtime mode and delivery limits
+
+The existing total reservation ceiling remains two provider calls per plan.
+`TRIPWISE_GONDOLA_SEARCH_MODE=hotels` is the default (search plus dated rates);
+`flights` instead permits flight discovery. Running both live workflows afresh
+in one plan would require three calls and is not enabled by this change. The
+combined offline demonstration above proves report/storage compatibility, not
+simultaneous live operation under the current call ceiling.
+
+Neither mode is active by default. The existing enable flag, profile/startup
+restrictions and dominant kill switch remain; no ongoing traffic was enabled.
+OpenAPI, generated types, the frontend validator, facade and MSW fixtures ship
+together. Existing screens are not redesigned. Flight fares and incomplete hotel
+rates are useful evidence, not final payable prices or payment recommendations.
+
+Focused workflow checks, frontend validation/typechecking and strict backend
+checks pass. Final exact-commit gate and CI results are recorded on PR #29 after
+execution; the historical gate below does not cover these latest changes.
+The independent flight-change review found no Critical issues. Its two Important
+findings were corrected: non-economy requests now fail before reservation or
+dispatch, and Zod accepts the API's `premium` cabin enum. Regression checks cover
+both. The preceding hotel review found no material issues in that narrower change.
+
+## Historical flight acceptance attempt (2026-11-05, superseded above)
 
 The one newly authorized flight request was dispatched with the exact reviewed
 read-only arguments: DEL to SIN, departure 2027-02-10, return 2027-02-13, one
@@ -41,7 +124,7 @@ omitting it from Gondola arguments. This fixes valid product flight requests
 without claiming that Gondola supports currency filtering; normalized provider
 currency remains authoritative.
 
-## Current delivered workflow (2026-11-05)
+## Delivered hotel workflow (2026-11-05)
 
 The approved Singapore search and dated-rate sequence now runs without losing
 the explicit hotel identifier between calls. The live tool schema requires an
@@ -77,7 +160,8 @@ not evidence that Gondola could not return prices. No further calls were made.
   remain. An enabled local/demo factory now constructs the dated-hotel adapter
   using a shared file-backed reservation ledger. It does not auto-launch OAuth.
 - One search plus one dated-rate request exhausts this adapter's per-plan budget.
-  Flights remain on the sample path; no live flight response was captured.
+  Flight budgeting remains on the sample path; real observations are now
+  supported separately as described above.
 
 The report does **not** claim a final tax-inclusive price: the observed response
 did not explicitly establish tax/fee coverage or an admitted purchase channel.

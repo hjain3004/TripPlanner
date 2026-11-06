@@ -2,6 +2,16 @@
 
 ## Gondola planning integration — live evidence boundary (2026-11-05)
 
+Current closure: the original refresh/capture failures below are historical.
+The explicitly authorized hotel sequence and later flight capture succeeded;
+see `reports/gondola_planning_integration.md` for the actual application replay.
+
+| date | doc§ | question | decision | rationale | affected_files |
+|---|---|---|---|---|---|
+| 2026-11-05 | specs 09/16; flight evidence meaning | How can a reported round-trip total be useful without a selected return flight? | Extend the existing non-bookable observation with carrier, source-local strings, price scope and an explicit unconfirmed-return flag; expose it separately in reports and saved revisions. Never promote it to a costable quote. Support only the observed one-adult economy exact-date round-trip grammar. | The actual capture states both-directions cash scope but does not establish complete flight legs, timezone, fare/tax conditions or cache age. Reject unsupported request shapes before consuming a call; preserve USD independently of requested display currency. | `flight_discovery.py`, `contracts.py`, `product.py`, `service.py`, `gateway_estimator.py`, OpenAPI/client/Zod/MSW |
+| 2026-11-05 | spec 16; existing two-call reservation ceiling | Can hotel search/rates and flight search all run fresh for one plan? | Keep the ceiling unchanged. Default operator mode is `hotels`; optional `flights` constructs the flight-observation adapter instead. Both require existing explicit activation and respect the kill switch. Combined capture replay is offline, not a claim of simultaneous live traffic. | Hotel retrieval uses two calls; adding a third implicitly would violate the existing bound. No ongoing live activation was requested. | `registry.py`, `dated_hotel_adapter.py`, `confirmed_planning.py`, `.env.example` |
+| 2026-11-05 | spec 06; evidence and privacy | How should the authorized capture survive analysis without leaking capability data? | Retain a secret-scrubbed body with exact receipt time/request/hash outside Git, normalize while the original remains in memory, and use invented public values for committed grammar regressions. | The preceding discarded body caused unnecessary repeated work; this run preserves supported data without putting raw provider text, capability URLs or tokens in Git. | private task artifacts; `demo_gondola_hotel_plan.py`, `test_gondola_flight_discovery.py` |
+
 | date | doc§ | question | decision | rationale | affected_files |
 |---|---|---|---|---|---|
 | 2026-11-05 | specs 09/16; G3.2 live contract | Could the current Gondola account establish a typed priced response for planning? | Stop the bounded diagnostic after the existing OS-keychain `mcp:read` registration returned HTTP 404 on refresh and the SDK required interactive reauthorization. Keep the new adapter explicit and offline-only; do not activate live traffic or fabricate a quote fixture. | The user authorized only existing credentials, read scope, and three tool calls, and prohibited inbox/broader onboarding. Prior provider Markdown is discovery-only and non-costable. No current typed rate or quote response was established. | `backend/gateway/travel/adapters/gondola/live_adapter.py`, `backend/gateway/travel/adapters/gondola/requests.py`, `reports/gondola_planning_integration.md` |

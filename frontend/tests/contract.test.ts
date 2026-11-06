@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { planJobStatusSchema } from "../src/lib/api/schemas";
-import { fixtureHandlers } from "../src/mocks/handlers";
+import { fixtureHandlers, GONDOLA_FLIGHT_OBSERVATION_FIXTURE } from "../src/mocks/handlers";
 
 // ---------------------------------------------------------------------------
 // 1. Fixture Zod parsing
@@ -44,6 +44,24 @@ describe("contract: fixtures parse through Zod", () => {
 });
 
 describe("contract: fixture structural integrity", () => {
+  it("preserves non-bookable flight observations without converting them into quotes", () => {
+    const report = fixtureHandlers.happyReport();
+    if (!report.travel_inventory) throw new Error("missing fixture inventory");
+    report.travel_inventory.flight_observations = [GONDOLA_FLIGHT_OBSERVATION_FIXTURE];
+    const parsed = planJobStatusSchema.parse(wrapReport(report));
+    const observation = parsed.report?.travel_inventory?.flight_observations?.[0];
+    expect(observation?.carrier_name).toBe("Synthetic Airlines");
+    expect(observation?.observed_total_minor).toBe(42000);
+    expect(observation?.currency).toBe("USD");
+    expect(observation?.is_bookable).toBe(false);
+    expect(observation?.return_itinerary_confirmed).toBe(false);
+    expect(parsed.report?.travel_inventory?.flight?.provider_id).toBe("sample_travel_adapter");
+    report.travel_inventory.flight_observations[0] = {
+      ...GONDOLA_FLIGHT_OBSERVATION_FIXTURE, cabin: "premium",
+    };
+    expect(planJobStatusSchema.parse(wrapReport(report)).report?.travel_inventory
+      ?.flight_observations?.[0]?.cabin).toBe("premium");
+  });
   it("happy report has itinerary days", () => {
     const r = fixtureHandlers.happyReport();
     expect(r.itinerary.days.length).toBeGreaterThanOrEqual(4);

@@ -12,6 +12,7 @@ from typing import Literal
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from gateway.travel.contracts import (
+    FlightPriceObservation,
     FlightQuote,
     FlightSearchRequest,
     HotelQuote,
@@ -83,6 +84,7 @@ class TravelInventorySummary(BaseModel):
     flight: InventoryQuoteSummary | None = None
     hotel: InventoryQuoteSummary | None = None
     alternatives: list[InventoryQuoteSummary] = Field(default_factory=list)
+    flight_observations: list[FlightPriceObservation] = Field(default_factory=list)
     diagnostics: list[GatewayDiagnostic] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     reference_only_awards: bool = True
@@ -94,6 +96,7 @@ class TravelInventorySnapshot(BaseModel):
     flight_request: FlightSearchRequest
     hotel_request: HotelSearchRequest
     flights: list[FlightQuote] = Field(default_factory=list)
+    flight_observations: list[FlightPriceObservation] = Field(default_factory=list)
     hotels: list[HotelQuote] = Field(default_factory=list)
     flight_scopes: dict[str, QuotePriceScope] = Field(default_factory=dict)
     hotel_scopes: dict[str, QuotePriceScope] = Field(default_factory=dict)
