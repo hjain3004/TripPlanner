@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from accounts.models import (
+    JOB_INTERRUPTED_CODE,
     ConstraintPreferences,
     ExperiencePreferences,
     FlightPreferences,
@@ -29,10 +30,10 @@ from accounts.models import (
     User,
 )
 from accounts.projection import build_user_wallet
-from accounts.store import AccountStore, StalePlanningSessionError
+from accounts.store import AccountStore, ReportTooLargeError, StalePlanningSessionError
 from agents.interview_assistant import INTERPRETABLE_QUESTIONS, get_interview_llm
 from agents.llm import LLMClient
-from agents.models import FinalReport, PlanJobStatus
+from agents.models import FinalReport, JobError, PlanJobStatus
 from agents.pipeline import build_region_capability
 from api.auth import current_user, get_store, now_utc, require_csrf
 from api.interview_assistance import (
@@ -43,6 +44,7 @@ from api.interview_assistance import (
     recover_interrupted_requests,
     run_adaptive_review,
 )
+from api.job_manager import job_manager
 from core.models import UserWallet
 from core.trip_models import ItineraryEdit
 from planning.answers import (
@@ -1050,8 +1052,21 @@ def confirm_session(
         except StalePlanningSessionError as exc:
             raise _error(409, "STALE_SESSION", str(exc)) from None
         try:
+            # The job row is committed (queued) before anything is dispatched, so a restart
+            # at any later point leaves a record that says what happened.
+            job_manager.create_job(job_id, owner_id=user.id, session_id=session_id, store=store)
             _start_legacy_job(confirmed, job_id)
         except Exception:
+            # No worker will ever run this job: close its row (a no-op if it was never created).
+            job_manager.complete(
+                job_id,
+                "failed",
+                error={
+                    "code": "PLANNING_START_FAILED",
+                    "message": "Planning job could not be started; retry confirmation.",
+                    "trace_id": "",
+                },
+            )
             failed = confirmed.model_copy(
                 update={
                     "status": PlanningSessionStatus.FAILED,
@@ -1074,6 +1089,12 @@ def confirm_session(
         return ConfirmOut(**_session_out(confirmed).model_dump(), job_id=job_id)
 
 
+# How long a confirmed session may say "planning" with no job record before that is reported
+# as an interruption: far longer than the gap between the confirmation being saved and the
+# job row being committed (milliseconds), short enough that a restart is not shown as "queued".
+_JOB_RECORD_GRACE = timedelta(seconds=120)
+
+
 @router.get("/sessions/{session_id}/job", response_model=PlanJobStatus)
 def session_job(
     session_id: str,
@@ -1083,13 +1104,48 @@ def session_job(
     session = _get_session(_repo(store), user, session_id)
     if session.planning_job_id is None:
         raise _error(404, "JOB_NOT_STARTED", "Planning has not started")
-    from api.job_manager import job_manager
-
-    state = job_manager.get_job(session.planning_job_id)
+    state = job_manager.get_job(session.planning_job_id, store)
     if state is None:
-        return PlanJobStatus(job_id=session.planning_job_id, status="queued")
-    status = state.to_status(session.planning_job_id)
-    if status.status == "failed" and session.status is PlanningSessionStatus.PLANNING:
+        if (now_utc() - session.updated_at) < _JOB_RECORD_GRACE:
+            return PlanJobStatus(job_id=session.planning_job_id, status="queued")
+        # The session says planning started but no job record exists and none can still
+        # be on its way. Either the service stopped between accepting the confirmation and
+        # recording the job, or the finished job was swept after its retention. Say which
+        # it can be; do not report "queued" forever.
+        if session.saved_trip_id is not None:
+            status = PlanJobStatus(
+                job_id=session.planning_job_id,
+                status="failed",
+                error=JobError(
+                    code="JOB_EXPIRED",
+                    message=(
+                        "This plan's working copy has expired. The saved trip keeps its "
+                        "revisions; plan again to refresh it."
+                    ),
+                    trace_id="",
+                ),
+            )
+        else:
+            status = PlanJobStatus(
+                job_id=session.planning_job_id,
+                status="failed",
+                error=JobError(
+                    code=JOB_INTERRUPTED_CODE,
+                    message=(
+                        "Planning could not be found after the service restarted. Whether it "
+                        "started cannot be established, and nothing was repeated "
+                        "automatically. Start planning again."
+                    ),
+                    trace_id="",
+                ),
+            )
+    else:
+        status = state.to_status(session.planning_job_id)
+    if (
+        status.status == "failed"
+        and session.status is PlanningSessionStatus.PLANNING
+        and session.saved_trip_id is None  # a saved trip's session is retained, not failed
+    ):
         failed = PlanningSession.model_validate(
             session.model_dump(
                 mode="python",
@@ -1110,12 +1166,12 @@ def session_job(
     return status
 
 
-def _owned_job_report(session: PlanningSession, user: User) -> tuple[Any, Any]:
+def _owned_job_report(
+    session: PlanningSession, user: User, store: AccountStore
+) -> tuple[Any, Any]:
     if session.planning_job_id is None:
         raise _error(404, "JOB_NOT_STARTED", "Planning has not started")
-    from api.job_manager import job_manager
-
-    state = job_manager.get_job(session.planning_job_id)
+    state = job_manager.get_job(session.planning_job_id, store)
     if state is None or state.owner_id != user.id or state.session_id != session.id:
         raise _error(404, "JOB_NOT_FOUND", "Planning job not found")
     if state.report is None or state.report.travel_inventory is None:
@@ -1139,7 +1195,7 @@ def recompute_confirmed_session(
             "WORKSPACE_REVIEW_REQUIRED",
             "This session is controlled by its post-plan workspace; use its versioned actions.",
         )
-    state, report = _owned_job_report(session, user)
+    state, report = _owned_job_report(session, user, store)
     current_revision = report.travel_inventory.inventory_revision
     if body.expected_inventory_revision != current_revision:
         raise _error(
@@ -1156,9 +1212,36 @@ def recompute_confirmed_session(
     updated = recompute_confirmed_edit(
         report, body.edit, kb=get_kb_for_conversation(), now=now_utc()
     )
-    with state._lock:
-        state.report = updated
+    _persist_edit(store, session, user, updated, current_revision)
     return updated
+
+
+def _persist_edit(
+    store: AccountStore,
+    session: PlanningSession,
+    user: User,
+    report: FinalReport,
+    expected_inventory_revision: int,
+) -> None:
+    """Make an edited report the job's current report, durably and only from the revision
+    the traveler reviewed (a concurrent edit or a restart-time change loses cleanly)."""
+    assert session.planning_job_id is not None
+    try:
+        applied = job_manager.replace_report(
+            session.planning_job_id,
+            store=store,
+            owner_id=user.id,
+            report=report,
+            expected_inventory_revision=expected_inventory_revision,
+        )
+    except ReportTooLargeError:
+        raise _error(409, "REPORT_TOO_LARGE", "This plan is too large to store.") from None
+    if not applied:
+        raise _error(
+            409,
+            "INVENTORY_REVIEW_REQUIRED",
+            "Inventory evidence changed; review the current report",
+        )
 
 
 def get_kb_for_conversation() -> Any:
@@ -1183,7 +1266,7 @@ def refresh_confirmed_session_prose(
             "WORKSPACE_REVIEW_REQUIRED",
             "This session is controlled by its post-plan workspace; use its versioned actions.",
         )
-    state, report = _owned_job_report(session, user)
+    state, report = _owned_job_report(session, user, store)
     if body.expected_inventory_revision != report.travel_inventory.inventory_revision:
         raise _error(
             409,
@@ -1221,6 +1304,5 @@ def refresh_confirmed_session_prose(
         freshness=report.freshness,
     )
     refreshed = refreshed.model_copy(update={"travel_inventory": report.travel_inventory})
-    with state._lock:
-        state.report = refreshed
+    _persist_edit(store, session, user, refreshed, report.travel_inventory.inventory_revision)
     return refreshed

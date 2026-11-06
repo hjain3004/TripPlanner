@@ -91,11 +91,13 @@ def initialize_fingerprint(source: WorkspaceSource) -> str:
     return _sha256(canonical)
 
 
-def owned_finished_report(session: PlanningSession, user_id: str) -> FinalReport:
+def owned_finished_report(
+    session: PlanningSession, user_id: str, store: AccountStore
+) -> FinalReport:
     """The report of this session's finished job, or a typed refusal. Never rebuilt."""
     if not session.confirmed_briefs or session.planning_job_id is None:
         raise SessionNotConfirmedError("confirm the brief and let planning finish first")
-    state = job_manager.get_job(session.planning_job_id)
+    state = job_manager.get_job(session.planning_job_id, store)
     if state is None or state.owner_id != user_id or state.session_id != session.id:
         raise PlanUnavailableError("the plan result is no longer available")
     with state._lock:
@@ -115,7 +117,13 @@ def parse_stored_report(report_json: str) -> FinalReport:
         report = FinalReport.model_validate_json(report_json)
     except ValidationError as exc:
         raise WorkspaceRebuildRequiredError("the stored plan uses an older report shape") from exc
-    if json.loads(report.model_dump_json()) != json.loads(report_json):
+    stored = json.loads(report_json)
+    # FI3 weather context is additive. Existing saved reports remain readable
+    # and retain their original bytes; only newly saved reports serialize the
+    # optional context field.
+    if "weather_context" not in stored:
+        return report
+    if json.loads(report.model_dump_json()) != stored:
         raise WorkspaceRebuildRequiredError("the stored plan differs from the current report shape")
     return report
 
@@ -202,9 +210,9 @@ def initialize_from_job(
     new_id: Callable[[], str] = lambda: uuid4().hex,
 ) -> tuple[PostPlanWorkspaceSnapshot, bool]:
     """Create the workspace from this session's finished job. Calls nothing external."""
-    report = owned_finished_report(session, user_id)
+    report = owned_finished_report(session, user_id, store)
     assert session.planning_job_id is not None
-    job = job_manager.get_job(session.planning_job_id)
+    job = job_manager.get_job(session.planning_job_id, store)
     inventory_snapshot_json = (
         job.inventory_snapshot.model_dump_json()
         if job is not None and job.inventory_snapshot is not None

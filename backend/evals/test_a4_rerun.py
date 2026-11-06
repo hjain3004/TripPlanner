@@ -26,6 +26,7 @@ import api.main as api_main
 from accounts.models import UserProfile
 from accounts.store import AccountStore
 from api import saved_trips
+from api.job_manager import job_manager
 from api.main import app
 from core.db import SEEDS_DIR, load_kb, seed_database
 from core.models import UserWallet
@@ -35,6 +36,7 @@ from evals.a4_support import (
     finished_plan,
     second_client,
     signed_in_client,
+    simulate_restart,
 )
 
 ZERO_WALLET = UserWallet(card_ids=[])
@@ -42,9 +44,6 @@ ZERO_WALLET = UserWallet(card_ids=[])
 
 @pytest.fixture(autouse=True)
 def _clean() -> Iterator[None]:
-    saved_trips._RERUNS.clear()
-    saved_trips._ACTIVE_BY_TRIP.clear()
-    saved_trips._START_EVENTS.clear()
     yield
     app.dependency_overrides.clear()
 
@@ -122,27 +121,6 @@ def _hold_intake(kit: PlanningKit) -> tuple[threading.Event, threading.Event]:
 
     kit.llm.complete_json = held  # type: ignore[method-assign]
     return entered, release
-
-
-def _hold_first_intake(kit: PlanningKit) -> tuple[threading.Event, threading.Event]:
-    """Block only the first intake call; later runs proceed normally."""
-    entered, release = threading.Event(), threading.Event()
-    original = kit.llm.complete_json
-    seen = {"intake": 0}
-
-    def held(*, node: str, **kwargs: Any) -> Any:
-        if node == "intake":
-            seen["intake"] += 1
-            if seen["intake"] == 1:
-                entered.set()
-                assert release.wait(timeout=30), "test never released the held intake call"
-        return original(node=node, **kwargs)
-
-    kit.llm.complete_json = held  # type: ignore[method-assign]
-    return entered, release
-
-
-# --- authentication, CSRF, ownership --------------------------------------------------- #
 
 
 def test_rerun_routes_require_authentication_and_csrf(
@@ -323,15 +301,18 @@ def test_a_completion_that_fires_twice_appends_once(
     kit.queue_run()
     job_id = _rerun(client, trip_id).json()["job_id"]
     _wait(client, trip_id, job_id)
-    record = saved_trips._RERUNS[job_id]
+    user_id = _user_id(client)
+    report = job_manager.get_job(job_id, store).report  # type: ignore[union-attr]
+    assert report is not None
+    finalize = saved_trips._rerun_finalizer(store, user_id=user_id, trip_id=trip_id, job_id=job_id)
 
-    saved_trips._append_rerun_result(record, store)  # a duplicate callback
-    saved_trips._append_rerun_result(record, store)
+    assert finalize(report) == {"revision": 2}  # a duplicate callback: same revision, not a third
+    assert finalize(report) == {"revision": 2}
 
-    assert [r.revision for r in store.revisions(_user_id(client), trip_id)] == [1, 2]
+    assert [r.revision for r in store.revisions(user_id, trip_id)] == [1, 2]
 
 
-def test_a_trip_deleted_mid_run_gets_no_revision(
+def test_a_trip_deleted_mid_run_gets_no_revision_and_recreates_no_job(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client, store, kit, trip_id = _saved_trip(tmp_path, monkeypatch)
@@ -343,14 +324,14 @@ def test_a_trip_deleted_mid_run_gets_no_revision(
     deleted = store.delete_trip(_user_id(client), trip_id)
     release.set()
     deadline = time.monotonic() + 30
-    while not saved_trips._RERUNS[job_id].finished and time.monotonic() < deadline:
-        time.sleep(0.05)
+    while job_id in job_manager._stores and time.monotonic() < deadline:
+        time.sleep(0.05)  # the worker has finished and tried to publish
 
     assert deleted is True
-    assert saved_trips._RERUNS[job_id].finished
-    assert saved_trips._RERUNS[job_id].revision is None
+    assert job_id not in job_manager._stores
     assert store.trips(_user_id(client)) == []
     assert store._revisions_of_trip(trip_id) == []
+    assert store.planning_jobs(_user_id(client)) == []  # the late completion recreated nothing
 
 
 # --- starting is idempotent and bounded ----------------------------------------------------- #
@@ -404,29 +385,36 @@ def test_a_full_trip_is_refused_before_any_llm_call(
     assert dict(kit.llm.invocations) == calls_before
 
 
-def test_a_rerun_unknown_after_a_restart_is_a_typed_404(
+def test_a_rerun_interrupted_by_a_restart_reads_failed_and_changes_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Jobs are process-local: after a restart the status route has nothing to report.
-
-    Clearing the registry stands in for the restart (a real one also kills the worker,
-    so the trip would be left unchanged — documented, not simulated here).
-    """
+    """A restart kills the worker: the status route says so, the trip is unchanged, and
+    nothing is dispatched again; only a new start (a new event id) retries."""
     client, store, kit, trip_id = _saved_trip(tmp_path, monkeypatch)
     entered, release = _hold_intake(kit)
     kit.queue_run()
     job_id = _rerun(client, trip_id).json()["job_id"]
     assert entered.wait(timeout=30)
-    saved_trips._RERUNS.clear()
+    simulate_restart(monkeypatch)
+    calls_before = dict(kit.llm.invocations)
 
     lost = client.get(f"/account/trips/{trip_id}/reruns/{job_id}")
 
-    assert lost.status_code == 404
-    assert lost.json()["detail"]["code"] == "RERUN_NOT_FOUND"
-    release.set()  # let the in-process worker finish so it cannot outlive the test
-    deadline = time.monotonic() + 30
-    while len(store.revisions(_user_id(client), trip_id)) < 2 and time.monotonic() < deadline:
-        time.sleep(0.05)
+    assert lost.status_code == 200
+    assert lost.json()["status"] == "failed"
+    assert lost.json()["error"]["code"] == "JOB_INTERRUPTED"
+    assert lost.json()["revision"] is None
+    same_start = _rerun(client, trip_id)  # replaying the start answers from the stored job
+    assert same_start.status_code == 202 and same_start.json()["job_id"] == job_id
+    assert dict(kit.llm.invocations) == calls_before  # polling and replaying dispatched nothing
+    release.set()  # the old worker finishes late; its completion must not publish
+    time.sleep(0.5)
+    assert len(store.revisions(_user_id(client), trip_id)) == 1
+    assert client.get(f"/account/trips/{trip_id}/reruns/{job_id}").json()["status"] == "failed"
+    kit.queue_run()
+    retry = _rerun(client, trip_id, "rr-retry")  # the explicit retry is a new job
+    assert retry.status_code == 202 and retry.json()["job_id"] != job_id
+    assert _wait(client, trip_id, retry.json()["job_id"])["revision"] == 2
 
 
 # --- privacy ---------------------------------------------------------------------------------- #
@@ -502,7 +490,6 @@ def _assert_not_rerunnable_and_free(client: TestClient, trip_id: str, event: str
     assert refused.status_code == 409, refused.text
     assert refused.json()["detail"]["code"] == "TRIP_NOT_RERUNNABLE"
     # The reservation was released: not stuck in progress, and the event is reusable.
-    assert saved_trips._ACTIVE_BY_TRIP == {} and saved_trips._START_EVENTS == {}
     again = _rerun(client, trip_id, event)
     assert again.json()["detail"]["code"] == "TRIP_NOT_RERUNNABLE"
 
@@ -561,69 +548,3 @@ def test_an_undecodable_attached_session_is_not_rerunnable_rather_than_a_422(
 
 
 # --- the bounded in-memory registry --------------------------------------------------------- #
-
-
-def _second_trip(client: TestClient, kit: PlanningKit) -> str:
-    session, _ = finished_plan(client, kit)
-    return _save(client, session["id"], "save-b")["trip"]["id"]
-
-
-def test_pruning_forgets_the_oldest_finished_reruns_and_keeps_the_newest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    client, _store, kit, trip_id = _saved_trip(tmp_path, monkeypatch)
-    monkeypatch.setattr(saved_trips, "_MAX_REMEMBERED_RERUNS", 2)
-    jobs: list[str] = []
-    for n in range(1, 5):
-        kit.queue_run()
-        jobs.append(_rerun(client, trip_id, f"r{n}").json()["job_id"])
-        assert _wait(client, trip_id, jobs[-1])["status"] == "complete"
-
-    assert set(saved_trips._RERUNS) == set(jobs[2:])  # the two newest survive
-    assert {key[1] for key in saved_trips._START_EVENTS} == {"r3", "r4"}
-    forgotten = client.get(f"/account/trips/{trip_id}/reruns/{jobs[0]}")
-    assert forgotten.status_code == 404
-    assert forgotten.json()["detail"]["code"] == "RERUN_NOT_FOUND"
-    assert _wait(client, trip_id, jobs[3])["revision"] == 5  # the kept ones still report
-
-
-def test_pruning_never_evicts_a_rerun_that_is_still_running(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    client, _store, kit, trip_a = _saved_trip(tmp_path, monkeypatch)
-    trip_b = _second_trip(client, kit)
-    monkeypatch.setattr(saved_trips, "_MAX_REMEMBERED_RERUNS", 1)
-    entered, release = _hold_first_intake(kit)
-    kit.queue_run()
-    running = _rerun(client, trip_a, "ra").json()["job_id"]
-    assert entered.wait(timeout=30)
-    for n in range(1, 4):  # churn trip B well past the cap while A is still in flight
-        kit.queue_run()
-        job = _rerun(client, trip_b, f"rb{n}").json()["job_id"]
-        assert _wait(client, trip_b, job)["status"] == "complete"
-
-    assert running in saved_trips._RERUNS and not saved_trips._RERUNS[running].finished
-    release.set()
-    done = _wait(client, trip_a, running)
-    assert done["status"] == "complete" and done["revision"] == 2
-
-
-def test_a_retried_start_after_its_record_was_pruned_is_a_new_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The documented limit: past the cap an old event id no longer replays."""
-    client, store, kit, trip_id = _saved_trip(tmp_path, monkeypatch)
-    monkeypatch.setattr(saved_trips, "_MAX_REMEMBERED_RERUNS", 1)
-    kit.queue_run()
-    first = _rerun(client, trip_id, "r1").json()["job_id"]
-    _wait(client, trip_id, first)
-    kit.queue_run()
-    second = _rerun(client, trip_id, "r2").json()["job_id"]
-    _wait(client, trip_id, second)
-    kit.queue_run()
-
-    retry = _rerun(client, trip_id, "r1")  # r1's record is long gone
-
-    assert retry.status_code == 202 and retry.json()["job_id"] not in {first, second}
-    _wait(client, trip_id, retry.json()["job_id"])
-    assert len(store.revisions(_user_id(client), trip_id)) == 4

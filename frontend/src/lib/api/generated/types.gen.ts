@@ -441,6 +441,50 @@ export type CardProductOut = {
 export type Channel = 'direct_airline' | 'direct_hotel' | 'ota_generic' | 'bank_portal' | 'pos_abroad' | 'pos_domestic';
 
 /**
+ * ClimateSummary
+ */
+export type ClimateSummary = {
+    /**
+     * Kind
+     */
+    kind?: 'climate_summary';
+    meta: WeatherEvidenceMeta;
+    place: WeatherPlace;
+    /**
+     * Window Start
+     */
+    window_start: string;
+    /**
+     * Window End
+     */
+    window_end: string;
+    /**
+     * Sample Days
+     */
+    sample_days: number;
+    /**
+     * Model
+     */
+    model: string;
+    /**
+     * Mean Temperature Max C
+     */
+    mean_temperature_max_c?: number | null;
+    /**
+     * Mean Temperature Min C
+     */
+    mean_temperature_min_c?: number | null;
+    /**
+     * Total Precipitation Mm
+     */
+    total_precipitation_mm?: number | null;
+    /**
+     * Caveat
+     */
+    caveat?: string;
+};
+
+/**
  * ConfirmOut
  */
 export type ConfirmOut = {
@@ -679,6 +723,46 @@ export type CredentialsIn = {
 };
 
 /**
+ * CurrentObservation
+ */
+export type CurrentObservation = {
+    /**
+     * Kind
+     */
+    kind?: 'current_observation';
+    meta: WeatherEvidenceMeta;
+    place: WeatherPlace;
+    /**
+     * Observed At
+     */
+    observed_at: string;
+    /**
+     * Interval Seconds
+     */
+    interval_seconds: number;
+    /**
+     * Temperature C
+     */
+    temperature_c?: number | null;
+    /**
+     * Relative Humidity Pct
+     */
+    relative_humidity_pct?: number | null;
+    /**
+     * Precipitation Mm
+     */
+    precipitation_mm?: number | null;
+    /**
+     * Weather Code
+     */
+    weather_code?: number | null;
+    /**
+     * Wind Speed Kmh
+     */
+    wind_speed_kmh?: number | null;
+};
+
+/**
  * DailyRhythmPayload
  */
 export type DailyRhythmPayload = {
@@ -706,6 +790,40 @@ export type DailyRhythmPayload = {
      * Day Trip Appetite
      */
     day_trip_appetite: 'none' | 'one' | 'multiple' | 'no_preference';
+};
+
+/**
+ * DailyWeather
+ */
+export type DailyWeather = {
+    /**
+     * Day
+     */
+    day: string;
+    /**
+     * Weather Code
+     */
+    weather_code?: number | null;
+    /**
+     * Temperature Max C
+     */
+    temperature_max_c?: number | null;
+    /**
+     * Temperature Min C
+     */
+    temperature_min_c?: number | null;
+    /**
+     * Precipitation Sum Mm
+     */
+    precipitation_sum_mm?: number | null;
+    /**
+     * Precipitation Probability Max Pct
+     */
+    precipitation_probability_max_pct?: number | null;
+    /**
+     * Wind Speed Max Kmh
+     */
+    wind_speed_max_kmh?: number | null;
 };
 
 /**
@@ -934,6 +1052,7 @@ export type FinalReport = {
     region_capability?: RegionCapability | null;
     freshness?: SectionFreshness;
     travel_inventory?: TravelInventorySummary | null;
+    weather_context?: WeatherContextOutcome;
 };
 
 /**
@@ -1131,6 +1250,26 @@ export type HardConstraintsPayload = {
      * Immovable Events
      */
     immovable_events?: Array<string>;
+};
+
+/**
+ * HistoricalObservation
+ */
+export type HistoricalObservation = {
+    /**
+     * Kind
+     */
+    kind?: 'historical_observation';
+    meta: WeatherEvidenceMeta;
+    place: WeatherPlace;
+    /**
+     * Model
+     */
+    model: string;
+    /**
+     * Days
+     */
+    days: Array<DailyWeather>;
 };
 
 /**
@@ -1536,6 +1675,22 @@ export type MoveItem = {
      * Position
      */
     position: number;
+};
+
+/**
+ * NearTermForecast
+ */
+export type NearTermForecast = {
+    /**
+     * Kind
+     */
+    kind?: 'near_term_forecast';
+    meta: WeatherEvidenceMeta;
+    place: WeatherPlace;
+    /**
+     * Days
+     */
+    days: Array<DailyWeather>;
 };
 
 /**
@@ -3878,6 +4033,171 @@ export type WalletEntryPatchIn = {
      * Client Event Id
      */
     client_event_id?: string | null;
+};
+
+/**
+ * WeatherContextOutcome
+ *
+ * What planning receives: either evidence, or "weather context unavailable".
+ *
+ * Never raises into the caller and never carries a fabricated forecast.
+ */
+export type WeatherContextOutcome = {
+    /**
+     * Status
+     */
+    status: 'available' | 'unavailable';
+    /**
+     * Evidence
+     */
+    evidence?: Array<CurrentObservation | NearTermForecast | HistoricalObservation | ClimateSummary>;
+    unavailable?: WeatherUnavailable | null;
+    /**
+     * Requested Start
+     */
+    requested_start?: string | null;
+    /**
+     * Requested End
+     */
+    requested_end?: string | null;
+    /**
+     * Limitations
+     */
+    limitations?: Array<string>;
+    /**
+     * Attribution
+     */
+    attribution?: string;
+    /**
+     * Attribution Url
+     */
+    attribution_url?: string;
+};
+
+/**
+ * WeatherEvidenceMeta
+ *
+ * Provenance for every weather fact (CLAUDE.md non-negotiable 3).
+ */
+export type WeatherEvidenceMeta = {
+    /**
+     * Provider Id
+     */
+    provider_id: 'open_meteo';
+    /**
+     * Kind
+     */
+    kind: 'current_observation' | 'near_term_forecast' | 'historical_observation' | 'climate_summary';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Origin
+     */
+    origin: 'live' | 'fixture_synthetic' | 'fixture_captured';
+    /**
+     * Source Url
+     */
+    source_url: string;
+    /**
+     * Retrieved At
+     */
+    retrieved_at: string;
+    /**
+     * Last Verified
+     */
+    last_verified: string;
+    /**
+     * Valid From
+     */
+    valid_from: string;
+    /**
+     * Valid To
+     */
+    valid_to: string;
+    /**
+     * Attribution
+     */
+    attribution: string;
+    /**
+     * Attribution Url
+     */
+    attribution_url: string;
+    /**
+     * License
+     */
+    license: 'CC-BY-4.0';
+    /**
+     * Terms Version
+     */
+    terms_version: string;
+    /**
+     * Confidence
+     */
+    confidence: 'high' | 'medium' | 'low';
+    /**
+     * Needs Verification
+     */
+    needs_verification: boolean;
+    /**
+     * Verified By
+     */
+    verified_by: string;
+    /**
+     * Upstream Server
+     */
+    upstream_server: string;
+    /**
+     * Notes
+     */
+    notes?: Array<string>;
+};
+
+/**
+ * WeatherPlace
+ *
+ * Grid point the provider actually answered for (it snaps coordinates).
+ */
+export type WeatherPlace = {
+    /**
+     * Latitude
+     */
+    latitude: number;
+    /**
+     * Longitude
+     */
+    longitude: number;
+    /**
+     * Elevation M
+     */
+    elevation_m: number;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Utc Offset Seconds
+     */
+    utc_offset_seconds?: number | null;
+};
+
+/**
+ * WeatherUnavailable
+ */
+export type WeatherUnavailable = {
+    /**
+     * Code
+     */
+    code: 'provider_disabled' | 'provider_unavailable' | 'permission_denied' | 'rate_limited' | 'budget_exhausted' | 'timeout' | 'invalid_response' | 'invalid_request';
+    /**
+     * Request Kind
+     */
+    request_kind: 'current_and_forecast' | 'historical' | 'climate';
+    /**
+     * Message
+     */
+    message?: string;
 };
 
 /**

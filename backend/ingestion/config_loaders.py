@@ -99,7 +99,7 @@ class _NoAliasLoader(yaml.SafeLoader):
     """
 
     def compose_node(self, parent: yaml.Node | None, index: int) -> yaml.Node | None:
-        check_event = cast(Callable[[type[yaml.events.Event]], bool], self.check_event)
+        check_event = cast(Callable[..., bool], self.check_event)
         if check_event(yaml.events.AliasEvent):
             raise yaml.YAMLError("YAML aliases are not allowed in configuration files")
         return super().compose_node(parent, index)

@@ -207,6 +207,18 @@ function baseReport(): Omit<FinalReport, "summary" | "itinerary_overview" | "pay
       limitations: ["Award guidance is reference-only; verify before transfer."],
       reference_only_awards: true,
     },
+    weather_context: {
+      status: "unavailable",
+      unavailable: {
+        code: "provider_disabled",
+        request_kind: "current_and_forecast",
+        message: "Weather context unavailable",
+      },
+      evidence: [],
+      requested_start: "2026-08-01",
+      requested_end: "2026-08-05",
+      limitations: ["weather_provider_disabled"],
+    },
   };
 }
 
@@ -463,6 +475,24 @@ function createFailedStatus(jobId: string): PlanJobStatus {
     stage_index: 1,
     stages_total: 6,
     error: { code: "PIPELINE_ERROR", message: "Intake parsing failed", trace_id: `msw-fail-${jobId}` },
+  };
+}
+
+// A job whose worker was lost in a restart: public status stays "failed" (the vocabulary
+// consumers already handle) with the JOB_INTERRUPTED code; nothing is re-dispatched.
+const INTERRUPTED_MESSAGE =
+  "Planning was interrupted during the intake stage (the service restarted or its worker stopped). " +
+  "Model or provider calls may already have been made and cannot be confirmed. " +
+  "Nothing was repeated automatically; start planning again.";
+
+function createInterruptedStatus(jobId: string): PlanJobStatus {
+  return {
+    job_id: jobId,
+    status: "failed",
+    stage: "intake",
+    stage_index: 1,
+    stages_total: 6,
+    error: { code: "JOB_INTERRUPTED", message: INTERRUPTED_MESSAGE, trace_id: "" },
   };
 }
 
@@ -1370,6 +1400,16 @@ export const handlers = [
     const record = mswTrips.find((t) => t.summary.id === params.tripId);
     if (record === undefined) return tripNotFound();
     const jobId = String(params.jobId);
+    if (jobId === "msw-rerun-interrupted") {
+      const interrupted: RerunStatusOut = {
+        job_id: jobId,
+        status: "failed",
+        stage: "intake",
+        revision: null,
+        error: { code: "JOB_INTERRUPTED", message: INTERRUPTED_MESSAGE },
+      };
+      return HttpResponse.json(interrupted);
+    }
     const rerun = mswReruns.get(jobId);
     if (rerun === undefined || rerun.tripId !== record.summary.id) {
       return tripError(404, "RERUN_NOT_FOUND", "No such re-run.");
@@ -1398,6 +1438,10 @@ export const fixtureHandlers = {
 
   failed: http.get("*/plan/:jobId", ({ params }) => {
     return HttpResponse.json(createFailedStatus(params.jobId as string));
+  }),
+
+  interrupted: http.get("*/plan/:jobId", ({ params }) => {
+    return HttpResponse.json(createInterruptedStatus(params.jobId as string));
   }),
 
   happyReport: () => createHappyReport(),

@@ -52,6 +52,17 @@ from core.trip_models import (
     TripSpec as TripSpec,
 )
 from gateway.travel.product import TravelInventorySummary
+from gateway.weather.contracts import WeatherContextOutcome, WeatherUnavailable
+
+
+def _default_weather_context() -> WeatherContextOutcome:
+    return WeatherContextOutcome(
+        status="unavailable",
+        unavailable=WeatherUnavailable(
+            code="provider_disabled", request_kind="current_and_forecast"
+        ),
+        limitations=("weather_provider_disabled",),
+    )
 
 
 class PipelineStatus(str, Enum):
@@ -161,6 +172,7 @@ class FinalReport(BaseModel):
     region_capability: RegionCapability | None = None
     freshness: SectionFreshness = Field(default_factory=SectionFreshness)
     travel_inventory: TravelInventorySummary | None = None
+    weather_context: WeatherContextOutcome = Field(default_factory=_default_weather_context)
 
 
 class TripIntakeRequest(BaseModel):

@@ -429,11 +429,22 @@ class WeatherContextOutcome(_Model):
     status: Literal["available", "unavailable"]
     evidence: tuple[WeatherEvidence, ...] = ()
     unavailable: WeatherUnavailable | None = None
+    requested_start: date | None = None
+    requested_end: date | None = None
+    limitations: tuple[str, ...] = Field(default=(), max_length=MAX_NOTES)
     attribution: str = ATTRIBUTION_TEXT
     attribution_url: str = ATTRIBUTION_URL
 
     @model_validator(mode="after")
     def _check(self) -> Self:
+        if (self.requested_start is None) != (self.requested_end is None):
+            raise ValueError("requested weather dates must be supplied together")
+        if (
+            self.requested_start is not None
+            and self.requested_end is not None
+            and self.requested_end < self.requested_start
+        ):
+            raise ValueError("requested weather end date is before start date")
         if self.status == "available":
             if not self.evidence or self.unavailable is not None:
                 raise ValueError("available outcomes carry evidence and no unavailable marker")

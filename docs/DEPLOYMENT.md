@@ -89,7 +89,7 @@ missing provider credential is never an error: sample mode starts with none.
 | `/data/tripwise.sqlite` | the seeded reference knowledge base (cards, rules, sample flights/hotels) | no - rebuilt from the image's seeds on every start |
 | `/data/traces/` | pipeline traces | no - disposable diagnostics |
 | `/app/catalogs/` (optional, read-only mount) | regional place catalogs | no - untracked inputs, see section 13 |
-| process memory | **planning jobs**, confirmation locks | **lost on every restart** |
+| process memory | anonymous `POST /plan` jobs, confirmation locks | **lost on every restart** (owned planning jobs are in `accounts.sqlite`: see section 9) |
 
 Outside containers, with `TRIPWISE_DATA_DIR` unset, state stays where it always was (next to
 the code), so development and the test suite are unchanged.
@@ -155,7 +155,8 @@ the `depends_on: service_healthy` ordering mean "actually able to serve".
 | accounts, passwords, the pre-restart browser session cookie | **survive** (sessions are stored server-side) |
 | wallet entries (same id and version), planning sessions and their typed answers | **survive** |
 | reference knowledge base | rebuilt from the image seeds |
-| **planning jobs** (`POST /plan`, confirmed-plan jobs) | **lost**: `GET /plan/{job_id}` returns `404 Job not found`; the UI must restart the job. Durable session state and the confirmation event are the recovery boundary - there is no job queue |
+| **owned planning jobs** (a confirmed brief, a saved-trip re-run) | **survive when finished**: status and report are read from `accounts.sqlite`. A job still queued or running when the process died reads `failed` with code `JOB_INTERRUPTED` and is **never resumed or re-dispatched**; the traveler retries through the normal confirmation / re-run action (`reports/durable_planning_jobs.md`) |
+| **anonymous planning jobs** (`POST /plan` without an account) | **lost**: `GET /plan/{job_id}` returns `404 Job not found`. No owner exists to export, delete or authorize a stored copy, so none is kept |
 | in-flight requests | fail; graceful shutdown allows 10 s |
 
 A legacy planning job in a deployment with no LLM configured fails *honestly* (`failed`,
@@ -184,8 +185,10 @@ merely discouraged:
 
 Do **not** run more than one backend replica. Specifically:
 
-* **Planning jobs are per-process memory.** With two replicas a job created on one is invisible to
-  the other (`404`).
+* **Planning-job execution is per-process.** Owned jobs are stored in SQLite, but which process is
+  *running* one is not coordinated: a second replica would see the first one's queued/running jobs as
+  orphaned and mark them interrupted. Anonymous `POST /plan` jobs are per-process memory (`404` on
+  another replica).
 * **Confirmation and preference locks are process-local** (`api/conversation.py`), as the CP2.1
   report already records. SQL compare-and-swap protects data, but the in-process serialisation does not span replicas.
 * **SQLite on a shared volume** across containers is unsupported: default rollback-journal mode,
