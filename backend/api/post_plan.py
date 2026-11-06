@@ -19,6 +19,7 @@ from accounts.models import PostPlanOperation, User
 from accounts.projection import build_user_wallet
 from accounts.store import (
     AccountStore,
+    PostPlanOperationConflictError,
     PostPlanOperationInProgressError,
     PostPlanProposalStateError,
     PostPlanQuotaError,
@@ -29,8 +30,14 @@ from accounts.store import (
     UnknownPlanningSessionError,
     trip_event_fingerprint,
 )
+from agents.confirmed_trip import build_inventory_requests, compile_confirmed_input
+from agents.estimator import price_in_home
+from agents.gateway_estimator import _summary_quote
+from agents.models import FinalReport, HotelSelectionRecord, PaymentStrategyRow
 from agents.post_plan_execution import (
+    PostPlanExecutionResult,
     recompute_confirmed_report,
+    recompute_hotel_selection,
     refresh_provider_inventory,
     replan_scoped_itinerary,
     spec_for_brief,
@@ -54,13 +61,16 @@ from api.post_plan_service import (
     mark_finished,
     recover_interrupted,
 )
+from core.models import SpendCategory, SpendLineItem
+from gateway.travel.product import InventoryQuoteSummary, TravelInventorySnapshot
 from planning.brief import profile_group_from_answer
-from planning.contracts import PlanningSession
+from planning.contracts import ConfirmedBriefSnapshot, PlanningSession
 from planning.post_plan import (
-    DayOverride,
     ActionImpact,
+    DayOverride,
     ExplainableRef,
     ExplanationRequest,
+    HotelSelectionAction,
     PostPlanAction,
     PostPlanInputError,
     RoutingContext,
@@ -99,6 +109,42 @@ class ActionIn(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         if (self.text is None) == (self.action is None):
             raise ValueError("provide exactly one of text or action")
+
+
+class HotelSelectionPreviewIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    client_event_id: str = Field(min_length=1, max_length=128)
+    expected_session_version: int = Field(ge=0)
+    expected_workspace_version: int = Field(ge=1)
+    selection: HotelSelectionAction
+
+
+class HotelSelectionComputedOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    hotel_amount_minor: int
+    hotel_currency: str
+    trip_cost_minor: int
+    rewards_value_minor: int
+    forex_fees_minor: int
+    effective_cost_minor: int
+    payment_strategy: list[PaymentStrategyRow]
+    assumptions: list[str]
+    limitations: list[str]
+
+
+class HotelSelectionPreviewOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    before: HotelSelectionComputedOut
+    after: HotelSelectionComputedOut
+    selection: HotelSelectionAction
+
+
+class HotelSelectionOptionsOut(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request: dict[str, Any]
+    selected: InventoryQuoteSummary | None
+    alternatives: list[InventoryQuoteSummary]
+    limitations: list[str]
 
 
 class DecisionIn(BaseModel):
@@ -151,6 +197,7 @@ class ActionProposalOut(BaseModel):
     action: dict[str, Any]
     impact: dict[str, Any]
     decision: str | None
+    preview: HotelSelectionPreviewOut | None = None
 
 
 def _replayed_proposal(operation: PostPlanOperation) -> ActionProposalOut:
@@ -170,6 +217,11 @@ def _replayed_proposal(operation: PostPlanOperation) -> ActionProposalOut:
         action=action.model_dump(mode="json"),
         impact=impact.model_dump(mode="json"),
         decision=operation.decision,
+        preview=(
+            HotelSelectionPreviewOut.model_validate(payload["preview"])
+            if "preview" in payload
+            else None
+        ),
     )
 
 
@@ -212,7 +264,10 @@ def _explanation_for(report: Any, action: ExplanationRequest) -> str:
             for row in report.optimizer_result.assignments
             if row.line.id == action.target_id
         )
-        return f"{assignment.line.label} is assigned to {assignment.card_id} via {assignment.channel}."
+        return (
+            f"{assignment.line.label} is assigned to {assignment.card_id} "
+            f"via {assignment.channel}."
+        )
     if action.target_kind == "transfer_recommendation":
         return "The transfer recommendation is the accepted kernel output for this trip."
     return "The inventory quote is part of the accepted evidence snapshot for this trip."
@@ -231,6 +286,12 @@ def _map_error(exc: Exception) -> HTTPException:
         return _error("STALE_WORKSPACE", "The plan changed; reload and retry.", 409)
     if isinstance(exc, PostPlanOperationInProgressError):
         return _error("OPERATION_IN_PROGRESS", "Another post-plan operation is running.", 409)
+    if isinstance(exc, PostPlanOperationConflictError):
+        return _error(
+            "IDEMPOTENCY_KEY_REUSED",
+            "That client event id was already used for a different hotel-selection request.",
+            409,
+        )
     if isinstance(exc, PostPlanProposalStateError):
         return _error("PROPOSAL_NOT_PENDING", "This proposal is no longer pending.", 409)
     if isinstance(exc, PostPlanQuotaError):
@@ -344,6 +405,214 @@ def _loaded(store: AccountStore, user: User, session_id: str) -> LoadedWorkspace
     if loaded is None:
         raise _error("WORKSPACE_NOT_INITIALIZED", "Initialize the post-plan workspace first.", 409)
     return loaded
+
+
+def _hotel_snapshot(loaded: LoadedWorkspace) -> TravelInventorySnapshot:
+    retained = loaded.workspace.inventory
+    if retained is None or retained.snapshot_json is None:
+        raise _error(
+            "HOTEL_INVENTORY_UNAVAILABLE",
+            "This trip has no retained server-owned hotel inventory snapshot.",
+            409,
+        )
+    return TravelInventorySnapshot.model_validate_json(retained.snapshot_json)
+
+
+def _hotel_selection_resolution(
+    loaded: LoadedWorkspace,
+    action: HotelSelectionAction,
+    *,
+    user: User,
+    now: Any,
+) -> tuple[SpendLineItem, HotelSelectionRecord]:
+    snapshot = _hotel_snapshot(loaded)
+    retained = loaded.workspace.inventory
+    assert retained is not None
+    if retained.hotel_fingerprint is not None:
+        from planning.post_plan import hotel_fingerprint
+
+        if retained.hotel_fingerprint != hotel_fingerprint(
+            loaded.workspace.brief, hotel_area_id=retained.retained_hotel_area_id
+        ):
+            raise _error(
+                "STALE_HOTEL_INVENTORY",
+                "The retained hotel inventory no longer matches this trip.",
+                409,
+            )
+    inputs = compile_confirmed_input(
+        ConfirmedBriefSnapshot(
+            revision=loaded.workspace.confirmed_brief_revision,
+            brief=loaded.workspace.brief,
+            confirmed_at=loaded.workspace.updated_at,
+        )
+    )
+    _flight_request, expected_hotel_request = build_inventory_requests(
+        inputs, loaded.report.itinerary
+    )
+    if snapshot.hotel_request != expected_hotel_request:
+        raise _error(
+            "STALE_HOTEL_INVENTORY",
+            "The retained hotel request no longer matches the confirmed trip.",
+            409,
+        )
+    quote = next(
+        (candidate for candidate in snapshot.hotels if candidate.id == action.quote_id),
+        None,
+    )
+    linked_provider_id = quote.evidence.provider_id if quote is not None else None
+    if action.source == "inventory_quote":
+        if quote is None:
+            raise _error(
+                "HOTEL_CANDIDATE_NOT_FOUND",
+                "That hotel is not in the retained inventory.",
+            )
+        scope = snapshot.hotel_scopes.get(quote.id)
+        if scope is None or not scope.cost_eligible:
+            raise _error(
+                "HOTEL_PRICE_NOT_ADMISSIBLE",
+                "That hotel is comparison-only because its price scope is incomplete.",
+            )
+        if quote.evidence.status == "stale":
+            raise _error(
+                "HOTEL_EVIDENCE_STALE",
+                "That hotel evidence is stale; reload the alternatives.",
+                409,
+            )
+        source_amount = quote.total_minor
+        source_currency = quote.currency
+        amount = price_in_home(
+            source_amount, source_currency, loaded.report.costed_trip.home_currency, _get_kb()
+        )
+        if scope.basis == "sample_nightly_stay":
+            nights = loaded.report.trip_spec.nights
+            # Preserve the sample estimator's frozen rounding order: convert
+            # the exact nightly amount, then multiply by nights.
+            amount = price_in_home(
+                source_amount // nights,
+                source_currency,
+                loaded.report.costed_trip.home_currency,
+                _get_kb(),
+            ) * nights
+        channels = list(quote.purchasable_channels)
+        if not channels:
+            raise _error(
+                "HOTEL_PAYMENT_CHANNEL_UNKNOWN",
+                "This admissible hotel has no supported payment channel, so no card "
+                "recommendation can be computed.",
+            )
+        limitations = list(quote.evidence.notes)
+        covers = f"server-owned quote scope: {scope.basis}"
+        record = HotelSelectionRecord(
+            source="inventory_quote",
+            quote_id=quote.id,
+            provider_id=quote.evidence.provider_id,
+            amount_minor=source_amount,
+            currency=source_currency,
+            covers=covers,
+            payment_channel=channels[0],
+            assumptions=list(action.assumptions),
+            limitations=limitations,
+            recorded_at=now,
+            recorded_by=user.id,
+            session_id=loaded.snapshot.session_id,
+            trip_id=loaded.snapshot.saved_trip_id,
+        )
+        line = SpendLineItem(
+            id=f"hotel:{quote.id}",
+            label=f"{quote.name} ({loaded.report.trip_spec.nights} nights)",
+            category=SpendCategory.HOTELS,
+            amount_minor=amount,
+            currency=loaded.report.costed_trip.home_currency,
+            available_channels=channels,
+            merchant_hint=quote.name,
+        )
+        return line, record
+
+    assert (
+        action.amount_minor is not None
+        and action.currency is not None
+        and action.covers is not None
+    )
+    if action.payment_channel is None:
+        raise _error(
+            "HOTEL_PAYMENT_CHANNEL_REQUIRED",
+            "A user-provided total needs an explicit payment-channel assumption "
+            "before a card recommendation can be computed.",
+        )
+    if action.quote_id is not None and quote is None:
+        raise _error(
+            "HOTEL_CANDIDATE_NOT_FOUND",
+            "The linked hotel is not in the retained inventory.",
+        )
+    amount = price_in_home(
+        action.amount_minor,
+        action.currency,
+        loaded.report.costed_trip.home_currency,
+        _get_kb(),
+    )
+    limitations = [
+        "User-provided planning total; not a verified provider quote or booking guarantee.",
+        "Taxes, fees, room availability and purchase channel are represented only "
+        "by the stated assumptions.",
+    ]
+    record = HotelSelectionRecord(
+        source="user_provided_total",
+        quote_id=action.quote_id,
+        provider_id=linked_provider_id,
+        amount_minor=action.amount_minor,
+        currency=action.currency,
+        covers=action.covers,
+        payment_channel=action.payment_channel,
+        assumptions=[
+            *action.assumptions,
+            f"Payment channel assumed: {action.payment_channel.value}",
+        ],
+        limitations=limitations,
+        recorded_at=now,
+        recorded_by=user.id,
+        session_id=loaded.snapshot.session_id,
+        trip_id=loaded.snapshot.saved_trip_id,
+    )
+    selection_key = hashlib.sha256(
+        json.dumps(record.model_dump(mode="json"), sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()[:16]
+    return (
+        SpendLineItem(
+            id=f"hotel:user:{selection_key}",
+            label=f"Traveler-entered hotel total ({loaded.report.trip_spec.nights} nights)",
+            category=SpendCategory.HOTELS,
+            amount_minor=amount,
+            currency=loaded.report.costed_trip.home_currency,
+            available_channels=[action.payment_channel],
+            merchant_hint=None,
+        ),
+        record,
+    )
+
+
+def _get_kb() -> Any:
+    from api.main import get_kb
+
+    return get_kb()
+
+
+def _hotel_computed(
+    report: FinalReport, *, limitations: list[str] | None = None
+) -> HotelSelectionComputedOut:
+    hotel = next(
+        line for line in report.costed_trip.lines if line.category is SpendCategory.HOTELS
+    )
+    return HotelSelectionComputedOut(
+        hotel_amount_minor=hotel.amount_minor,
+        hotel_currency=hotel.currency,
+        trip_cost_minor=report.budget_totals.gross_minor,
+        rewards_value_minor=report.budget_totals.rewards_value_minor,
+        forex_fees_minor=report.budget_totals.forex_fees_minor,
+        effective_cost_minor=report.budget_totals.effective_cost_minor,
+        payment_strategy=report.payment_strategy,
+        assumptions=report.assumptions,
+        limitations=limitations or [],
+    )
 
 
 def _workspace_out(store: AccountStore, user: User, session_id: str) -> PostPlanWorkspaceOut:
@@ -481,6 +750,17 @@ def propose_action(
                 raise
             finally:
                 mark_finished(operation.operation_id)
+        if isinstance(action, HotelSelectionAction):
+            prior = store.get_post_plan_operation(
+                user_id=user.id, event_id=body.client_event_id
+            )
+            if prior is not None:
+                prior_payload = json.loads(prior.payload_json)
+                if prior_payload.get("action") != action.model_dump(mode="json"):
+                    raise PostPlanOperationConflictError(
+                        "the hotel-selection event id was already used for a different request"
+                    )
+                return _replayed_proposal(prior)
         after = _after_brief(loaded.workspace.brief, action, store, user)
         impact = compute_impact(
             loaded.workspace.brief,
@@ -488,10 +768,29 @@ def propose_action(
             action=action,
             context=impact_context_from_routing(context),
         )
+        hotel_preview: HotelSelectionPreviewOut | None = None
+        if isinstance(action, HotelSelectionAction):
+            hotel_line, record = _hotel_selection_resolution(
+                loaded, action, user=user, now=now_utc()
+            )
+            preview_report = recompute_hotel_selection(
+                loaded.report,
+                hotel_line=hotel_line,
+                record=record,
+                kb=_get_kb(),
+                now=now_utc(),
+            )
+            hotel_preview = HotelSelectionPreviewOut(
+                before=_hotel_computed(loaded.report),
+                after=_hotel_computed(preview_report, limitations=record.limitations),
+                selection=action,
+            )
         proposal_payload: dict[str, Any] = {
             "action": action.model_dump(mode="json"),
             "impact": impact.model_dump(mode="json"),
         }
+        if hotel_preview is not None:
+            proposal_payload["preview"] = hotel_preview.model_dump(mode="json")
         if action.kind == "wallet_or_objective_change":
             proposal_payload["wallet_fingerprint"] = hashlib.sha256(
                 json.dumps(
@@ -553,11 +852,84 @@ def propose_action(
             action=action.model_dump(mode="json"),
             impact=impact.model_dump(mode="json"),
             decision=finished.decision,
+            preview=hotel_preview,
         )
     except HTTPException:
         raise
     except Exception as exc:
         raise _map_error(exc) from exc
+
+
+@router.get(
+    "/hotel-selection",
+    response_model=HotelSelectionOptionsOut,
+    responses=_POST_PLAN_ERRORS,
+)
+def hotel_selection_options(
+    session_id: str,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+) -> HotelSelectionOptionsOut:
+    """Expose only the server-owned hotel alternatives retained for this workspace."""
+    try:
+        loaded = _loaded(store, user, session_id)
+        snapshot = _hotel_snapshot(loaded)
+        if loaded.report.travel_inventory is None:
+            raise _error("HOTEL_INVENTORY_UNAVAILABLE", "Hotel alternatives are unavailable.", 409)
+        selected_id = (
+            loaded.report.travel_inventory.hotel.quote_id
+            if loaded.report.travel_inventory.hotel is not None
+            else None
+        )
+        hotel_options = [
+            _summary_quote(
+                "hotel",
+                quote,
+                selected=quote.id == selected_id,
+                scope=snapshot.hotel_scopes[quote.id],
+            )
+            for quote in snapshot.hotels
+            if quote.id in snapshot.hotel_scopes
+        ]
+        selected = next((option for option in hotel_options if option.selected), None)
+        alternatives = [option for option in hotel_options if not option.selected]
+        return HotelSelectionOptionsOut(
+            request=snapshot.hotel_request.model_dump(mode="json"),
+            selected=selected,
+            alternatives=alternatives,
+            limitations=list(loaded.report.travel_inventory.limitations),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _map_error(exc) from exc
+
+
+@router.post(
+    "/hotel-selection/preview",
+    response_model=ActionProposalOut,
+    responses=_POST_PLAN_ERRORS,
+)
+def preview_hotel_selection(
+    session_id: str,
+    body: HotelSelectionPreviewIn,
+    request: Request,
+    user: Annotated[User, Depends(current_user)],
+    store: Annotated[AccountStore, Depends(get_store)],
+) -> ActionProposalOut:
+    """Create a durable CP4 proposal whose response contains the deterministic preview."""
+    return propose_action(
+        session_id=session_id,
+        body=ActionIn(
+            client_event_id=body.client_event_id,
+            expected_session_version=body.expected_session_version,
+            expected_workspace_version=body.expected_workspace_version,
+            action=body.selection.model_dump(mode="json"),
+        ),
+        request=request,
+        user=user,
+        store=store,
+    )
 
 
 def _reserve(
@@ -656,7 +1028,21 @@ def _decision(
         explanation = None
         if approve and isinstance(action, ExplanationRequest):
             explanation = _explanation_for(loaded.report, action)
-        if approve and action.kind == "wallet_or_objective_change":
+        if approve and isinstance(action, HotelSelectionAction):
+            from api.main import get_kb
+
+            hotel_line, record = _hotel_selection_resolution(
+                loaded, action, user=user, now=now
+            )
+            report = recompute_hotel_selection(
+                loaded.report,
+                hotel_line=hotel_line,
+                record=record,
+                kb=get_kb(),
+                now=now,
+            )
+            execution = PostPlanExecutionResult(report=report, brief=loaded.workspace.brief)
+        elif approve and action.kind == "wallet_or_objective_change":
             expected_wallet = data.get("wallet_fingerprint")
             actual_wallet = hashlib.sha256(
                 json.dumps(
@@ -668,7 +1054,6 @@ def _decision(
             if expected_wallet != actual_wallet:
                 raise _error("STALE_WALLET", "The stored wallet changed; reload and retry.", 409)
             after = _after_brief(loaded.workspace.brief, action, store, user)
-            from agents.post_plan_execution import PostPlanExecutionResult
             from api.main import get_kb
 
             new_spec = spec_for_brief(loaded.report.trip_spec, after)
@@ -744,8 +1129,6 @@ def _decision(
             from api.main import get_kb
 
             report = recompute_confirmed_edit(loaded.report, action.edit, kb=get_kb(), now=now)
-            from agents.post_plan_execution import PostPlanExecutionResult
-
             execution = PostPlanExecutionResult(report=report, brief=loaded.workspace.brief)
         if execution is not None:
             report_json = execution.report.model_dump_json()

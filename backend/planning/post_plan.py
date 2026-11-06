@@ -40,7 +40,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from core.models import UserWallet
+from core.models import Channel, UserWallet
 from core.trip_models import (
     AddItem,
     ItineraryEdit,
@@ -276,6 +276,39 @@ class WalletOrObjectiveChange(BaseModel):
         return self
 
 
+class HotelSelectionAction(BaseModel):
+    """Select admitted hotel evidence or record a separate planning total."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["hotel_selection"] = "hotel_selection"
+    source: Literal["inventory_quote", "user_provided_total"]
+    quote_id: str | None = Field(default=None, min_length=1, max_length=200)
+    amount_minor: int | None = Field(default=None, ge=0)
+    currency: str | None = None
+    covers: str | None = Field(default=None, min_length=1, max_length=300)
+    payment_channel: Channel | None = None
+    assumptions: list[str] = Field(default_factory=list, max_length=8)
+
+    @field_validator("currency")
+    @classmethod
+    def normalize_currency(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        if len(normalized) != 3 or not normalized.isalpha():
+            raise ValueError("currency must be a 3-letter code")
+        return normalized
+
+    @model_validator(mode="after")
+    def source_fields_match(self) -> HotelSelectionAction:
+        if self.source == "inventory_quote":
+            if self.quote_id is None or self.amount_minor is not None or self.currency is not None:
+                raise ValueError("an inventory selection names only a quote")
+        elif self.amount_minor is None or self.currency is None or self.covers is None:
+            raise ValueError("a user total requires amount, currency and coverage")
+        return self
+
+
 ExplanationTargetKind = Literal[
     "cost_line",
     "payment_assignment",
@@ -367,6 +400,7 @@ PostPlanAction = Annotated[
     | ScopedItineraryReplan
     | ProviderInvalidatingChange
     | WalletOrObjectiveChange
+    | HotelSelectionAction
     | ExplanationRequest
     | ProfileUpdateAction
     | ClarificationRequired,
@@ -378,6 +412,7 @@ ACTION_KINDS: tuple[str, ...] = (
     "scoped_itinerary_replan",
     "provider_invalidating_change",
     "wallet_or_objective_change",
+    "hotel_selection",
     "explanation_request",
     "profile_update_proposal",
     "clarification_required",
@@ -811,6 +846,8 @@ def validate_action_references(action: PostPlanAction, context: RoutingContext) 
         apply_brief_patch(context.brief, action.patch)
     elif isinstance(action, WalletOrObjectiveChange):
         objective_patch(context.brief, action)
+    elif isinstance(action, HotelSelectionAction):
+        _no_brief_change(context.brief, context.brief, "a hotel selection")
     elif isinstance(action, ExplanationRequest):
         known = {(ref.kind, ref.ref_id) for ref in context.explainable}
         if (action.target_kind, action.target_id) not in known:
@@ -882,6 +919,26 @@ def compute_impact(
             changes_trip=False,
             explanation_only=False,
             limitations=["Approving saves a durable preference; this trip is not changed."],
+        )
+    if isinstance(action, HotelSelectionAction):
+        _no_brief_change(before, after, "a hotel selection")
+        return ActionImpact(
+            invalidated_domains=_sorted_domains({_D.HOTEL}),
+            affected_dates=_dates_of(before),
+            refetch_domains=[],
+            inventory_reuse="full",
+            requires_confirmation=True,
+            changes_trip=True,
+            explanation_only=False,
+            limitations=[
+                "Hotel selection changes the deterministic hotel spend line only; "
+                "flights remain unchanged.",
+                *(
+                    ["The amount is a traveler-provided planning estimate."]
+                    if action.source == "user_provided_total"
+                    else []
+                ),
+            ],
         )
     if isinstance(action, ScopedItineraryReplan):
         return _scoped_impact(before, after, action, context)
