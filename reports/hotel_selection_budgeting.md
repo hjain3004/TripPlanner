@@ -1,6 +1,6 @@
 # Hotel selection and deterministic budgeting
 
-Status: **ACCEPTANCE PENDING**
+Status: **ACCEPTED — OFFLINE DEVELOPMENT COMPLETE**
 
 This milestone adds an authenticated, owner-scoped hotel-selection path to the
 existing CP4 workspace. A traveler can list the retained server-owned hotel
@@ -59,14 +59,18 @@ arithmetic, seeds, or goldens.
 Before the final clean-tree gate:
 
 - Backend: `3104 passed, 79 skipped, 3 warnings`.
+- Exact committed-tree gate backend: `3150 passed, 53 skipped, 3 warnings`.
 - Focused hotel-selection regressions: `2 passed`.
-- Strict mypy over `planning`, `api`, and `agents`: 49 source files, no issues.
+- Strict mypy over `planning`, `api`, and `agents`: 49 source files, no issues;
+  exact gate all source packages: 245 source files, no issues.
 - Focused Ruff scope: clean.
+- Exact gate Ruff zero-tolerance scopes: clean; core/api legacy count 6 under
+  the ceiling of 12.
 - OpenAPI export twice and generated-client drift check: clean.
 - Frontend TypeScript, ESLint, token lint, contrast, contract tests (28), and
   production build: clean; ESLint retained 14 existing warnings and no errors.
 - Offline browser suite: `492 passed, 76 skipped`; live integration tests were
   skipped by their normal environment guards.
 
-The exact committed-tree `make gate` result is still pending. Acceptance will
-remain pending until that gate passes on the final clean commit.
+The exact committed-tree `make gate` passed on implementation commit `5db6a21`.
+The documentation-only follow-up commit will be gated again before handoff.
