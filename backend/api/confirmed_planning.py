@@ -58,6 +58,7 @@ def start_confirmed_job(session: PlanningSession, job_id: str) -> None:
         get_llm,
         get_place_registry,
         get_trace_dir,
+        get_weather_context_service,
     )
 
     snapshot = session.confirmed_briefs[-1]
@@ -83,7 +84,11 @@ def start_confirmed_job(session: PlanningSession, job_id: str) -> None:
             get_booking_date(),
             get_trace_dir(),
         ),
-        kwargs={"confirmed_input": confirmed, "inventory_service": service},
+        kwargs={
+            "confirmed_input": confirmed,
+            "inventory_service": service,
+            "weather_service": get_weather_context_service(),
+        },
         daemon=True,
     )
     thread.start()

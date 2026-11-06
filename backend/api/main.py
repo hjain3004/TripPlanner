@@ -4,7 +4,8 @@ import os
 import threading
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import UTC, date, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
@@ -55,8 +56,81 @@ from gateway.catalog.regions import get_region
 from gateway.places.protocol import PlaceProviderAdapter
 from gateway.places.registry import ProviderRegistry, get_default_place_registry
 from gateway.travel.service import TravelInventoryService
+from gateway.weather.adapter import OpenMeteoWeatherAdapter
+from gateway.weather.budget import WeatherCallBudget
+from gateway.weather.contracts import WeatherLocation
+from gateway.weather.errors import WeatherGatewayError
+from gateway.weather.planning import WeatherContextService
+from gateway.weather.registry import (
+    WeatherProviderRegistry,
+    build_weather_adapter,
+    get_default_weather_registry,
+)
+from gateway.weather.stdio_transport import StdioWeatherTransport, pinned_upstream_launch
+from gateway.weather.transport import ToolResult, WeatherToolTransport
 
 TRACE_DIR = state_path("traces", Path(__file__).resolve().parents[1] / ".traces")
+
+
+class _UnavailableWeatherTransport:
+    async def call_tool(self, tool_name: str, arguments: dict[str, object]) -> ToolResult:
+        raise WeatherGatewayError("provider_unavailable", "weather runtime is not provisioned")
+
+
+@lru_cache(maxsize=1)
+def get_weather_budget() -> WeatherCallBudget:
+    return WeatherCallBudget(
+        state_path(
+            "weather-calls.sqlite", Path(__file__).resolve().parents[1] / ".weather-calls.sqlite"
+        )
+    )
+
+
+def _build_weather_transport(registry: WeatherProviderRegistry) -> WeatherToolTransport:
+    selected = registry.select(active_profile="student_noncommercial")
+    if not selected:
+        return _UnavailableWeatherTransport()
+    install_root = os.getenv("TRIPWISE_OPEN_METEO_INSTALL_ROOT", "").strip()
+    node = os.getenv("TRIPWISE_OPEN_METEO_NODE", "").strip()
+    if not install_root or not node:
+        return _UnavailableWeatherTransport()
+    try:
+        launch = pinned_upstream_launch(Path(install_root), Path(node))
+        return StdioWeatherTransport(launch)
+    except WeatherGatewayError:
+        return _UnavailableWeatherTransport()
+
+
+@lru_cache(maxsize=1)
+def get_weather_context_service() -> WeatherContextService:
+    registry = get_default_weather_registry()
+    transport = _build_weather_transport(registry)
+
+    def adapter_for(plan_id: str) -> OpenMeteoWeatherAdapter:
+        return build_weather_adapter(
+            registry,
+            active_profile="student_noncommercial",
+            transport=transport,
+            budget=get_weather_budget(),
+            plan_id=plan_id,
+            now=lambda: datetime.now(UTC),
+        )
+
+    def location_for(iata: str) -> WeatherLocation | None:
+        region = get_region(iata)
+        return (
+            WeatherLocation(
+                latitude=region.centroid_lat,
+                longitude=region.centroid_lon,
+                label=region.city_name,
+            )
+            if region is not None
+            else None
+        )
+
+    return WeatherContextService(
+        adapter_factory=adapter_for, location_provider=location_for, now=lambda: datetime.now(UTC)
+    )
 
 
 @asynccontextmanager
@@ -195,11 +269,13 @@ def plan(
     registry: Annotated[ProviderRegistry, Depends(get_place_registry)],
     booking_date: Annotated[date, Depends(get_booking_date)],
     trace_dir: Annotated[Path, Depends(get_trace_dir)],
+    weather_service: Annotated[WeatherContextService, Depends(get_weather_context_service)],
 ) -> dict[str, str]:
     job_id = job_manager.create_job()
     thread = threading.Thread(
         target=_run_job,
         args=(job_id, request, kb, llm, registry, booking_date, trace_dir),
+        kwargs={"weather_service": weather_service},
         daemon=True,
     )
     thread.start()
@@ -285,6 +361,7 @@ def _run_job(
     *,
     confirmed_input: ConfirmedTripInput | None = None,
     inventory_service: TravelInventoryService | None = None,
+    weather_service: WeatherContextService | None = None,
 ) -> None:
     try:
 
@@ -306,6 +383,7 @@ def _run_job(
             confirmed_input=confirmed_input,
             inventory_service=inventory_service,
             on_inventory=on_inventory,
+            weather_service=weather_service,
         )
         if result.status == PipelineStatus.NEEDS_CLARIFICATION:
             job_manager.complete(job_id, "needs_clarification", unresolved=result.unresolved)

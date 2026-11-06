@@ -110,7 +110,18 @@ def _report_from_estimate(
         region_capability=report.region_capability,
         freshness=report.freshness,
     )
-    return rebuilt.model_copy(update={"travel_inventory": inventory})
+    weather_context = (
+        report.weather_context
+        if (
+            spec.destination_city == report.trip_spec.destination_city
+            and spec.start_date == report.trip_spec.start_date
+            and spec.end_date == report.trip_spec.end_date
+        )
+        else rebuilt.weather_context
+    )
+    return rebuilt.model_copy(
+        update={"travel_inventory": inventory, "weather_context": weather_context}
+    )
 
 
 def replan_scoped_itinerary(
@@ -333,7 +344,18 @@ def recompute_confirmed_report(
         inventory = inventory.model_copy(
             update={"inventory_revision": inventory.inventory_revision + 1}
         )
-    return rebuilt.model_copy(update={"travel_inventory": inventory})
+    weather_context = (
+        report.weather_context
+        if (
+            spec.destination_city == report.trip_spec.destination_city
+            and spec.start_date == report.trip_spec.start_date
+            and spec.end_date == report.trip_spec.end_date
+        )
+        else rebuilt.weather_context
+    )
+    return rebuilt.model_copy(
+        update={"travel_inventory": inventory, "weather_context": weather_context}
+    )
 
 
 def recompute_confirmed_edit(

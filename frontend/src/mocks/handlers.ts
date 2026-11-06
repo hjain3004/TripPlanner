@@ -185,6 +185,18 @@ function baseReport(): Omit<FinalReport, "summary" | "itinerary_overview" | "pay
       limitations: ["Award guidance is reference-only; verify before transfer."],
       reference_only_awards: true,
     },
+    weather_context: {
+      status: "unavailable",
+      unavailable: {
+        code: "provider_disabled",
+        request_kind: "current_and_forecast",
+        message: "Weather context unavailable",
+      },
+      evidence: [],
+      requested_start: "2026-08-01",
+      requested_end: "2026-08-05",
+      limitations: ["weather_provider_disabled"],
+    },
   };
 }
 

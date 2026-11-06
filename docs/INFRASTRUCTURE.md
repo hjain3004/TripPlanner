@@ -106,7 +106,7 @@ and starts it; `make d1-smoke` drives a genuine browser → proxy → backend jo
 | Frontend API | `NEXT_PUBLIC_API_MODE=mock`, MSW, no backend network | `NEXT_PUBLIC_API_MODE=live` with a reachable backend |
 | Travel gateway | sample/fixture evidence | registry/kill-switch and profile checks required; Gondola remains disabled by default |
 | Places gateway | sample/snapshot evidence | Tripadvisor requires explicit injected live transport, persistent billable ledger, and activation review |
-| Weather context | disabled (`TRIPWISE_OPEN_METEO_ENABLED` unset); fixtures only | third-party `community_mcp`; operator-provisioned pinned server, `TRIPWISE_OPEN_METEO_KILL_SWITCH` always wins; not wired to planning |
+| Weather context | disabled (`TRIPWISE_OPEN_METEO_ENABLED` unset); planning returns typed unavailable context | third-party `community_mcp`; operator-provisioned pinned server, `TRIPWISE_OPEN_METEO_KILL_SWITCH` always wins; shared file-backed call ledger; no itinerary rewrite |
 | Financial ingestion | offline FI0 contracts/queue only (`backend/ingestion/`) | no fetcher, crawler, scheduler or network exists; FI1 not started |
 
 ## Package boundaries
