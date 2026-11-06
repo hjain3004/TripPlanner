@@ -70,8 +70,9 @@ Consequently, the following remain separate and explicit:
 
 - authentication: successful on the corrected callback/storage path and
   confirmed by safe metadata reload;
-- hotel search: the corrected retry completed within the revised deadline but
-  returned only a Markdown envelope and no hotel identifier;
+- hotel search: the corrected retry completed within the revised deadline and
+  returned a Markdown envelope containing 20 explicitly formatted heading
+  identifiers, but no identifier value was retained for safe rate selection;
 - dated hotel rates: not attempted because no valid identifier was returned;
 - current cash evidence: not captured in this diagnostic;
 - cached award information: not captured and never promoted to availability;
@@ -130,10 +131,16 @@ disabled. It does not claim live provider coverage.
 - The subsequent human-authorized run completed authentication and immediately
   retried the corrected hotel search. The token was present, scoped exactly to
   `mcp:read`, and non-expired at dispatch. The search completed within the new
-  45-second deadline, but Gondola returned only the observed
-  `{"result": "..."}` Markdown envelope; no hotel identifier was available.
-  The remaining `get_hotel_rates` call was therefore not dispatched. The live
-  response was not retained beyond its bounded structural classification.
+  45-second deadline, and Gondola returned the observed
+  `{"result": "..."}` Markdown envelope. The remaining
+  `get_hotel_rates` call was not dispatched because identifier values were
+  not retained beyond the bounded capture.
+- A later bounded raw-envelope inspection confirmed `is_error=false`,
+  `structured_content` present, one text content block of 10,033 UTF-8 bytes,
+  and 20 identifiers matching the strict `### ... (ID: <identifier>)` heading
+  form. Identifier values were deliberately not retained. The response still
+  does not establish dated rate scope, currency, taxes/fees, room identity or
+  cancellation terms, and no costable quote reached planning.
 - No `agents/pipeline.py`, Kernel arithmetic, seed, OpenAPI, frontend, OpenBnB,
   or weather code was changed.
 ## Verification
