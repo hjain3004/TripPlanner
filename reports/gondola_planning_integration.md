@@ -113,12 +113,11 @@ disabled. It does not claim live provider coverage.
   or weather code was changed.
 ## Verification
 
-The prior final functional gate phases passed on the seeded tree: 3076 backend tests
-passed, 53 skipped, and 3 warnings; strict mypy passed for 201 core/runtime
-files, 34 ingestion files, and 4 welcome files; zero-tolerance Ruff passed;
-the legacy core/api ceiling was 8 findings against a ceiling of 12; goldens,
-contract drift and brief identity checks passed. The exact clean-tree gate
-passed on the committed implementation tree: `TREE_CLEAN` and
-`================ GATE PASSED ================`.
+The exact gate on commit `b1f106e9bcce22b2ff535cfaeeff621cbf771c9b` passed:
+3,087 backend tests passed, 53 skipped, and 3 warnings; strict mypy passed for
+201 core/runtime files, 34 ingestion files, and 4 welcome files; zero-tolerance
+Ruff passed; the legacy core/api ceiling was 8 findings against a ceiling of
+12; `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, and `TREE_CLEAN` all
+passed. The final documentation commit will be gated again before delivery.
 
 End of report.
