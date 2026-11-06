@@ -1107,6 +1107,14 @@ export type InventoryQuoteSummary = {
      */
     provider_quote_id?: string | null;
     /**
+     * Property Name
+     */
+    property_name?: string | null;
+    /**
+     * Room Name
+     */
+    room_name?: string | null;
+    /**
      * Status
      */
     status: string;

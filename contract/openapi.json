@@ -5225,6 +5225,28 @@
             ],
             "title": "Provider Quote Id"
           },
+          "property_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Property Name"
+          },
+          "room_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Name"
+          },
           "status": {
             "type": "string",
             "title": "Status"

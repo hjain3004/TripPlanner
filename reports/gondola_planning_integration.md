@@ -1,6 +1,99 @@
 # Gondola planning integration
 
-Status: offline development complete; live priced integration blocked pending valid authenticated provider evidence.
+Status: live hotel search and dated-rate retrieval demonstrated; real reported
+rates reach authenticated planning and saved revisions as verify-required
+alternatives. Final payable costing and live flight acceptance remain incomplete.
+
+## Current delivered workflow (2026-11-05)
+
+The approved Singapore search and dated-rate sequence now runs without losing
+the explicit hotel identifier between calls. The live tool schema requires an
+integer property ID. Authentication reused the existing current read-only
+credential; no extra authentication tool call was needed.
+
+The final explicitly approved pair completed: one search, immediately followed
+by one `get_hotel_rates` call, with no retries or other supplier calls. The
+returned Markdown explicitly states the stay (2027-02-10 to 2027-02-13, one
+adult), room descriptions, nightly amounts, stay totals, and cancellation
+conditions. For the first room the reported stay total was SGD 1970.94. It was
+parsed to integer minor units without multiplying the nightly price or
+calculating any missing taxes. Raw signed rate tokens are discarded by the
+normalizer; none enters a public quote, report, fixture or commit.
+
+The preceding diagnostic pair also succeeded, but its output filter omitted
+rate rows along with booking tokens. Automatic approval review refused a
+duplicate pair under the prior call limit. The human then explicitly approved
+the additional two calls above. This was a local capture/diagnostic mistake,
+not evidence that Gondola could not return prices. No further calls were made.
+
+### What a traveler/API consumer can now receive
+
+- Normal confirmed planning retains its sample-backed budget and returns
+  Gondola room-price alternatives, including typed property and room names,
+  source currency, stated stay total, provenance and explicit limitations.
+- Incomplete provider alternatives no longer suppress a cost-eligible sample
+  fallback or disappear from the final evidence summary.
+- SGD prices remain in SGD when the requested display currency is INR. The
+  adapter explicitly declares source-currency alternative support; this never
+  authorizes that mismatched currency as a selected payable cost.
+- Existing startup validation, default-off enablement and kill-switch precedence
+  remain. An enabled local/demo factory now constructs the dated-hotel adapter
+  using a shared file-backed reservation ledger. It does not auto-launch OAuth.
+- One search plus one dated-rate request exhausts this adapter's per-plan budget.
+  Flights remain on the sample path; no live flight response was captured.
+
+The report does **not** claim a final tax-inclusive price: the observed response
+did not explicitly establish tax/fee coverage or an admitted purchase channel.
+Cancellation text includes estimates and provider verification caveats. Those
+fields remain unknown/verify-required, and these rates are excluded from final
+payable budgeting and card recommendations. Area/style/currency filtering is not
+claimed for this city-scoped discovery path; that limitation is returned visibly.
+
+### Actual application demonstration
+
+The live response was kept in memory through normalization. Its normalized
+public quote was replayed through sign-in, the typed interview, confirmation,
+the actual planning pipeline, trip save, and revision retrieval after opening a
+new SQLite store. The report retained the stated SGD amount and unchanged
+evidence timestamps; the selected budget hotel remained the sample adapter.
+The model was scripted. The application replay made no additional provider calls.
+This demonstrates live retrieval followed by application replay, not a second
+networked planning run or continuing live activation.
+
+The local normalized quote (not raw Markdown, credentials or a signed rate
+token) is outside Git at
+`/private/tmp/tripwise-gondola-finish/normalized-hotel-quote.json`. Reproduce the
+offline application demonstration while that file exists:
+
+```sh
+cd backend
+PYTHONPATH="$PWD" .venv/bin/python -m evals.demo_gondola_hotel_plan \
+  /private/tmp/tripwise-gondola-finish/normalized-hotel-quote.json
+```
+
+The normalization demonstration conservatively uses the capture-session start
+as its evidence time; replay/save/reopen do not stamp it as freshly fetched.
+The temporary process holding raw responses was closed after normalization.
+The new regression inputs use synthetic names, IDs and prices with the
+observed wire grammar; they make no live-data claim.
+
+For a future separately authorized operator run, the reusable entry point is
+`python -m gateway.travel.adapters.gondola.scripts.hotel_rates --help`.
+It requires explicit read-only/zero-spend flags and current keychain credentials,
+prints normalized public fields only, honors the kill switch and shares the
+per-plan ledger. No further live invocation of that command was made here.
+
+OpenAPI, generated types, frontend validation and MSW fixtures ship together
+for the optional property/room names. No frontend redesign was undertaken.
+Focused workflow checks and strict typing/lint pass. A focused independent
+static review found no material defects in the rate parsing, budget, trust and
+sample-fallback changes. Final exact-commit gate and CI evidence are recorded
+on PR #29 after execution; older results below are historical.
+
+## Historical implementation and diagnostic record
+
+The remaining sections describe earlier revisions and are superseded by the
+current delivered workflow above where they say rates were not obtained.
 
 ## What shipped
 

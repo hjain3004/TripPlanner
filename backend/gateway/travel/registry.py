@@ -19,12 +19,16 @@ from gateway.travel.errors import TravelGatewayError
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
+def gondola_kill_switch_active() -> bool:
+    return os.environ.get("TRIPWISE_GONDOLA_KILL_SWITCH", "").strip().lower() in _TRUTHY
+
+
 def _gondola_live_enabled_from_env() -> bool:
     """Read-once, at registry-construction time only — never inside the
     adapter's call path. The kill switch overrides the live-enabled flag
     unconditionally, matching the parent milestone's explicit fail-safe
     ordering: TRIPWISE_GONDOLA_KILL_SWITCH always wins."""
-    if os.environ.get("TRIPWISE_GONDOLA_KILL_SWITCH", "").strip().lower() in _TRUTHY:
+    if gondola_kill_switch_active():
         return False
     return os.environ.get("TRIPWISE_GONDOLA_LIVE_ENABLED", "").strip().lower() in _TRUTHY
 

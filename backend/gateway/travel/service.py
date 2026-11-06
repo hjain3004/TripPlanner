@@ -156,7 +156,14 @@ class TravelInventoryService:
             for hotel_quote in hotel_candidates:
                 if (
                     hotel_quote.travelers != hotel.travelers
-                    or hotel_quote.currency != hotel.currency
+                    or (
+                        hotel_quote.currency != hotel.currency
+                        and not (
+                            adapter.capabilities.source_currency_alternatives
+                            and hotel_quote.evidence.completeness != "complete"
+                            and not hotel_quote.purchasable_channels
+                        )
+                    )
                     or hotel_quote.check_in != hotel.check_in
                     or hotel_quote.check_out != hotel.check_out
                 ):
@@ -191,7 +198,9 @@ class TravelInventoryService:
                     hotel_scopes[hotel_quote.id] = QuotePriceScope(
                         basis="unknown", scope_verified=False, rooms=hotel_quote.rooms
                     )
-            if hotels:
+            # Incomplete provider evidence is useful for display, but must not
+            # prevent a cost-eligible sample fallback from being searched.
+            if any(hotel_scopes[quote.id].cost_eligible for quote in hotels):
                 break
         if hotel.rooms > 1 and hotels:
             diagnostics.append(

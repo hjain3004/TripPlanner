@@ -33,7 +33,7 @@ def build_hotel_search_arguments(
 
 
 def build_hotel_rates_arguments(
-    *, hotel_id: str, checkin: date, checkout: date, num_adults: int, room_type: str | None = None
+    *, hotel_id: int, checkin: date, checkout: date, num_adults: int, room_type: str | None = None
 ) -> dict[str, Any]:
     """Build the reviewed dated-rate diagnostic request.
 
@@ -41,7 +41,12 @@ def build_hotel_rates_arguments(
     result by the diagnostic workflow; callers may not manufacture a booking or
     selection token here.
     """
-    if not hotel_id.strip() or checkout <= checkin or num_adults < 1:
+    if (
+        type(hotel_id) is not int
+        or not 0 < hotel_id < 10**18
+        or checkout <= checkin
+        or num_adults < 1
+    ):
         raise TravelGatewayError("invalid_response", "Gondola hotel-rate dimensions are invalid")
     arguments: dict[str, Any] = {
         "hotel_id": hotel_id,

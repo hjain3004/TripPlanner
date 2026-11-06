@@ -48,6 +48,8 @@ const inventoryQuoteSchema = z.object({
   quote_id: z.string(),
   provider_id: z.string(),
   provider_quote_id: z.string().optional().nullable(),
+  property_name: z.string().optional().nullable(),
+  room_name: z.string().optional().nullable(),
   status: z.enum(["live", "cached", "estimated", "stale", "verify_required"]),
   needs_verification: z.boolean(),
   source_url: z.string().url().optional().nullable(),

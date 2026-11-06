@@ -9,6 +9,7 @@ from agents.confirmed_trip import compile_confirmed_input
 from agents.models import TripIntakeRequest
 from api.job_manager import job_manager
 from gateway.travel.adapters.sample import SampleAdapter
+from gateway.travel.protocol import TravelProviderAdapter
 from gateway.travel.registry import get_default_travel_registry
 from gateway.travel.service import TravelInventoryService
 from planning.contracts import PlanningSession
@@ -20,22 +21,40 @@ def build_travel_service(
     plan_id: str,
     now: Callable[[], datetime],
     country: str = "IN",
+    gondola_hotel_adapter: TravelProviderAdapter | None = None,
 ) -> TravelInventoryService:
-    """Runtime factory: G3.4 is sample-only even if old live flags are set."""
+    """Default sample inventory, plus explicitly enabled hotel alternatives.
+
+    An injected adapter is for controlled replay. It never sets an environment
+    flag or creates credentials. Production startup's activation guard remains.
+    """
     from core.db import KnowledgeBase
+    from gateway.travel.adapters.gondola.dated_hotel_adapter import build_keychain_hotel_adapter
+    from gateway.travel.registry import gondola_kill_switch_active
 
     if not isinstance(kb, KnowledgeBase):
         raise TypeError("confirmed planning requires a KnowledgeBase")
     current = now()
     adapter = SampleAdapter(kb, now=lambda: current)
     registry = get_default_travel_registry().model_copy(deep=True)
+    adapters: dict[str, TravelProviderAdapter] = {"sample_travel_adapter": adapter}
+    gondola_entry = registry.get_entry("gondola")
+    if not gondola_kill_switch_active() and (
+        gondola_entry.enabled or gondola_hotel_adapter is not None
+    ):
+        if gondola_hotel_adapter is not None:
+            if gondola_hotel_adapter.capabilities.provider_id != "gondola":
+                raise ValueError("Gondola replay adapter must identify its provider")
+            adapters["gondola"] = gondola_hotel_adapter
+        else:
+            adapters["gondola"] = build_keychain_hotel_adapter(plan_id=plan_id, now=now)
     registry.entries = [
-        entry.model_copy(update={"enabled": entry.provider_id == "sample_travel_adapter"})
+        entry.model_copy(update={"enabled": entry.provider_id in adapters})
         for entry in registry.entries
     ]
     return TravelInventoryService(
         registry=registry,
-        adapters={"sample_travel_adapter": adapter},
+        adapters=adapters,
         plan_id=plan_id,
         country=country,
         now=now,

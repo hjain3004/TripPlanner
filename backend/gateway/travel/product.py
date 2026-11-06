@@ -49,6 +49,8 @@ class InventoryQuoteSummary(BaseModel):
     quote_id: str
     provider_id: str
     provider_quote_id: str | None = None
+    property_name: str | None = None
+    room_name: str | None = None
     status: str
     needs_verification: bool
     source_url: str | None = None

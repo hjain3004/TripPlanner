@@ -163,6 +163,8 @@ function baseReport(): Omit<FinalReport, "summary" | "itinerary_overview" | "pay
         quote_id: "sample-flight-001",
         provider_id: "sample_travel_adapter",
         provider_quote_id: "sample-flight-001",
+        property_name: null,
+        room_name: null,
         status: "estimated",
         needs_verification: true,
         source_url: null,
