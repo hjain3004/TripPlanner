@@ -125,12 +125,14 @@ def build_flight_request_arguments(request: FlightSearchRequest) -> dict[str, An
             "unsupported_domain",
             "Gondola flight search does not advertise child or infant passenger dimensions",
         )
-    if request.nearby_airports or request.nonstop_only or request.currency:
+    if request.nearby_airports or request.nonstop_only:
         raise TravelGatewayError(
             "unsupported_domain",
-            "Gondola flight search does not advertise nearby-airport, nonstop, or "
-            "currency dimensions",
+            "Gondola flight search does not advertise nearby-airport or nonstop dimensions",
         )
+    # ``request.currency`` is the product's display/target currency, not a
+    # provider filter. Gondola does not advertise a currency argument, so keep
+    # it local and let response normalization report the provider currency.
     return build_flight_search_arguments(
         origin=request.origin,
         destination=request.destination,

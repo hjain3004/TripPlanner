@@ -21,17 +21,25 @@ evidence timestamp was available to inspect.
 The expired-token attempt above was not retried. After fresh human-authorized
 `mcp:read` consent, the one new flight `tools/call` completed successfully with
 the same exact request. The MCP envelope had `is_error=false`, structured keys
-`["result"]`, a 2,670-byte Markdown result, and one text content block. It did
-not provide a typed `results` list. No safely retained, explicitly structured
-flight quote fields (price/currency/scope, legs, carrier/flight identifiers,
-passenger/fare conditions or freshness) were established for admission.
+`["result"]`, a 2,670-byte Markdown result, and one text content block. The
+complete Markdown body was not retained by the diagnostic process and is not
+present in the task's temporary captures, tracked fixtures, logs, or current
+process state. This is a capture failure. Explicit and missing flight fields
+cannot now be listed from that response; no field-level absence may be
+attributed to Gondola.
 
-The existing typed flight adapter therefore correctly rejects this response as
-provider Markdown discovery evidence. No flight response can be mapped into a
-costable quote, planning result, saved revision or replay fixture without
-inventing fields. The synthetic offline fixture remains unchanged and is not
-live evidence. Live application traffic remains disabled; the hotel workflow
-and its sample-backed costing policy are unchanged.
+The existing typed flight adapter therefore correctly keeps this response out
+of costable inventory because only the envelope shape was retained, not because
+the body was proven to lack fields. No flight response can be mapped into a
+costable quote, planning result, saved revision or replay fixture without the
+missing body. The synthetic offline fixture remains unchanged and is not live
+evidence. Live application traffic remains disabled; the hotel workflow and its
+sample-backed costing policy are unchanged.
+
+The request seam now accepts the product's display currency locally while
+omitting it from Gondola arguments. This fixes valid product flight requests
+without claiming that Gondola supports currency filtering; normalized provider
+currency remains authoritative.
 
 ## Current delivered workflow (2026-11-05)
 

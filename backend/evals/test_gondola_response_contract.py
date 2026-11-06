@@ -191,5 +191,15 @@ def test_request_builders_reject_all_unadvertised_flight_dimensions() -> None:
         origin="DEL", destination="SIN", depart_date=date(2027, 1, 11),
         travelers=TravelerMix(adults=1), cabin="economy", currency="INR", nonstop_only=True,
     )
-    with pytest.raises(TravelGatewayError, match="nonstop.*currency"):
+    with pytest.raises(TravelGatewayError, match="nearby-airport or nonstop"):
         build_flight_request_arguments(request)
+
+
+def test_flight_builder_accepts_display_currency_without_provider_filtering() -> None:
+    request = FlightSearchRequest(
+        origin="DEL", destination="SIN", depart_date=date(2027, 1, 11),
+        travelers=TravelerMix(adults=1), cabin="economy", currency="INR",
+    )
+    arguments = build_flight_request_arguments(request)
+    assert arguments["origin"] == "DEL"
+    assert "currency" not in arguments
