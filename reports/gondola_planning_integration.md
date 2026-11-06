@@ -118,6 +118,7 @@ The exact gate on commit `b1f106e9bcce22b2ff535cfaeeff621cbf771c9b` passed:
 201 core/runtime files, 34 ingestion files, and 4 welcome files; zero-tolerance
 Ruff passed; the legacy core/api ceiling was 8 findings against a ceiling of
 12; `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, and `TREE_CLEAN` all
-passed. The final documentation commit will be gated again before delivery.
+passed. The same exact gate passed again on the final documentation commit
+`ef8f59a03e42f54deae28986609d487ed69216d7`.
 
 End of report.
