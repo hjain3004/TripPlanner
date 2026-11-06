@@ -2,9 +2,9 @@
 
 Status: live hotel search and dated-rate retrieval demonstrated; real reported
 rates reach authenticated planning and saved revisions as verify-required
-alternatives. The single newly authorized flight attempt was blocked by an
-expired local token before a provider response; live flight acceptance remains
-incomplete.
+alternatives. A fresh authenticated flight search completed, but Gondola
+returned only provider Markdown discovery evidence rather than typed flight
+inventory; live flight acceptance remains incomplete.
 
 ## Flight acceptance attempt (2026-11-05)
 
@@ -18,12 +18,20 @@ MCP session, before returning a tool result. No provider error payload,
 structured content, text block, flight identifier, price, fare condition or
 evidence timestamp was available to inspect.
 
-This attempt counts as the single authorized flight call and was not retried.
-No flight response can therefore be mapped into the gateway, planning API,
-saved revision or replay fixture. The existing typed flight adapter and its
-synthetic offline fixture remain unchanged and continue to fail closed on the
-observed provider Markdown envelope. Live application traffic remains disabled;
-the hotel workflow and its sample-backed costing policy are unchanged.
+The expired-token attempt above was not retried. After fresh human-authorized
+`mcp:read` consent, the one new flight `tools/call` completed successfully with
+the same exact request. The MCP envelope had `is_error=false`, structured keys
+`["result"]`, a 2,670-byte Markdown result, and one text content block. It did
+not provide a typed `results` list. No safely retained, explicitly structured
+flight quote fields (price/currency/scope, legs, carrier/flight identifiers,
+passenger/fare conditions or freshness) were established for admission.
+
+The existing typed flight adapter therefore correctly rejects this response as
+provider Markdown discovery evidence. No flight response can be mapped into a
+costable quote, planning result, saved revision or replay fixture without
+inventing fields. The synthetic offline fixture remains unchanged and is not
+live evidence. Live application traffic remains disabled; the hotel workflow
+and its sample-backed costing policy are unchanged.
 
 ## Current delivered workflow (2026-11-05)
 
