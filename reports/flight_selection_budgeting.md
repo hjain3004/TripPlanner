@@ -1,6 +1,6 @@
 # Flight selection and budgeting
 
-Status: **ACCEPTANCE PENDING** — final exact-tree gate, CI, and independent-review disposition remain outstanding.
+Status: **ACCEPTANCE PENDING** — the final exact-tree gate and CI remain outstanding. The complete backend suite has one demonstrated non-flight baseline failure described below.
 
 ## Delivered workflow
 
@@ -23,7 +23,9 @@ Result: **65 passed** (including the adversarial continuous-itinerary regression
 
 `make seed` completed in the isolated worktree, creating only its local sample SQLite file. `make contract-check` passed: OpenAPI export is deterministic and the generated client is byte-stable.
 
-Frontend lint and TypeScript completed with no errors; lint retains the repository's 14 existing warnings. A strict changed-module mypy invocation reports 32 existing cross-package typing findings in baseline dependencies (including existing hotel-selection channel literals); the new flight-specific findings were removed. Final complete-suite/gate results will be recorded only after they finish on the exact committed tree.
+Frontend lint and TypeScript completed with no errors; lint retains the repository's 14 existing warnings. A strict changed-module mypy invocation reports 32 existing cross-package typing findings in baseline dependencies (including existing hotel-selection channel literals); the new flight-specific findings were removed.
+
+Complete backend evidence: `backend/.venv/bin/pytest -q -p no:cacheprovider backend/evals` produced **3,105 passed, 79 skipped, 3 warnings, 1 failed** in 189.85s. The failure is `evals/test_estimator_catalog.py::test_estimator_can_cost_a_catalog_poi_without_keyerror`: its isolated catalog fixture reaches `Missing FX rate for SGD->INR` in `agents/estimator.py`. This change does not edit catalog fixtures, seed FX facts, or estimator arithmetic, so the failure is retained as a baseline gate blocker rather than suppressed or repaired out of scope.
 
 ## Limits
 
