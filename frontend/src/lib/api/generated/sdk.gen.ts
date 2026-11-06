@@ -306,7 +306,10 @@ export const startRerunAccountTripsTripIdRerunsPost = <ThrowOnError extends bool
 /**
  * Rerun Status
  *
- * Progress of a re-run. After a restart the job is unknown (404); the trip is unchanged.
+ * Progress of a re-run, read from the stored job: it survives a restart.
+ *
+ * A re-run whose worker was lost in a restart reads ``failed`` with code
+ * ``JOB_INTERRUPTED``; the trip is unchanged and nothing was repeated automatically.
  */
 export const rerunStatusAccountTripsTripIdRerunsJobIdGet = <ThrowOnError extends boolean = false>(options: Options<RerunStatusAccountTripsTripIdRerunsJobIdGetData, ThrowOnError>): RequestResult<RerunStatusAccountTripsTripIdRerunsJobIdGetResponses, RerunStatusAccountTripsTripIdRerunsJobIdGetErrors, ThrowOnError> => (options.client ?? client).get<RerunStatusAccountTripsTripIdRerunsJobIdGetResponses, RerunStatusAccountTripsTripIdRerunsJobIdGetErrors, ThrowOnError>({ url: '/account/trips/{trip_id}/reruns/{job_id}', ...options });
 

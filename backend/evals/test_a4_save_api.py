@@ -18,7 +18,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from accounts.store import AccountStore
-from api.job_manager import job_manager
 from api.main import app
 from evals.a4_support import (
     PlanningKit,
@@ -26,7 +25,9 @@ from evals.a4_support import (
     finished_plan,
     run_interview,
     second_client,
+    set_job_fields,
     signed_in_client,
+    simulate_restart,
 )
 
 
@@ -123,11 +124,8 @@ def test_an_unconfirmed_session_cannot_be_saved(
 def test_an_unfinished_plan_cannot_be_saved(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, _store, _kit, session, _job = _plan(tmp_path, monkeypatch)
-    state = job_manager.get_job(session["job_id"])
-    assert state is not None
-    with state._lock:
-        state.report = None  # as if the job were still running
+    client, store, _kit, session, _job = _plan(tmp_path, monkeypatch)
+    set_job_fields(store, session["job_id"], status="running", report_json=None)  # still running
 
     response = _save(client, session["id"])
 
@@ -135,12 +133,25 @@ def test_an_unfinished_plan_cannot_be_saved(
     assert response.json()["detail"]["code"] == "PLAN_RESULT_UNAVAILABLE"
 
 
-def test_a_plan_lost_to_a_restart_is_never_reconstructed(
+def test_a_plan_finished_before_a_restart_can_still_be_saved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, store, _kit, session, job = _plan(tmp_path, monkeypatch)
+    simulate_restart(monkeypatch)  # the process is replaced; the stored result is not
+
+    response = _save(client, session["id"])
+
+    assert response.status_code == 201, response.text
+    saved = store.revisions(_user_id(client), response.json()["trip"]["id"])[0]
+    assert json.loads(saved.report_json) == json.loads(job["report"] and json.dumps(job["report"]))
+
+
+def test_a_plan_interrupted_by_a_restart_is_never_reconstructed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client, store, _kit, session, _job = _plan(tmp_path, monkeypatch)
-    with job_manager._lock:
-        job_manager._jobs.pop(session["job_id"])  # process restart
+    set_job_fields(store, session["job_id"], status="running", report_json=None)
+    simulate_restart(monkeypatch)  # its worker is gone
 
     response = _save(client, session["id"])
 
@@ -413,7 +424,7 @@ def test_a_session_advanced_during_the_save_is_a_stale_session_and_writes_nothin
     real = saved_trips._finished_report
     repo = PlanningSessionRepository(store)
 
-    def racing(current: Any, user: Any) -> Any:
+    def racing(current: Any, user: Any, store_: Any) -> Any:
         # Another tab touches the session after we read it, before we write.
         bumped = PlanningSession.model_validate(
             current.model_copy(
@@ -421,7 +432,7 @@ def test_a_session_advanced_during_the_save_is_a_stale_session_and_writes_nothin
             ).model_dump()
         )
         repo.save(bumped, expected_version=current.version)
-        return real(current, user)
+        return real(current, user, store_)
 
     monkeypatch.setattr(saved_trips, "_finished_report", racing)
 

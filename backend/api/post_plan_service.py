@@ -91,11 +91,13 @@ def initialize_fingerprint(source: WorkspaceSource) -> str:
     return _sha256(canonical)
 
 
-def owned_finished_report(session: PlanningSession, user_id: str) -> FinalReport:
+def owned_finished_report(
+    session: PlanningSession, user_id: str, store: AccountStore
+) -> FinalReport:
     """The report of this session's finished job, or a typed refusal. Never rebuilt."""
     if not session.confirmed_briefs or session.planning_job_id is None:
         raise SessionNotConfirmedError("confirm the brief and let planning finish first")
-    state = job_manager.get_job(session.planning_job_id)
+    state = job_manager.get_job(session.planning_job_id, store)
     if state is None or state.owner_id != user_id or state.session_id != session.id:
         raise PlanUnavailableError("the plan result is no longer available")
     with state._lock:
@@ -202,9 +204,9 @@ def initialize_from_job(
     new_id: Callable[[], str] = lambda: uuid4().hex,
 ) -> tuple[PostPlanWorkspaceSnapshot, bool]:
     """Create the workspace from this session's finished job. Calls nothing external."""
-    report = owned_finished_report(session, user_id)
+    report = owned_finished_report(session, user_id, store)
     assert session.planning_job_id is not None
-    job = job_manager.get_job(session.planning_job_id)
+    job = job_manager.get_job(session.planning_job_id, store)
     inventory_snapshot_json = (
         job.inventory_snapshot.model_dump_json()
         if job is not None and job.inventory_snapshot is not None

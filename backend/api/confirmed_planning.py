@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+from accounts.store import AccountStore
 from agents.confirmed_trip import compile_confirmed_input
 from agents.models import TripIntakeRequest
 from api.job_manager import job_manager
@@ -43,7 +44,11 @@ def build_travel_service(
 
 
 def start_confirmed_job(session: PlanningSession, job_id: str) -> None:
-    """Start one owner-bound process-local job from the persisted snapshot."""
+    """Dispatch the worker for one owner-bound job whose row is already committed.
+
+    The caller creates the durable job record first (``job_manager.create_job(..., store=)``);
+    this only builds the inputs from the persisted snapshot and starts the single worker thread.
+    """
     if not session.confirmed_briefs:
         raise ValueError("confirmed brief is required")
     from api.main import (
@@ -65,7 +70,6 @@ def start_confirmed_job(session: PlanningSession, job_id: str) -> None:
         now=lambda: datetime.now(UTC),
     )
     request = TripIntakeRequest(raw_request=confirmed.raw_request, wallet=session.wallet)
-    job_manager.create_job(job_id, owner_id=session.user_id, session_id=session.id)
     import threading
 
     thread = threading.Thread(
@@ -85,9 +89,11 @@ def start_confirmed_job(session: PlanningSession, job_id: str) -> None:
     thread.start()
 
 
-def resolve_inventory_context(*, user_id: str, session_id: str, job_id: str) -> object:
+def resolve_inventory_context(
+    *, user_id: str, session_id: str, job_id: str, store: AccountStore
+) -> object:
     """Resolve ownership before a future scoped edit/refresh operation."""
-    state = job_manager.get_job(job_id)
+    state = job_manager.get_job(job_id, store)
     if state is None or state.owner_id != user_id or state.session_id != session_id:
         raise LookupError("inventory context not found")
     return state

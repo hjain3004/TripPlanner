@@ -36,7 +36,7 @@ from api.main import app
 from core.db import SEEDS_DIR, KnowledgeBase, load_kb, seed_database
 from core.models import Channel, SpendCategory, SpendLineItem, UserWallet
 from core.trip_models import AddItem, RemoveItem, TripSpec
-from evals.a4_support import PlanningKit, csrf, finished_plan, signed_in_client
+from evals.a4_support import PlanningKit, csrf, finished_plan, set_job_fields, signed_in_client
 
 BOOKING = date(2026, 7, 25)
 NOW = datetime(2026, 10, 25, 12, 0, tzinfo=UTC)
@@ -192,7 +192,7 @@ def test_confirmed_recompute_route_is_kernel_consistent_with_admitted_prices(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Fails numerically on the splice-after-assembly behaviour (see Task 1 step 2)."""
-    client, _store = signed_in_client(tmp_path)
+    client, store = signed_in_client(tmp_path)
     kit = PlanningKit(monkeypatch, tmp_path)
     headers = csrf(client)
     for card in ("hdfc-infinia", "axis-atlas"):
@@ -208,7 +208,7 @@ def test_confirmed_recompute_route_is_kernel_consistent_with_admitted_prices(
         assert added.status_code == 201, added.text
     wallet = UserWallet(**client.get("/account/wallet/projection").json())
     session, _job = finished_plan(client, kit, wallet=wallet)
-    state = job_manager.get_job(session["job_id"])
+    state = job_manager.get_job(session["job_id"], store)
     assert state is not None and state.report is not None
     kb = api_main.get_kb()
     admitted = with_admitted_prices(state.report, kb)
@@ -216,8 +216,7 @@ def test_confirmed_recompute_route_is_kernel_consistent_with_admitted_prices(
     assert _lines(admitted, SpendCategory.FLIGHTS)[0].amount_minor != _lines(
         state.report, SpendCategory.FLIGHTS
     )[0].amount_minor
-    with state._lock:
-        state.report = admitted
+    set_job_fields(store, session["job_id"], report_json=admitted.model_dump_json())
     assert admitted.travel_inventory is not None
 
     response = client.post(

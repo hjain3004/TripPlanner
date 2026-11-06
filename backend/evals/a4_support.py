@@ -253,3 +253,37 @@ def finished_plan(
     job = wait_for_job(client, session["id"])
     assert job["status"] == "complete", job
     return session, job
+
+
+def simulate_restart(monkeypatch: pytest.MonkeyPatch) -> str:
+    """Make this process look like a freshly restarted one to the job layer.
+
+    A restart replaces the process identity and drops every in-memory worker handle, so
+    rows left queued or running by the "old process" have lost their worker and an old
+    thread that later tries to publish is refused. (The real-process version is
+    ``evals/test_durable_jobs_process_restart.py``; this is the in-process shortcut.)
+    """
+    from api.job_manager import job_manager
+
+    new_id = f"restarted-{time.monotonic_ns()}"
+    monkeypatch.setattr(job_manager, "process_id", new_id)
+    with job_manager._lock:
+        job_manager._stores.clear()
+        job_manager._finalizers.clear()
+        job_manager._inventory.clear()
+    return new_id
+
+
+def set_job_fields(store: AccountStore, job_id: str, **fields: Any) -> None:
+    """Test-only: rewrite a stored job (e.g. to stage an unfinished one)."""
+    from sqlalchemy.orm import Session
+
+    from accounts.db import PlanningJobRow
+    from accounts.models import PlanningJob
+
+    with Session(store._engine) as db:
+        row = db.get(PlanningJobRow, job_id)
+        assert row is not None
+        job = PlanningJob.model_validate_json(row.payload).model_copy(update=fields)
+        store._store_job(row, job)
+        db.commit()

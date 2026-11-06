@@ -34,7 +34,14 @@ from agents.post_plan_models import report_schema_fingerprint
 from api import post_plan_service as service
 from api.job_manager import job_manager
 from api.main import app
-from evals.a4_support import PlanningKit, csrf, finished_plan, signed_in_client
+from evals.a4_support import (
+    PlanningKit,
+    csrf,
+    finished_plan,
+    set_job_fields,
+    signed_in_client,
+    simulate_restart,
+)
 from evals.cp4_support import (
     EXPIRES,
     NOW,
@@ -478,7 +485,7 @@ def test_initialising_from_a_finished_job_calls_nothing_external(
     assert created is True and dict(kit.llm.invocations) == calls_before
     loaded = service.load_workspace(store, user_id=user_id, session_id=session["id"])
     assert loaded is not None
-    state = job_manager.get_job(session["job_id"])
+    state = job_manager.get_job(session["job_id"], store)
     assert state is not None and state.report is not None
     assert loaded.result.report_json == state.report.model_dump_json()  # exact bytes
     assert loaded.workspace.report_schema_fingerprint == report_schema_fingerprint()
@@ -504,28 +511,41 @@ def test_initialising_twice_returns_the_existing_workspace(
     assert first == second
 
 
-def test_initialisation_refuses_an_unfinished_lost_or_foreign_plan(
+def test_initialisation_refuses_an_unfinished_interrupted_or_foreign_plan(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _client, store, _kit, session, user_id = real_plan(tmp_path, monkeypatch)
     parsed = planning_session(store, user_id, session["id"])
-    state = job_manager.get_job(session["job_id"])
-    assert state is not None
+    job_id = session["job_id"]
+    held = store.get_planning_job(
+        job_id, process_id=job_manager.process_id, now=NOW
+    )
+    assert held is not None and held.report_json is not None
 
     with pytest.raises(service.PlanUnavailableError):  # someone else's identity
         service.initialize_from_job(store, user_id="someone-else", session=parsed, now=NOW)
-    held = state.report
-    with state._lock:
-        state.report = None
+    set_job_fields(store, job_id, status="running", report_json=None)
     with pytest.raises(service.PlanUnavailableError):  # not finished
         service.initialize_from_job(store, user_id=user_id, session=parsed, now=NOW)
-    with state._lock:
-        state.report = held
-    with job_manager._lock:
-        job_manager._jobs.pop(session["job_id"])
-    with pytest.raises(service.PlanUnavailableError):  # lost to a restart: never rebuilt
+    simulate_restart(monkeypatch)  # its worker is gone: it reads interrupted, never rebuilt
+    with pytest.raises(service.PlanUnavailableError):
         service.initialize_from_job(store, user_id=user_id, session=parsed, now=NOW)
     assert store.get_post_plan_workspace(user_id=user_id, session_id=session["id"]) is None
+
+
+def test_a_finished_plan_initialises_a_workspace_after_a_restart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _client, store, kit, session, user_id = real_plan(tmp_path, monkeypatch)
+    calls_before = dict(kit.llm.invocations)
+    simulate_restart(monkeypatch)
+
+    snapshot, created = service.initialize_from_job(
+        store, user_id=user_id, session=planning_session(store, user_id, session["id"]), now=NOW
+    )
+
+    assert created is True and snapshot.session_id == session["id"]
+    assert dict(kit.llm.invocations) == calls_before  # nothing was re-run to get here
 
 
 def test_an_unconfirmed_session_cannot_start_a_workspace(
@@ -559,8 +579,7 @@ def test_a_saved_revision_initialises_after_a_restart_with_its_exact_bytes(
 ) -> None:
     client, store, _kit, session, user_id = real_plan(tmp_path, monkeypatch)
     trip_id = save_trip_via_api(client, session["id"])
-    with job_manager._lock:
-        job_manager._jobs.pop(session["job_id"])  # the process-local job is gone
+    simulate_restart(monkeypatch)  # the process is replaced; the saved revision is what is read
     stored = store.get_revision(user_id, trip_id, 1)
 
     snapshot, created = service.initialize_from_saved_revision(
