@@ -133,7 +133,8 @@ def test_recompute_with_real_catalog_items_stays_fast() -> None:
 
     clear_snapshot_catalog_cache()
     ids = _catalog_place_ids("lon-core")
-    assert get_catalog_poi(ids[0], "LON") is not None
+    for pid in ids:
+        assert get_catalog_poi(pid, "LON") is not None
     kb = load_kb()
     spec = TripSpec(
         home_country="IN",
