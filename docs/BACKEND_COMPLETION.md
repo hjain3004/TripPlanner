@@ -31,17 +31,17 @@ Per `AGENTS.md` and `docs/DEVELOPMENT_WORKFLOW.md`:
 │ 3. Orchestration & FastAPI           │ Demonstrated & Landed        │ `backend/agents/pipeline.py`, `backend/api/`           │
 │ 4. Critic, Evals & Provenance        │ Demonstrated & Landed        │ `backend/evals/`, reports/milestone_3.md               │
 │ 5. Conversational Domain (CP1–CP3)   │ Demonstrated & Landed        │ `backend/planning/`, reports/cp1_conversational_domain │
-│ 6. Durable Planning Jobs             │ Demonstrated & Landed        │ `backend/api/durable_jobs.py`, reports/durable_jobs.md │
+│ 6. Durable Planning Jobs             │ Demonstrated & Landed        │ `backend/api/job_manager.py`, `backend/accounts/store.py`│
 │ 7. Accounts, Wallets & Auth (A1–A3)  │ Demonstrated & Landed        │ `backend/accounts/`, reports/milestone_a1/a2.md        │
-│ 8. Saved Trips & Revisions (A4)      │ Demonstrated & Landed        │ `backend/accounts/trips.py`, reports/a4_saved_trips.md │
-│ 9. Privacy / GDPR Export & Deletion  │ Demonstrated & Landed        │ `backend/accounts/store.py` (export/delete)            │
+│ 8. Saved Trips & Revisions (A4)      │ Demonstrated & Landed        │ `backend/api/saved_trips.py`, `backend/accounts/store.py`│
+│ 9. Privacy / GDPR Export & Deletion  │ Demonstrated & Landed        │ `backend/accounts/store.py` (`export_user`, `delete_user`)│
 │ 10. Travel Gateway Contracts (G1)    │ Demonstrated & Landed        │ `backend/gateway/travel/contracts.py`                  │
 │ 11. Reference Importers (FX, Air) G2 │ Demonstrated & Landed        │ `backend/gateway/reference/`, reports/g2_open_importers│
 │ 12. Weather Context (G4 Open-Meteo)  │ Demonstrated & Landed        │ `backend/gateway/weather/`, reports/g4_open_meteo.md   │
 │ 13. Financial Ingestion Core (FI0–3) │ Demonstrated & Landed        │ `backend/ingestion/`, reports/fi0_foundation.md        │
 │ 14. Card-Bank Pilot (HDFC Page)      │ Demonstrated & Landed        │ `backend/ingestion/`, reports/card_bank_real_issuer    │
 │ 15. Welcome Window Case A (Held)     │ Demonstrated & Landed        │ `backend/welcome/`, reports/held_card_welcome_status   │
-│ 16. Hotel Selection Budgeting        │ Awaiting Landing (PR #31)    │ `backend/api/hotel_routes.py`, PR #31 (CI 4/4 passing) │
+│ 16. Hotel Selection Budgeting        │ Awaiting Landing (PR #31)    │ `backend/api/post_plan.py`, PR #31 (CI 4/4 passing)    │
 │ 17. Gondola Planning Integration     │ Awaiting Landing (PR #29/30) │ `backend/gateway/travel/adapters/gondola/`, PR #29/30  │
 │ 18. OpenBnB Rental Stay Adapter      │ Implemented Offline (Gated)  │ `backend/gateway/travel/adapters/openbnb/`, G3b report │
 │ 19. TripAdvisor Place Adapter        │ Implemented Offline (Gated)  │ `backend/gateway/places/adapters/tripadvisor/`, I8A rep│
@@ -109,8 +109,8 @@ Per `AGENTS.md` and `docs/DEVELOPMENT_WORKFLOW.md`:
 ### 3.6 Persistence, Concurrency, and Restart Behavior
 - **Current Landed State:**
   - Planning Sessions: Backed by SQLite `AccountStore` with optimistic version checks (`expected_version`), idempotent `client_event_id` handling, and TTL expiration.
-  - Durable Jobs: SQLite job runner (`backend/api/durable_jobs.py`, PR #28) ensures `/plan` background processing survives server restarts; polling recovers progress.
-  - Saved Trips & Revisions: Immutable `SavedTrip` and append-only `TripRevision` persisted in `accounts.db` (A1/A4).
+  - Durable Jobs: SQLite job runner via `AccountStore` and `backend/api/job_manager.py` (PR #28) ensures `/plan` background processing survives server restarts; polling recovers progress.
+  - Saved Trips & Revisions: Immutable `SavedTrip` and append-only `TripRevision` persisted in `accounts.db` via `backend/api/saved_trips.py` and `backend/accounts/store.py` (A1/A4).
   - Hotel & Flight Selection State: Stored across revisions, idempotent, and protected against stale parent revisions.
   - Ingestion Decisions: Replay-safe SQLite persistence for proposals, audit logs, and activation bundles.
 
@@ -119,8 +119,8 @@ Per `AGENTS.md` and `docs/DEVELOPMENT_WORKFLOW.md`:
   - Authentication: Argon2id password hashing, server-side hashed session tokens, HTTP-only cookies, and CSRF protection on mutation routes (A2).
   - Security Invariants: Model-level `extra="forbid"` and forbidden field AST checks guarantee PAN, CVV, PIN, and net-banking credentials can never be accepted or stored.
   - Privacy / GDPR: Fully implemented in `backend/accounts/store.py`:
-    - `export_user_data(user_id)` returns a complete, user-scoped JSON archive of profile, wallet entries, saved trips, revisions, and planning sessions.
-    - `delete_user_data(user_id)` performs a cascading hard-delete across all user tables.
+    - `export_user(user_id, now=...)` returns a complete, user-scoped JSON archive (`UserExport`) of profile, wallet entries, saved trips, revisions, and planning sessions.
+    - `delete_user(user_id)` performs a cascading hard-delete across all user tables.
 
 ---
 

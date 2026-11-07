@@ -31,7 +31,7 @@ Per project delivery directives and non-negotiables:
 │                 │ in saved revisions  │ fixtures in tests│ LIVE_ENABLED=0       │ expired token refresh   │
 ├─────────────────┼─────────────────────┼──────────────────┼──────────────────────┼─────────────────────────┤
 │ Open-Meteo      │ Weather context in  │ 1 live forecast  │ Disabled fail-soft   │ Node runtime + audited  │
-│                 │ /plan and revisions │ probe captured;  │ TRIPWISE_WEATHER_    │ package installation    │
+│                 │ /plan and revisions │ probe captured;  │ TRIPWISE_OPEN_METEO_ │ package installation    │
 │                 │ (non-financial)     │ fixtures for rest│ ENABLED=0            │ required on host        │
 ├─────────────────┼─────────────────────┼──────────────────┼──────────────────────┼─────────────────────────┤
 │ OpenBnB         │ Isolated offline    │ 100% synthetic   │ Mechanically         │ Airbnb ToS §11.1 scrape │
@@ -98,10 +98,10 @@ Per project delivery directives and non-negotiables:
   - **Observed Live:** 1 live forecast probe for Singapore coordinates `(1.3521, 103.8198)` executed via `probe_live.py`, resulting in the committed reference capture `backend/gateway/weather/fixtures/singapore_live_capture.forecast.json`.
   - **Fixture/Replay:** Historical and climate responses are tested offline against synthetic fixtures matching reviewed upstream contracts; no live historical/climate calls have been made.
 - **Default state and actual activation mechanism:**
-  - **Default State:** Disabled fail-soft (`enabled=False`). Public contract returns `Weather context unavailable`.
+  - **Default State:** Disabled fail-soft (`enabled=False`). Default environment: `TRIPWISE_OPEN_METEO_ENABLED=0`. Dominant kill switch `TRIPWISE_OPEN_METEO_KILL_SWITCH=1` unconditionally forces disabled state. Public contract returns `Weather context unavailable`.
   - **Activation Mechanism:**
     1. Operator installs pinned npm package `@cyanheads/open-meteo-mcp-server@0.4.1` with lockfile verification against `backend/gateway/weather/upstream/package-lock.audited.json`.
-    2. Set environment variables: `TRIPWISE_WEATHER_ENABLED=1` and `TRIPWISE_OPEN_METEO_MCP_ENTRYPOINT=/path/to/server/dist/index.js`.
+    2. Set environment variables: `TRIPWISE_OPEN_METEO_ENABLED=1`, `TRIPWISE_OPEN_METEO_INSTALL_ROOT=/path/to/server`, and optionally `TRIPWISE_OPEN_METEO_NODE=/path/to/node`.
     3. MCP child process is spawned with an ephemeral, empty `$HOME` and sanitized environment.
 - **Outstanding source permission, credentials, cost, or technical requirements:**
   - **Permission / Terms:** Open-Meteo is free for non-commercial use with CC BY 4.0 attribution. Attribution string is embedded in normalized models. Upstream package is Apache-2.0.
@@ -195,7 +195,7 @@ Per project delivery directives and non-negotiables:
 2. **Open-Meteo:**
    - [ ] Ensure Node.js runtime is installed in the target execution environment.
    - [ ] Install `@cyanheads/open-meteo-mcp-server@0.4.1` verifying against audited lockfile.
-   - [ ] Export `TRIPWISE_WEATHER_ENABLED=1` and `TRIPWISE_OPEN_METEO_MCP_ENTRYPOINT`.
+   - [ ] Export `TRIPWISE_OPEN_METEO_ENABLED=1` and `TRIPWISE_OPEN_METEO_INSTALL_ROOT`.
 3. **OpenBnB:**
    - [ ] **DO NOT ACTIVATE** without written human legal exception to Airbnb ToS §11.1.
 4. **TripAdvisor:**
