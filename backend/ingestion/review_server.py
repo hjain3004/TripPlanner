@@ -32,6 +32,7 @@ from ingestion.contracts import (
     FetchAttempt,
     FetchResult,
     PageKind,
+    ProposalStatus,
     SourcePolicyRecord,
     WatchTarget,
 )
@@ -39,8 +40,17 @@ from ingestion.diff import diff_text
 from ingestion.extraction import FinancialExtractor
 from ingestion.policy import CuratorPromotion, promote_candidate_to_watch_target
 from ingestion.preflight import SourcePreflight
+from ingestion.readiness import (
+    DEMO_WALLET,
+    ReadinessRefused,
+    ReadOnlyView,
+    build_readiness,
+    load_findings,
+    render_readiness_markdown,
+)
 from ingestion.review import ReviewService
 from ingestion.review_app import ReviewAppConfig, SessionRegistry, create_review_app
+from ingestion.review_queue import build_review_queue, render_queue_markdown
 from ingestion.review_rows import SeedRowSource
 from ingestion.review_types import CuratorFieldEdit, DecisionRequest, ReviewRefusedError
 from ingestion.seed_writer import SeedWriteError, SeedWriter
@@ -548,6 +558,65 @@ def check_config(args: argparse.Namespace, *, today: datetime) -> int:
     return 0
 
 
+def emit_local_report(text: str, out: str | None, *, repo_root: Path) -> int:
+    """Print a report, or write it to a file that is not inside a git checkout.
+
+    Review packets quote captured documents verbatim, so they must stay local and ignored.
+    """
+    if out is None:
+        print(text)
+        return 0
+    target = Path(out).expanduser().resolve()
+    root = repo_root.resolve()
+    if target == root or root in target.parents:
+        raise LocalOnlyError("report output must be outside the repository (it may quote captures)")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    print(f"wrote {target}")
+    return 0
+
+
+def run_readiness(
+    args: argparse.Namespace,
+    *,
+    environment: Mapping[str, str],
+    repo_root: Path,
+    now: Callable[[], datetime],
+) -> int:
+    """Which financial facts the demonstration trip depends on, and the state of each."""
+    from core.db import SEEDS_DIR
+    from core.models import UserWallet
+
+    seeds_dir = Path(args.seeds_dir) if args.seeds_dir else SEEDS_DIR
+    wallet = UserWallet(card_ids=list(args.wallet_card)) if args.wallet_card else DEMO_WALLET
+    view: ReadOnlyView | None = None
+    data_dir: Path | None = None
+    if args.data_dir or environment.get("TRIPWISE_DATA_DIR"):
+        data_dir = resolve_data_dir(args.data_dir, env=environment, repo_root=repo_root)
+        # A report must not change anything: the databases are opened read-only and only if they
+        # already exist, and an older schema is refused instead of being migrated.
+        try:
+            view = ReadOnlyView(data_dir)
+        except ReadinessRefused as refusal:
+            print(f"refused: {refusal}", file=sys.stderr)
+            return 2
+    findings = load_findings(Path(args.findings)) if args.findings else []
+    report = build_readiness(
+        seeds_dir=seeds_dir,
+        wallet=wallet,
+        view=view,
+        findings=findings,
+        data_dir=data_dir,
+        as_of=now(),
+    )
+    text = (
+        render_readiness_markdown(report)
+        if args.format == "md"
+        else report.model_dump_json(indent=2)
+    )
+    return emit_local_report(text, args.out, repo_root=repo_root)
+
+
 def _aware_timestamp(text: str) -> datetime:
     """argparse type: an ISO-8601 time that names its UTC offset (a capture time is a claim)."""
     try:
@@ -691,6 +760,21 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     reopen.add_argument("--data-dir", default=None)
     reopen.add_argument("--seeds-dir", default=None)
     reopen.add_argument("--proposal-id", required=True)
+    readiness = sub.add_parser("readiness")
+    readiness.add_argument("--data-dir", default=None)
+    readiness.add_argument("--seeds-dir", default=None)
+    readiness.add_argument("--wallet-card", action="append", default=None)
+    readiness.add_argument("--findings", default=None)
+    readiness.add_argument("--format", choices=("md", "json"), default="md")
+    readiness.add_argument("--out", default=None)
+    queue = sub.add_parser("review-queue")
+    queue.add_argument("--data-dir", default=None)
+    queue.add_argument("--seeds-dir", default=None)
+    queue.add_argument(
+        "--status", action="append", choices=[s.value for s in ProposalStatus], default=None
+    )
+    queue.add_argument("--format", choices=("md", "json"), default="md")
+    queue.add_argument("--out", default=None)
     status = sub.add_parser("status")
     status.add_argument("--data-dir", default=None)
     status.add_argument("--seeds-dir", default=None)
@@ -803,7 +887,12 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
         except ConfigValidationError as error:
             return _config_refusal(error)
     repo_root = Path(__file__).resolve().parents[2]
+    if args.command == "readiness":
+        return run_readiness(args, environment=environment, repo_root=repo_root, now=now)
     data_dir = resolve_data_dir(args.data_dir, env=environment, repo_root=repo_root)
+    if args.command == "review-queue" and not (data_dir / "ingestion.sqlite").exists():
+        print(f"refused: no ingestion database in {data_dir}", file=sys.stderr)
+        return 2
 
     if args.command == "add-curator":
         return add_curator(data_dir, args.curator_id, args.display_name, now=now)
@@ -836,6 +925,22 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
             )
         except ConfigValidationError as error:
             return _config_refusal(error)
+    if args.command == "review-queue":
+        statuses = tuple(ProposalStatus(v) for v in (args.status or ["pending"]))
+        as_of = now()
+        items = build_review_queue(
+            store=store,
+            service=service,
+            as_of=as_of,
+            statuses=statuses,
+            data_dir_hint=str(data_dir),
+        )
+        text = (
+            render_queue_markdown(items, as_of=as_of)
+            if args.format == "md"
+            else json.dumps([i.model_dump(mode="json") for i in items], indent=2, sort_keys=True)
+        )
+        return emit_local_report(text, args.out, repo_root=repo_root)
     if args.command == "status":
         print(
             json.dumps(
