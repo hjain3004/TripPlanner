@@ -41,6 +41,10 @@ export {
   getRevisionAccountTripsTripIdRevisionsRevisionGet,
   startRerunAccountTripsTripIdRerunsPost,
   rerunStatusAccountTripsTripIdRerunsJobIdGet,
+  hotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGet,
+  previewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPost,
+  flightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGet,
+  previewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPost,
 } from "./generated/sdk.gen";
 export type {
   BonusOut,
@@ -216,6 +220,18 @@ export type {
   WalletEntryOut,
   WalletEntryPatchIn,
   ValidationError,
+  HotelSelectionAction,
+  HotelSelectionComputedOut,
+  HotelSelectionOptionsOut,
+  HotelSelectionPreviewIn,
+  HotelSelectionPreviewOut,
+  HotelSelectionRecord,
+  FlightSelectionAction,
+  FlightSelectionComputedOut,
+  FlightSelectionOptionsOut,
+  FlightSelectionPreviewIn,
+  FlightSelectionPreviewOut,
+  FlightSelectionRecord,
 } from "./generated/types.gen";
 import type {
   DraftItineraryOutput,

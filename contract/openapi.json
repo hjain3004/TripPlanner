@@ -2365,6 +2365,517 @@
         }
       }
     },
+    "/planning/sessions/{session_id}/hotel-selection": {
+      "get": {
+        "tags": [
+          "post-plan"
+        ],
+        "summary": "Hotel Selection Options",
+        "description": "Expose only the server-owned hotel alternatives retained for this workspace.",
+        "operationId": "hotel_selection_options_planning_sessions__session_id__hotel_selection_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotelSelectionOptionsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/hotel-selection/preview": {
+      "post": {
+        "tags": [
+          "post-plan"
+        ],
+        "summary": "Preview Hotel Selection",
+        "description": "Create a durable CP4 proposal whose response contains the deterministic preview.",
+        "operationId": "preview_hotel_selection_planning_sessions__session_id__hotel_selection_preview_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotelSelectionPreviewIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionProposalOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/flight-selection": {
+      "get": {
+        "tags": [
+          "post-plan"
+        ],
+        "summary": "Flight Selection Options",
+        "description": "Expose retained complete flight quotes and separate non-bookable observations.",
+        "operationId": "flight_selection_options_planning_sessions__session_id__flight_selection_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlightSelectionOptionsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/planning/sessions/{session_id}/flight-selection/preview": {
+      "post": {
+        "tags": [
+          "post-plan"
+        ],
+        "summary": "Preview Flight Selection",
+        "operationId": "preview_flight_selection_planning_sessions__session_id__flight_selection_preview_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlightSelectionPreviewIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionProposalOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlanError"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/planning/sessions/{session_id}/actions/{proposal_id}/approve": {
       "post": {
         "tags": [
@@ -3605,6 +4116,20 @@
               }
             ],
             "title": "Decision"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HotelSelectionPreviewOut"
+              },
+              {
+                "$ref": "#/components/schemas/FlightSelectionPreviewOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview"
           }
         },
         "additionalProperties": false,
@@ -5724,6 +6249,26 @@
               }
             ]
           },
+          "hotel_selection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HotelSelectionRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flight_selection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlightSelectionRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "weather_context": {
             "$ref": "#/components/schemas/WeatherContextOutcome"
           }
@@ -6043,6 +6588,395 @@
         ],
         "title": "FlightPriceObservation"
       },
+      "FlightSelectionAction": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "flight_selection",
+            "title": "Kind",
+            "default": "flight_selection"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "inventory_quote",
+              "user_provided_total"
+            ],
+            "title": "Source"
+          },
+          "quote_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Id"
+          },
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "covers": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Covers"
+          },
+          "amount_scope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "party_total",
+                  "per_traveler"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Scope"
+          },
+          "payment_channel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Channel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Assumptions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "FlightSelectionAction",
+        "description": "Select an admitted flight quote or record a separately scoped planning total.\n\nObserved flight prices are intentionally not an input here: they are not quotes\nand cannot fill in an itinerary that the provider did not return."
+      },
+      "FlightSelectionComputedOut": {
+        "properties": {
+          "flight_amount_minor": {
+            "type": "integer",
+            "title": "Flight Amount Minor"
+          },
+          "flight_currency": {
+            "type": "string",
+            "title": "Flight Currency"
+          },
+          "trip_cost_minor": {
+            "type": "integer",
+            "title": "Trip Cost Minor"
+          },
+          "rewards_value_minor": {
+            "type": "integer",
+            "title": "Rewards Value Minor"
+          },
+          "forex_fees_minor": {
+            "type": "integer",
+            "title": "Forex Fees Minor"
+          },
+          "effective_cost_minor": {
+            "type": "integer",
+            "title": "Effective Cost Minor"
+          },
+          "payment_strategy": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentStrategyRow"
+            },
+            "type": "array",
+            "title": "Payment Strategy"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "flight_amount_minor",
+          "flight_currency",
+          "trip_cost_minor",
+          "rewards_value_minor",
+          "forex_fees_minor",
+          "effective_cost_minor",
+          "payment_strategy",
+          "assumptions",
+          "limitations"
+        ],
+        "title": "FlightSelectionComputedOut"
+      },
+      "FlightSelectionOptionsOut": {
+        "properties": {
+          "request": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Request"
+          },
+          "selected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventoryQuoteSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryQuoteSummary"
+            },
+            "type": "array",
+            "title": "Alternatives"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/FlightPriceObservation"
+            },
+            "type": "array",
+            "title": "Observations"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "request",
+          "selected",
+          "alternatives",
+          "observations",
+          "limitations"
+        ],
+        "title": "FlightSelectionOptionsOut"
+      },
+      "FlightSelectionPreviewIn": {
+        "properties": {
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          },
+          "expected_session_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Session Version"
+          },
+          "expected_workspace_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Workspace Version"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/FlightSelectionAction"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "client_event_id",
+          "expected_session_version",
+          "expected_workspace_version",
+          "selection"
+        ],
+        "title": "FlightSelectionPreviewIn"
+      },
+      "FlightSelectionPreviewOut": {
+        "properties": {
+          "before": {
+            "$ref": "#/components/schemas/FlightSelectionComputedOut"
+          },
+          "after": {
+            "$ref": "#/components/schemas/FlightSelectionComputedOut"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/FlightSelectionAction"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "before",
+          "after",
+          "selection"
+        ],
+        "title": "FlightSelectionPreviewOut"
+      },
+      "FlightSelectionRecord": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "inventory_quote",
+              "user_provided_total"
+            ],
+            "title": "Source"
+          },
+          "quote_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Id"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "covers": {
+            "type": "string",
+            "title": "Covers"
+          },
+          "amount_scope": {
+            "type": "string",
+            "enum": [
+              "party_total",
+              "per_traveler"
+            ],
+            "title": "Amount Scope"
+          },
+          "payment_channel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Channel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          },
+          "recorded_by": {
+            "type": "string",
+            "title": "Recorded By"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "amount_minor",
+          "currency",
+          "covers",
+          "amount_scope",
+          "recorded_at",
+          "recorded_by",
+          "session_id"
+        ],
+        "title": "FlightSelectionRecord",
+        "description": "The accepted flight choice or traveler estimate, distinct from evidence."
+      },
       "GatewayDiagnostic": {
         "properties": {
           "code": {
@@ -6271,6 +7205,363 @@
           "days"
         ],
         "title": "HistoricalObservation"
+      },
+      "HotelSelectionAction": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "hotel_selection",
+            "title": "Kind",
+            "default": "hotel_selection"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "inventory_quote",
+              "user_provided_total"
+            ],
+            "title": "Source"
+          },
+          "quote_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Id"
+          },
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "covers": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Covers"
+          },
+          "payment_channel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Channel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Assumptions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "HotelSelectionAction",
+        "description": "Select admitted hotel evidence or record a separate planning total."
+      },
+      "HotelSelectionComputedOut": {
+        "properties": {
+          "hotel_amount_minor": {
+            "type": "integer",
+            "title": "Hotel Amount Minor"
+          },
+          "hotel_currency": {
+            "type": "string",
+            "title": "Hotel Currency"
+          },
+          "trip_cost_minor": {
+            "type": "integer",
+            "title": "Trip Cost Minor"
+          },
+          "rewards_value_minor": {
+            "type": "integer",
+            "title": "Rewards Value Minor"
+          },
+          "forex_fees_minor": {
+            "type": "integer",
+            "title": "Forex Fees Minor"
+          },
+          "effective_cost_minor": {
+            "type": "integer",
+            "title": "Effective Cost Minor"
+          },
+          "payment_strategy": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentStrategyRow"
+            },
+            "type": "array",
+            "title": "Payment Strategy"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "hotel_amount_minor",
+          "hotel_currency",
+          "trip_cost_minor",
+          "rewards_value_minor",
+          "forex_fees_minor",
+          "effective_cost_minor",
+          "payment_strategy",
+          "assumptions",
+          "limitations"
+        ],
+        "title": "HotelSelectionComputedOut"
+      },
+      "HotelSelectionOptionsOut": {
+        "properties": {
+          "request": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Request"
+          },
+          "selected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventoryQuoteSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryQuoteSummary"
+            },
+            "type": "array",
+            "title": "Alternatives"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "request",
+          "selected",
+          "alternatives",
+          "limitations"
+        ],
+        "title": "HotelSelectionOptionsOut"
+      },
+      "HotelSelectionPreviewIn": {
+        "properties": {
+          "client_event_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Event Id"
+          },
+          "expected_session_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Session Version"
+          },
+          "expected_workspace_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Workspace Version"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/HotelSelectionAction"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "client_event_id",
+          "expected_session_version",
+          "expected_workspace_version",
+          "selection"
+        ],
+        "title": "HotelSelectionPreviewIn"
+      },
+      "HotelSelectionPreviewOut": {
+        "properties": {
+          "before": {
+            "$ref": "#/components/schemas/HotelSelectionComputedOut"
+          },
+          "after": {
+            "$ref": "#/components/schemas/HotelSelectionComputedOut"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/HotelSelectionAction"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "before",
+          "after",
+          "selection"
+        ],
+        "title": "HotelSelectionPreviewOut"
+      },
+      "HotelSelectionRecord": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "inventory_quote",
+              "user_provided_total"
+            ],
+            "title": "Source"
+          },
+          "quote_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Id"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "covers": {
+            "type": "string",
+            "title": "Covers"
+          },
+          "payment_channel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Channel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          },
+          "recorded_by": {
+            "type": "string",
+            "title": "Recorded By"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "amount_minor",
+          "currency",
+          "covers",
+          "recorded_at",
+          "recorded_by",
+          "session_id"
+        ],
+        "title": "HotelSelectionRecord",
+        "description": "The accepted hotel choice, separate from provider evidence."
       },
       "InfeasiblePlan": {
         "properties": {
