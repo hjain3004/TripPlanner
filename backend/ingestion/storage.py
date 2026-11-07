@@ -51,6 +51,10 @@ class ConflictingWriteError(IngestionStoreError):
     pass
 
 
+class AcquisitionLockContentionError(IngestionStoreError):
+    """Typed, bounded failure when SQLite write contention prevents reservation or update."""
+
+
 _SCHEMA = """
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS source_policies (
@@ -97,6 +101,22 @@ CREATE TABLE IF NOT EXISTS activation_bundles (
     request_fingerprint TEXT NOT NULL, payload TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS acquisition_requests (
+    request_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL,
+    policy_hash TEXT NOT NULL, canonical_url TEXT NOT NULL, domain TEXT NOT NULL,
+    run_id TEXT NOT NULL, month_key TEXT NOT NULL, state TEXT NOT NULL,
+    estimated_credits INTEGER NOT NULL, charged_credits INTEGER,
+    pricing_version TEXT NOT NULL, reserved_at TEXT NOT NULL,
+    dispatch_started_at TEXT, completed_at TEXT,
+    result_payload TEXT, safe_diagnostic TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS acquisition_domain_reservations (
+    domain TEXT PRIMARY KEY, next_dispatch_at TEXT NOT NULL, request_id TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_acquisition_requests_run
+    ON acquisition_requests(run_id, state);
+CREATE INDEX IF NOT EXISTS idx_acquisition_requests_month
+    ON acquisition_requests(month_key, state);
 """
 
 
