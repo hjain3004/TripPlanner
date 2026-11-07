@@ -2,7 +2,7 @@
 
 **Branch:** `codex/firecrawl-ingestion`  
 **Worktree:** `/Users/himanshu_jain/.codex/worktrees/firecrawl-ingestion/TripPlanner`  
-**Execution mode:** Real SQLite + filesystem artifact store + real `pdfplumber` worker + multi-process CLI execution against retained captures (`RetainedCaptureTransport`) and deterministic replay (`SCRIPTED_REPLAY` / `CURATOR_AUTHORED`). Live Firecrawl API calls remain disabled by default until explicit human authorization.
+**Execution mode:** Real SQLite + filesystem artifact store + real `pdfplumber` worker + multi-process CLI execution against retained captures (`RetainedCaptureTransport`), deterministic replay (`SCRIPTED_REPLAY` / `CURATOR_AUTHORED`), and **one human-authorized live Firecrawl `/v2/scrape` pilot call** (`axis-atlas-card-live-v1`, 1 credit) whose persisted snapshot was replayed through `--extraction-mode curator_authored` (`replayed_fetch=True`, 0 extra scrapes) into the real `review-queue` and `inspect`. Live Firecrawl API calls remain disabled by default unless `--live-firecrawl --confirm-no-overage --robots-file` and `FIRECRAWL_API_KEY` are explicitly supplied.
 
 ---
 
@@ -114,46 +114,31 @@ All commands below were executed from `/Users/himanshu_jain/.codex/worktrees/fir
 
 ---
 
-## 5. Remaining Blocker & Single Consolidated Human Authorization Request
+## 5. Authorized Live Pilot Execution & Review-Queue Verification
 
-No live Firecrawl network call was executed in this session. Per the source review packet (`~/tripwise-ingestion-data/firecrawl-pilot-approval-packet-20261107/source_review_summary.md`):
-- **HDFC Infinia (`https://www.hdfc.bank.in/credit-cards/infinia-credit-card`):** `robots.txt` contains `Disallow: /` for `User-agent: *`, and policy `hdfc-bank-in-manual-card-page` is `manual_only=True, automated_access_permitted=False`. Human terms review alone does not override a `robots.txt` disallow; HDFC remains on the manual capture path (`stage-capture`).
-- **Axis Bank Atlas (`https://www.axis.bank.in/cards/credit-card/axis-bank-atlas-credit-card`):** `robots.txt` allows `/` (`Allow: /` for `User-agent: *`), and the target is an HTML `card_page` eligible for `FirecrawlBackend` once authorized. (The Axis PDF T&C remains on the manual capture + local `pdfplumber` path because `FirecrawlBackend` disables PDF parsers to guarantee 1 credit/call.)
+Following explicit human authorization on 2026-11-07 for `axis-atlas-card-live-v1` (`https://www.axis.bank.in/cards/credit-card/axis-bank-atlas-credit-card`, policy `axis-bank-in-firecrawl-card-page-v1`, 1 call / 1 credit maximum), while keeping `hdfc-infinia-card-page` on `manual_only: true` (`Disallow: /` in `robots.txt`):
 
-### Consolidated Human Authorization Request (One-Time Live Pilot)
+1. **Live Firecrawl Acquisition (`--live-firecrawl --extraction-mode disabled`, 1 call / 1 credit):**
+   - `request_id`: `acq:axis-atlas-card-live-v1:e3837bd7484ebf90` (`client_event_id`: `req-axis-atlas-live-20261107-01`)
+   - `state`: `"completed"`, `operator_outcome`: `"completed_and_replayable"`, `replayed_fetch`: `false`, `estimated_credits`: `1`, `charged_credits`: `1`
+   - `evidence_fidelity`: `"provider_rendered_html"` (`is_original_issuer_http_bytes: false`, `complete_redirect_chain_available: false`)
+   - `raw_sha256`: `aa0a7b25628f11d6a0b2eddb0a46f9ee4e101270f8333bc5c6843875f9fbbece`
+   - `normalized_sha256`: `0ad9806c9aaa8f132b270a628f2a9879579da916a97732d2ce1080c621bceb54`
+   - `provider_envelope_sha256`: `70733b21bbe36dcf53878634c44e88d1fb9bb075f70c5fa3e35046e3cd617a68`
+   - `snapshot_id`: `snapshot:axis-atlas-card-live-v1:0ad9806c9aaa8f132b270a628f2a9879579da916a97732d2ce1080c621bceb54:aa0a7b25628f11d6a0b2eddb0a46f9ee4e101270f8333bc5c6843875f9fbbece`
 
-To run the single live Firecrawl pilot call and land its result in the local review queue, please confirm:
+2. **Post-Fetch Replay + Curator-Authored Extraction (`--extraction-mode curator_authored`, 0 additional scrapes, 0 hosted LLM calls):**
+   - Re-running `acquire` with `--client-event-id req-axis-atlas-live-20261107-01 --extraction-mode curator_authored --scripted-extraction "$HOME/tripwise-ingestion-data/firecrawl-live-pilot/axis_atlas_live_extraction.json"` replayed the persisted live snapshot (`"replayed_fetch": true`, `0` new Firecrawl calls, `0` new credits) and verified 6 exact quotes and offsets against the live snapshot:
+     - `forex_markup_bp`: `150` → `350` (`"Foreign currency transaction fee3.50% of the transaction value"`, offsets `97149..97211`, `quote_verified: true`)
+     - `annual_fee_minor`: `500000` (`"Standard annual fee (2nd year onwards)₹5,000"`, offsets `95687..95731`, `quote_verified: true`)
+     - `base_earn.points`: `2` (`"2 EDGE Miles earned on every 100 spent"`, offsets `93592..93630`, `quote_verified: true`)
+     - `base_earn.per_amount_minor`: `10000` (`"per ₹100 spent"`, offsets `89513..89527`, `quote_verified: true`)
+     - `issuer`: `"Axis Bank"` (`"Axis Bank Atlas Credit Card"`, offsets `30..57`, `quote_verified: true`)
+     - `name`: `"Atlas"` (`"Axis Bank Atlas Credit Card"`, offsets `30..57`, `quote_verified: true`)
+   - Queued pending proposal `proposal:axis-atlas:snapshot:axis-atlas-card-live-v1:0ad9806c9aaa8f132b270a628f2a9879579da916a97732d2ce1080c621bceb54:aa0a7b25628f11d6a0b2eddb0a46f9ee4e101270f8333bc5c6843875f9fbbece` (`status: "pending"`, `verified_by="UNVERIFIED"`, `needs_verification=True`) in the real `review-queue` and verified via `inspect`.
 
-1. **Target URL & Source Policy Approval:**
-   - **URL:** `https://www.axis.bank.in/cards/credit-card/axis-bank-atlas-credit-card` (`PageKind.CARD_PAGE`, target ID `axis-atlas-card-live-v1`)
-   - **Versioned Policy Record:** Approve a new immutable `SourcePolicyRecord` (`policy_id="axis-bank-in-firecrawl-card-page-v1"`, `domain="www.axis.bank.in"`, `allowed_classes=[SourceClass.OFFICIAL_PAGE]`, `automated_access_permitted=True`, `manual_only=False`, `min_delay_seconds=30.0`, `max_retries=0`, `reviewed_by="himanshu"`).
-2. **Credentials:**
-   - Provide `FIRECRAWL_API_KEY` in the operator shell environment (never committed to Git).
-3. **Maximum Calls & Credits:**
-   - `1` live `/v2/scrape` call, `1` credit maximum (`max_credits_per_request=1`, `max_credits_per_run=1`, `monthly_credit_Allowance=500`).
-4. **Scrape Options:**
-   - `formats=["rawHtml"]`, `onlyMainContent=False`, `parsers=[]`, `actions=[]`, `location={"country": "IN", "languages": ["en-IN"]}`, `maxAge=0`, `storeInCache=True`, `timeout=30000` (pinned to 1 credit/scrape; zero proxy/JSON/PDF/action add-ons).
-5. **Retention & Extraction Mode:**
-   - Store fetched artifacts and provider envelope in the local uncommitted data directory (`~/tripwise-ingestion-data/firecrawl-live-pilot/`); run with `--extraction-mode disabled` (or `--extraction-mode curator_authored` after inspecting the live snapshot) so zero paid LLM tokens are spent during acquisition.
+3. **Remaining Boundaries:**
+   - The proposal remains `pending` in `~/tripwise-ingestion-data/firecrawl-live-pilot/data/ingestion.sqlite` (`core/seeds/*.yaml` untouched; `blocked_by: ["D1"]` for the 6 fields not quoted on the HTML card page: `base_earn.currency`, `country`, `fee_currency`, `forex_markup_tax_bp`, `lounge_intl_visits_per_year`, `network`).
+   - Extraction used `ExtractionMode.CURATOR_AUTHORED` (`0` hosted LLM tokens); live LLM extraction (`ExtractionMode.AUTHORIZED_CLIENT`) remains unactivated.
+   - HDFC Infinia (`Disallow: /` in `robots.txt`) and Axis Atlas PDF T&C (`tnc_pdf`) remain on the manual capture / local `pdfplumber` worker path.
 
-### Exact Live Command (Ready to Run Upon Approval)
-
-```bash
-cd /Users/himanshu_jain/.codex/worktrees/firecrawl-ingestion/TripPlanner/backend && \
-FIRECRAWL_API_KEY="$FIRECRAWL_API_KEY" \
-.venv/bin/python -m ingestion.review_server \
-  acquire \
-  --data-dir "$HOME/tripwise-ingestion-data/firecrawl-live-pilot" \
-  --seeds-dir core/seeds \
-  --source-policy "$HOME/tripwise-ingestion-data/firecrawl-live-pilot/policies.yaml" \
-  --watch-target "$HOME/tripwise-ingestion-data/firecrawl-live-pilot/watchlist.yaml" \
-  --target-id axis-atlas-card-live-v1 \
-  --client-event-id req-axis-atlas-live-20261107-01 \
-  --live-firecrawl \
-  --confirm-no-overage \
-  --robots-file "$HOME/tripwise-ingestion-data/firecrawl-pilot-approval-packet-20261107/axis_robots.txt" \
-  --per-request-credits 1 \
-  --per-run-credits 1 \
-  --per-month-credits 500 \
-  --extraction-mode disabled
-```
