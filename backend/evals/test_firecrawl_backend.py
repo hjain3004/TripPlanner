@@ -197,6 +197,8 @@ def test_html_result_uses_explicit_safe_scrape_options_and_preserves_artifacts(
     assert wire.only_main_content is False
     assert wire.only_clean_content is False
     assert wire.actions == ()
+    assert "actions" not in wire.wire_payload()
+    assert wire.wire_payload()["parsers"] == []
 
 
 def test_forced_freshness_disables_provider_cache_reuse(tmp_path: Path) -> None:
@@ -206,22 +208,59 @@ def test_forced_freshness_disables_provider_cache_reuse(tmp_path: Path) -> None:
     assert transport.calls[0].max_age_ms == 0
 
 
-def test_target_login_challenge_and_pdf_are_refused_without_claiming_success(
+def test_challenge_login_and_pdf_are_refused_without_claiming_success(
     tmp_path: Path,
 ) -> None:
-    for body, expected in (
-        ("<html><body>Sign in to continue</body></html>", FetchFailureKind.AUTHENTICATION_REQUIRED),
-        ("<html><body>Captcha challenge</body></html>", FetchFailureKind.CAPTCHA_DETECTED),
-    ):
-        transport = FixtureTransport(
-            {
-                "success": True,
-                "data": {"rawHtml": body, "metadata": {"url": request().canonical_url}},
-            }
-        )
+    login_url = "https://issuer.example/login?next=/card"
+    cases = (
+        (
+            "<html><head><title>Just a moment...</title></head><body>wait</body></html>",
+            {},
+            FetchFailureKind.CAPTCHA_DETECTED,
+        ),
+        (
+            '<html><body><div class="g-recaptcha"></div>Card</body></html>',
+            {},
+            FetchFailureKind.CAPTCHA_DETECTED,
+        ),
+        (
+            "<html><body>Welcome</body></html>",
+            {"url": login_url},
+            FetchFailureKind.AUTHENTICATION_REQUIRED,
+        ),
+        (
+            '<html><body><form><input type="password" name="p"></form></body></html>',
+            {},
+            FetchFailureKind.AUTHENTICATION_REQUIRED,
+        ),
+    )
+    for body, overrides, expected in cases:
+        response = successful_response(**overrides)
+        response["data"]["rawHtml"] = body
+        transport = FixtureTransport(response)
         result = asyncio.run(backend(tmp_path, transport).fetch(request()))
-        assert result.failure is not None
-        assert result.failure.kind is expected
+        assert result.failure is not None, body
+        assert result.failure.kind is expected, body
+        assert result.raw_artifact is None
+
+
+def test_ordinary_issuer_page_mentioning_login_is_not_refused(tmp_path: Path) -> None:
+    page = (
+        "<html><head><title>Example Card</title></head><body>"
+        '<nav><a href="/netbanking/login">Login</a> <a href="/signin">Sign in</a></nav>'
+        "<main>Annual fee 500. Reward 2 points per 100.</main>"
+        "<footer>Beware of phishing: this is not a challenge or captcha page.</footer>"
+        "</body></html>"
+    )
+    response = successful_response()
+    response["data"]["rawHtml"] = page
+    transport = FixtureTransport(response)
+    result = asyncio.run(backend(tmp_path, transport).fetch(request()))
+    assert result.failure is None
+    assert "Annual fee 500" in result.normalized_text
+
+
+def test_pdf_evidence_is_refused_before_dispatch(tmp_path: Path) -> None:
     transport = FixtureTransport(successful_response())
     result = asyncio.run(
         backend(tmp_path, transport).fetch(
@@ -335,3 +374,43 @@ def test_missing_target_identity_or_status_is_refused(tmp_path: Path) -> None:
         result = asyncio.run(backend(tmp_path, transport).fetch(request()))
         assert result.failure is not None
         assert result.failure.kind is FetchFailureKind.INVALID_RESPONSE
+
+
+@pytest.mark.parametrize(
+    ("status", "payload", "kind"),
+    [
+        (
+            403,
+            {"success": False, "code": "THIRD_PARTY_DATA_TERMS_REQUIRED"},
+            FetchFailureKind.POLICY_BLOCKED,
+        ),
+        (403, {"success": False, "error": "forbidden"}, FetchFailureKind.AUTHENTICATION_REQUIRED),
+        (402, {"success": False, "error": "no credits"}, FetchFailureKind.BUDGET_EXHAUSTED),
+    ],
+)
+def test_http_error_bodies_map_to_typed_failures_without_retry(
+    status: int, payload: dict[str, Any], kind: FetchFailureKind
+) -> None:
+    calls = 0
+
+    def handler(_incoming: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(status, json=payload)
+
+    transport = FirecrawlHttpTransport(
+        api_key="not-a-real-secret",
+        enabled=True,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    with pytest.raises(FirecrawlTransportError) as error:
+        asyncio.run(
+            transport.scrape(
+                FirecrawlScrapeRequest(
+                    url="https://issuer.example/card", timeout_seconds=3, max_response_bytes=4096
+                )
+            )
+        )
+    assert error.value.kind is kind
+    assert calls == 1
+    assert "forbidden" not in error.value.diagnostic

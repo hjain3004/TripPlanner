@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 import time
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any, cast
+from urllib.parse import urlsplit
 
 from ingestion.acquisition import AcquisitionControl
 from ingestion.artifacts import ContentAddressedStore
@@ -30,13 +32,22 @@ from ingestion.firecrawl_transport import (
 from ingestion.preflight import RobotsRules, SourcePreflight
 
 _PROVIDER_ENVELOPE_ALLOWANCE = 65_536
-_TARGET_REJECTION_MARKERS: tuple[tuple[str, FetchFailureKind], ...] = (
-    ("captcha", FetchFailureKind.CAPTCHA_DETECTED),
-    ("challenge", FetchFailureKind.CAPTCHA_DETECTED),
-    ("sign in", FetchFailureKind.AUTHENTICATION_REQUIRED),
-    ("log in", FetchFailureKind.AUTHENTICATION_REQUIRED),
-    ("login", FetchFailureKind.AUTHENTICATION_REQUIRED),
+_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+_PASSWORD_INPUT_RE = re.compile(r"<input\b[^>]*\btype\s*=\s*[\"']?password", re.IGNORECASE)
+# Fingerprints of interstitial pages, not words that appear on ordinary issuer pages (a card
+# page's navigation routinely contains "Login" and "Net Banking").
+_CHALLENGE_TITLES = ("just a moment", "attention required", "access denied", "are you a robot")
+_CHALLENGE_BODY_MARKERS = (
+    "cf-chl-",
+    "g-recaptcha",
+    "h-captcha",
+    "hcaptcha.com/1/api",
+    "challenges.cloudflare.com",
+    "_incapsula_",
+    "px-captcha",
 )
+_LOGIN_URL_MARKERS = ("/login", "/signin", "/sign-in", "/log-in", "/sso/", "/authenticate")
+_SMALL_PAGE_CHARS = 8_000
 
 
 def _failure(
@@ -243,12 +254,6 @@ class FirecrawlBackend:
                 ),
                 self._credits(data),
             )
-        rejection = self._target_rejection(raw_html)
-        if rejection is not None:
-            return (
-                _failure(request.request_id, rejection, "Firecrawl returned a target access page"),
-                self._credits(data),
-            )
         metadata = _mapping(data.get("metadata")) or {}
         status = metadata.get("statusCode")
         if not isinstance(status, int):
@@ -288,6 +293,12 @@ class FirecrawlBackend:
                     FetchFailureKind.POLICY_BLOCKED,
                     "Firecrawl final URL leaves the approved source policy",
                 ),
+                self._credits(data),
+            )
+        rejection = self._target_rejection(raw_html, final_url)
+        if rejection is not None:
+            return (
+                _failure(request.request_id, rejection, "Firecrawl returned a target access page"),
                 self._credits(data),
             )
         content_type = metadata.get("contentType")
@@ -353,11 +364,25 @@ class FirecrawlBackend:
         )
 
     @staticmethod
-    def _target_rejection(raw_html: str) -> FetchFailureKind | None:
+    def _target_rejection(raw_html: str, final_url: str | None = None) -> FetchFailureKind | None:
+        """Classify an interstitial returned with a success status.
+
+        Deliberately narrow: challenge vendor fingerprints and challenge titles, a login-shaped
+        final URL, or a short page whose only substance is a password form. A card page that
+        merely links to "Login" is real content and must not be refused.
+        """
         lowered = raw_html.lower()
-        for marker, kind in _TARGET_REJECTION_MARKERS:
-            if marker in lowered:
-                return kind
+        match = _TITLE_RE.search(raw_html)
+        title = " ".join(match.group(1).split()).lower() if match else ""
+        if any(m in title for m in _CHALLENGE_TITLES) or any(
+            m in lowered for m in _CHALLENGE_BODY_MARKERS
+        ):
+            return FetchFailureKind.CAPTCHA_DETECTED
+        path = urlsplit(final_url).path.lower() if final_url else ""
+        if any(m in path for m in _LOGIN_URL_MARKERS):
+            return FetchFailureKind.AUTHENTICATION_REQUIRED
+        if _PASSWORD_INPUT_RE.search(raw_html) and len(raw_html) <= _SMALL_PAGE_CHARS:
+            return FetchFailureKind.AUTHENTICATION_REQUIRED
         return None
 
     @staticmethod

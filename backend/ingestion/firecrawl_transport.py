@@ -9,6 +9,7 @@ specific request.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
@@ -66,8 +67,9 @@ class FirecrawlScrapeRequest:
             "maxAge": self.max_age_ms,
             "timeout": int(self.timeout_seconds * 1000),
             "proxy": self.proxy,
+            # An explicit empty list is Firecrawl's documented way to disable PDF/image parsing
+            # (per-page charges); omitting it would leave both parsers on.
             "parsers": list(self.parsers),
-            "actions": list(self.actions),
             "storeInCache": True,
             "removeBase64Images": True,
         }
@@ -92,7 +94,21 @@ class FirecrawlTransportError(RuntimeError):
         self.retryable = retryable
 
 
-def _http_failure(status_code: int) -> FirecrawlTransportError:
+def _error_code(body: bytes) -> str | None:
+    """The provider's short machine ``code`` only; never the message or any body text."""
+    try:
+        decoded = json.loads(body)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    code = decoded.get("code") if isinstance(decoded, dict) else None
+    return code if isinstance(code, str) and re.fullmatch(r"[A-Za-z0-9_]{1,64}", code) else None
+
+
+def _http_failure(status_code: int, code: str | None = None) -> FirecrawlTransportError:
+    if code == "THIRD_PARTY_DATA_TERMS_REQUIRED":
+        return FirecrawlTransportError(
+            FetchFailureKind.POLICY_BLOCKED, "Firecrawl requires third-party data terms acceptance"
+        )
     if status_code in {401, 403}:
         return FirecrawlTransportError(
             FetchFailureKind.AUTHENTICATION_REQUIRED, "Firecrawl authentication was refused"
@@ -176,7 +192,7 @@ class FirecrawlHttpTransport:
                     retryable=True,
                 ) from error
             if status_code < 200 or status_code >= 300:
-                raise _http_failure(status_code)
+                raise _http_failure(status_code, _error_code(body))
             try:
                 decoded = json.loads(body)
             except (UnicodeDecodeError, json.JSONDecodeError) as error:
