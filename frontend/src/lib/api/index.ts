@@ -42,6 +42,8 @@ export {
   rerunStatusAccountTripsTripIdRerunsJobIdGet,
   hotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGet,
   previewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPost,
+  flightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGet,
+  previewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPost,
 } from "./generated/sdk.gen";
 export type {
   BonusOut,
@@ -211,6 +213,12 @@ export type {
   HotelSelectionPreviewIn,
   HotelSelectionPreviewOut,
   HotelSelectionRecord,
+  FlightSelectionAction,
+  FlightSelectionComputedOut,
+  FlightSelectionOptionsOut,
+  FlightSelectionPreviewIn,
+  FlightSelectionPreviewOut,
+  FlightSelectionRecord,
 } from "./generated/types.gen";
 import type {
   DraftItineraryOutput,
