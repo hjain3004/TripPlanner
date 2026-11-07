@@ -8,6 +8,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from core.models import (
+    Channel,
     CostedTrip,
     OptimizerResult,
     SampleFlight,
@@ -97,6 +98,43 @@ class PaymentStrategyRow(BaseModel):
     action_sentence: str
 
 
+class HotelSelectionRecord(BaseModel):
+    """The accepted hotel choice, separate from provider evidence."""
+
+    source: Literal["inventory_quote", "user_provided_total"]
+    quote_id: str | None = None
+    provider_id: str | None = None
+    amount_minor: int = Field(ge=0)
+    currency: str
+    covers: str
+    payment_channel: Channel | None = None
+    assumptions: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    recorded_at: datetime
+    recorded_by: str
+    session_id: str
+    trip_id: str | None = None
+
+
+class FlightSelectionRecord(BaseModel):
+    """The accepted flight choice or traveler estimate, distinct from evidence."""
+
+    source: Literal["inventory_quote", "user_provided_total"]
+    quote_id: str | None = None
+    provider_id: str | None = None
+    amount_minor: int = Field(ge=0)
+    currency: str
+    covers: str
+    amount_scope: Literal["party_total", "per_traveler"]
+    payment_channel: Channel | None = None
+    assumptions: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    recorded_at: datetime
+    recorded_by: str
+    session_id: str
+    trip_id: str | None = None
+
+
 class CriticIssue(BaseModel):
     severity: Literal["blocking", "warning"]
     kind: Literal[
@@ -172,6 +210,8 @@ class FinalReport(BaseModel):
     region_capability: RegionCapability | None = None
     freshness: SectionFreshness = Field(default_factory=SectionFreshness)
     travel_inventory: TravelInventorySummary | None = None
+    hotel_selection: HotelSelectionRecord | None = None
+    flight_selection: FlightSelectionRecord | None = None
     weather_context: WeatherContextOutcome = Field(default_factory=_default_weather_context)
 
 
