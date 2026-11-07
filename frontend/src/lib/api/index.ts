@@ -40,6 +40,8 @@ export {
   getRevisionAccountTripsTripIdRevisionsRevisionGet,
   startRerunAccountTripsTripIdRerunsPost,
   rerunStatusAccountTripsTripIdRerunsJobIdGet,
+  hotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGet,
+  previewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPost,
 } from "./generated/sdk.gen";
 export type {
   BonusOut,
@@ -203,6 +205,12 @@ export type {
   WalletEntryOut,
   WalletEntryPatchIn,
   ValidationError,
+  HotelSelectionAction,
+  HotelSelectionComputedOut,
+  HotelSelectionOptionsOut,
+  HotelSelectionPreviewIn,
+  HotelSelectionPreviewOut,
+  HotelSelectionRecord,
 } from "./generated/types.gen";
 import type {
   DraftItineraryOutput,

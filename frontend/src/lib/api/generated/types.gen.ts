@@ -64,6 +64,7 @@ export type ActionProposalOut = {
      * Decision
      */
     decision: string | null;
+    preview?: HotelSelectionPreviewOut | null;
 };
 
 /**
@@ -1052,6 +1053,7 @@ export type FinalReport = {
     region_capability?: RegionCapability | null;
     freshness?: SectionFreshness;
     travel_inventory?: TravelInventorySummary | null;
+    hotel_selection?: HotelSelectionRecord | null;
     weather_context?: WeatherContextOutcome;
 };
 
@@ -1270,6 +1272,191 @@ export type HistoricalObservation = {
      * Days
      */
     days: Array<DailyWeather>;
+};
+
+/**
+ * HotelSelectionAction
+ *
+ * Select admitted hotel evidence or record a separate planning total.
+ */
+export type HotelSelectionAction = {
+    /**
+     * Kind
+     */
+    kind?: 'hotel_selection';
+    /**
+     * Source
+     */
+    source: 'inventory_quote' | 'user_provided_total';
+    /**
+     * Quote Id
+     */
+    quote_id?: string | null;
+    /**
+     * Amount Minor
+     */
+    amount_minor?: number | null;
+    /**
+     * Currency
+     */
+    currency?: string | null;
+    /**
+     * Covers
+     */
+    covers?: string | null;
+    payment_channel?: Channel | null;
+    /**
+     * Assumptions
+     */
+    assumptions?: Array<string>;
+};
+
+/**
+ * HotelSelectionComputedOut
+ */
+export type HotelSelectionComputedOut = {
+    /**
+     * Hotel Amount Minor
+     */
+    hotel_amount_minor: number;
+    /**
+     * Hotel Currency
+     */
+    hotel_currency: string;
+    /**
+     * Trip Cost Minor
+     */
+    trip_cost_minor: number;
+    /**
+     * Rewards Value Minor
+     */
+    rewards_value_minor: number;
+    /**
+     * Forex Fees Minor
+     */
+    forex_fees_minor: number;
+    /**
+     * Effective Cost Minor
+     */
+    effective_cost_minor: number;
+    /**
+     * Payment Strategy
+     */
+    payment_strategy: Array<PaymentStrategyRow>;
+    /**
+     * Assumptions
+     */
+    assumptions: Array<string>;
+    /**
+     * Limitations
+     */
+    limitations: Array<string>;
+};
+
+/**
+ * HotelSelectionOptionsOut
+ */
+export type HotelSelectionOptionsOut = {
+    /**
+     * Request
+     */
+    request: {
+        [key: string]: unknown;
+    };
+    selected: InventoryQuoteSummary | null;
+    /**
+     * Alternatives
+     */
+    alternatives: Array<InventoryQuoteSummary>;
+    /**
+     * Limitations
+     */
+    limitations: Array<string>;
+};
+
+/**
+ * HotelSelectionPreviewIn
+ */
+export type HotelSelectionPreviewIn = {
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Expected Session Version
+     */
+    expected_session_version: number;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version: number;
+    selection: HotelSelectionAction;
+};
+
+/**
+ * HotelSelectionPreviewOut
+ */
+export type HotelSelectionPreviewOut = {
+    before: HotelSelectionComputedOut;
+    after: HotelSelectionComputedOut;
+    selection: HotelSelectionAction;
+};
+
+/**
+ * HotelSelectionRecord
+ *
+ * The accepted hotel choice, separate from provider evidence.
+ */
+export type HotelSelectionRecord = {
+    /**
+     * Source
+     */
+    source: 'inventory_quote' | 'user_provided_total';
+    /**
+     * Quote Id
+     */
+    quote_id?: string | null;
+    /**
+     * Provider Id
+     */
+    provider_id?: string | null;
+    /**
+     * Amount Minor
+     */
+    amount_minor: number;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Covers
+     */
+    covers: string;
+    payment_channel?: Channel | null;
+    /**
+     * Assumptions
+     */
+    assumptions?: Array<string>;
+    /**
+     * Limitations
+     */
+    limitations?: Array<string>;
+    /**
+     * Recorded At
+     */
+    recorded_at: string;
+    /**
+     * Recorded By
+     */
+    recorded_by: string;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Trip Id
+     */
+    trip_id?: string | null;
 };
 
 /**
@@ -5640,6 +5827,130 @@ export type ProposeActionPlanningSessionsSessionIdActionsPostResponses = {
 };
 
 export type ProposeActionPlanningSessionsSessionIdActionsPostResponse = ProposeActionPlanningSessionsSessionIdActionsPostResponses[keyof ProposeActionPlanningSessionsSessionIdActionsPostResponses];
+
+export type HotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/hotel-selection';
+};
+
+export type HotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type HotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGetError = HotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGetErrors[keyof HotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGetErrors];
+
+export type HotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HotelSelectionOptionsOut;
+};
+
+export type HotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGetResponse = HotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGetResponses[keyof HotelSelectionOptionsPlanningSessionsSessionIdHotelSelectionGetResponses];
+
+export type PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostData = {
+    body: HotelSelectionPreviewIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/hotel-selection/preview';
+};
+
+export type PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostError = PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostErrors[keyof PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostErrors];
+
+export type PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ActionProposalOut;
+};
+
+export type PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostResponse = PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostResponses[keyof PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostResponses];
 
 export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostData = {
     body: DecisionIn;

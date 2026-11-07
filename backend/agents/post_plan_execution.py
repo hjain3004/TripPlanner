@@ -21,6 +21,7 @@ from agents.models import (
     DraftItinerary,
     EstimatorResult,
     FinalReport,
+    HotelSelectionRecord,
     SectionFreshness,
     SectionState,
 )
@@ -44,6 +45,64 @@ class PostPlanExecutionResult:
     report: FinalReport
     brief: TripBrief
     inventory_snapshot: TravelInventorySnapshot | None = None
+
+
+def recompute_hotel_selection(
+    report: FinalReport,
+    *,
+    hotel_line: SpendLineItem,
+    record: HotelSelectionRecord,
+    kb: KnowledgeBase,
+    now: datetime,
+) -> FinalReport:
+    """Re-run the frozen financial engine with one explicitly selected hotel line."""
+    existing = [line for line in report.costed_trip.lines if line.category is SpendCategory.HOTELS]
+    if not existing:
+        raise ValueError("the accepted plan has no hotel spend line")
+    lines = [
+        hotel_line if line.category is SpendCategory.HOTELS else line
+        for line in report.costed_trip.lines
+    ]
+    costed_trip = report.costed_trip.model_copy(update={"lines": lines})
+    previous_assumptions = [
+        assumption
+        for assumption in report.assumptions
+        if assumption not in report.optimizer_result.assumptions
+    ]
+    estimate = EstimatorResult(
+        costed_trip=costed_trip,
+        flight=report.flights_pick,
+        hotel=report.hotel_pick,
+        assumptions=[*previous_assumptions, *record.assumptions, *record.limitations],
+    )
+    kernel = run_kernel(report.trip_spec, estimate, kb, booking_date=costed_trip.booking_date)
+    retrieval = retrieve_candidates(report.trip_spec, kb)
+    rebuilt = build_final_report(
+        report.trip_spec,
+        report.itinerary,
+        estimate,
+        kernel,
+        retrieval,
+        critic_caveats=report.caveats,
+        explainer=_template_explainer(kernel),
+        trace_id=report.trace_id,
+        region_capability=report.region_capability,
+        freshness=SectionFreshness(
+            budget=SectionState.RECOMPUTED,
+            payment_strategy=SectionState.RECOMPUTED,
+            itinerary=report.freshness.itinerary,
+            prose=SectionState.STALE,
+            critic_verdict=report.freshness.critic_verdict,
+            edit_count=report.freshness.edit_count + 1,
+        ),
+    )
+    return rebuilt.model_copy(
+        update={
+            "travel_inventory": report.travel_inventory,
+            "weather_context": report.weather_context,
+            "hotel_selection": record,
+        }
+    )
 
 
 def spec_for_brief(base: TripSpec, brief: TripBrief) -> TripSpec:
@@ -120,7 +179,11 @@ def _report_from_estimate(
         else rebuilt.weather_context
     )
     return rebuilt.model_copy(
-        update={"travel_inventory": inventory, "weather_context": weather_context}
+        update={
+            "travel_inventory": inventory,
+            "weather_context": weather_context,
+            "hotel_selection": report.hotel_selection,
+        }
     )
 
 

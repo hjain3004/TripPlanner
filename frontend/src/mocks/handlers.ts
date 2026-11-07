@@ -1049,6 +1049,27 @@ export const handlers = [
   http.get("*/planning/sessions/:sessionId/job", () => HttpResponse.json({ job_id: "msw-job-001", status: "complete", stage: "explaining", progress: 1 })),
   http.post("*/planning/sessions/:sessionId/workspace", () => HttpResponse.json(cp4Workspace)),
   http.get("*/planning/sessions/:sessionId/workspace", () => HttpResponse.json(cp4Workspace)),
+  http.get("*/planning/sessions/:sessionId/hotel-selection", () => HttpResponse.json({
+    selected: null,
+    alternatives: [],
+    limitations: ["MSW fixture: hotel alternatives are synthetic and not provider evidence."],
+  })),
+  http.post("*/planning/sessions/:sessionId/hotel-selection/preview", async ({ request }) => {
+    const body = await request.json() as { selection?: unknown };
+    return HttpResponse.json({
+      proposal_id: "msw-hotel-selection-proposal",
+      operation_id: "msw-hotel-selection-operation",
+      status: "complete",
+      action: body.selection ?? { kind: "hotel_selection", source: "inventory_quote", quote_id: "msw-hotel" },
+      impact: { invalidated_domains: ["hotel", "cost", "card_strategy"], affected_dates: [], refetch_domains: [], inventory_reuse: "full", requires_confirmation: true, changes_trip: true, explanation_only: false },
+      decision: "pending",
+      preview: {
+        before: { hotel_amount_minor: 0, hotel_currency: "INR", trip_cost_minor: 0, rewards_value_minor: 0, forex_fees_minor: 0, effective_cost_minor: 0, payment_strategy: [], assumptions: [], limitations: [] },
+        after: { hotel_amount_minor: 0, hotel_currency: "INR", trip_cost_minor: 0, rewards_value_minor: 0, forex_fees_minor: 0, effective_cost_minor: 0, payment_strategy: [], assumptions: ["MSW synthetic fixture"], limitations: ["Not provider evidence."] },
+        selection: body.selection ?? { kind: "hotel_selection", source: "inventory_quote", quote_id: "msw-hotel" },
+      },
+    });
+  }),
   http.post("*/planning/sessions/:sessionId/actions", async ({ request }) => {
     const body = await request.json() as { client_event_id?: string; action?: unknown };
     const eventId = body.client_event_id ?? "1";
