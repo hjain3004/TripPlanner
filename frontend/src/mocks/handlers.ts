@@ -13,6 +13,9 @@ import type {
   TripDetailOut,
   TripSummaryOut,
   UserOut,
+  AcquisitionApiErrorBody,
+  AcquisitionAssessmentIn,
+  AcquisitionAssessmentReport,
   WelcomeStatusApiErrorBody,
   WelcomeStatusIn,
   WelcomeWindowReport,
@@ -798,6 +801,54 @@ export function welcomeStatusErrorHandler(fixture: WelcomeStatusErrorFixture) {
   );
 }
 
+// --- Spec 18 Case B card-acquisition assessment (mirrors api/acquisition.py) ---
+function acquisitionError(status: number, code: AcquisitionApiErrorBody["code"], message: string) {
+  return HttpResponse.json({ detail: { code, message } }, { status });
+}
+
+export const ACQUISITION_ERROR_FIXTURES = {
+  unauthorized: { status: 401, detail: "Not authenticated" },
+  csrfMissing: { status: 403, detail: "CSRF token missing or invalid." },
+  tripNotFound: {
+    status: 404,
+    code: "TRIP_NOT_FOUND",
+    detail: "No such saved trip.",
+  },
+  revisionNotFound: {
+    status: 404,
+    code: "REVISION_NOT_FOUND",
+    detail: "No such revision.",
+  },
+  revisionNotReadable: {
+    status: 409,
+    code: "REVISION_NOT_READABLE",
+    detail: "This revision has no readable computed assignments.",
+  },
+  serviceUnavailable: {
+    status: 503,
+    code: "ACQUISITION_ASSESSMENT_UNAVAILABLE",
+    detail: "Card acquisition assessment is temporarily unavailable. Please retry.",
+  },
+} as const satisfies Record<
+  string,
+  { status: number; code?: AcquisitionApiErrorBody["code"]; detail?: string }
+>;
+
+export type AcquisitionErrorFixture = keyof typeof ACQUISITION_ERROR_FIXTURES;
+
+export function acquisitionErrorHandler(fixture: AcquisitionErrorFixture) {
+  const spec = ACQUISITION_ERROR_FIXTURES[fixture] as {
+    status: number;
+    code?: AcquisitionApiErrorBody["code"];
+    detail?: string;
+  };
+  return http.post("*/account/acquisition/trips/:tripId/revisions/:revision", () =>
+    spec.code === undefined
+      ? HttpResponse.json({ detail: spec.detail }, { status: spec.status })
+      : acquisitionError(spec.status, spec.code, "Mocked acquisition failure."),
+  );
+}
+
 export const handlers = [
   http.post("*/auth/register", async ({ request }) => {
     const body = (await request.json()) as CredentialsIn;
@@ -1067,6 +1118,30 @@ export const handlers = [
         before: { hotel_amount_minor: 0, hotel_currency: "INR", trip_cost_minor: 0, rewards_value_minor: 0, forex_fees_minor: 0, effective_cost_minor: 0, payment_strategy: [], assumptions: [], limitations: [] },
         after: { hotel_amount_minor: 0, hotel_currency: "INR", trip_cost_minor: 0, rewards_value_minor: 0, forex_fees_minor: 0, effective_cost_minor: 0, payment_strategy: [], assumptions: ["MSW synthetic fixture"], limitations: ["Not provider evidence."] },
         selection: body.selection ?? { kind: "hotel_selection", source: "inventory_quote", quote_id: "msw-hotel" },
+      },
+    });
+  }),
+  http.get("*/planning/sessions/:sessionId/flight-selection", () => HttpResponse.json({
+    request: {},
+    selected: null,
+    alternatives: [],
+    observations: [],
+    limitations: ["MSW fixture: flight observations are non-bookable synthetic data."],
+  })),
+  http.post("*/planning/sessions/:sessionId/flight-selection/preview", async ({ request }) => {
+    const body = await request.json() as { selection?: unknown };
+    const selection = body.selection ?? { kind: "flight_selection", source: "inventory_quote", quote_id: "msw-flight" };
+    return HttpResponse.json({
+      proposal_id: "msw-flight-selection-proposal",
+      operation_id: "msw-flight-selection-operation",
+      status: "complete",
+      action: selection,
+      impact: { invalidated_domains: ["flight", "cost", "card_strategy"], affected_dates: [], refetch_domains: [], inventory_reuse: "full", requires_confirmation: true, changes_trip: true, explanation_only: false },
+      decision: "pending",
+      preview: {
+        before: { flight_amount_minor: 0, flight_currency: "INR", trip_cost_minor: 0, rewards_value_minor: 0, forex_fees_minor: 0, effective_cost_minor: 0, payment_strategy: [], assumptions: [], limitations: [] },
+        after: { flight_amount_minor: 0, flight_currency: "INR", trip_cost_minor: 0, rewards_value_minor: 0, forex_fees_minor: 0, effective_cost_minor: 0, payment_strategy: [], assumptions: ["MSW synthetic fixture"], limitations: ["Not provider evidence."] },
+        selection,
       },
     });
   }),
@@ -1450,6 +1525,68 @@ export const handlers = [
     return HttpResponse.json(status);
   }),
 
+  // --- Spec 18 Case B: card acquisition assessment (honest "no approved offer" answer) ---
+  http.post("*/account/acquisition/trips/:tripId/revisions/:revision", async ({ params, request }) => {
+    await request.json().catch(() => ({}));
+    const tripId = Array.isArray(params.tripId) ? params.tripId[0] : params.tripId;
+    const revNum = Number(Array.isArray(params.revision) ? params.revision[0] : params.revision);
+    const record = mswTrips.find((t) => t.summary.id === tripId);
+    if (record === undefined) return acquisitionError(404, "TRIP_NOT_FOUND", "No such saved trip.");
+    const revision = record.revisions.find((r) => r.revision === revNum);
+    if (revision === undefined) return acquisitionError(404, "REVISION_NOT_FOUND", "No such revision.");
+
+    const optResult = revision.report.optimizer_result as
+      | {
+          gross_minor?: number;
+          discounts_minor?: number;
+          rewards_value_minor?: number;
+          forex_fees_minor?: number;
+          effective_cost_minor?: number;
+        }
+      | undefined;
+    const costed = revision.report.costed_trip as { home_currency?: string } | undefined;
+    const plannedWallet = (revision.report.trip_spec as { wallet?: { card_ids?: string[] } } | undefined)
+      ?.wallet?.card_ids ?? [];
+
+    const gross = optResult?.gross_minor ?? 0;
+    const discounts = optResult?.discounts_minor ?? 0;
+    const rewards = optResult?.rewards_value_minor ?? 0;
+    const forex = optResult?.forex_fees_minor ?? 0;
+    const effective = optResult?.effective_cost_minor ?? 0;
+    const totalBenefit = discounts + rewards - forex;
+    const currency = costed?.home_currency ?? "INR";
+
+    const report: AcquisitionAssessmentReport = {
+      trip_id: tripId,
+      revision: revNum,
+      as_of: "2026-10-30",
+      held_cards_strategy: {
+        card_ids: plannedWallet,
+        gross_minor: gross,
+        discounts_minor: discounts,
+        rewards_value_minor: rewards,
+        forex_fees_minor: forex,
+        effective_cost_minor: effective,
+        total_benefit_minor: totalBenefit,
+        currency,
+      },
+      suggestions: [],
+      refusals: [],
+      limitations: [
+        {
+          code: "NO_APPROVED_OFFER",
+          message: "No approved welcome-offer terms are available in the catalog.",
+        },
+      ],
+      assumptions: [
+        "Dates are evaluated as of 2026-10-30 (the server's UTC date).",
+        "The held-card strategy is unchanged and built entirely from cards already in your wallet.",
+        "Incremental trip benefit is computed by running the deterministic optimizer with the candidate card added.",
+        "This assessment is informational only and does not constitute a recommendation to apply.",
+      ],
+    };
+    return HttpResponse.json(report, { status: 200 });
+  }),
 ];
 
 export const fixtureHandlers = {

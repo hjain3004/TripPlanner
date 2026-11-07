@@ -12,7 +12,7 @@ from agents.models import DraftItinerary, ItineraryDay, ItineraryItem, TripSpec
 def test_estimator_can_cost_a_catalog_poi_without_keyerror(
     active_catalog: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from core.db import load_kb, seed_database
+    from core.db import SEEDS_DIR, load_kb, seed_database
 
     # get_catalog_poi resolves a region -> catalog_id and looks the catalog up
     # via active_catalog_path(). Point that lookup at this test's own fixture
@@ -27,7 +27,9 @@ def test_estimator_can_cost_a_catalog_poi_without_keyerror(
     poi_id = catalog_data["places"][0]["place_id"]
 
     db_path = tmp_path / "tripwise.sqlite"
-    seed_database(Path("core/seeds"), db_path)
+    # SEEDS_DIR, not a relative path: this test must not depend on the working directory
+    # (from the repository root a relative path silently seeded nothing, so there was no FX).
+    seed_database(SEEDS_DIR, db_path)
     kb = load_kb(db_path)
 
     spec = TripSpec(

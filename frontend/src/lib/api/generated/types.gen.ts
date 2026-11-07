@@ -5,6 +5,240 @@ export type ClientOptions = {
 };
 
 /**
+ * AcquisitionApiErrorBody
+ */
+export type AcquisitionApiErrorBody = {
+    /**
+     * Code
+     */
+    code: 'TRIP_NOT_FOUND' | 'REVISION_NOT_FOUND' | 'REVISION_NOT_READABLE' | 'ACQUISITION_ASSESSMENT_UNAVAILABLE';
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
+ * AcquisitionAssessmentIn
+ *
+ * Request payload to assess an unheld card welcome offer against a saved revision.
+ */
+export type AcquisitionAssessmentIn = {
+    /**
+     * Candidate Card Id
+     */
+    candidate_card_id?: string | null;
+    payment_timing?: PaymentTimingIn | null;
+};
+
+/**
+ * AcquisitionAssessmentReport
+ *
+ * Full Case B assessment response (spec 18 §3-6).
+ */
+export type AcquisitionAssessmentReport = {
+    /**
+     * Trip Id
+     */
+    trip_id: string;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * As Of
+     */
+    as_of: string;
+    held_cards_strategy: HeldCardsStrategySummary;
+    /**
+     * Suggestions
+     */
+    suggestions: Array<AcquisitionSuggestion>;
+    /**
+     * Refusals
+     */
+    refusals: Array<AcquisitionRefusal>;
+    /**
+     * Limitations
+     */
+    limitations: Array<Limitation>;
+    /**
+     * Assumptions
+     */
+    assumptions: Array<string>;
+};
+
+/**
+ * AcquisitionErrorResponse
+ *
+ * A typed card-acquisition assessment failure over the wire (wrapped in ``detail``).
+ */
+export type AcquisitionErrorResponse = {
+    detail: AcquisitionApiErrorBody;
+};
+
+/**
+ * AcquisitionOfferOut
+ *
+ * Terms for an unheld card acquisition offer (spec 18 §1).
+ */
+export type AcquisitionOfferOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Bonus Points
+     */
+    bonus_points: number | null;
+    /**
+     * Bonus Currency Id
+     */
+    bonus_currency_id: string | null;
+    /**
+     * Bonus Flat Minor
+     */
+    bonus_flat_minor: number | null;
+    /**
+     * Min Spend Minor
+     */
+    min_spend_minor: number;
+    /**
+     * Spend Window Days
+     */
+    spend_window_days: number;
+    /**
+     * Expected Approval Days
+     */
+    expected_approval_days: number;
+    /**
+     * Expected Card In Hand Days
+     */
+    expected_card_in_hand_days: number;
+    /**
+     * Annual Fee Minor
+     */
+    annual_fee_minor: number;
+    /**
+     * Fee Waiver Condition
+     */
+    fee_waiver_condition: string | null;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Valid To
+     */
+    valid_to: string;
+    /**
+     * Eligibility Exclusions
+     */
+    eligibility_exclusions: Array<string>;
+    provenance: OfferProvenanceOut;
+};
+
+/**
+ * AcquisitionRefusal
+ *
+ * Evaluation of an unheld card offer that failed one or more gates (spec 18 §4).
+ */
+export type AcquisitionRefusal = {
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Card Name
+     */
+    card_name: string | null;
+    /**
+     * Offer Id
+     */
+    offer_id: string | null;
+    /**
+     * Reason
+     */
+    reason: 'PAYMENT_TIMING_UNKNOWN' | 'TIMING_GATE_FAILED' | 'SPEND_WINDOW_EXCEEDED' | 'MINIMUM_SPEND_NOT_MET' | 'NONPOSITIVE_NET_VALUE' | 'OFFER_EXPIRED' | 'POINTS_PROGRAM_NOT_ESTABLISHED' | 'ALREADY_HELD_CARD' | 'CURRENCY_MISMATCH' | 'NO_APPROVED_OFFER' | 'AMBIGUOUS_OFFER';
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Details
+     */
+    details?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * AcquisitionSuggestion
+ *
+ * A qualifying published welcome offer for an unheld card (spec 18 §3-5).
+ */
+export type AcquisitionSuggestion = {
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Card Name
+     */
+    card_name: string | null;
+    offer: AcquisitionOfferOut;
+    /**
+     * Verbatim Framing
+     */
+    verbatim_framing: string;
+    timing: CandidateTimingAssessment;
+    /**
+     * Trip Eligible Spend Minor
+     */
+    trip_eligible_spend_minor: number;
+    /**
+     * Min Spend Minor
+     */
+    min_spend_minor: number;
+    /**
+     * Bonus Value Minor
+     */
+    bonus_value_minor: number;
+    /**
+     * Trip Earn Delta Minor
+     */
+    trip_earn_delta_minor: number;
+    /**
+     * Annual Fee Minor
+     */
+    annual_fee_minor: number;
+    /**
+     * Net First Year Minor
+     */
+    net_first_year_minor: number;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Eligibility Exclusions
+     */
+    eligibility_exclusions: Array<string>;
+    /**
+     * Assumptions
+     */
+    assumptions: Array<string>;
+};
+
+/**
  * ActionIn
  */
 export type ActionIn = {
@@ -64,7 +298,10 @@ export type ActionProposalOut = {
      * Decision
      */
     decision: string | null;
-    preview?: HotelSelectionPreviewOut | null;
+    /**
+     * Preview
+     */
+    preview?: HotelSelectionPreviewOut | FlightSelectionPreviewOut | null;
 };
 
 /**
@@ -410,6 +647,46 @@ export type BudgetTotals = {
      * Savings Pct Bp
      */
     savings_pct_bp: number;
+};
+
+/**
+ * CandidateTimingAssessment
+ *
+ * Timing gate evaluation for a candidate card (spec 18 §4).
+ */
+export type CandidateTimingAssessment = {
+    /**
+     * Booking Date
+     */
+    booking_date: string;
+    /**
+     * First Bookable Spend Date
+     */
+    first_bookable_spend_date: string;
+    /**
+     * Latest Spend Date
+     */
+    latest_spend_date: string | null;
+    /**
+     * Expected Lead Time Days
+     */
+    expected_lead_time_days: number;
+    /**
+     * Earliest Usable Date
+     */
+    earliest_usable_date: string;
+    /**
+     * Window Closes On
+     */
+    window_closes_on: string;
+    /**
+     * Lead Time Sufficient
+     */
+    lead_time_sufficient: boolean;
+    /**
+     * Spend Within Window
+     */
+    spend_within_window: boolean;
 };
 
 /**
@@ -1054,6 +1331,7 @@ export type FinalReport = {
     freshness?: SectionFreshness;
     travel_inventory?: TravelInventorySummary | null;
     hotel_selection?: HotelSelectionRecord | null;
+    flight_selection?: FlightSelectionRecord | null;
     weather_context?: WeatherContextOutcome;
 };
 
@@ -1175,6 +1453,206 @@ export type FlightPriceObservation = {
 };
 
 /**
+ * FlightSelectionAction
+ *
+ * Select an admitted flight quote or record a separately scoped planning total.
+ *
+ * Observed flight prices are intentionally not an input here: they are not quotes
+ * and cannot fill in an itinerary that the provider did not return.
+ */
+export type FlightSelectionAction = {
+    /**
+     * Kind
+     */
+    kind?: 'flight_selection';
+    /**
+     * Source
+     */
+    source: 'inventory_quote' | 'user_provided_total';
+    /**
+     * Quote Id
+     */
+    quote_id?: string | null;
+    /**
+     * Amount Minor
+     */
+    amount_minor?: number | null;
+    /**
+     * Currency
+     */
+    currency?: string | null;
+    /**
+     * Covers
+     */
+    covers?: string | null;
+    /**
+     * Amount Scope
+     */
+    amount_scope?: 'party_total' | 'per_traveler' | null;
+    payment_channel?: Channel | null;
+    /**
+     * Assumptions
+     */
+    assumptions?: Array<string>;
+};
+
+/**
+ * FlightSelectionComputedOut
+ */
+export type FlightSelectionComputedOut = {
+    /**
+     * Flight Amount Minor
+     */
+    flight_amount_minor: number;
+    /**
+     * Flight Currency
+     */
+    flight_currency: string;
+    /**
+     * Trip Cost Minor
+     */
+    trip_cost_minor: number;
+    /**
+     * Rewards Value Minor
+     */
+    rewards_value_minor: number;
+    /**
+     * Forex Fees Minor
+     */
+    forex_fees_minor: number;
+    /**
+     * Effective Cost Minor
+     */
+    effective_cost_minor: number;
+    /**
+     * Payment Strategy
+     */
+    payment_strategy: Array<PaymentStrategyRow>;
+    /**
+     * Assumptions
+     */
+    assumptions: Array<string>;
+    /**
+     * Limitations
+     */
+    limitations: Array<string>;
+};
+
+/**
+ * FlightSelectionOptionsOut
+ */
+export type FlightSelectionOptionsOut = {
+    /**
+     * Request
+     */
+    request: {
+        [key: string]: unknown;
+    };
+    selected: InventoryQuoteSummary | null;
+    /**
+     * Alternatives
+     */
+    alternatives: Array<InventoryQuoteSummary>;
+    /**
+     * Observations
+     */
+    observations: Array<FlightPriceObservation>;
+    /**
+     * Limitations
+     */
+    limitations: Array<string>;
+};
+
+/**
+ * FlightSelectionPreviewIn
+ */
+export type FlightSelectionPreviewIn = {
+    /**
+     * Client Event Id
+     */
+    client_event_id: string;
+    /**
+     * Expected Session Version
+     */
+    expected_session_version: number;
+    /**
+     * Expected Workspace Version
+     */
+    expected_workspace_version: number;
+    selection: FlightSelectionAction;
+};
+
+/**
+ * FlightSelectionPreviewOut
+ */
+export type FlightSelectionPreviewOut = {
+    before: FlightSelectionComputedOut;
+    after: FlightSelectionComputedOut;
+    selection: FlightSelectionAction;
+};
+
+/**
+ * FlightSelectionRecord
+ *
+ * The accepted flight choice or traveler estimate, distinct from evidence.
+ */
+export type FlightSelectionRecord = {
+    /**
+     * Source
+     */
+    source: 'inventory_quote' | 'user_provided_total';
+    /**
+     * Quote Id
+     */
+    quote_id?: string | null;
+    /**
+     * Provider Id
+     */
+    provider_id?: string | null;
+    /**
+     * Amount Minor
+     */
+    amount_minor: number;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Covers
+     */
+    covers: string;
+    /**
+     * Amount Scope
+     */
+    amount_scope: 'party_total' | 'per_traveler';
+    payment_channel?: Channel | null;
+    /**
+     * Assumptions
+     */
+    assumptions?: Array<string>;
+    /**
+     * Limitations
+     */
+    limitations?: Array<string>;
+    /**
+     * Recorded At
+     */
+    recorded_at: string;
+    /**
+     * Recorded By
+     */
+    recorded_by: string;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Trip Id
+     */
+    trip_id?: string | null;
+};
+
+/**
  * GatewayDiagnostic
  */
 export type GatewayDiagnostic = {
@@ -1252,6 +1730,46 @@ export type HardConstraintsPayload = {
      * Immovable Events
      */
     immovable_events?: Array<string>;
+};
+
+/**
+ * HeldCardsStrategySummary
+ *
+ * The held-cards strategy remains complete, untouched, and separate (spec 18 §6).
+ */
+export type HeldCardsStrategySummary = {
+    /**
+     * Card Ids
+     */
+    card_ids: Array<string>;
+    /**
+     * Gross Minor
+     */
+    gross_minor: number;
+    /**
+     * Discounts Minor
+     */
+    discounts_minor: number;
+    /**
+     * Rewards Value Minor
+     */
+    rewards_value_minor: number;
+    /**
+     * Forex Fees Minor
+     */
+    forex_fees_minor: number;
+    /**
+     * Effective Cost Minor
+     */
+    effective_cost_minor: number;
+    /**
+     * Total Benefit Minor
+     */
+    total_benefit_minor: number;
+    /**
+     * Currency
+     */
+    currency: string;
 };
 
 /**
@@ -1789,7 +2307,7 @@ export type Limitation = {
     /**
      * Code
      */
-    code: 'NO_APPROVED_OFFER' | 'AMBIGUOUS_OFFER' | 'OFFER_NOT_IN_FORCE_AT_OPEN_DATE' | 'OPENED_ON_UNKNOWN' | 'OPENED_ON_IN_FUTURE' | 'PRIOR_SPEND_UNKNOWN' | 'DUPLICATE_CARD_ENTRIES' | 'CARD_NOT_IN_PLANNED_WALLET' | 'CURRENCY_MISMATCH' | 'POINTS_PROGRAM_NOT_ESTABLISHED';
+    code: 'NO_APPROVED_OFFER' | 'AMBIGUOUS_OFFER' | 'OFFER_NOT_IN_FORCE_AT_OPEN_DATE' | 'OPENED_ON_UNKNOWN' | 'OPENED_ON_IN_FUTURE' | 'PRIOR_SPEND_UNKNOWN' | 'DUPLICATE_CARD_ENTRIES' | 'CARD_NOT_IN_PLANNED_WALLET' | 'CURRENCY_MISMATCH' | 'POINTS_PROGRAM_NOT_ESTABLISHED' | 'PAYMENT_TIMING_UNKNOWN' | 'TIMING_GATE_FAILED' | 'SPEND_WINDOW_EXCEEDED' | 'MINIMUM_SPEND_NOT_MET' | 'NONPOSITIVE_NET_VALUE' | 'OFFER_EXPIRED' | 'ALREADY_HELD_CARD';
     /**
      * Message
      */
@@ -2101,6 +2619,29 @@ export type PaymentStrategyRow = {
      * Action Sentence
      */
     action_sentence: string;
+};
+
+/**
+ * PaymentTimingIn
+ *
+ * Explicit payment timing supplied by the traveler (spec 18 §4).
+ *
+ * Travel dates are not payment dates. The application requires explicit payment timing
+ * so whether a card can arrive and spend can clear within the window is never guessed.
+ */
+export type PaymentTimingIn = {
+    /**
+     * Booking Date
+     */
+    booking_date: string;
+    /**
+     * First Bookable Spend Date
+     */
+    first_bookable_spend_date: string;
+    /**
+     * Latest Spend Date
+     */
+    latest_spend_date?: string | null;
 };
 
 /**
@@ -5642,6 +6183,60 @@ export type PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostResponses = {
 
 export type PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostResponse = PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostResponses[keyof PostWelcomeStatusAccountWalletEntryIdWelcomeStatusPostResponses];
 
+export type PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostData = {
+    body: AcquisitionAssessmentIn;
+    path: {
+        /**
+         * Trip Id
+         */
+        trip_id: string;
+        /**
+         * Revision
+         */
+        revision: number;
+    };
+    query?: never;
+    url: '/account/acquisition/trips/{trip_id}/revisions/{revision}';
+};
+
+export type PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: AuthErrorResponse;
+    /**
+     * Not Found
+     */
+    404: AcquisitionErrorResponse;
+    /**
+     * Conflict
+     */
+    409: AcquisitionErrorResponse;
+    /**
+     * Unprocessable Content
+     */
+    422: RequestValidationErrorResponse;
+    /**
+     * Service Unavailable
+     */
+    503: AcquisitionErrorResponse;
+};
+
+export type PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostError = PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostErrors[keyof PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostErrors];
+
+export type PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: AcquisitionAssessmentReport;
+};
+
+export type PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostResponse = PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostResponses[keyof PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostResponses];
+
 export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetData = {
     body?: never;
     path: {
@@ -5951,6 +6546,130 @@ export type PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewP
 };
 
 export type PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostResponse = PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostResponses[keyof PreviewHotelSelectionPlanningSessionsSessionIdHotelSelectionPreviewPostResponses];
+
+export type FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/flight-selection';
+};
+
+export type FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetError = FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetErrors[keyof FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetErrors];
+
+export type FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FlightSelectionOptionsOut;
+};
+
+export type FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetResponse = FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetResponses[keyof FlightSelectionOptionsPlanningSessionsSessionIdFlightSelectionGetResponses];
+
+export type PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostData = {
+    body: FlightSelectionPreviewIn;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/planning/sessions/{session_id}/flight-selection/preview';
+};
+
+export type PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: PostPlanError;
+    /**
+     * Forbidden
+     */
+    403: PostPlanError;
+    /**
+     * Not Found
+     */
+    404: PostPlanError;
+    /**
+     * Conflict
+     */
+    409: PostPlanError;
+    /**
+     * Gone
+     */
+    410: PostPlanError;
+    /**
+     * Content Too Large
+     */
+    413: PostPlanError;
+    /**
+     * Unprocessable Content
+     */
+    422: PostPlanError;
+    /**
+     * Too Many Requests
+     */
+    429: PostPlanError;
+    /**
+     * Service Unavailable
+     */
+    503: PostPlanError;
+};
+
+export type PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostError = PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostErrors[keyof PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostErrors];
+
+export type PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ActionProposalOut;
+};
+
+export type PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostResponse = PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostResponses[keyof PreviewFlightSelectionPlanningSessionsSessionIdFlightSelectionPreviewPostResponses];
 
 export type ApproveActionPlanningSessionsSessionIdActionsProposalIdApprovePostData = {
     body: DecisionIn;

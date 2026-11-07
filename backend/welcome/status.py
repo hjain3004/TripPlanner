@@ -22,10 +22,17 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from core.db import KnowledgeBase
-from core.models import Channel, CostedTrip, LineAssignment, OptimizerResult
+from core.models import (
+    Channel,
+    CostedTrip,
+    LineAssignment,
+    OptimizationPrefs,
+    OptimizerResult,
+    UserWallet,
+)
 from welcome.catalog import OfferSelection, verification_status
 from welcome.models import (
     CLOSING_SOON_DAYS,
@@ -91,6 +98,30 @@ _LIMITATION_MESSAGES: dict[LimitationCode, str] = {
         "program to this card's point valuation, so no money value is computed. The "
         "points are shown as the offer states them."
     ),
+    "PAYMENT_TIMING_UNKNOWN": (
+        "Explicit payment timing was not provided. Travel dates cannot be assumed to "
+        "be payment dates, so whether the card can arrive in time cannot be determined."
+    ),
+    "TIMING_GATE_FAILED": (
+        "The card cannot arrive before the first planned spend: earliest usable date "
+        "is after first bookable spend date."
+    ),
+    "SPEND_WINDOW_EXCEEDED": (
+        "The planned trip spend extends past the offer's spend window closing date."
+    ),
+    "MINIMUM_SPEND_NOT_MET": (
+        "The eligible trip spend assigned to this card is less than the required minimum spend."
+    ),
+    "NONPOSITIVE_NET_VALUE": (
+        "The net first-year value is not greater than zero after accounting for the annual fee."
+    ),
+    "OFFER_EXPIRED": (
+        "The offer validity ended before the planned booking date."
+    ),
+    "ALREADY_HELD_CARD": (
+        "This card is already held in your wallet; welcome window tracking for held cards "
+        "is handled under held-card welcome status."
+    ),
 }
 
 
@@ -110,6 +141,7 @@ class StoredPlanUnreadableError(ValueError):
 class _StoredWallet(BaseModel):
     model_config = ConfigDict(extra="ignore")
     card_ids: list[str]
+    points_balances: dict[str, int] = Field(default_factory=dict)
 
 
 class _StoredTripSpec(BaseModel):
@@ -117,6 +149,7 @@ class _StoredTripSpec(BaseModel):
     start_date: date
     end_date: date
     wallet: _StoredWallet
+    optimization: OptimizationPrefs = Field(default_factory=OptimizationPrefs)
 
 
 class _StoredArtifacts(BaseModel):
@@ -139,6 +172,10 @@ class StoredPlan:
     currency: str
     assignments: list[LineAssignment]
     planned_wallet_card_ids: list[str]
+    costed_trip: CostedTrip | None = None
+    optimizer_result: OptimizerResult | None = None
+    planned_wallet: UserWallet | None = None
+    optimization_prefs: OptimizationPrefs | None = None
 
 
 def parse_stored_plan(
@@ -162,6 +199,13 @@ def parse_stored_plan(
         currency=artifacts.costed_trip.home_currency,
         assignments=artifacts.optimizer_result.assignments,
         planned_wallet_card_ids=artifacts.trip_spec.wallet.card_ids,
+        costed_trip=artifacts.costed_trip,
+        optimizer_result=artifacts.optimizer_result,
+        planned_wallet=UserWallet(
+            card_ids=artifacts.trip_spec.wallet.card_ids,
+            points_balances=artifacts.trip_spec.wallet.points_balances,
+        ),
+        optimization_prefs=artifacts.trip_spec.optimization,
     )
 
 

@@ -135,3 +135,23 @@ def request_status(
     return client.post(
         f"/account/wallet/{entry_id}/welcome-status", headers=csrf(client), json=body
     )
+
+
+def request_acquisition_assessment(
+    client: TestClient,
+    trip_id: str,
+    *,
+    revision: int = 1,
+    candidate_card_id: str | None = None,
+    payment_timing: dict[str, Any] | None = None,
+) -> Any:
+    body: dict[str, Any] = {}
+    if candidate_card_id is not None:
+        body["candidate_card_id"] = candidate_card_id
+    if payment_timing is not None:
+        body["payment_timing"] = payment_timing
+    return client.post(
+        f"/account/acquisition/trips/{trip_id}/revisions/{revision}",
+        headers=csrf(client),
+        json=body,
+    )

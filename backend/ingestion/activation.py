@@ -188,6 +188,8 @@ class ActivationPlanner:
     def entry_for(self, proposal_id: str) -> ActivationEntry:
         """The bundle entry the stored proposal and its latest approval support, or raise."""
         ctx = self.service.context(proposal_id)
+        if not ctx.decisions:
+            raise ValueError("no decision yet: the proposal is still awaiting a curator")
         decision = ctx.decisions[-1]
         if decision.status not in {"approved", "edited"} or decision.attestation is None:
             raise ValueError("decision is not an attested approval")

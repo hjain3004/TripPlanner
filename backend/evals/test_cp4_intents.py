@@ -94,7 +94,7 @@ def test_every_intent_class_has_a_deterministic_route(text: str, kind: str) -> N
     assert ADAPTER.validate_python(result.model_dump(mode="json")) == result
 
 
-def test_the_action_union_has_exactly_the_eight_documented_kinds() -> None:
+def test_the_action_union_has_exactly_the_nine_documented_kinds() -> None:
     assert sorted(ACTION_KINDS) == sorted(
         [
             "deterministic_edit",
@@ -105,6 +105,7 @@ def test_the_action_union_has_exactly_the_eight_documented_kinds() -> None:
             "profile_update_proposal",
             "clarification_required",
                 "hotel_selection",
+                "flight_selection",
         ]
     )
     with pytest.raises(ValidationError):
