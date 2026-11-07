@@ -39,6 +39,10 @@ class SnapshotService:
         ):
             return None
         self.artifacts.read(result.raw_artifact)
+        if result.rendered_html_artifact is not None:
+            self.artifacts.read(result.rendered_html_artifact)
+        if result.provider_envelope_artifact is not None:
+            self.artifacts.read(result.provider_envelope_artifact)
         normalized_bytes = self.artifacts.read(result.normalized_artifact)
         if normalized_bytes != result.normalized_text.encode("utf-8"):
             raise ValueError("normalized artifact does not match the fetch result text")
@@ -52,9 +56,12 @@ class SnapshotService:
             target_id=target_id,
             captured_at=self.now(),
             raw_artifact=result.raw_artifact,
+            rendered_html_artifact=result.rendered_html_artifact,
+            provider_envelope_artifact=result.provider_envelope_artifact,
             normalized_artifact=result.normalized_artifact,
             raw_sha256=result.raw_artifact.sha256,
             normalized_sha256=normalized_hash,
+            evidence_fidelity=result.evidence_fidelity,
             canonical_markdown=result.normalized_text,
             extraction_engine=result.engine,
             extraction_engine_version=result.engine_version,

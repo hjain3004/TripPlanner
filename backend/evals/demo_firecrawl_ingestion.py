@@ -27,6 +27,11 @@ from typing import Any
 
 from core.models import Card
 from evals.test_pdf_real_library_compatibility import build_pdf
+from ingestion.acquisition import DurableAcquisitionService, RetainedCaptureTransport
+from ingestion.acquisition_control import (
+    AcquisitionControlLimits,
+    DurableAcquisitionControl,
+)
 from ingestion.artifacts import ContentAddressedStore
 from ingestion.canonical import canonicalize_content
 from ingestion.contracts import (
@@ -43,6 +48,7 @@ from ingestion.extraction_runtime import (
     ExtractionRuntimeConfig,
     FinancialExtractionRuntime,
 )
+from ingestion.preflight import RobotsRules
 from ingestion.snapshots import SnapshotService
 from ingestion.storage import FinancialIngestionStore
 
@@ -439,7 +445,7 @@ def run_demo(data_dir: Path, *, verbose: bool = True) -> dict[str, Any]:
             target_fact_ids=(PDF_CARD_ID,),
             page_kind=PageKind.TNC_PDF,
             check_frequency_days=30,
-            preferred_backend="firecrawl",
+            preferred_backend="local",
         )
     )
 
@@ -468,14 +474,14 @@ def run_demo(data_dir: Path, *, verbose: bool = True) -> dict[str, Any]:
         raw_artifact=raw_pdf_art,
         normalized_artifact=norm_pdf_art,
         normalized_text=canonical_pdf_text,
-        engine="firecrawl-controlled-replay",
+        engine="local-pdf-worker",
         engine_version="fixture-v1",
         duration_ms=1,
     )
     pdf_attempt = FetchAttempt(
         attempt_id="attempt:req-pdf-1",
         request_id="req-pdf-1",
-        backend="firecrawl",
+        backend="local",
         backend_version="fixture-v1",
         started_at=NOW,
         ended_at=NOW,
@@ -517,6 +523,112 @@ def run_demo(data_dir: Path, *, verbose: bool = True) -> dict[str, Any]:
         print(f"  Page number: {pdf_span.page_number}")
         print(f"  Quote:       {pdf_span.quote!r}")
         print("  Runner:      PdfProcessRunner (isolated subprocess group, clean SIGKILL)")
+
+    # 11. Concrete DurableAcquisitionService (acquire + refresh_due + provider envelope)
+    if verbose:
+        _scene("11. Concrete DurableAcquisitionService (acquire + refresh-due + envelope)")
+    acq_policy = SourcePolicyRecord(
+        policy_id="controlled-service-policy",
+        name="Controlled service demonstration policy",
+        owner="TripWise test fixture",
+        domain="service.issuer.example",
+        source_url="https://service.issuer.example/card",
+        terms_url="https://service.issuer.example/terms",
+        terms_read_on=date(2026, 11, 1),
+        automated_access_permitted=True,
+        manual_only=False,
+        allowed_page_classes=("card_page",),
+        reviewed_on=date(2026, 11, 1),
+        reviewed_by="demo-curator",
+    )
+    acq_target = WatchTarget(
+        target_id="watch:service-firecrawl-card",
+        canonical_url="https://service.issuer.example/card",
+        source_policy_id=acq_policy.policy_id,
+        target_fact_ids=(CARD_ID,),
+        page_kind=PageKind.CARD_PAGE,
+        check_frequency_days=30,
+        preferred_backend="firecrawl",
+    )
+    reopened_store.put_source_policy(acq_policy)
+    reopened_store.put_watch_target(acq_target)
+    service_quote = "Annual fee is INR 14,000."
+    service_transport = RetainedCaptureTransport(
+        {
+            "success": True,
+            "data": {
+                "rawHtml": f"<html><body><main><p>{service_quote}</p></main></body></html>",
+                "metadata": {
+                    "url": acq_target.canonical_url,
+                    "sourceURL": acq_target.canonical_url,
+                    "statusCode": 200,
+                    "contentType": "text/html",
+                    "cacheState": "retained_capture",
+                    "provider": {"creditsCost": 1},
+                },
+            },
+        }
+    )
+    service_row = dict(row)
+    service_row["annual_fee_minor"] = 1_400_000
+    service_response = {
+        "target_table": "cards",
+        "target_id": CARD_ID,
+        "proposed_row": service_row,
+        "fields": [
+            {
+                "field_path": "annual_fee_minor",
+                "proposed_raw_value": "INR 14,000",
+                "evidence_spans": [
+                    {
+                        "snapshot_id": "__SNAPSHOT_ID__",
+                        "snapshot_hash": "__SNAPSHOT_HASH__",
+                        "quote": service_quote,
+                        "field_path": "annual_fee_minor",
+                        "verification": "exact",
+                    }
+                ],
+            }
+        ],
+        "change_summary": "End-to-end DurableAcquisitionService demonstration.",
+        "extractor_confidence": 0.9,
+    }
+    acq_control = DurableAcquisitionControl(
+        reopened_store,
+        limits=AcquisitionControlLimits(
+            per_request_credits=1,
+            per_run_credits=5,
+            per_month_credits=10,
+            pricing_version="demo-v1",
+        ),
+    )
+    acq_service = DurableAcquisitionService(
+        store=reopened_store,
+        artifacts=reopened_artifacts,
+        control=acq_control,
+        transport=service_transport,
+        extraction_config=ExtractionRuntimeConfig(
+            mode=ExtractionMode.SCRIPTED_REPLAY,
+            responses=(service_response,),
+            extractor_version="firecrawl-acceptance-v1",
+        ),
+        custom_rows={CARD_ID: ("cards", row)},
+        default_robots=RobotsRules.parse("User-agent: *\nAllow: /\n"),
+        firecrawl_enabled=True,
+        now=lambda: NOW,
+    )
+    acq_outcome = acq_service.acquire_sync(
+        acq_target.target_id,
+        client_event_id="demo-service-acquire-e1",
+    )
+    assert acq_outcome.state == "completed"
+    assert acq_outcome.evidence_fidelity == "provider_rendered_html"
+    assert acq_outcome.provider_envelope_sha256 is not None
+    if verbose:
+        print(f"Service outcome:     {acq_outcome.state}")
+        print(f"Evidence fidelity:   {acq_outcome.evidence_fidelity}")
+        print(f"Envelope SHA256:     {acq_outcome.provider_envelope_sha256}")
+        print(f"Queued proposal IDs: {list(acq_outcome.proposal_ids)}")
         print("\n========== ACCEPTANCE JOURNEY DEMONSTRATION COMPLETE ==========")
 
     return {
@@ -525,6 +637,9 @@ def run_demo(data_dir: Path, *, verbose: bool = True) -> dict[str, Any]:
         "v1_proposal_id": proposal.proposal_id,
         "v1_status": proposal.status.value,
         "v2_proposal_id": v3_proposal.proposal_id,
+        "service_proposal_ids": list(acq_outcome.proposal_ids),
+        "service_provider_envelope_sha256": acq_outcome.provider_envelope_sha256,
+        "service_evidence_fidelity": acq_outcome.evidence_fidelity,
         "replay_calls": replay_outcome.outcome.calls,
         "refresh_calls": unchanged_outcome.outcome.calls,
         "pdf_snapshot_id": pdf_snapshot.snapshot_id,

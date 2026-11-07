@@ -124,7 +124,13 @@ def _snapshot_identity(snapshot: SnapshotBundle) -> dict[str, object]:
     """A snapshot's content-addressed identity: not when or by which attempt it was captured,
     and not its lineage pointer (a simultaneous loser can even point at the winner's own id)."""
     return snapshot.model_dump(
-        mode="json", exclude={"captured_at", "attempts", "supersedes_snapshot_id"}
+        mode="json",
+        exclude={
+            "captured_at",
+            "attempts",
+            "supersedes_snapshot_id",
+            "provider_envelope_artifact",
+        },
     )
 
 
@@ -288,12 +294,35 @@ class FinancialIngestionStore:
             ).fetchone()
         return None if row is None else WatchTarget.model_validate_json(row[0])
 
+    def list_watch_targets(self) -> list[WatchTarget]:
+        with self._connect() as connection:
+            rows = connection.execute("SELECT payload FROM watch_targets ORDER BY id").fetchall()
+        return [WatchTarget.model_validate_json(row[0]) for row in rows]
+
     def get_source_policy(self, policy_id: str) -> SourcePolicyRecord | None:
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT payload FROM source_policies WHERE id = ?", (policy_id,)
             ).fetchone()
         return None if row is None else SourcePolicyRecord.model_validate_json(row[0])
+
+    def list_source_policies(self) -> list[SourcePolicyRecord]:
+        with self._connect() as connection:
+            rows = connection.execute("SELECT payload FROM source_policies ORDER BY id").fetchall()
+        return [SourcePolicyRecord.model_validate_json(row[0]) for row in rows]
+
+    def list_snapshots(self, target_id: str | None = None) -> list[SnapshotBundle]:
+        with self._connect() as connection:
+            if target_id is None:
+                rows = connection.execute(
+                    "SELECT payload FROM snapshot_manifests ORDER BY rowid"
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT payload FROM snapshot_manifests WHERE target_id = ? ORDER BY rowid",
+                    (target_id,),
+                ).fetchall()
+        return [SnapshotBundle.model_validate_json(row[0]) for row in rows]
 
     def list_proposals(self, status: ProposalStatus | None = None) -> list[ChangeProposal]:
         with self._connect() as connection:

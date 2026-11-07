@@ -358,6 +358,35 @@ class FirecrawlBackend:
             )
         raw_ref = self.artifacts.put(raw_data, media_type=normalized_type)
         normalized_ref = self.artifacts.put(normalized.encode("utf-8"), media_type="text/plain")
+        credits_cost = self._credits(data)
+        envelope_payload = {
+            "schema": "tripwise.firecrawl-provider-envelope/v1",
+            "engine": self.backend_name,
+            "engine_version": self.backend_version,
+            "evidence_fidelity": "provider_rendered_html",
+            "is_original_issuer_http_bytes": False,
+            "complete_redirect_chain_available": False,
+            "requested_url": requested_url,
+            "final_url": final_url,
+            "source_url": (
+                metadata.get("sourceURL") if isinstance(metadata.get("sourceURL"), str) else None
+            ),
+            "target_status_code": status,
+            "target_content_type": normalized_type,
+            "raw_html_sha256": raw_ref.sha256,
+            "normalized_sha256": normalized_ref.sha256,
+            "credits_cost": credits_cost,
+            "cache_state": (
+                metadata.get("cacheState") if isinstance(metadata.get("cacheState"), str) else None
+            ),
+            "cached_at": (
+                metadata.get("cachedAt") if isinstance(metadata.get("cachedAt"), str) else None
+            ),
+        }
+        envelope_bytes = json.dumps(envelope_payload, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+        envelope_ref = self.artifacts.put(envelope_bytes, media_type="application/json")
         return (
             FetchResult(
                 request_id=request.request_id,
@@ -365,13 +394,15 @@ class FirecrawlBackend:
                 content_type=normalized_type,
                 raw_artifact=raw_ref,
                 rendered_html_artifact=raw_ref,
+                provider_envelope_artifact=envelope_ref,
                 normalized_artifact=normalized_ref,
+                evidence_fidelity="provider_rendered_html",
                 normalized_text=normalized,
                 engine=self.backend_name,
                 engine_version=self.backend_version,
                 duration_ms=max(0, int((time.monotonic() - started) * 1000)),
             ),
-            self._credits(data),
+            credits_cost,
         )
 
     @staticmethod

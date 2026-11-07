@@ -118,9 +118,7 @@ def build_financial_extraction_client(config: ExtractionRuntimeConfig) -> LLMCli
     if config.mode is ExtractionMode.DISABLED:
         raise ExtractionRuntimeError("disabled extraction has no client")
     if config.mode in {ExtractionMode.SCRIPTED_REPLAY, ExtractionMode.CURATOR_AUTHORED}:
-        return _OneAttemptClient(
-            ScriptedLLMClient({"financial_extractor": list(config.responses)})
-        )
+        return _OneAttemptClient(ScriptedLLMClient({"financial_extractor": list(config.responses)}))
     assert config.client is not None
     return _OneAttemptClient(config.client)
 

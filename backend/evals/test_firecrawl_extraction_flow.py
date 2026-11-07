@@ -343,7 +343,7 @@ def test_real_pdf_document_parsed_through_isolated_worker_produces_verified_evid
             target_fact_ids=("example-card",),
             page_kind=PageKind.TNC_PDF,
             check_frequency_days=30,
-            preferred_backend="firecrawl",
+            preferred_backend="local",
         )
     )
 
@@ -369,11 +369,21 @@ def test_real_pdf_document_parsed_through_isolated_worker_produces_verified_evid
             raw_artifact=raw_art,
             normalized_artifact=norm_art,
             normalized_text=canonical_text,
-            engine="firecrawl-controlled-replay",
+            engine="local-pdf-worker",
             engine_version="fixture-v1",
             duration_ms=1,
         ),
-        attempt=_attempt("req-pdf-test"),
+        attempt=FetchAttempt(
+            attempt_id="attempt:req-pdf-test",
+            request_id="req-pdf-test",
+            backend="local",
+            backend_version="fixture-v1",
+            started_at=NOW,
+            ended_at=NOW,
+            final_url="https://issuer.example/terms.pdf",
+            response_class="success",
+            retry_index=0,
+        ),
     )
     assert snapshot is not None
 

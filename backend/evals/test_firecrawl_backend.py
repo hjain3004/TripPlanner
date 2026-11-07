@@ -189,7 +189,17 @@ def test_html_result_uses_explicit_safe_scrape_options_and_preserves_artifacts(
     result = asyncio.run(subject.fetch(request()))
     assert result.failure is None
     assert result.raw_artifact is not None
+    assert result.normalized_artifact is not None
     assert result.rendered_html_artifact == result.raw_artifact
+    assert result.provider_envelope_artifact is not None
+    assert result.evidence_fidelity == "provider_rendered_html"
+    envelope = json.loads(store.read(result.provider_envelope_artifact).decode("utf-8"))
+    assert envelope["schema"] == "tripwise.firecrawl-provider-envelope/v1"
+    assert envelope["evidence_fidelity"] == "provider_rendered_html"
+    assert envelope["is_original_issuer_http_bytes"] is False
+    assert envelope["complete_redirect_chain_available"] is False
+    assert envelope["raw_html_sha256"] == result.raw_artifact.sha256
+    assert envelope["normalized_sha256"] == result.normalized_artifact.sha256
     assert store.read(result.raw_artifact).startswith(b"<html>")
     assert result.normalized_text == "Issuer terms"
     assert len(transport.calls) == 1
@@ -217,7 +227,7 @@ def test_challenge_login_and_pdf_are_refused_without_claiming_success(
     tmp_path: Path,
 ) -> None:
     login_url = "https://issuer.example/login?next=/card"
-    cases = (
+    cases: tuple[tuple[str, dict[str, Any], FetchFailureKind], ...] = (
         (
             "<html><head><title>Just a moment...</title></head><body>wait</body></html>",
             {},

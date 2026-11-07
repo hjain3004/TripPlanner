@@ -18,6 +18,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from ingestion.contracts import FetchRequest, FetchResult, SourcePolicyRecord, WatchTarget
+from ingestion.preflight import canonicalize_url
 from ingestion.storage import (
     AcquisitionLockContentionError,
     FinancialIngestionStore,
@@ -96,8 +97,10 @@ class DurableAcquisitionControl:
     def _fingerprint(
         self, request: FetchRequest, *, policy_hash: str, estimated_credits: int
     ) -> str:
+        request_payload = request.model_dump(mode="json", exclude={"run_id"})
+        request_payload["canonical_url"] = canonicalize_url(request.canonical_url)
         payload: dict[str, object] = {
-            "request": request.model_dump(mode="json"),
+            "request": request_payload,
             "policy_hash": policy_hash,
             "estimated_credits": estimated_credits,
             "freshness_intent": "forced_fresh" if request.forced_freshness else "default_cache",
@@ -201,6 +204,7 @@ class DurableAcquisitionControl:
         connection: object,
         *,
         request: FetchRequest,
+        canonical_url: str,
         fingerprint: str,
         policy_hash: str,
         domain: str,
@@ -220,7 +224,7 @@ class DurableAcquisitionControl:
                 request.request_id,
                 fingerprint,
                 policy_hash,
-                request.canonical_url,
+                canonical_url,
                 domain,
                 request.run_id,
                 month_key,
@@ -271,6 +275,7 @@ class DurableAcquisitionControl:
                 "blocked", "source policy does not permit automated acquisition"
             )
 
+        canonical_url = canonicalize_url(request.canonical_url)
         domain = self._domain(request)
         fingerprint = self._fingerprint(
             request, policy_hash=policy_hash, estimated_credits=estimated_credits
@@ -294,12 +299,27 @@ class DurableAcquisitionControl:
                         )
                     return self._claim_from_row(prior)
 
+                unresolved = connection.execute(
+                    "SELECT request_id FROM acquisition_requests "
+                    "WHERE canonical_url IN (?, ?) "
+                    "AND state IN ('dispatching', 'needs_reconciliation') "
+                    "ORDER BY reserved_at DESC, request_id DESC LIMIT 1",
+                    (canonical_url, request.canonical_url),
+                ).fetchone()
+                if unresolved is not None:
+                    return DurableAcquisitionClaim(
+                        "pending",
+                        f"prior dispatch {unresolved['request_id']} may have reached the provider; "
+                        "reconciliation is required",
+                    )
+
                 run_usage = self._usage(connection, column="run_id", value=request.run_id)
                 month_usage = self._usage(connection, column="month_key", value=month_key)
                 if run_usage + estimated_credits > self._limits.per_run_credits:
                     return self._record_blocked(
                         connection,
                         request=request,
+                        canonical_url=canonical_url,
                         fingerprint=fingerprint,
                         policy_hash=policy_hash,
                         domain=domain,
@@ -312,6 +332,7 @@ class DurableAcquisitionControl:
                     return self._record_blocked(
                         connection,
                         request=request,
+                        canonical_url=canonical_url,
                         fingerprint=fingerprint,
                         policy_hash=policy_hash,
                         domain=domain,
@@ -331,6 +352,7 @@ class DurableAcquisitionControl:
                     return self._record_blocked(
                         connection,
                         request=request,
+                        canonical_url=canonical_url,
                         fingerprint=fingerprint,
                         policy_hash=policy_hash,
                         domain=domain,
@@ -354,7 +376,7 @@ class DurableAcquisitionControl:
                         request.request_id,
                         fingerprint,
                         policy_hash,
-                        request.canonical_url,
+                        canonical_url,
                         domain,
                         request.run_id,
                         month_key,
@@ -450,14 +472,14 @@ class DurableAcquisitionControl:
 
                 # A timeout or transport failure where provider charges are unknown or a request
                 # failed after dispatch must never refund its credit reservation just because
-                # content did not reach the next stage.
-                effective_charged = charged_credits
-                if (
-                    result.failure is not None
-                    and effective_charged == 0
-                    and int(row["estimated_credits"]) > 0
-                ):
-                    effective_charged = int(row["estimated_credits"])
+                # content did not reach the next stage, nor may a 0-credit report zero out a
+                # paid reservation.
+                estimated = int(row["estimated_credits"])
+                effective_charged = (
+                    estimated
+                    if charged_credits is None or charged_credits <= 0
+                    else max(charged_credits, estimated)
+                )
 
                 if str(row["state"]) == "completed":
                     if (
@@ -575,10 +597,11 @@ class DurableAcquisitionControl:
                 ).fetchone()
                 if row is None:
                     raise IngestionStoreError("cannot reconcile an unreserved acquisition request")
+                estimated = int(row["estimated_credits"])
                 effective_charged = (
-                    int(row["estimated_credits"])
-                    if charged_credits is None or charged_credits == 0
-                    else charged_credits
+                    estimated
+                    if charged_credits is None or charged_credits <= 0
+                    else max(charged_credits, estimated)
                 )
                 if str(row["state"]) == "completed":
                     if (
@@ -661,9 +684,7 @@ class DurableAcquisitionControl:
             reserved_at=self._as_utc(str(row["reserved_at"])),
             dispatch_started_at=dispatch_started_at,
             completed_at=(
-                None
-                if row["completed_at"] is None
-                else self._as_utc(str(row["completed_at"]))
+                None if row["completed_at"] is None else self._as_utc(str(row["completed_at"]))
             ),
             estimated_credits=int(row["estimated_credits"]),
             charged_credits=(
@@ -673,9 +694,25 @@ class DurableAcquisitionControl:
             replay_result=replay_result,
         )
 
-    def recover_interrupted(
-        self, *, now: datetime, include_unstarted: bool = True
-    ) -> list[str]:
+    def unresolved_for_url(self, canonical_url: str) -> AcquisitionRequestStatus | None:
+        """Return the latest in-flight or reconciliation-required status for ``canonical_url``."""
+        normalized_url = canonicalize_url(canonical_url)
+        try:
+            with self._store._connect() as connection:  # noqa: SLF001
+                row = connection.execute(
+                    "SELECT request_id FROM acquisition_requests "
+                    "WHERE canonical_url IN (?, ?) "
+                    "AND state IN ('dispatching', 'needs_reconciliation') "
+                    "ORDER BY reserved_at DESC, request_id DESC LIMIT 1",
+                    (normalized_url, canonical_url),
+                ).fetchone()
+        except sqlite3.OperationalError as error:
+            self._raise_on_lock_error(error, "unresolved_for_url")
+        if row is None:
+            return None
+        return self.status(str(row["request_id"]))
+
+    def recover_interrupted(self, *, now: datetime, include_unstarted: bool = True) -> list[str]:
         """Mark outstanding dispatches for explicit operator reconciliation.
 
         This never releases the associated credit reservation or makes a
@@ -743,11 +780,12 @@ class DurableAcquisitionControl:
                         continue
                     # Only successful completed acquisitions advance the target's watch
                     # schedule; failed captures with retained evidence remain due.
+                    normalized_url = canonicalize_url(target.canonical_url)
                     rows = connection.execute(
                         "SELECT completed_at, result_payload FROM acquisition_requests "
-                        "WHERE canonical_url = ? AND state = 'completed' "
+                        "WHERE canonical_url IN (?, ?) AND state = 'completed' "
                         "ORDER BY completed_at DESC, request_id DESC",
-                        (target.canonical_url,),
+                        (normalized_url, target.canonical_url),
                     ).fetchall()
                     last_success_at: datetime | None = None
                     for row in rows:
