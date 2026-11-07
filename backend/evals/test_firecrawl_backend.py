@@ -89,6 +89,7 @@ class FixtureControl:
     def __init__(self, claim: Claim) -> None:
         self.next_claim = claim
         self.claims = 0
+        self.dispatch_starts: list[str] = []
         self.completions: list[tuple[str, object, int | None]] = []
 
     def claim(
@@ -113,6 +114,10 @@ class FixtureControl:
     ) -> None:
         del now
         self.completions.append((request_id, result, charged_credits))
+
+    def mark_dispatch_started(self, request_id: str, *, now: datetime) -> None:
+        del now
+        self.dispatch_starts.append(request_id)
 
     def due_targets(
         self, targets: Sequence[WatchTarget], *, now: datetime, limit: int

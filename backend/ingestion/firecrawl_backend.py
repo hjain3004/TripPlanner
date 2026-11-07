@@ -162,6 +162,17 @@ class FirecrawlBackend:
                 kind, diagnostic = _claim_failure(claim.state)
                 return _failure(request.request_id, kind, claim.safe_diagnostic or diagnostic)
 
+            # Persist this immediately before crossing the provider boundary. A
+            # crash after this point is deliberately reconciled, never retried.
+            try:
+                control.mark_dispatch_started(request.request_id, now=self.now())
+            except Exception:
+                return _failure(
+                    request.request_id,
+                    FetchFailureKind.UNEXPECTED_FAILURE,
+                    "Firecrawl dispatch could not be durably marked as started",
+                )
+
         started = time.monotonic()
         result: FetchResult
         charged_credits: int | None = None
