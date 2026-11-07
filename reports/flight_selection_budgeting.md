@@ -32,7 +32,7 @@ Earlier the complete suite showed one failure, `evals/test_estimator_catalog.py:
 - Current retained Gondola observations remain discovery-only and non-bookable; they cannot be selected or costed.
 - The existing sample adapter supplies a synthetic one-way segment for the normal round-trip brief. It is inspectable retained evidence, but is correctly refused as a round-trip selection (`FLIGHT_IDENTITY_MISMATCH`). The demonstrated usable budget workflow is therefore the separately labelled traveler estimate.
 - No live provider/model call, credential, booking, transfer, activation, seed-fact update, or financial formula change occurred.
-- This branch is stacked on open PR #31 at `ce9acafd68a3f3cca53197831db2844e0fa71922`; it must target `codex/hotel-selection-budgeting`, not `main`, until that dependency lands.
+- This branch was originally stacked on PR #31 (`ce9acafd68a3f3cca53197831db2844e0fa71922`), which has merged to `main`. PR #33 was retargeted to `main` and merged cleanly.
 
 ## Independent review
 

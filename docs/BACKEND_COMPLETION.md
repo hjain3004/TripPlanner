@@ -13,10 +13,13 @@ Per `AGENTS.md` and `docs/DEVELOPMENT_WORKFLOW.md`:
 - **Progress means demonstrated, verifiable behavior** through the API, kernel, or operator CLI, not lines of code or test-case volume.
 - **Adapter existence is not provider activation.** Disabled offline stubs and fixture harnesses are not live integrations.
 - **Frontend, mobile, and deployment scaffolding are excluded** from this backend checklist.
-- **Parallel active deliverables are marked IN PROGRESS** and not claimed as complete:
-  - Flight selection budgeting (`codex/flight-selection-budgeting`)
-  - Financial data readiness (`codex/financial-data-readiness`)
-  - Card acquisition Case B (`codex/card-acquisition-case-b`)
+- **A successful retry of a previously failed CI run establishes a transient build failure, not a proven CDN root cause.**
+- **Previously parallel active deliverables are now demonstrated and landed in `main`:**
+  - Hotel selection budgeting (PR #31)
+  - Gondola planning integration (PR #29 / PR #30)
+  - Flight selection budgeting (PR #33)
+  - Financial data readiness (PR #34)
+  - Card acquisition Case B (PR #35)
 
 ---
 
@@ -41,13 +44,13 @@ Per `AGENTS.md` and `docs/DEVELOPMENT_WORKFLOW.md`:
 │ 13. Financial Ingestion Core (FI0–3) │ Demonstrated & Landed        │ `backend/ingestion/`, reports/fi0_foundation.md        │
 │ 14. Card-Bank Pilot (HDFC Page)      │ Demonstrated & Landed        │ `backend/ingestion/`, reports/card_bank_real_issuer    │
 │ 15. Welcome Window Case A (Held)     │ Demonstrated & Landed        │ `backend/welcome/`, reports/held_card_welcome_status   │
-│ 16. Hotel Selection Budgeting        │ Awaiting Landing (PR #31)    │ `backend/api/post_plan.py`, PR #31 (CI 4/4 passing)    │
-│ 17. Gondola Planning Integration     │ Awaiting Landing (PR #29/30) │ `backend/gateway/travel/adapters/gondola/`, PR #29/30  │
+│ 16. Hotel Selection Budgeting        │ Demonstrated & Landed        │ `backend/api/post_plan.py`, reports/hotel_selection_budgeting │
+│ 17. Gondola Planning Integration     │ Demonstrated & Landed        │ `backend/gateway/travel/adapters/gondola/`, PR #29/30  │
 │ 18. OpenBnB Rental Stay Adapter      │ Implemented Offline (Gated)  │ `backend/gateway/travel/adapters/openbnb/`, G3b report │
 │ 19. TripAdvisor Place Adapter        │ Implemented Offline (Gated)  │ `backend/gateway/places/adapters/tripadvisor/`, I8A rep│
-│ 20. Flight Selection Budgeting       │ IN PROGRESS (Other Agent)    │ Branch `codex/flight-selection-budgeting`              │
-│ 21. Financial Data Readiness         │ IN PROGRESS (Other Agent)    │ Branch `codex/financial-data-readiness`                │
-│ 22. Card Acquisition Case B (New)    │ IN PROGRESS (Other Agent)    │ Branch `codex/card-acquisition-case-b`                 │
+│ 20. Flight Selection Budgeting       │ Demonstrated & Landed        │ `backend/api/post_plan.py`, reports/flight_selection_budgeting│
+│ 21. Financial Data Readiness         │ Demonstrated & Landed        │ `backend/ingestion/readiness.py`, reports/financial_data_readiness│
+│ 22. Card Acquisition Case B (New)    │ Demonstrated & Landed        │ `backend/welcome/acquisition.py`, `backend/api/acquisition.py`, reports/card_acquisition_case_b│
 │ 23. Live Flight Quoting to Budget    │ Required & Missing           │ Gap between Gondola observation and costable quote     │
 │ 24. Live Award Seat Availability     │ Required & Missing           │ Real-time seat discovery missing (uses static advice)  │
 │ 25. Welcome Offers Catalog Content   │ Required & Missing           │ `card_acquisition_offers.yaml` currently 0 rows        │
@@ -61,14 +64,13 @@ Per `AGENTS.md` and `docs/DEVELOPMENT_WORKFLOW.md`:
 
 ---
 
-## 3. Detailed Inspection of Specific Acceptance Areas
+## 3. Deep-Dive Audits of Subsystems and Current Invariants
 
 ### 3.1 Flight Selection, Pricing, and Costing
 - **Current Landed State:**
   - Estimator uses deterministic sample flights (`SampleFlight` from `core/seeds/sample_flights.yaml`) to build costed trip line items and allocate payment strategies.
   - Gondola MCP adapter live flight search returns `FlightPriceObservation` records from Google Flights (carrier, local departure, round-trip USD price in minor units, stop count). These are attached to `TravelInventoryService` and persisted in planning reports and saved revisions as non-bookable, `verify_required` observations (`reports/gondola_planning_integration.md`).
-- **In Progress:**
-  - `codex/flight-selection-budgeting` is implementing explicit traveler flight selection budgeting (parallel to PR #31's hotel selection), allowing travelers to choose specific flight options and recompute deterministic budgets.
+  - Explicit traveler flight selection budgeting is landed in `backend/api/post_plan.py` (PR #33, `reports/flight_selection_budgeting.md`), supporting explicit traveler flight selection, retained options, traveler-asserted totals with `party_total` vs. `per_traveler` scope, and deterministic payment strategy recomputation.
 - **Remaining Gap:**
   - Gondola emits Google Flights Markdown without specific return leg segments or exact booking classes. Converting an unconfirmed price observation into an automated, fully costable `FlightQuote` without human segment selection remains unsupported by the provider interface.
 
@@ -91,25 +93,22 @@ Per `AGENTS.md` and `docs/DEVELOPMENT_WORKFLOW.md`:
   - Baseline financial facts are seeded in `core/seeds/` (`cards.yaml`, `reward_rules.yaml`, `point_valuations.yaml`, `offers.yaml`, `fx_rates.yaml`).
   - Offline ingestion foundation (FI0–FI3, `backend/ingestion/`) is complete: typed proposal contracts, PDF worker isolation, extraction validation, and curator review CLI/web app (`python -m ingestion.review_server`).
   - Real-issuer pilot (`reports/card_bank_real_issuer_pilot.md`) demonstrated 1 real HDFC product page staging, validation, bundling, dry-run, and rollback.
-- **In Progress:**
-  - `codex/financial-data-readiness` is actively working on financial data coverage, verified issuers, and staging validation.
+  - Financial data readiness (`backend/ingestion/readiness.py`, `backend/ingestion/review_queue.py`, PR #34, `reports/financial_data_readiness.md`) measured trip sensitivity and prepared curator review packets using an existing manual capture (`hdfc-infinia-product-page-2026-10-30.txt`), not newly crawled issuer documents.
 - **Remaining Gap / Deferred:**
   - Shipped baseline seeds remain the original fixture values; fresh proposals from the pilot await final human approval before insertion into active seeds.
-  - Automated weekly monitoring and Firecrawl integration (FI4) are deferred. All updates remain batch, local, and curator-driven.
+  - Firecrawl is prioritized for future implementation (FI4), but is not implemented yet. Automated crawling remains disabled; all updates remain batch, local, and curator-driven.
 
 ### 3.5 Card Acquisition & Welcome Offers (Spec 18)
-- **Current Landed State (Case A):**
-  - Held-card welcome window status is implemented in `backend/welcome/` (`reports/held_card_welcome_status.md`).
-  - Endpoint `POST /account/wallet/{entry_id}/welcome-status` computes window deadlines, remaining minimum spend, and conditional contribution from planned trip spend.
-- **In Progress (Case B):**
-  - `codex/card-acquisition-case-b` is actively implementing gated acquisition recommendations for unheld cards.
+- **Current Landed State (Case A & Case B):**
+  - Held-card welcome window status (Case A) is implemented in `backend/welcome/` (`reports/held_card_welcome_status.md`). Endpoint `POST /account/wallet/{entry_id}/welcome-status` computes window deadlines, remaining minimum spend, and conditional contribution from planned trip spend.
+  - Card acquisition assessment (Case B) is implemented in `backend/welcome/acquisition.py` and `backend/api/acquisition.py` (PR #35, `reports/card_acquisition_case_b.md`). Route `POST /account/acquisition/trips/{trip_id}/revisions/{revision}` computes conservative, eligibility-checked, conditional suggestions for unheld cards using the existing deterministic optimizer.
 - **Remaining Gap:**
-  - The shipped welcome offers database (`backend/welcome/data/card_acquisition_offers.yaml`) has 0 approved rows. Case A queries mechanically return `status: "unknown"` and `NO_APPROVED_OFFER` until human-curated welcome offers are populated.
+  - The shipped welcome offers database (`backend/welcome/data/card_acquisition_offers.yaml`) has 0 approved rows. Queries against the shipped catalog mechanically return `status: "unknown"` and `NO_APPROVED_OFFER` until human-curated welcome offers are populated.
 
 ### 3.6 Persistence, Concurrency, and Restart Behavior
 - **Current Landed State:**
   - Planning Sessions: Backed by SQLite `AccountStore` with optimistic version checks (`expected_version`), idempotent `client_event_id` handling, and TTL expiration.
-  - Durable Jobs: SQLite job runner via `AccountStore` and `backend/api/job_manager.py` (PR #28) ensures `/plan` background processing survives server restarts; polling recovers progress.
+  - Durable Jobs: SQLite job runner via `AccountStore` and `backend/api/job_manager.py` (PR #28) records background processing; if interrupted across a server restart, jobs transition after a grace period to failed with reason `JOB_INTERRUPTED` and do not resume automatically.
   - Saved Trips & Revisions: Immutable `SavedTrip` and append-only `TripRevision` persisted in `accounts.db` via `backend/api/saved_trips.py` and `backend/accounts/store.py` (A1/A4).
   - Hotel & Flight Selection State: Stored across revisions, idempotent, and protected against stale parent revisions.
   - Ingestion Decisions: Replay-safe SQLite persistence for proposals, audit logs, and activation bundles.
@@ -126,35 +125,27 @@ Per `AGENTS.md` and `docs/DEVELOPMENT_WORKFLOW.md`:
 
 ## 4. Workstreams Awaiting Landing / Integration
 
-1. **PR #31 — Explicit Hotel Selection Budgeting (`codex/hotel-selection-budgeting`):**
-   - Head: `ce9acafd68a3f3cca53197831db2844e0fa71922`
-   - Checks: **4/4 passing (Backend, Frontend, Contract Drift, Containers/Smoke)**.
-   - Status: Complete and verified offline; awaiting human review and merge.
-2. **PR #29 / PR #30 — Gondola Planning Integration:**
-   - Retains live hotel rates and flight observations in authenticated planning and saved revisions.
-   - Status: Reconciled and demonstrated; awaiting final branch landing.
+All previously queued PRs (#29/#30 Gondola Planning Integration, #31 Hotel Selection Budgeting, #33 Flight Selection Budgeting, #34 Financial Data Readiness, and #35 Card Acquisition Case B) are now merged to `main`. There are currently no backend workstreams awaiting landing.
 
 ---
 
-## 5. Workstreams In Progress (Other Agents)
+## 5. Workstreams In Progress (Other Branches / Evidence Collection)
 
-1. **Flight Selection Budgeting (`codex/flight-selection-budgeting`):**
-   - Extending CP4 actions to support explicit traveler flight selection, retained options, traveler-asserted totals, and deterministic payment strategy recomputation.
-2. **Financial Data Readiness (`codex/financial-data-readiness`):**
-   - Expanding issuer coverage, validating live bank terms, and preparing curated financial fact bundles for insertion into the Knowledge Base.
-3. **Card Acquisition Case B (`codex/card-acquisition-case-b`):**
-   - Spec 18 Case B implementation: conservative, eligibility-checked suggestions for new credit cards when trip spend justifies a high-value welcome bonus.
+1. **Issuer Evidence Packet (`codex/issuer-evidence-packet`, PR #37):**
+   - Gathering official primary-source issuer documents, fee schedules, and terms for HDFC Infinia and Axis Atlas to prepare curator review packets.
+2. **OpenBnB Hosted Assessment (`codex/openbnb-hosted-assessment`, PR #36):**
+   - Evaluating openbnb self-hosting requirements and compliance offline without live network activation.
 
 ---
 
 ## 6. Externally Blocked or Non-Activated Items
 
 1. **OpenBnB Live Adapter:**
-   - Blocked by Airbnb Terms of Service §11.1 (scraping prohibition). Requires human legal waiver (`LiveActivationApproval`). Stays disabled.
+   - Blocked by Airbnb Terms of Service §11.1 (scraping prohibition). The code enforces an internal fail-closed gate (`LiveActivationApproval`), which is purely an internal project safeguard and not a legal waiver or permission from Airbnb. Stays disabled.
 2. **TripAdvisor Live Adapter:**
    - Blocked by credential requirement (API key) and strict 24-hour caching/attribution constraints. Stays disabled.
 3. **Automated Live Financial Crawling:**
-   - Blocked by issuer website terms and need for headless browser orchestration. Stays disabled in favor of curator manual capture.
+   - Blocked by issuer website terms and need for headless browser orchestration. Stays disabled in favor of curator manual capture. Firecrawl is prioritized for future implementation (FI4) but is not implemented yet.
 
 ---
 

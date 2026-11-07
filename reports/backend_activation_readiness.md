@@ -43,9 +43,9 @@ Per project delivery directives and non-negotiables:
 │                 │ not in registry     │ 0 live calls     │ API_KEY not set      │ 24h caching restriction │
 ├─────────────────┼─────────────────────┼──────────────────┼──────────────────────┼─────────────────────────┤
 │ Financial       │ Manual upload active│ 1 manual HDFC    │ Crawl4AI optional;   │ Bank ToS / robots.txt;  │
-│ Ingestion       │ Curator CLI/server; │ capture staged;  │ Firecrawl unbuilt;   │ headless Chromium;      │
-│ (Crawl4AI /     │ PDF worker isolated;│ zero automated   │ auto-apply forbidden │ human approval mandate; │
-│ Firecrawl)      │ in-memory dry-run   │ web crawling     │ by non-negotiable #4 │ Firecrawl FI4 unbuilt   │
+│ Ingestion       │ Curator CLI/server; │ capture staged   │ Firecrawl prioritized│ headless Chromium;      │
+│ (Crawl4AI /     │ PDF worker isolated;│ (not crawled);   │ for FI4 (unbuilt);   │ human approval mandate; │
+│ Firecrawl)      │ in-memory dry-run   │ zero live crawls │ auto-apply forbidden │ Firecrawl FI4 unbuilt   │
 └─────────────────┴─────────────────────┴──────────────────┴──────────────────────┴─────────────────────────┘
 ```
 
@@ -133,7 +133,7 @@ Per project delivery directives and non-negotiables:
     - No live schema capture has ever been conducted.
     - Pinned `@openbnb/mcp-server-airbnb@0.3.0` installation is unverified.
 - **Smallest explicitly authorized future acceptance run:**
-  - **DO NOT ACTIVATE.** Requires a human legal determination and explicit written `LiveActivationApproval`. If ever authorized for a bounded personal demo: 1 single search call for a specific destination window under the 2-call budget.
+  - **DO NOT ACTIVATE.** Requires written human legal authorization. The `LiveActivationApproval` parameter in the codebase is an internal project safety gate, NOT a legal waiver or permission from Airbnb. If ever authorized for a bounded personal demo: 1 single search call for a specific destination window under the 2-call budget.
 
 ---
 
@@ -170,12 +170,12 @@ Per project delivery directives and non-negotiables:
   - Human review CLI and web server (`python -m ingestion.review_server`): inspect proposals, record durable decisions, generate content-addressed activation bundles, and run in-memory dry-runs against `KnowledgeBase`.
   - Real issuer pilot demonstrated the complete operator loop on one manually captured HDFC Infinia product page.
 - **Fixture/replay versus observed live:**
-  - **Observed Live:** Zero automated live web crawling. One real HDFC product page was manually saved in a browser by the human owner (`manual_capture`, 10,280 bytes plain text) and staged offline.
+  - **Observed Live:** Zero automated live web crawling. Financial readiness and the real issuer pilot used an existing manual capture (`hdfc-infinia-product-page-2026-10-30.txt`, 10,280 bytes plain text), not newly crawled issuer documents.
   - **Fixture/Replay:** All tests and CI run against synthetic HTML and PDF fixtures.
 - **Default state and actual activation mechanism:**
   - **Default State:** Automated network crawling is disabled. `ManualUploadBackend` is default.
   - **Activation Mechanism (Crawl4AI):** Requires installing the `ingestion-local` extra (`crawl4ai`, Playwright headless Chromium) and injecting a public DNS resolver.
-  - **Firecrawl State:** Completely unbuilt. Outlined as optional phase FI4 in `docs/superpowers/plans/2026-10-07-robust-financial-ingestion.md`. No SDK, adapter, or configuration exists in the codebase.
+  - **Firecrawl State:** Completely unbuilt. Firecrawl is prioritized for future implementation (phase FI4 in `docs/superpowers/plans/2026-10-07-robust-financial-ingestion.md`), but is not implemented yet. No SDK, adapter, or configuration exists in the codebase.
 - **Outstanding source permission, credentials, cost, or technical requirements:**
   - **Permission / Terms:** Bank websites (HDFC, SBI, Axis, ICICI, etc.) frequently prohibit scraping in website terms. Automated crawling requires per-issuer ToS review and robots.txt clearance.
   - **Technical Requirements (Crawl4AI):** Headless Chromium binaries, system libraries, and DNS resolver setup.
@@ -197,12 +197,12 @@ Per project delivery directives and non-negotiables:
    - [ ] Install `@cyanheads/open-meteo-mcp-server@0.4.1` verifying against audited lockfile.
    - [ ] Export `TRIPWISE_OPEN_METEO_ENABLED=1` and `TRIPWISE_OPEN_METEO_INSTALL_ROOT`.
 3. **OpenBnB:**
-   - [ ] **DO NOT ACTIVATE** without written human legal exception to Airbnb ToS §11.1.
+   - [ ] **DO NOT ACTIVATE** without written human legal authorization; `LiveActivationApproval` is strictly an internal project gate, not a legal waiver or permission from Airbnb.
 4. **TripAdvisor:**
    - [ ] Create developer account on TripAdvisor Terra / Content API.
    - [ ] Confirm $0 billing tier and configure hard alerts.
    - [ ] Set `TRIPWISE_TRIPADVISOR_API_KEY` and verify 900-entity safety cap.
 5. **Financial Ingestion:**
-   - [ ] Continue with manual capture workflow for bank product pages (`stage-capture`).
+   - [ ] Continue with manual capture workflow for bank product pages (`stage-capture`) using local files.
    - [ ] Human curator reviews pending proposals via `python -m ingestion.review_server`.
-   - [ ] Do not implement automated crawling without explicit issuer terms review.
+   - [ ] Firecrawl is prioritized for implementation but is not implemented yet; do not implement automated crawling without explicit issuer terms review.
