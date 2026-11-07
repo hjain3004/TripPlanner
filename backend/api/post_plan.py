@@ -33,7 +33,12 @@ from accounts.store import (
 from agents.confirmed_trip import build_inventory_requests, compile_confirmed_input
 from agents.estimator import price_in_home
 from agents.gateway_estimator import _summary_quote
-from agents.models import FinalReport, FlightSelectionRecord, HotelSelectionRecord, PaymentStrategyRow
+from agents.models import (
+    FinalReport,
+    FlightSelectionRecord,
+    HotelSelectionRecord,
+    PaymentStrategyRow,
+)
 from agents.post_plan_execution import (
     PostPlanExecutionResult,
     recompute_confirmed_report,
@@ -63,7 +68,12 @@ from api.post_plan_service import (
     recover_interrupted,
 )
 from core.models import Channel, SpendCategory, SpendLineItem
-from gateway.travel.contracts import FlightPriceObservation, FlightQuote, FlightSearchRequest, TravelerMix
+from gateway.travel.contracts import (
+    FlightPriceObservation,
+    FlightQuote,
+    FlightSearchRequest,
+    TravelerMix,
+)
 from gateway.travel.product import InventoryQuoteSummary, TravelInventorySnapshot
 from planning.brief import profile_group_from_answer
 from planning.contracts import ConfirmedBriefSnapshot, PlanningSession
@@ -72,8 +82,8 @@ from planning.post_plan import (
     DayOverride,
     ExplainableRef,
     ExplanationRequest,
-    HotelSelectionAction,
     FlightSelectionAction,
+    HotelSelectionAction,
     PostPlanAction,
     PostPlanInputError,
     RoutingContext,
@@ -214,8 +224,7 @@ class PostPlanError(BaseModel):
 
 
 _POST_PLAN_ERRORS: dict[int | str, dict[str, Any]] = {
-    status: {"model": PostPlanError}
-    for status in (401, 403, 404, 409, 410, 413, 422, 429, 503)
+    status: {"model": PostPlanError} for status in (401, 403, 404, 409, 410, 413, 422, 429, 503)
 }
 
 
@@ -302,13 +311,10 @@ def _explanation_for(report: Any, action: ExplanationRequest) -> str:
         return f"{item.name or item.poi_id} is scheduled in the accepted itinerary."
     if action.target_kind == "payment_assignment":
         assignment = next(
-            row
-            for row in report.optimizer_result.assignments
-            if row.line.id == action.target_id
+            row for row in report.optimizer_result.assignments if row.line.id == action.target_id
         )
         return (
-            f"{assignment.line.label} is assigned to {assignment.card_id} "
-            f"via {assignment.channel}."
+            f"{assignment.line.label} is assigned to {assignment.card_id} via {assignment.channel}."
         )
     if action.target_kind == "transfer_recommendation":
         return "The transfer recommendation is the accepted kernel output for this trip."
@@ -484,11 +490,16 @@ def _matches_retained_flight_request(quote: FlightQuote, request: FlightSearchRe
     if (
         segments[0].origin != request.origin
         or segments[0].departure_at.date() != request.depart_date
-        or any(left.destination != right.origin for left, right in zip(segments, segments[1:]))
+        or any(
+            left.destination != right.origin
+            for left, right in zip(segments, segments[1:], strict=False)
+        )
     ):
         return False
     destination_indexes = [
-        index for index, segment in enumerate(segments) if segment.destination == request.destination
+        index
+        for index, segment in enumerate(segments)
+        if segment.destination == request.destination
     ]
     if not destination_indexes:
         return False
@@ -517,7 +528,11 @@ def _flight_selection_resolution(
         from planning.post_plan import flight_fingerprint
 
         if retained.flight_fingerprint != flight_fingerprint(loaded.workspace.brief):
-            raise _error("STALE_FLIGHT_INVENTORY", "The retained flight inventory no longer matches this trip.", 409)
+            raise _error(
+                "STALE_FLIGHT_INVENTORY",
+                "The retained flight inventory no longer matches this trip.",
+                409,
+            )
     inputs = compile_confirmed_input(
         ConfirmedBriefSnapshot(
             revision=loaded.workspace.confirmed_brief_revision,
@@ -527,82 +542,166 @@ def _flight_selection_resolution(
     )
     expected_request, _hotel_request = build_inventory_requests(inputs, loaded.report.itinerary)
     if snapshot.flight_request != expected_request or not snapshot.is_current(now):
-        raise _error("STALE_FLIGHT_INVENTORY", "The retained flight request is no longer current for this trip.", 409)
-    quote = next((candidate for candidate in snapshot.flights if candidate.id == action.quote_id), None)
+        raise _error(
+            "STALE_FLIGHT_INVENTORY",
+            "The retained flight request is no longer current for this trip.",
+            409,
+        )
+    quote = next(
+        (candidate for candidate in snapshot.flights if candidate.id == action.quote_id), None
+    )
     linked_provider_id = quote.evidence.provider_id if quote is not None else None
     if action.source == "inventory_quote":
         if quote is None:
-            raise _error("FLIGHT_CANDIDATE_NOT_FOUND", "That flight is not in the retained complete inventory.")
+            raise _error(
+                "FLIGHT_CANDIDATE_NOT_FOUND",
+                "That flight is not in the retained complete inventory.",
+            )
         scope = snapshot.flight_scopes.get(quote.id)
-        if scope is None or not scope.cost_eligible or scope.travelers != _traveler_total(expected_request.travelers):
-            raise _error("FLIGHT_PRICE_NOT_ADMISSIBLE", "That flight price has no verified party scope for this trip.")
-        if quote.evidence.status == "stale":
-            raise _error("FLIGHT_EVIDENCE_STALE", "That flight evidence is stale; reload the alternatives.", 409)
-        if quote.travelers != expected_request.travelers or quote.currency != expected_request.currency:
-            raise _error("FLIGHT_IDENTITY_MISMATCH", "That flight does not match the retained traveler or currency request.")
         if (
-            not _matches_retained_flight_request(quote, expected_request)
+            scope is None
+            or not scope.cost_eligible
+            or scope.travelers != _traveler_total(expected_request.travelers)
         ):
-            raise _error("FLIGHT_IDENTITY_MISMATCH", "That flight itinerary does not match the retained trip.")
+            raise _error(
+                "FLIGHT_PRICE_NOT_ADMISSIBLE",
+                "That flight price has no verified party scope for this trip.",
+            )
+        if quote.evidence.status == "stale":
+            raise _error(
+                "FLIGHT_EVIDENCE_STALE",
+                "That flight evidence is stale; reload the alternatives.",
+                409,
+            )
+        if (
+            quote.travelers != expected_request.travelers
+            or quote.currency != expected_request.currency
+        ):
+            raise _error(
+                "FLIGHT_IDENTITY_MISMATCH",
+                "That flight does not match the retained traveler or currency request.",
+            )
+        if not _matches_retained_flight_request(quote, expected_request):
+            raise _error(
+                "FLIGHT_IDENTITY_MISMATCH",
+                "That flight itinerary does not match the retained trip.",
+            )
         if not quote.purchasable_channels:
-            raise _error("FLIGHT_PAYMENT_CHANNEL_UNKNOWN", "This flight has no supported payment channel for a card recommendation.")
+            raise _error(
+                "FLIGHT_PAYMENT_CHANNEL_UNKNOWN",
+                "This flight has no supported payment channel for a card recommendation.",
+            )
         try:
-            converted = price_in_home(quote.total_minor, quote.currency, loaded.report.costed_trip.home_currency, _get_kb())
+            converted = price_in_home(
+                quote.total_minor,
+                quote.currency,
+                loaded.report.costed_trip.home_currency,
+                _get_kb(),
+            )
         except ValueError as exc:
-            raise _error("FLIGHT_FX_UNAVAILABLE", "The retained flight currency cannot be priced in the trip currency.") from exc
+            raise _error(
+                "FLIGHT_FX_UNAVAILABLE",
+                "The retained flight currency cannot be priced in the trip currency.",
+            ) from exc
         if scope.basis == "sample_per_traveler_trip":
             # The seed quote is per traveler: preserve its per-transaction conversion order.
             converted = price_in_home(
-                quote.total_minor, quote.currency, loaded.report.costed_trip.home_currency, _get_kb()
+                quote.total_minor,
+                quote.currency,
+                loaded.report.costed_trip.home_currency,
+                _get_kb(),
             ) * _traveler_total(expected_request.travelers)
             amount_scope: Literal["party_total", "per_traveler"] = "per_traveler"
         else:
             amount_scope = "party_total"
         record = FlightSelectionRecord(
-            source="inventory_quote", quote_id=quote.id, provider_id=quote.evidence.provider_id,
-            amount_minor=quote.total_minor, currency=quote.currency,
-            covers=f"server-owned quote scope: {scope.basis}", amount_scope=amount_scope,
-            payment_channel=cast(Channel, quote.purchasable_channels[0]), assumptions=list(action.assumptions),
-            limitations=list(quote.evidence.notes), recorded_at=now, recorded_by=user.id,
-            session_id=loaded.snapshot.session_id, trip_id=loaded.snapshot.saved_trip_id,
+            source="inventory_quote",
+            quote_id=quote.id,
+            provider_id=quote.evidence.provider_id,
+            amount_minor=quote.total_minor,
+            currency=quote.currency,
+            covers=f"server-owned quote scope: {scope.basis}",
+            amount_scope=amount_scope,
+            payment_channel=cast(Channel, quote.purchasable_channels[0]),
+            assumptions=list(action.assumptions),
+            limitations=list(quote.evidence.notes),
+            recorded_at=now,
+            recorded_by=user.id,
+            session_id=loaded.snapshot.session_id,
+            trip_id=loaded.snapshot.saved_trip_id,
         )
         return SpendLineItem(
-            id=f"flight:{quote.id}", label="Selected retained flight quote", category=SpendCategory.FLIGHTS,
-            amount_minor=converted, currency=loaded.report.costed_trip.home_currency,
-            available_channels=[cast(Channel, channel) for channel in quote.purchasable_channels], merchant_hint=quote.evidence.provider_id,
+            id=f"flight:{quote.id}",
+            label="Selected retained flight quote",
+            category=SpendCategory.FLIGHTS,
+            amount_minor=converted,
+            currency=loaded.report.costed_trip.home_currency,
+            available_channels=[cast(Channel, channel) for channel in quote.purchasable_channels],
+            merchant_hint=quote.evidence.provider_id,
         ), record
 
-    assert action.amount_minor is not None and action.currency is not None and action.covers is not None
+    assert (
+        action.amount_minor is not None
+        and action.currency is not None
+        and action.covers is not None
+    )
     assert action.amount_scope is not None
     if action.payment_channel is None:
-        raise _error("FLIGHT_PAYMENT_CHANNEL_REQUIRED", "A traveler-provided total needs an explicit payment-channel assumption before a card recommendation can be computed.")
+        raise _error(
+            "FLIGHT_PAYMENT_CHANNEL_REQUIRED",
+            "A traveler-provided total needs an explicit payment-channel assumption before a "
+            "card recommendation can be computed.",
+        )
     if action.quote_id is not None and quote is None:
-        raise _error("FLIGHT_CANDIDATE_NOT_FOUND", "The linked flight is not in the retained complete inventory.")
+        raise _error(
+            "FLIGHT_CANDIDATE_NOT_FOUND",
+            "The linked flight is not in the retained complete inventory.",
+        )
     try:
-        converted = price_in_home(action.amount_minor, action.currency, loaded.report.costed_trip.home_currency, _get_kb())
+        converted = price_in_home(
+            action.amount_minor, action.currency, loaded.report.costed_trip.home_currency, _get_kb()
+        )
     except ValueError as exc:
-        raise _error("FLIGHT_FX_UNAVAILABLE", "The supplied flight currency cannot be priced in the trip currency.") from exc
+        raise _error(
+            "FLIGHT_FX_UNAVAILABLE",
+            "The supplied flight currency cannot be priced in the trip currency.",
+        ) from exc
     if action.amount_scope == "per_traveler":
         converted *= _traveler_total(expected_request.travelers)
     record = FlightSelectionRecord(
-        source="user_provided_total", quote_id=action.quote_id, provider_id=linked_provider_id,
-        amount_minor=action.amount_minor, currency=action.currency, covers=action.covers,
-        amount_scope=action.amount_scope, payment_channel=action.payment_channel,
-        assumptions=[*action.assumptions, f"Payment channel assumed: {action.payment_channel.value}"],
-        limitations=[
-            "Traveler-provided planning estimate; not a verified provider quote, fare or booking guarantee.",
-            "Taxes, fees, availability, itinerary details and fare terms are represented only by the stated assumptions.",
+        source="user_provided_total",
+        quote_id=action.quote_id,
+        provider_id=linked_provider_id,
+        amount_minor=action.amount_minor,
+        currency=action.currency,
+        covers=action.covers,
+        amount_scope=action.amount_scope,
+        payment_channel=action.payment_channel,
+        assumptions=[
+            *action.assumptions,
+            f"Payment channel assumed: {action.payment_channel.value}",
         ],
-        recorded_at=now, recorded_by=user.id, session_id=loaded.snapshot.session_id,
+        limitations=[
+            "Traveler-provided planning estimate; not a verified provider quote, fare or "
+            "booking guarantee.",
+            "Taxes, fees, availability, itinerary details and fare terms are represented only "
+            "by the stated assumptions.",
+        ],
+        recorded_at=now,
+        recorded_by=user.id,
+        session_id=loaded.snapshot.session_id,
         trip_id=loaded.snapshot.saved_trip_id,
     )
     selection_key = hashlib.sha256(
         json.dumps(record.model_dump(mode="json"), sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()[:16]
     return SpendLineItem(
-        id=f"flight:user:{selection_key}", label="Traveler-entered flight total (planning estimate)",
-        category=SpendCategory.FLIGHTS, amount_minor=converted,
-        currency=loaded.report.costed_trip.home_currency, available_channels=[action.payment_channel],
+        id=f"flight:user:{selection_key}",
+        label="Traveler-entered flight total (planning estimate)",
+        category=SpendCategory.FLIGHTS,
+        amount_minor=converted,
+        currency=loaded.report.costed_trip.home_currency,
+        available_channels=[action.payment_channel],
         merchant_hint=None,
     ), record
 
@@ -676,12 +775,15 @@ def _hotel_selection_resolution(
             nights = loaded.report.trip_spec.nights
             # Preserve the sample estimator's frozen rounding order: convert
             # the exact nightly amount, then multiply by nights.
-            amount = price_in_home(
-                source_amount // nights,
-                source_currency,
-                loaded.report.costed_trip.home_currency,
-                _get_kb(),
-            ) * nights
+            amount = (
+                price_in_home(
+                    source_amount // nights,
+                    source_currency,
+                    loaded.report.costed_trip.home_currency,
+                    _get_kb(),
+                )
+                * nights
+            )
         channels = list(quote.purchasable_channels)
         if not channels:
             raise _error(
@@ -788,9 +890,7 @@ def _get_kb() -> Any:
 def _hotel_computed(
     report: FinalReport, *, limitations: list[str] | None = None
 ) -> HotelSelectionComputedOut:
-    hotel = next(
-        line for line in report.costed_trip.lines if line.category is SpendCategory.HOTELS
-    )
+    hotel = next(line for line in report.costed_trip.lines if line.category is SpendCategory.HOTELS)
     return HotelSelectionComputedOut(
         hotel_amount_minor=hotel.amount_minor,
         hotel_currency=hotel.currency,
@@ -959,9 +1059,7 @@ def propose_action(
             finally:
                 mark_finished(operation.operation_id)
         if isinstance(action, (HotelSelectionAction, FlightSelectionAction)):
-            prior = store.get_post_plan_operation(
-                user_id=user.id, event_id=body.client_event_id
-            )
+            prior = store.get_post_plan_operation(user_id=user.id, event_id=body.client_event_id)
             if prior is not None:
                 prior_payload = json.loads(prior.payload_json)
                 if prior_payload.get("action") != action.model_dump(mode="json"):
@@ -998,7 +1096,11 @@ def propose_action(
                 loaded, action, user=user, now=now_utc()
             )
             preview_report = recompute_flight_selection(
-                loaded.report, flight_line=flight_line, record=flight_record, kb=_get_kb(), now=now_utc()
+                loaded.report,
+                flight_line=flight_line,
+                record=flight_record,
+                kb=_get_kb(),
+                now=now_utc(),
             )
             selection_preview = FlightSelectionPreviewOut(
                 before=_flight_computed(loaded.report),
@@ -1020,9 +1122,7 @@ def propose_action(
                 ).encode()
             ).hexdigest()
         if action.kind == "profile_update_proposal":
-            _candidate, base_fingerprint = _profile_candidate(
-                store, user, action, now=now_utc()
-            )
+            _candidate, base_fingerprint = _profile_candidate(store, user, action, now=now_utc())
             proposal_payload["profile_base_fingerprint"] = base_fingerprint
         operation = (
             _reserve(
@@ -1167,14 +1267,21 @@ def flight_selection_options(
         loaded = _loaded(store, user, session_id)
         snapshot = _flight_snapshot(loaded)
         if loaded.report.travel_inventory is None:
-            raise _error("FLIGHT_INVENTORY_UNAVAILABLE", "Flight alternatives are unavailable.", 409)
+            raise _error(
+                "FLIGHT_INVENTORY_UNAVAILABLE", "Flight alternatives are unavailable.", 409
+            )
         selected_id = (
             loaded.report.travel_inventory.flight.quote_id
             if loaded.report.travel_inventory.flight is not None
             else None
         )
         options = [
-            _summary_quote("flight", quote, selected=quote.id == selected_id, scope=snapshot.flight_scopes[quote.id])
+            _summary_quote(
+                "flight",
+                quote,
+                selected=quote.id == selected_id,
+                scope=snapshot.flight_scopes[quote.id],
+            )
             for quote in snapshot.flights
             if quote.id in snapshot.flight_scopes
         ]
@@ -1185,10 +1292,12 @@ def flight_selection_options(
             observations=list(snapshot.flight_observations),
             limitations=[
                 *loaded.report.travel_inventory.limitations,
-                "Observed flight prices are discovery evidence only and cannot be selected or costed.",
+                "Observed flight prices are discovery evidence only and cannot be selected or "
+                "costed.",
                 *(
                     [
-                        "A retained one-way quote is shown as evidence only; it cannot be selected for this round trip."
+                        "A retained one-way quote is shown as evidence only; it cannot be "
+                        "selected for this round trip."
                     ]
                     if snapshot.flight_request.return_date is not None
                     and any(quote.trip_type != "round_trip" for quote in snapshot.flights)
@@ -1327,9 +1436,7 @@ def _decision(
         if approve and isinstance(action, HotelSelectionAction):
             from api.main import get_kb
 
-            hotel_line, record = _hotel_selection_resolution(
-                loaded, action, user=user, now=now
-            )
+            hotel_line, record = _hotel_selection_resolution(loaded, action, user=user, now=now)
             report = recompute_hotel_selection(
                 loaded.report,
                 hotel_line=hotel_line,
@@ -1389,7 +1496,9 @@ def _decision(
 
             after = _after_brief(loaded.workspace.brief, action, store, user)
             retained = (
-                TravelInventorySnapshot.model_validate_json(loaded.workspace.inventory.snapshot_json)
+                TravelInventorySnapshot.model_validate_json(
+                    loaded.workspace.inventory.snapshot_json
+                )
                 if loaded.workspace.inventory is not None
                 and loaded.workspace.inventory.snapshot_json is not None
                 else None
@@ -1421,9 +1530,7 @@ def _decision(
                     "INVALID_ACTION", "The profile proposal is missing its base fingerprint."
                 )
             profile_section = action.section
-            typed = PlanningSessionRepository(store).get(
-                user_id=user.id, session_id=session_id
-            )
+            typed = PlanningSessionRepository(store).get(user_id=user.id, session_id=session_id)
             if typed is None:
                 raise UnknownPlanningSessionError(session_id)
             typed_updated = typed.model_copy(

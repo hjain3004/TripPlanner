@@ -1,6 +1,6 @@
 # Flight selection and budgeting
 
-Status: **ACCEPTANCE PENDING** — the final exact-tree gate and CI remain outstanding. The complete backend suite has one demonstrated non-flight baseline failure described below.
+Status: **ACCEPTED on the exact-commit gate recorded in the pull request acceptance record.** The two problems reported earlier (a catalog-fixture FX failure and strict-typing findings) were investigated and are explained below; neither was a defect in the flight change, and one real test defect and the branch's own lint findings were fixed.
 
 ## Delivered workflow
 
@@ -23,9 +23,9 @@ Result: **65 passed** (including the adversarial continuous-itinerary regression
 
 `make seed` completed in the isolated worktree, creating only its local sample SQLite file. `make contract-check` passed: OpenAPI export is deterministic and the generated client is byte-stable.
 
-Frontend lint and TypeScript completed with no errors; lint retains the repository's 14 existing warnings. A strict changed-module mypy invocation reports 32 existing cross-package typing findings in baseline dependencies (including existing hotel-selection channel literals); the new flight-specific findings were removed.
+Frontend lint and TypeScript completed with no errors; lint retains the repository's 14 existing warnings. An earlier ad hoc `mypy` run reported 32 findings in 13 files; that count reproduces **only when mypy is run from the repository root**, where the project configuration under `backend/` (including the pydantic plugin) is not applied. With the repository's own scopes (run from `backend/`: `core accounts planning agents api gateway`, `ingestion`, `welcome`) strict mypy is clean on this branch.
 
-Complete backend evidence: `backend/.venv/bin/pytest -q -p no:cacheprovider backend/evals` produced **3,105 passed, 79 skipped, 3 warnings, 1 failed** in 189.85s. The failure is `evals/test_estimator_catalog.py::test_estimator_can_cost_a_catalog_poi_without_keyerror`: its isolated catalog fixture reaches `Missing FX rate for SGD->INR` in `agents/estimator.py`. This change does not edit catalog fixtures, seed FX facts, or estimator arithmetic, so the failure is retained as a baseline gate blocker rather than suppressed or repaired out of scope.
+Earlier the complete suite showed one failure, `evals/test_estimator_catalog.py::test_estimator_can_cost_a_catalog_poi_without_keyerror` (`Missing FX rate for SGD->INR`). Cause, reproduced on the branch: the test seeded its knowledge base from the **relative** path `Path("core/seeds")`, which exists only when pytest runs with `backend/` as the working directory; from the repository root it silently seeded nothing, so there was no FX rate. It is a working-directory-dependent test defect that predates this change, not a missing FX fact and not a catalog fixture problem. The test now uses the `SEEDS_DIR` constant (no assertion changed, no FX fact added). CI had also failed this branch on the zero-tolerance ruff scope (long lines and an import-order finding in the new flight code, plus an unstrict pairwise `zip`); those were fixed without changing behavior, and the legacy `core/`+`api/` ruff count is back to its baseline.
 
 ## Limits
 

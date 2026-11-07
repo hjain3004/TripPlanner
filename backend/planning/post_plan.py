@@ -638,9 +638,7 @@ _D = InvalidatedDomain
 _ALL: frozenset[InvalidatedDomain] = frozenset(_DOMAIN_ORDER)
 _NONE: frozenset[InvalidatedDomain] = frozenset()
 _ITIN: frozenset[InvalidatedDomain] = frozenset({_D.ITINERARY, _D.COST})
-_FLIGHT: frozenset[InvalidatedDomain] = frozenset(
-    {_D.FLIGHT, _D.AWARD, _D.COST, _D.CARD_STRATEGY}
-)
+_FLIGHT: frozenset[InvalidatedDomain] = frozenset({_D.FLIGHT, _D.AWARD, _D.COST, _D.CARD_STRATEGY})
 _HOTEL: frozenset[InvalidatedDomain] = frozenset(
     {_D.HOTEL, _D.ITINERARY, _D.COST, _D.CARD_STRATEGY}
 )
@@ -1001,7 +999,8 @@ def compute_impact(
             changes_trip=True,
             explanation_only=False,
             limitations=[
-                "Flight selection changes the deterministic flight spend line only; hotels remain unchanged.",
+                "Flight selection changes the deterministic flight spend line only; hotels "
+                "remain unchanged.",
                 *(
                     ["The amount is a traveler-provided planning estimate, not a provider quote."]
                     if action.source == "user_provided_total"
@@ -1250,9 +1249,7 @@ def _find_names(
             spans.append((found.start(), found.end(), entry))
     kept: list[tuple[str, int, RoutingItem]] = []
     for start, end, entry in spans:
-        contained = any(
-            (s <= start and end <= e) and (s, e) != (start, end) for s, e, _ in spans
-        )
+        contained = any((s <= start and end <= e) and (s, e) != (start, end) for s, e, _ in spans)
         if not contained:
             kept.append(entry)
     unique: list[tuple[str, int, RoutingItem]] = []
@@ -1264,9 +1261,7 @@ def _find_names(
 
 def _itinerary_entries(context: RoutingContext) -> list[tuple[str, int, RoutingItem]]:
     return [
-        (item.poi_id, index, item)
-        for index, day in enumerate(context.days)
-        for item in day.items
+        (item.poi_id, index, item) for index, day in enumerate(context.days) for item in day.items
     ]
 
 
@@ -1353,8 +1348,11 @@ def _single_itinerary_item(
             _item_choices(context, matches, verb),
         )
     if len(matches) > 1:
-        raise _clarify("ambiguous_item", "That stop appears more than once. Which one?",
-                       _item_choices(context, matches, verb))
+        raise _clarify(
+            "ambiguous_item",
+            "That stop appears more than once. Which one?",
+            _item_choices(context, matches, verb),
+        )
     return matches[0]
 
 
@@ -1394,9 +1392,7 @@ def _rule_replace(norm: str, context: RoutingContext) -> PostPlanAction | None:
             "Which stop should be replaced?",
             _item_choices(context, old_entries or _itinerary_entries(context), "replace"),
         )
-    new_matches = _find_names(
-        match.group(2), [(c.poi_id, -1, c) for c in context.candidates]
-    )
+    new_matches = _find_names(match.group(2), [(c.poi_id, -1, c) for c in context.candidates])
     if len(new_matches) != 1:
         raise _clarify("not_found", "I can only swap in a place from your suggestions list.")
     old_id, day_index, _ = old_entries[0]
@@ -1414,7 +1410,7 @@ def _rule_move(norm: str, context: RoutingContext) -> PostPlanAction | None:
     target = re.search(r"\bto (day \d{1,2}|\d{4}-\d{2}-\d{2}|[a-z]+day)\b", norm)
     if target is None:
         raise _clarify("needs_detail", "Which day should it move to? Say 'day N' or a date.")
-    after_to = norm[target.start():]
+    after_to = norm[target.start() :]
     before_to = norm[: target.start()]
     to_index = _resolve_day(after_to, context)
     if to_index is None:
@@ -1549,18 +1545,14 @@ def _rule_theme(norm: str, context: RoutingContext) -> PostPlanAction | None:
     )
 
 
-def _essentials_patch(
-    brief: TripBrief, **changes: object
-) -> list[PatchEntry]:
+def _essentials_patch(brief: TripBrief, **changes: object) -> list[PatchEntry]:
     updated = brief.trip_essentials.model_copy(update=changes)
     # Re-run the payload validators (trip length, ordering, IATA) on the new values.
     validated = TripEssentialsPayload.model_validate(updated.model_dump())
     return [PatchEntry(question_id=QuestionId.TRIP_ESSENTIALS, payload=validated)]
 
 
-def _rule_dates(
-    norm: str, original: str, context: RoutingContext
-) -> PostPlanAction | None:
+def _rule_dates(norm: str, original: str, context: RoutingContext) -> PostPlanAction | None:
     if not re.search(r"\b(dates?|trip|travel|leave|depart|return|from)\b", norm):
         return None
     isos = []
@@ -1583,9 +1575,7 @@ def _rule_dates(
     if len(isos) != 2:
         if not isos and not month_named:
             return None
-        raise _clarify(
-            "ambiguous_date", "I need both the new start and end dates, as YYYY-MM-DD."
-        )
+        raise _clarify("ambiguous_date", "I need both the new start and end dates, as YYYY-MM-DD.")
     start, end = sorted(isos)
     try:
         entries = _essentials_patch(context.brief, start_date=start, end_date=end)
