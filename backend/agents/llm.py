@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 from collections import defaultdict
@@ -208,6 +209,8 @@ class HostedFreeTier:
             return None
         try:
             seconds = float(raw)
+            if math.isnan(seconds):
+                return None
         except ValueError:
             try:
                 moment = parsedate_to_datetime(raw)

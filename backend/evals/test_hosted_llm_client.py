@@ -428,6 +428,7 @@ def test_retry_after_accepts_an_http_date_and_ignores_garbage() -> None:
     parsed = HostedFreeTier._retry_after_seconds({"Retry-After": soon})
     assert parsed is not None and 20 <= parsed <= 31
     assert HostedFreeTier._retry_after_seconds({"Retry-After": "not-a-date"}) is None
+    assert HostedFreeTier._retry_after_seconds({"Retry-After": "nan"}) is None
     assert HostedFreeTier._retry_after_seconds({}) is None
     assert HostedFreeTier._retry_after_seconds(None) is None
 
