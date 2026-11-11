@@ -153,6 +153,9 @@ def test_without_tools_a_bad_payload_raises_validation_error_for_the_repair_loop
 
 
 def test_an_http_error_never_leaks_the_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    import time
+
+    monkeypatch.setattr(time, "sleep", lambda _s: None)  # the 429 backoff is real otherwise
     _configure(monkeypatch)
 
     def _raise(request: Any) -> Any:
@@ -248,9 +251,7 @@ def test_the_call_ceiling_refuses_further_provider_calls(
     """Zero-spend guard: a runaway loop must not silently drain a free-tier
     quota. The ceiling is per-instance, and one instance serves one request."""
     _configure(monkeypatch, TRIPWISE_LLM_MAX_CALLS="2")
-    seen = _patch_urlopen(
-        monkeypatch, lambda request: _FakeResponse(_envelope('{"answer": "ok"}'))
-    )
+    seen = _patch_urlopen(monkeypatch, lambda request: _FakeResponse(_envelope('{"answer": "ok"}')))
     client = HostedFreeTier()
 
     client.complete_json(node="intake", system="s", user="u", schema=Tiny)
@@ -267,11 +268,180 @@ def test_json_mode_can_be_disabled_for_providers_that_reject_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _configure(monkeypatch, TRIPWISE_LLM_JSON_MODE="0")
-    seen = _patch_urlopen(
-        monkeypatch, lambda request: _FakeResponse(_envelope('{"answer": "ok"}'))
-    )
+    seen = _patch_urlopen(monkeypatch, lambda request: _FakeResponse(_envelope('{"answer": "ok"}')))
 
     HostedFreeTier().complete_json(node="intake", system="s", user="u", schema=Tiny)
 
     body = json.loads(seen["request"].data.decode("utf-8"))
     assert "response_format" not in body
+
+
+def _http_error(code: int, headers: dict[str, str] | None = None) -> urllib.error.HTTPError:
+    from email.message import Message
+
+    hdrs = Message()
+    for key, value in (headers or {}).items():
+        hdrs[key] = value
+    return urllib.error.HTTPError(
+        url="https://provider.invalid/v1/chat/completions",
+        code=code,
+        msg="error",
+        hdrs=hdrs,
+        fp=BytesIO(b'{"error":"limited"}'),
+    )
+
+
+def test_tools_instruction_keeps_the_json_schema_instruction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Offering tools used to rebuild the system prompt from the raw system text and so
+    dropped the schema/top-level-properties instruction json_mode adds."""
+    _configure(monkeypatch)
+    seen = _patch_urlopen(monkeypatch, lambda r: _FakeResponse(_envelope('{"answer": "ok"}')))
+
+    HostedFreeTier().complete_json(
+        node="planner",
+        system="NODE-PROMPT",
+        user="u",
+        schema=Tiny,
+        tools=[{"name": "search_places", "description": "d", "parameters": {}}],
+    )
+
+    system_prompt = json.loads(seen["request"].data)["messages"][0]["content"]
+    assert system_prompt.startswith("NODE-PROMPT")
+    assert "conforming to this JSON Schema" in system_prompt
+    assert json.dumps(Tiny.model_json_schema()) in system_prompt
+    assert "call a tool" in system_prompt
+    assert "search_places" in system_prompt
+
+
+def test_system_prompt_without_tools_or_json_mode_is_untouched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure(monkeypatch, TRIPWISE_LLM_JSON_MODE="0")
+    seen = _patch_urlopen(monkeypatch, lambda r: _FakeResponse(_envelope('{"answer": "ok"}')))
+
+    HostedFreeTier().complete_json(node="intake", system="NODE-PROMPT", user="u", schema=Tiny)
+
+    assert json.loads(seen["request"].data)["messages"][0]["content"] == "NODE-PROMPT"
+
+
+def test_rate_limit_falls_through_to_next_model_without_sleeping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import time
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(time, "sleep", sleeps.append)
+    _configure(
+        monkeypatch, TRIPWISE_LLM_MODEL="busy-model", TRIPWISE_LLM_FALLBACK_MODELS="free-model"
+    )
+    models_seen: list[str] = []
+
+    def _handler(request: Any) -> Any:
+        model = json.loads(request.data)["model"]
+        models_seen.append(model)
+        if model == "busy-model":
+            raise _http_error(429, {"Retry-After": "30"})
+        return _FakeResponse(_envelope('{"answer": "fallback-ok"}'))
+
+    seen = _patch_urlopen(monkeypatch, _handler)
+    client = HostedFreeTier()
+
+    result = client.complete_json(node="intake", system="s", user="u", schema=Tiny)
+
+    assert isinstance(result, Tiny) and result.answer == "fallback-ok"
+    assert models_seen == ["busy-model", "free-model"]  # the limited model is not re-called
+    assert sleeps == []
+    assert seen["called"] == 2 and client.calls_made == 2
+
+
+def test_rate_limit_on_every_model_is_bounded_by_chain_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import time
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(time, "sleep", sleeps.append)
+    _configure(monkeypatch, TRIPWISE_LLM_MODELS="m1,m2,m3")
+    seen = _patch_urlopen(monkeypatch, lambda r: (_ for _ in ()).throw(_http_error(429)))
+    client = HostedFreeTier()
+
+    with pytest.raises(LLMCallError):
+        client.complete_json(node="intake", system="s", user="u", schema=Tiny)
+
+    # m1 and m2 fall through immediately; only the last model retries in place, and
+    # every attempt counts against the ceiling: 2 + (1 + max_retries), not 3 * (1 + max_retries).
+    assert seen["called"] == 2 + 1 + client.max_retries
+    assert client.calls_made == seen["called"]
+    assert sum(sleeps) <= client.max_backoff_seconds
+
+
+def test_single_model_429_honors_retry_after_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import time
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(time, "sleep", sleeps.append)
+    _configure(monkeypatch)
+    attempts = {"n": 0}
+
+    def _handler(request: Any) -> Any:
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise _http_error(429, {"Retry-After": "7"})
+        return _FakeResponse(_envelope('{"answer": "ok"}'))
+
+    _patch_urlopen(monkeypatch, _handler)
+
+    result = HostedFreeTier().complete_json(node="intake", system="s", user="u", schema=Tiny)
+
+    assert isinstance(result, Tiny)
+    assert sleeps == [7.0]
+
+
+def test_retry_after_beyond_the_backoff_budget_fails_fast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import time
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(time, "sleep", sleeps.append)
+    _configure(monkeypatch)
+    seen = _patch_urlopen(
+        monkeypatch, lambda r: (_ for _ in ()).throw(_http_error(429, {"Retry-After": "3600"}))
+    )
+
+    with pytest.raises(LLMCallError, match="backoff budget"):
+        HostedFreeTier().complete_json(node="intake", system="s", user="u", schema=Tiny)
+
+    assert sleeps == []
+    assert seen["called"] == 1
+
+
+def test_retry_after_accepts_an_http_date_and_ignores_garbage() -> None:
+    from datetime import UTC, datetime, timedelta
+    from email.utils import format_datetime
+
+    soon = format_datetime(datetime.now(UTC) + timedelta(seconds=30), usegmt=True)
+    parsed = HostedFreeTier._retry_after_seconds({"Retry-After": soon})
+    assert parsed is not None and 20 <= parsed <= 31
+    assert HostedFreeTier._retry_after_seconds({"Retry-After": "not-a-date"}) is None
+    assert HostedFreeTier._retry_after_seconds({}) is None
+    assert HostedFreeTier._retry_after_seconds(None) is None
+
+
+def test_rate_limit_fallthrough_respects_the_call_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import time
+
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    _configure(monkeypatch, TRIPWISE_LLM_MODELS="m1,m2,m3", TRIPWISE_LLM_MAX_CALLS="2")
+    seen = _patch_urlopen(monkeypatch, lambda r: (_ for _ in ()).throw(_http_error(429)))
+
+    with pytest.raises(LLMCallError, match="ceiling"):
+        HostedFreeTier().complete_json(node="intake", system="s", user="u", schema=Tiny)
+
+    assert seen["called"] == 2
