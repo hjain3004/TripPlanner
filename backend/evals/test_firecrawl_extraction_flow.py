@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -27,6 +28,7 @@ from ingestion.snapshots import SnapshotService
 from ingestion.storage import FinancialIngestionStore
 
 NOW = datetime(2026, 11, 7, 12, 0, tzinfo=UTC)
+_PDFPLUMBER_SPEC = importlib.util.find_spec("pdfplumber")
 
 
 def _policy() -> SourcePolicyRecord:
@@ -310,6 +312,13 @@ def test_mode_configurations_cannot_hide_a_live_or_ambiguous_client() -> None:
         ExtractionRuntimeConfig(mode=ExtractionMode.AUTHORIZED_CLIENT)
 
 
+@pytest.mark.skipif(
+    _PDFPLUMBER_SPEC is None,
+    reason=(
+        "real pdfplumber is not installed in this interpreter; run this test with an "
+        "environment that has the declared optional dependency (pdfplumber>=0.11,<1)"
+    ),
+)
 def test_real_pdf_document_parsed_through_isolated_worker_produces_verified_evidence(
     tmp_path: Path,
 ) -> None:
