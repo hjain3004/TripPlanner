@@ -15,9 +15,16 @@ unknown input is ``None`` and stays ``None``: it is never defaulted to a date or
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from core.models import Provenance
 
@@ -92,6 +99,13 @@ LimitationCode = Literal[
     "CARD_NOT_IN_PLANNED_WALLET",
     "CURRENCY_MISMATCH",
     "POINTS_PROGRAM_NOT_ESTABLISHED",
+    "PAYMENT_TIMING_UNKNOWN",
+    "TIMING_GATE_FAILED",
+    "SPEND_WINDOW_EXCEEDED",
+    "MINIMUM_SPEND_NOT_MET",
+    "NONPOSITIVE_NET_VALUE",
+    "OFFER_EXPIRED",
+    "ALREADY_HELD_CARD",
 ]
 
 # Payment timing, not travel timing. ``advance_booking`` lines are paid when the traveler
@@ -233,4 +247,151 @@ class WelcomeWindowReport(BaseModel):
     lines: list[TripLineTiming]
 
     bonus: BonusOut | None
+    assumptions: list[str]
+
+
+# --------------------------------------------------------------------------- #
+# Case B — Card Acquisition Assessment (spec 18 §3-5)                          #
+# --------------------------------------------------------------------------- #
+
+
+class PaymentTimingIn(BaseModel):
+    """Explicit payment timing supplied by the traveler (spec 18 §4).
+
+    Travel dates are not payment dates. The application requires explicit payment timing
+    so whether a card can arrive and spend can clear within the window is never guessed.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    booking_date: date
+    first_bookable_spend_date: date
+    latest_spend_date: date | None = None
+
+
+class AcquisitionAssessmentIn(BaseModel):
+    """Request payload to assess an unheld card welcome offer against a saved revision."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    candidate_card_id: Annotated[str, StringConstraints(min_length=1, max_length=128)] | None = None
+    payment_timing: PaymentTimingIn | None = None
+
+
+class AcquisitionOfferOut(BaseModel):
+    """Terms for an unheld card acquisition offer (spec 18 §1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    card_id: str
+    title: str
+    bonus_points: int | None
+    bonus_currency_id: str | None
+    bonus_flat_minor: int | None
+    min_spend_minor: int
+    spend_window_days: int
+    expected_approval_days: int
+    expected_card_in_hand_days: int
+    annual_fee_minor: int
+    fee_waiver_condition: str | None
+    currency: str
+    valid_to: date
+    eligibility_exclusions: list[str]
+    provenance: OfferProvenanceOut
+
+
+class CandidateTimingAssessment(BaseModel):
+    """Timing gate evaluation for a candidate card (spec 18 §4)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    booking_date: date
+    first_bookable_spend_date: date
+    latest_spend_date: date | None
+    expected_lead_time_days: int
+    earliest_usable_date: date
+    window_closes_on: date
+    lead_time_sufficient: bool
+    spend_within_window: bool
+
+
+class HeldCardsStrategySummary(BaseModel):
+    """The held-cards strategy remains complete, untouched, and separate (spec 18 §6)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    card_ids: list[str]
+    gross_minor: int
+    discounts_minor: int
+    rewards_value_minor: int
+    forex_fees_minor: int
+    effective_cost_minor: int
+    total_benefit_minor: int
+    currency: str
+
+
+class AcquisitionSuggestion(BaseModel):
+    """A qualifying published welcome offer for an unheld card (spec 18 §3-5)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    card_id: str
+    card_name: str | None
+    offer: AcquisitionOfferOut
+    # Required framing pattern:
+    # "This card's current welcome bonus would be worth ₹X on this trip if you held it"
+    verbatim_framing: str
+    timing: CandidateTimingAssessment
+    trip_eligible_spend_minor: int
+    min_spend_minor: int
+    bonus_value_minor: int
+    trip_earn_delta_minor: int
+    annual_fee_minor: int
+    net_first_year_minor: int
+    currency: str
+    eligibility_exclusions: list[str]
+    assumptions: list[str]
+
+
+AcquisitionRefusalReason = Literal[
+    "PAYMENT_TIMING_UNKNOWN",
+    "TIMING_GATE_FAILED",
+    "SPEND_WINDOW_EXCEEDED",
+    "MINIMUM_SPEND_NOT_MET",
+    "NONPOSITIVE_NET_VALUE",
+    "OFFER_EXPIRED",
+    "POINTS_PROGRAM_NOT_ESTABLISHED",
+    "ALREADY_HELD_CARD",
+    "CURRENCY_MISMATCH",
+    "NO_APPROVED_OFFER",
+    "AMBIGUOUS_OFFER",
+]
+
+
+class AcquisitionRefusal(BaseModel):
+    """Evaluation of an unheld card offer that failed one or more gates (spec 18 §4)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    card_id: str
+    card_name: str | None
+    offer_id: str | None
+    reason: AcquisitionRefusalReason
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class AcquisitionAssessmentReport(BaseModel):
+    """Full Case B assessment response (spec 18 §3-6)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    trip_id: str
+    revision: int
+    as_of: date
+    held_cards_strategy: HeldCardsStrategySummary
+    suggestions: list[AcquisitionSuggestion]
+    refusals: list[AcquisitionRefusal]
+    limitations: list[Limitation]
     assumptions: list[str]

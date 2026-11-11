@@ -1,5 +1,13 @@
 # DEVIATIONS
 
+## Spec 18 Case B — card acquisition assessment (2026-11-06)
+
+| date | doc§ | question | decision | rationale | affected_files |
+|---|---|---|---|---|---|
+| 2026-11-06 | spec 18 §§3–5; Tier C | Route path selection for Case B assessment against saved trip revision | Mount at `POST /account/acquisition/trips/{trip_id}/revisions/{revision}` under a dedicated `card-acquisition` APIRouter. | Preserves clear separation between saved-trip CRUD routes (`/account/trips/*`) and acquisition assessment (`/account/acquisition/*`), keeping the A4 boundary inventory invariant intact while providing a clean, authenticated, RESTful revision evaluation route. | `api/acquisition.py`, `evals/welcome_support.py`, `evals/test_acquisition_api.py`, `contract/openapi.json`, frontend client & MSW mocks |
+| 2026-11-06 | spec 18 §4; Tier F | Arithmetic reuse for candidate incremental benefit | Re-run the existing deterministic optimizer with `UserWallet([*stored_card_ids, candidate_id])` and difference against held-wallet benefit. | Directly satisfies the non-negotiable arithmetic reuse constraint (no parallel reward calculator). Reuses exact fee/reward/discount calculations. | `welcome/acquisition.py` |
+| 2026-11-06 | spec 18 §4; Tier C | Catalog state for initial shipping | Real offer catalog shipped empty (`[]`), returning honest `NO_APPROVED_OFFER` limitation. Synthetic fixtures used for automated evals. | Prevents unverified financial facts from entering the codebase without human approval. Agent 2 owns financial evidence curation. | `welcome/catalog.py`, `backend/welcome/` |
+
 ## Gondola planning integration — live evidence boundary (2026-11-05)
 
 Current closure: the original refresh/capture failures below are historical.
@@ -885,6 +893,17 @@ Branch `codex/durable-planning-jobs`, based on `main` @ `a7412e5`. Report: `repo
 | 2026-11-05 | A4 re-run | Re-run start events, one-live-per-trip and outcome were in-memory registries. | They are columns/rows of the job: `(user_id, start_event_id)` unique, a live-rerun check inside the start transaction, and the revision is appended by a finalizer (idempotent on `rerun:<job_id>`) **before** the job is published `complete`, so `complete` means the revision exists. Replaying a start returns the original job id and dispatches nothing, including after a restart. The three in-memory pruning tests were removed with the registries. | One lifecycle for both kinds of job. | `backend/api/saved_trips.py`, `backend/evals/test_a4_rerun.py` |
 | 2026-11-05 | CP2.1 confirm | A confirmed session can say `planning` with no job record (a restart between the session save and the job insert, or a pre-upgrade job). | After a 120 s grace (far longer than the sub-second gap between the two writes) the session job endpoint reports `failed` / `JOB_INTERRUPTED` ("cannot be established"), never `queued` forever. | Truthful status without a new table or a scheduler. | `backend/api/conversation.py` |
 | 2026-11-05 | scope | What is deliberately not done. | No queue, scheduler, lease/heartbeat, second database, automatic resume, or exactly-once claim; no frontend change; anonymous jobs not persisted; CP4 workspace tables untouched; a hard-killed worker is detected only when the job is next read or at startup (no background watchdog). | The task is a thin lifecycle, not a task platform. | `reports/durable_planning_jobs.md` |
+# Hotel selection budgeting — approved SCOPE+
+
+| date | doc§ | question | decision | rationale | affected_files |
+|---|---|---|---|---|---|
+| 2026-11-06 | explicit hotel-selection request · SCOPE+ | Can a traveler supply a hotel stay total when retained provider evidence is comparison-only? | Allow a typed, owner-scoped planning total with explicit currency, coverage statement, payment-channel assumption and deterministic conversion. Store it as a user assertion separate from provider evidence; never promote it to a verified quote or knowledge-base fact. | The requested workflow needs a useful budget preview when Gondola evidence lacks admissible tax/fee/purchase-channel coverage. Requiring explicit coverage and channel preserves honest costing and the frozen optimizer while failing closed when FX or recommendation inputs are missing. | `backend/planning/post_plan.py`, `backend/api/post_plan.py`, `backend/agents/models.py`, `backend/agents/post_plan_execution.py`, `reports/hotel_selection_budgeting.md` |
+
+## Flight selection budgeting — approved SCOPE+
+
+| date | doc§ | question | decision | rationale | affected_files |
+|---|---|---|---|---|---|
+| 2026-11-06 | explicit flight-selection request · SCOPE+ | Can a traveler provide a flight amount when retained discovery evidence is incomplete or non-bookable? | Allow an owner-scoped planning amount only with explicit currency, coverage, payment channel and an unambiguous `party_total` or `per_traveler` scope. Convert exactly once per its stated scope; persist it separately from provider evidence. | A planning estimate can be useful without inventing a quote. The explicit scope prevents a value being counted both per traveler and for the party, while the existing deterministic FX/optimizer path remains the only arithmetic. | `backend/planning/post_plan.py`, `backend/api/post_plan.py`, `backend/agents/models.py`, `backend/agents/post_plan_execution.py`, `reports/flight_selection_budgeting.md` |
 
 ## Financial-data readiness (2026-11-06)
 
