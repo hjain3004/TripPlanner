@@ -4,6 +4,27 @@
 **Base for every task:** latest `origin/main` (reviewed at `a9efea0`).
 **Companion plan:** `docs/superpowers/plans/2026-11-11-travel-change-feed.md`.
 
+## Corrections (2026-11-12, Opus, design role)
+
+This version corrects the orchestration. It does not approve any frozen-behaviour change. Every correction is marked **[corrected]** where it applies.
+
+1. **No stubs or deliberate xfails on `main`.** Core and build are sequential phases of **one** feature branch per stream.
+   - Core pushes the branch and reports a handoff SHA, then stops writing.
+   - The builder continues from that exact SHA.
+   - The `xfail` marker and every `NotImplementedError` seam may exist on the branch during handoff only.
+   - The single PR is marked ready when the whole feature works. An incomplete handoff is a draft PR.
+2. **Published history is reconciled by merge.** No rebase, force-push or squash of a branch others have read, including `codex/firecrawl-ingestion`.
+3. **Ingestion boundary.** `backend/feed/` and `api/feed.py` import nothing from `backend/ingestion/`, directly or transitively. The read path opens the store read-only (change-feed design §5). Request-time code never fetches.
+4. **Deployment is gated on working features.** Stream G may prepare files early. The deployment-day check runs only after streams A (runtime), B (concurrency) and D (`ingestion.feed run`) have merged and their commands work.
+5. **Private captures stay private.** Captures, extraction files, review packets and the ingestion database live in the owner's private data directory. They are never committed automatically. Only the owner decides whether a sanitized summary enters `reports/`.
+6. **Reviewer independence.** The reviewer is neither the author of the code nor the same vendor as the author. Where possible, the reviewer is not the stream's designer either. The table in section 5 is corrected accordingly.
+7. **Step 0 is an owner draft.**
+   - Item 1 (no paid development calls) is an explicit owner instruction.
+   - Items 4–6 restate existing rules.
+   - Items 2–3 (Claude in production, skipping intake, critic off, new model roles) are **proposals, not in force until the owner confirms them**. The runtime design (`docs/superpowers/specs/2026-11-11-runtime-llm-design.md` §2, P1–P7) specifies both outcomes.
+   - Items 7–8 are open. No existing safeguard is retired by the draft.
+8. **Real data** follows `docs/superpowers/specs/2026-11-11-real-data-rollout.md`. Repository seeds stay the pinned legacy placeholder set. Owner-approved values are applied only to a private seeds directory until the owner decides on display permission.
+
 ## 1. How this is organised
 
 Work is split by the way the owner uses each agent.
@@ -35,14 +56,15 @@ identical). Edit it first; the lines marked `CONFIRM` are your decisions.
 ```markdown
 ## Owner decisions (2026-11-11)
 
-These supersede anything older in this file, in DEVIATIONS.md and in docs/specs/.
+[corrected] Once I confirm them, these supersede anything older in this file, in DEVIATIONS.md and in docs/specs/.
+Until then, items marked PROPOSED are not in force.
 
 1. Spend. USD 50 of Claude API credit and USD 150 of AWS credit exist for the deployed site only.
    No agent makes a paid API call in development or testing. Use scripted or recorded clients, or
    the existing free-tier provider. Any other paid service needs my approval.
-2. Runtime LLM. In production the Claude API, behind the existing LLMClient protocol, is the
+2. PROPOSED. Runtime LLM. In production the Claude API, behind the existing LLMClient protocol, is the
    provider, with hard spend caps enforced in code.
-3. Pipeline. This replaces spec 06 section 1, Tier F-K item 7. A request that already carries a
+3. PROPOSED. Pipeline. This replaces spec 06 section 1, Tier F-K item 7. A request that already carries a
    valid TripSpec skips the intake call. The critic call is off by default and can be turned on by
    configuration. The planner and explainer call sites and every JSON contract are unchanged. The
    new model roles in docs/superpowers/plans/2026-11-11-travel-change-feed.md are allowed.
@@ -67,7 +89,8 @@ Agents work in fresh worktrees from `origin/main`. Commit the three additions an
 
 ```text
 You are working in the TripPlanner repository. Create a fresh git worktree on a new branch from the
-latest origin/main. Do not work in, or modify, any other worktree or branch.
+latest origin/main. [corrected] Exception: a Build phase continues its stream's feature branch from
+the exact handoff SHA the previous phase reported. Do not work in, or modify, any other worktree or branch.
 
 Read first, in this order:
 1. CLAUDE.md. The section "Owner decisions (2026-11-11)" overrides older text and the specs.
@@ -84,7 +107,8 @@ Rules for every task:
 - Never fetch a website that has no SourcePolicyRecord allowing it.
 - Touch only what your task names. If you need a change elsewhere, make the smallest one and list it.
 - Add no dependency, service or framework that your task does not name.
-- Open one pull request to main. Do not merge it.
+- [corrected] One pull request to main per stream feature, marked ready only when the whole feature
+  works (draft for an incomplete handoff). Do not merge it.
 
 Report back in this order:
 1. What a traveler or operator can do now that they could not do before (for a design note: what
@@ -124,17 +148,20 @@ think it is wrong, say so in the pull request and do not silently diverge.
 Deliver three things:
 1. The types and function signatures for the stream.
 2. The hard functions your task names, fully working.
-3. An acceptance test that defines done for the whole stream. Mark it xfail(strict=True) so the gate
-   passes now and fails as soon as the builders finish without removing the marker.
+3. An acceptance test that defines done for the whole stream. [corrected] It may carry
+   xfail(strict=True) on the feature branch while seams remain; it never reaches main with the marker.
 
 Leave everything else as a seam: a function that raises NotImplementedError with one line saying
-what belongs there. List every seam in the pull request description. `make gate` must pass.
+what belongs there. [corrected] Push the stream's feature branch, list every seam and report the
+handoff SHA, then stop writing. Do not open a merge-ready pull request: the builder continues the
+same branch, and `make gate` must pass at the final SHA with no seam and no marker left.
 ```
 
 **Build (Sonnet, Flash, Luna)**
 
 ```text
-Your role is build. Read your stream's design note and the core pull request first.
+Your role is build. Read your stream's design note and the core handoff first. [corrected] Continue
+the stream's feature branch from the exact handoff SHA; do not start a new branch or rebase it.
 
 Fill the seams, wire the feature through the real application, make the acceptance test pass and
 remove its xfail marker. Run the real workflow early, before building around it; fix what actually
@@ -153,7 +180,7 @@ decisions. If a step is ambiguous, or a command fails in a way the checklist doe
 and report what happened. Do not improvise.
 ```
 
-**Review (Opus, Sol; never the same vendor as the author)**
+**Review (Opus, Sol; never the code's author or the author's vendor, and not the stream's designer where another reviewer exists)**
 
 ```text
 Your role is review. Review pull request <number> against its task in
@@ -181,10 +208,10 @@ and do not push to the branch. One review per pull request.
 | Stream | Design | Core (Argon) | Build | Labor (Kiro) | Review |
 |---|---|---|---|---|---|
 | A Runtime LLM: fewer planning calls, Claude in production | Opus | A-core | Sonnet (A-build-0, A-build-1), Luna (A-build-2) | none | Sol |
-| B Concurrency | Sol | none | Sonnet | none | Opus |
+| B Concurrency | Sol | none | Sonnet | none | Sol [corrected: Opus is Sonnet's vendor; Sol designed B, so the review checks the code against the design, not the design] |
 | C Change-feed foundation | Sol | C-core | Flash (C-build-1), Luna (C-build-2) | none | Opus |
-| D Feed run: triage, extraction, command | covered by C-design | D-core | Flash | none | Sol |
-| E Real corridor data | Opus | none | Sonnet | E-labor | owner approves facts |
+| D Feed run: triage, extraction, command | covered by C-design | D-core | Flash | none | Opus [corrected: Sol designed D] |
+| E Real corridor data | Opus | none | Sonnet | E-labor | Sol reviews code PRs [corrected]; only the owner approves and applies facts |
 | F Allocator benchmark | none | F-core | Luna | none | Opus |
 | G One AWS instance | none | none | none | G-labor | Sol |
 | H Sign-in and saved-trip screens | none | none | Luna | none | Opus |
@@ -197,8 +224,8 @@ Each stream owns these paths; nothing else changes without being declared.
 |---|---|
 | A | `agents/pipeline.py`, `agents/llm.py`, `agents/config.yaml`, `agents/confirmed_trip.py`, new `agents/claude_client.py`, `agents/llm_budget.py`, `agents/llm_factory.py`, `get_llm` and the body of `plan` in `api/main.py`, `api/runtime_config.py`, `contract/`, generated client and mocks, the wizard submit handler |
 | B | `api/job_manager.py`, the three places a plan job is dispatched, `gateway/places/adapters/snapshot.py`, `deploy/nginx/`, `agents/trace.py`, `agents/retrieval.py` |
-| C, D, J | `backend/ingestion/**`, new `backend/feed/` queries, `api/feed.py`, the `/feed` page |
-| E | a test seed fixture and the test wiring that points at it, staged captures, proposals, two documents |
+| C, D, J | `backend/ingestion/**`, new `backend/feed/` queries, `api/feed.py`, the `/feed` page. [corrected] `backend/feed/` and `api/feed.py` never import `backend/ingestion/` |
+| E | [corrected] the seed manifest and its test (rollout spec P-0), two documents. Staged captures, extractions and proposals live only in the owner's private data directory and are never committed |
 | F | new files under `backend/evals/` and `reports/` |
 | G | `deploy/**` except `deploy/nginx/default.conf` rate-limit lines owned by B, `docs/DEPLOYMENT.md` |
 | H | new frontend routes |
@@ -216,8 +243,10 @@ Each stream owns these paths; nothing else changes without being declared.
 Argon has six core tasks in a row and is the bottleneck. A-core is the smallest; if Argon falls
 behind, give A-core to Sonnet with the design note.
 
-Two ordering rules. B-build starts only after A-build-2 has merged, because both change how `plan`
+Two ordering rules. B-build starts only after stream A has merged, because both change how `plan`
 starts a job. E-build's seed pinning must merge before any real card value exists anywhere.
+[corrected] A third: the deployment-day check (stream G) runs only after streams A, B and D have
+merged and their commands work.
 
 ## 7. Task prompts (paste third)
 
@@ -264,6 +293,9 @@ Done when: Argon and two builders can start from the note without asking you any
 
 ```text
 Task A-core. Implement the pipeline change and the interfaces for stream A.
+[corrected] Follow the runtime design note. Skipping intake (P2) and critic-off (P7) are built only
+if the owner has confirmed them; otherwise implement Mode A (section 3 of the note). Work on the
+stream-A feature branch and hand off by SHA.
 
 Write in full:
 - In agents/pipeline.py: a request that carries a valid TripSpec skips run_intake but still runs the
@@ -332,7 +364,8 @@ the deployment-day check in stream G.
 **A-build-2 (Luna)**
 
 ```text
-Task A-build-2. Finish stream A's remaining seams after A-core has merged.
+Task A-build-2. Finish stream A's remaining seams. [corrected] Continue the stream-A branch from
+A-build-1's handoff SHA; nothing in stream A merges before this step is done.
 
 1. Add the structured request field to the API exactly as the design note specifies. The contract,
    the generated client and the mock fixtures change in this same pull request;
@@ -453,11 +486,12 @@ event from them is stored, stored again without creating a duplicate, listed and
 Task C-build-1.
 
 Pull request 1, needs no design; start immediately. codex/firecrawl-ingestion is 14 commits ahead
-of main and does not merge cleanly as of a9efea0. Bring it onto current main, resolve the conflicts
+of main and does not merge cleanly as of a9efea0. [corrected] Merge current main into it (no rebase,
+no force-push: the branch is published), resolve the conflicts
 without dropping behaviour from either side, and pass the gate. Change nothing else. In your report
 list each conflicted file and how you resolved it.
 
-Pull request 2, after C-core has merged. Fill the storage and migration seams exactly as the design
+Pull request 2 [corrected: continues the stream-C branch from C-core's handoff SHA]. Fill the storage and migration seams exactly as the design
 note specifies, and remove the xfail marker from C-core's acceptance test.
 
 Done when: pull request 1 passes the gate with the Firecrawl demo command still working, and pull
@@ -470,6 +504,7 @@ request 2 passes C-core's acceptance test.
 Task C-build-2. Anyone can open a page and read this week's changes.
 
 Read-only access to the events store. No model calls and no fetching at request time.
+[corrected] `backend/feed/` and `api/feed.py` import nothing from `backend/ingestion/`.
 - backend/feed/: queries over published events.
 - api/feed.py: GET /feed (published only; filter by type, programme and date; paginated) and
   GET /feed/{event_id}. The signed-in endpoint belongs to stream I.
@@ -484,7 +519,7 @@ mock mode, with working source links; and a retracted event disappears.
 
 ### Stream D: the feed run
 
-**D-core (Argon), after C-core and A-build-1**
+**D-core (Argon), after streams C and A have merged [corrected]**
 
 ```text
 Task D-core. The Triage and Extractor roles and the skeleton of the nightly run, as the change-feed
@@ -554,9 +589,11 @@ database, commercial, personal use. Do not write a verdict and do not store any 
 ```text
 Task E-labor, part 2, after E-design. Stage captures for the cards and programmes the owner
 approved, exactly as the E-design note lists them. For a page marked automated, run the acquire
-command given in the note. For a page marked manual, do nothing and add it to a list for the owner
+command given in the note [corrected: only for a target the owner has authorized for that run; a live
+Firecrawl call needs the owner's per-call authorization, and without it use a retained capture]. For a page marked manual, do nothing and add it to a list for the owner
 to save by hand. Then stage each saved file with the stage-capture command given in the note.
-Report the list of staged captures and the list waiting on the owner.
+Report the list of staged captures and the list waiting on the owner. [corrected] Captures and the
+ingestion database stay in the owner's private data directory; commit none of them.
 ```
 
 **E-design (Opus)**
@@ -594,17 +631,21 @@ Task E-build. Two pull requests.
 
 Pull request 1: pin the test seeds as docs/superpowers/specs/2026-11-11-real-data-rollout.md
 specifies. This is a refactor only. Run the gate before the change and after it; both must pass, and
-no golden file or recorded replay may change. Move the three invented programmes into the fixture.
+no golden file or recorded replay may change. [corrected] Per the rollout spec (P-0), repository
+seeds stay the legacy placeholder set under a manifest; nothing moves to a fixture.
 
 Pull request 2, after the owner has approved a card list and Kiro has staged captures: run
 extraction on each staged capture and produce insert or update proposals with quotes in the review
 queue. Use the free-tier provider or the curator-authored mode; make no paid call. You do not
 approve anything. After the owner has recorded decisions in the review tool, build the bundle,
-dry-run it, apply it to the real seeds and confirm that rollback restores the previous state.
+dry-run it and rehearse apply and rollback on a scratch copy. [corrected] The owner applies to the
+private seeds directory (rollout spec section 6); `apply` refuses repository seeds by design.
 
 Done when: a plan for a wallet holding one of the real cards shows that card's rules with the
 owner's reviewer id and a source link in its provenance, and the coverage command lists exactly
-which facts are still unverified.
+which facts are still unverified. [corrected] The plan view requires rollout prerequisite P-1
+(runtime seeds directory); until it merges, show the consequence with
+`python -m evals.card_bank_optimizer_compare`.
 ```
 
 ### Stream F: allocator benchmark
@@ -650,7 +691,7 @@ Done when: one command regenerates the report from a seed.
 
 ### Stream G: one AWS instance
 
-**G-labor (Kiro), after A-build-1**
+**G-labor (Kiro), files may be prepared after stream A merges; the deployment-day check waits for A, B and D [corrected]**
 
 ```text
 Task G-labor. Prepare deployment files and a runbook for one small AWS instance. You create nothing
