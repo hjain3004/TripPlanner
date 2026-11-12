@@ -14,6 +14,14 @@ from typing import TypeVar
 
 from pydantic import ValidationError
 
+from ingestion.acquisition import (
+    DurableAcquisitionService,
+    RetainedCaptureTransport,
+)
+from ingestion.acquisition_control import (
+    AcquisitionControlLimits,
+    DurableAcquisitionControl,
+)
 from ingestion.activation import ActivationPlanner
 from ingestion.applier import ApplyRefused, ControlledApplier
 from ingestion.apply_store import ApplyLedgerError, ApplyStore
@@ -27,9 +35,11 @@ from ingestion.config_loaders import (
     load_discovery_sources,
     load_source_policies,
     load_watchlist,
+    read_structured,
 )
 from ingestion.contracts import (
     FetchAttempt,
+    FetchFailureKind,
     FetchResult,
     PageKind,
     ProposalStatus,
@@ -38,8 +48,18 @@ from ingestion.contracts import (
 )
 from ingestion.diff import diff_text
 from ingestion.extraction import FinancialExtractor
+from ingestion.extraction_runtime import (
+    ExtractionMode,
+    ExtractionRuntimeConfig,
+)
+from ingestion.firecrawl_transport import (
+    FirecrawlHttpTransport,
+    FirecrawlScrapeRequest,
+    FirecrawlTransport,
+    FirecrawlTransportError,
+)
 from ingestion.policy import CuratorPromotion, promote_candidate_to_watch_target
-from ingestion.preflight import SourcePreflight
+from ingestion.preflight import RobotsRules, SourcePreflight
 from ingestion.readiness import (
     DEMO_WALLET,
     ReadinessRefused,
@@ -544,6 +564,7 @@ def check_config(args: argparse.Namespace, *, today: datetime) -> int:
             Path(args.watchlist),
             policies={policy.policy_id: policy for policy in policies},
             aggregator_domains=aggregator_domains,
+            allow_firecrawl=bool(getattr(args, "allow_firecrawl", False)),
         )
         summary["watchlist"] = [
             {
@@ -675,6 +696,290 @@ def run_stage_capture(
         extra = f" (+{len(outcome.refusals) - 1} more)" if len(outcome.refusals) > 1 else ""
         print(f"refused: {first.code.value}: {first.message}{extra}", file=sys.stderr)
         return 2
+    return 0
+
+
+class _UnconfiguredFirecrawlTransport:
+    """Fail-closed transport used when a CLI run replays without a new capture source."""
+
+    async def scrape(self, request: FirecrawlScrapeRequest) -> dict[str, object]:
+        del request
+        raise FirecrawlTransportError(
+            FetchFailureKind.POLICY_BLOCKED,
+            "no retained capture or authorized live Firecrawl transport configured",
+            retryable=False,
+        )
+
+
+def _build_cli_extraction_config(
+    args: argparse.Namespace,
+) -> tuple[ExtractionRuntimeConfig, dict[str, ExtractionRuntimeConfig]]:
+    raw_mode = getattr(args, "extraction_mode", None)
+    scripted_path = getattr(args, "scripted_extraction", None)
+    extractor_version = getattr(args, "extractor_version", "firecrawl-fi2-extractor-v1")
+    if raw_mode is None:
+        mode = (
+            ExtractionMode.SCRIPTED_REPLAY if scripted_path is not None else ExtractionMode.DISABLED
+        )
+    else:
+        mode = ExtractionMode(raw_mode)
+    if mode is ExtractionMode.DISABLED:
+        return ExtractionRuntimeConfig(
+            mode=ExtractionMode.DISABLED,
+            extractor_version=extractor_version,
+        ), {}
+    if scripted_path is None:
+        raise ValueError(f"extraction mode {mode.value!r} requires --scripted-extraction")
+    structured = read_structured(Path(scripted_path))
+    if isinstance(structured, dict) and "target_table" not in structured:
+        by_target: dict[str, ExtractionRuntimeConfig] = {}
+        for key, val in structured.items():
+            seq = tuple(val) if isinstance(val, list) else (val,)
+            by_target[str(key)] = ExtractionRuntimeConfig(
+                mode=mode,
+                responses=seq,
+                extractor_version=extractor_version,
+            )
+        default_cfg = ExtractionRuntimeConfig(
+            mode=ExtractionMode.DISABLED,
+            extractor_version=extractor_version,
+        )
+        return default_cfg, by_target
+    responses = tuple(structured) if isinstance(structured, list) else (structured,)
+    return (
+        ExtractionRuntimeConfig(
+            mode=mode,
+            responses=responses,
+            extractor_version=extractor_version,
+        ),
+        {},
+    )
+
+
+def _build_cli_control(
+    args: argparse.Namespace, store: FinancialIngestionStore
+) -> DurableAcquisitionControl:
+    return DurableAcquisitionControl(
+        store,
+        limits=AcquisitionControlLimits(
+            per_request_credits=args.per_request_credits,
+            per_run_credits=args.per_run_credits,
+            per_month_credits=args.per_month_credits,
+            pricing_version=args.pricing_version,
+        ),
+    )
+
+
+def _build_cli_transport_and_robots(
+    args: argparse.Namespace,
+    *,
+    environment: Mapping[str, str],
+) -> tuple[
+    FirecrawlTransport | Callable[[WatchTarget, SourcePolicyRecord], FirecrawlTransport],
+    RobotsRules | None,
+]:
+    robots: RobotsRules | None = None
+    if getattr(args, "robots_file", None):
+        robots = RobotsRules.parse(Path(args.robots_file).read_text(encoding="utf-8"))
+    elif not getattr(args, "live_firecrawl", False):
+        robots = RobotsRules.parse("User-agent: *\nAllow: /\n")
+
+    if getattr(args, "live_firecrawl", False):
+        if getattr(args, "retained_capture", None) or getattr(
+            args, "retained_captures_manifest", None
+        ):
+            raise ValueError("--live-firecrawl cannot be combined with retained capture flags")
+        if getattr(args, "robots_file", None) is None:
+            raise ValueError("--live-firecrawl requires --robots-file for offline robots preflight")
+        if not bool(getattr(args, "confirm_no_overage", False)):
+            raise ValueError("--live-firecrawl requires --confirm-no-overage")
+        api_key = environment.get("FIRECRAWL_API_KEY", "").strip()
+        return (
+            FirecrawlHttpTransport(
+                api_key=api_key,
+                enabled=True,
+            ),
+            robots,
+        )
+
+    manifest_path = getattr(args, "retained_captures_manifest", None)
+    if manifest_path is not None:
+        raw_manifest = read_structured(Path(manifest_path))
+        if not isinstance(raw_manifest, dict):
+            raise ValueError("--retained-captures-manifest must be a mapping of target_id to path")
+        transports_by_target: dict[str, RetainedCaptureTransport] = {}
+
+        def _from_manifest(target: WatchTarget, _policy: SourcePolicyRecord) -> FirecrawlTransport:
+            if target.target_id not in raw_manifest:
+                return _UnconfiguredFirecrawlTransport()
+            if target.target_id not in transports_by_target:
+                capture_file = Path(str(raw_manifest[target.target_id]))
+                transports_by_target[target.target_id] = RetainedCaptureTransport.from_file(
+                    capture_file,
+                    canonical_url=target.canonical_url,
+                )
+            return transports_by_target[target.target_id]
+
+        return _from_manifest, robots
+
+    capture_arg = getattr(args, "retained_capture", None)
+    if capture_arg is not None:
+        capture_path = Path(capture_arg)
+        cached_transports: dict[str, RetainedCaptureTransport] = {}
+
+        def _single_capture(target: WatchTarget, _policy: SourcePolicyRecord) -> FirecrawlTransport:
+            if target.target_id not in cached_transports:
+                cached_transports[target.target_id] = RetainedCaptureTransport.from_file(
+                    capture_path,
+                    canonical_url=target.canonical_url,
+                )
+            return cached_transports[target.target_id]
+
+        return _single_capture, robots
+
+    return _UnconfiguredFirecrawlTransport(), robots
+
+
+def run_acquire(
+    args: argparse.Namespace,
+    *,
+    store: FinancialIngestionStore,
+    artifacts: ContentAddressedStore,
+    seeds_dir: Path,
+    environment: Mapping[str, str],
+    now: Callable[[], datetime],
+) -> int:
+    sources = (
+        load_discovery_sources(Path(args.discovery_sources), today=now().date())
+        if args.discovery_sources
+        else ()
+    )
+    aggregator_domains = tuple(source.domain for source in sources)
+    policies_by_id = {p.policy_id: p for p in store.list_source_policies()}
+    if args.source_policy:
+        loaded_policies = load_source_policies(
+            Path(args.source_policy), aggregator_domains=aggregator_domains
+        )
+        for item in loaded_policies:
+            store.put_source_policy(item)
+            policies_by_id[item.policy_id] = item
+    target_id = args.target_id
+    if args.watch_target:
+        loaded_targets = load_watchlist(
+            Path(args.watch_target),
+            policies=policies_by_id,
+            aggregator_domains=aggregator_domains,
+            allow_firecrawl=True,
+        )
+        selected_target = _select(loaded_targets, args.target_id, "target_id", args.watch_target)
+        for target_item in loaded_targets:
+            store.put_watch_target(target_item)
+        target_id = selected_target.target_id
+    if not target_id:
+        print("refused: invalid input: --target-id or --watch-target is required", file=sys.stderr)
+        return 2
+
+    try:
+        ext_config, ext_by_target = _build_cli_extraction_config(args)
+        transport, default_robots = _build_cli_transport_and_robots(args, environment=environment)
+        control = _build_cli_control(args, store)
+    except (ValidationError, ValueError) as invalid:
+        print(f"refused: invalid input: {_describe_invalid(invalid)}", file=sys.stderr)
+        return 2
+
+    acquisition_service = DurableAcquisitionService(
+        store=store,
+        artifacts=artifacts,
+        control=control,
+        transport=transport,
+        extraction_config=ext_config,
+        extraction_configs_by_target=ext_by_target,
+        seeds_dir=seeds_dir,
+        default_robots=default_robots,
+        firecrawl_enabled=not bool(getattr(args, "disable_firecrawl", False)),
+        estimated_credits=args.estimated_credits,
+        max_bytes=args.max_bytes,
+        max_pages=args.max_pages,
+        timeout_seconds=args.timeout_seconds,
+        forced_freshness=bool(args.forced_freshness),
+        run_id=args.run_id,
+        now=now,
+    )
+    outcome = acquisition_service.acquire_sync(
+        target_id,
+        client_event_id=args.client_event_id,
+    )
+    print(json.dumps(outcome.to_dict(), indent=2, sort_keys=True))
+    if outcome.state not in {"completed", "unchanged"}:
+        print(f"refused: {outcome.state}: {outcome.diagnostic}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def run_refresh_due(
+    args: argparse.Namespace,
+    *,
+    store: FinancialIngestionStore,
+    artifacts: ContentAddressedStore,
+    seeds_dir: Path,
+    environment: Mapping[str, str],
+    now: Callable[[], datetime],
+) -> int:
+    sources = (
+        load_discovery_sources(Path(args.discovery_sources), today=now().date())
+        if args.discovery_sources
+        else ()
+    )
+    aggregator_domains = tuple(source.domain for source in sources)
+    policies_by_id = {p.policy_id: p for p in store.list_source_policies()}
+    if args.source_policies:
+        loaded_policies = load_source_policies(
+            Path(args.source_policies), aggregator_domains=aggregator_domains
+        )
+        for item in loaded_policies:
+            store.put_source_policy(item)
+            policies_by_id[item.policy_id] = item
+    if args.watchlist:
+        loaded_targets = load_watchlist(
+            Path(args.watchlist),
+            policies=policies_by_id,
+            aggregator_domains=aggregator_domains,
+            allow_firecrawl=True,
+        )
+        for target_item in loaded_targets:
+            store.put_watch_target(target_item)
+
+    try:
+        ext_config, ext_by_target = _build_cli_extraction_config(args)
+        transport, default_robots = _build_cli_transport_and_robots(args, environment=environment)
+        control = _build_cli_control(args, store)
+    except (ValidationError, ValueError) as invalid:
+        print(f"refused: invalid input: {_describe_invalid(invalid)}", file=sys.stderr)
+        return 2
+
+    acquisition_service = DurableAcquisitionService(
+        store=store,
+        artifacts=artifacts,
+        control=control,
+        transport=transport,
+        extraction_config=ext_config,
+        extraction_configs_by_target=ext_by_target,
+        seeds_dir=seeds_dir,
+        default_robots=default_robots,
+        firecrawl_enabled=not bool(getattr(args, "disable_firecrawl", False)),
+        estimated_credits=args.estimated_credits,
+        max_bytes=args.max_bytes,
+        max_pages=args.max_pages,
+        timeout_seconds=args.timeout_seconds,
+        forced_freshness=bool(args.forced_freshness),
+        run_id=args.run_id,
+        now=now,
+    )
+    batch = acquisition_service.refresh_due_sync(
+        limit=args.limit,
+        client_event_prefix=args.client_event_prefix,
+    )
+    print(json.dumps(batch.to_dict(), indent=2, sort_keys=True))
     return 0
 
 
@@ -844,6 +1149,69 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     check.add_argument("--source-policies", default=None)
     check.add_argument("--discovery-sources", default=None)
     check.add_argument("--watchlist", default=None)
+    check.add_argument("--allow-firecrawl", action="store_true", default=False)
+    acquire_cmd = sub.add_parser("acquire")
+    acquire_cmd.add_argument("--data-dir", default=None)
+    acquire_cmd.add_argument("--seeds-dir", default=None)
+    acquire_cmd.add_argument("--source-policy", default=None)
+    acquire_cmd.add_argument("--policy-id", default=None)
+    acquire_cmd.add_argument("--watch-target", default=None)
+    acquire_cmd.add_argument("--target-id", default=None)
+    acquire_cmd.add_argument("--discovery-sources", default=None)
+    acquire_cmd.add_argument("--client-event-id", required=True)
+    acquire_cmd.add_argument("--retained-capture", default=None)
+    acquire_cmd.add_argument("--live-firecrawl", action="store_true", default=False)
+    acquire_cmd.add_argument("--confirm-no-overage", action="store_true", default=False)
+    acquire_cmd.add_argument("--disable-firecrawl", action="store_true", default=False)
+    acquire_cmd.add_argument("--robots-file", default=None)
+    acquire_cmd.add_argument(
+        "--extraction-mode",
+        choices=("disabled", "scripted_replay", "curator_authored"),
+        default=None,
+    )
+    acquire_cmd.add_argument("--scripted-extraction", default=None)
+    acquire_cmd.add_argument("--extractor-version", default="firecrawl-fi2-extractor-v1")
+    acquire_cmd.add_argument("--per-request-credits", type=int, default=1)
+    acquire_cmd.add_argument("--per-run-credits", type=int, default=5)
+    acquire_cmd.add_argument("--per-month-credits", type=int, default=20)
+    acquire_cmd.add_argument("--pricing-version", default="firecrawl-v2-scrape-2026-11")
+    acquire_cmd.add_argument("--estimated-credits", type=int, default=1)
+    acquire_cmd.add_argument("--run-id", default="firecrawl-acquire")
+    acquire_cmd.add_argument("--forced-freshness", action="store_true", default=False)
+    acquire_cmd.add_argument("--max-bytes", type=int, default=StageLimits.max_bytes)
+    acquire_cmd.add_argument("--max-pages", type=int, default=StageLimits.max_pages)
+    acquire_cmd.add_argument("--timeout-seconds", type=int, default=StageLimits.timeout_seconds)
+    refresh_cmd = sub.add_parser("refresh-due")
+    refresh_cmd.add_argument("--data-dir", default=None)
+    refresh_cmd.add_argument("--seeds-dir", default=None)
+    refresh_cmd.add_argument("--source-policies", default=None)
+    refresh_cmd.add_argument("--watchlist", default=None)
+    refresh_cmd.add_argument("--discovery-sources", default=None)
+    refresh_cmd.add_argument("--limit", type=int, default=10)
+    refresh_cmd.add_argument("--client-event-prefix", required=True)
+    refresh_cmd.add_argument("--retained-capture", default=None)
+    refresh_cmd.add_argument("--retained-captures-manifest", default=None)
+    refresh_cmd.add_argument("--live-firecrawl", action="store_true", default=False)
+    refresh_cmd.add_argument("--confirm-no-overage", action="store_true", default=False)
+    refresh_cmd.add_argument("--disable-firecrawl", action="store_true", default=False)
+    refresh_cmd.add_argument("--robots-file", default=None)
+    refresh_cmd.add_argument(
+        "--extraction-mode",
+        choices=("disabled", "scripted_replay", "curator_authored"),
+        default=None,
+    )
+    refresh_cmd.add_argument("--scripted-extraction", default=None)
+    refresh_cmd.add_argument("--extractor-version", default="firecrawl-fi2-extractor-v1")
+    refresh_cmd.add_argument("--per-request-credits", type=int, default=1)
+    refresh_cmd.add_argument("--per-run-credits", type=int, default=5)
+    refresh_cmd.add_argument("--per-month-credits", type=int, default=20)
+    refresh_cmd.add_argument("--pricing-version", default="firecrawl-v2-scrape-2026-11")
+    refresh_cmd.add_argument("--estimated-credits", type=int, default=1)
+    refresh_cmd.add_argument("--run-id", default="firecrawl-refresh-due")
+    refresh_cmd.add_argument("--forced-freshness", action="store_true", default=False)
+    refresh_cmd.add_argument("--max-bytes", type=int, default=StageLimits.max_bytes)
+    refresh_cmd.add_argument("--max-pages", type=int, default=StageLimits.max_pages)
+    refresh_cmd.add_argument("--timeout-seconds", type=int, default=StageLimits.timeout_seconds)
     confirm = sub.add_parser("confirm-origin")
     confirm.add_argument("--data-dir", default=None)
     confirm.add_argument("--seeds-dir", required=True)
@@ -921,6 +1289,19 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
                 store=store,
                 artifacts=service.artifacts,
                 seeds_dir=Path(args.seeds_dir) if args.seeds_dir else SEEDS_DIR,
+                now=now,
+            )
+        except ConfigValidationError as error:
+            return _config_refusal(error)
+    if args.command in {"acquire", "refresh-due"}:
+        acq_runner = run_acquire if args.command == "acquire" else run_refresh_due
+        try:
+            return acq_runner(
+                args,
+                store=store,
+                artifacts=service.artifacts,
+                seeds_dir=Path(args.seeds_dir) if args.seeds_dir else SEEDS_DIR,
+                environment=environment,
                 now=now,
             )
         except ConfigValidationError as error:
