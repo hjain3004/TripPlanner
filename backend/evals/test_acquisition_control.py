@@ -371,7 +371,13 @@ def test_two_processes_enforce_atomic_domain_delay_and_budget_with_provider_doub
     second.join(timeout=15)
     assert first.exitcode == 0 and second.exitcode == 0
     outcomes = dict([output.get(timeout=2), output.get(timeout=2)])
-    assert sorted(outcomes.values()) == ["blocked", "dispatch"]
+    # The losing process can observe either completed work (and therefore the
+    # domain-delay block) or the winner's durably marked in-flight dispatch.
+    # The latter must remain pending for reconciliation rather than being
+    # reported as safely undispatched.  In both schedules only one request may
+    # reach the provider.
+    assert outcomes["request-a"] == "dispatch" or outcomes["request-b"] == "dispatch"
+    assert set(outcomes.values()) in ({"dispatch", "blocked"}, {"dispatch", "pending"})
 
     # Only the single winning process invoked the deterministic provider double.
     dispatches = DeterministicProviderDouble(log_path).dispatches()
