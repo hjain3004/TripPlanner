@@ -63,7 +63,14 @@ class DiscoveryCandidate(BaseModel):
     hint_url: str
     hint_source: str = Field(min_length=1)
     corridor: Literal["IN", "AE", "US"]
-    kind: Literal["card", "offer", "welcome_bonus"]
+    kind: Literal[
+        "card",
+        "offer",
+        "welcome_bonus",
+        "transfer_bonus",
+        "welcome_offer",
+        "earn_rate_change",
+    ]
     issuer_guess: str = Field(min_length=1)
     product_guess: str = Field(min_length=1)
     claim_summary: str = Field(min_length=1)
@@ -91,6 +98,10 @@ class PageKind(StrEnum):
     OFFER_PAGE = "offer_page"
     TNC_PDF = "tnc_pdf"
     MANUAL_CAPTURE = "manual_capture"
+    PROMO_INDEX = "promo_index"
+    PARTNER_TABLE = "partner_table"
+    PROGRAMME_NEWS = "programme_news"
+    FEED = "feed"
 
 
 class WatchTarget(BaseModel):
