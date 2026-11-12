@@ -17,11 +17,16 @@ from agents.claude_client import (
     AnthropicMessagesClient,
     AnthropicNodeSettings,
     DispatchGate,
+    PlanBudget,
 )
 from agents.config import load_agent_config
 from agents.llm import (
     HostedFreeTier,
     LLMClient,
+    LLMNotConfigured,
+    LLMProviderUnavailable,
+    LLMSignInRequired,
+    RefusalLLMClient,
     ScriptedLLMClient,
 )
 from agents.llm_budget import LLMSpendLedger, SpendCaps
@@ -75,6 +80,8 @@ def build_llm_client(
     gate: DispatchGate | None = None,
     ledger: LLMSpendLedger | None = None,
     http_client: httpx.Client | None = None,
+    budget: PlanBudget | None = None,
+    deadline: float | None = None,
 ) -> LLMClient:
     """Single factory building the configured LLM client.
 
@@ -82,7 +89,9 @@ def build_llm_client(
     with a typed error at call time.
     """
     if env.get("TRIPWISE_LLM_KILL_SWITCH", "").strip() == "1":
-        return ScriptedLLMClient({})
+        return RefusalLLMClient(
+            LLMProviderUnavailable("LLM kill switch is active", reason="kill_switch")
+        )
 
     provider = env.get("TRIPWISE_LLM_PROVIDER", "").strip().lower() or "openai_compatible"
 
@@ -99,12 +108,29 @@ def build_llm_client(
     if provider == "anthropic":
         # Anthropic is honored ONLY for role="pipeline"
         if role != "pipeline":
-            return ScriptedLLMClient({})
+            return RefusalLLMClient(
+                LLMProviderUnavailable(
+                    f"Anthropic provider is not enabled for role {role!r}", reason="role_disabled"
+                )
+            )
 
-        # Anthropic with anonymous user returns ScriptedLLMClient({}) unless paid scope is 'all'
+        # Enforce explicit no-overage confirmation guard (§6.1)
+        if env.get("TRIPWISE_ANTHROPIC_PREPAID_NO_OVERAGE_CONFIRMED", "").strip() != "1":
+            return RefusalLLMClient(
+                LLMNotConfigured(
+                    "TRIPWISE_ANTHROPIC_PREPAID_NO_OVERAGE_CONFIRMED=1 is required "
+                    "(operator attestation that provider workspace spend limit is set)"
+                )
+            )
+
+        # Anthropic with anonymous user returns typed refusal unless paid scope is 'all'
         paid_scope = env.get("TRIPWISE_LLM_PAID_SCOPE", "").strip().lower()
         if user_id is None and paid_scope != "all":
-            return ScriptedLLMClient({})
+            return RefusalLLMClient(
+                LLMSignInRequired(
+                    "Sign-in required for planning; paid model dispatch is reserved for users"
+                )
+            )
 
         caps = SpendCaps.from_env(env)
         data_dir_str = env.get("TRIPWISE_DATA_DIR", "").strip()
@@ -140,8 +166,36 @@ def build_llm_client(
             node_settings=node_settings,
             api_key=api_key,
             http_client=http_client,
+            budget=budget,
+            deadline=deadline,
             refusal_fallback_model=refusal_fallback,
         )
 
     # Default: openai_compatible (HostedFreeTier)
+    if role == "interview":
+        cost = env.get("TRIPWISE_INTERVIEW_LLM_COST_MICRO_USD", "0").strip()
+        confirmed = env.get("TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED", "").strip() == "1"
+        if not confirmed or cost != "0":
+            return ScriptedLLMClient({})
+        client = HostedFreeTier(max_retries=0, gate=dispatch_gate)
+        model = env.get("TRIPWISE_INTERVIEW_LLM_MODEL", "").strip() or (client.model or "")
+        if model:
+            client.model = model
+            client.models = [model]
+        client.max_calls = 1
+        return client
+
+    if role == "post_plan":
+        cost = env.get("TRIPWISE_POST_PLAN_LLM_COST_MICRO_USD", "0").strip()
+        confirmed = env.get("TRIPWISE_POST_PLAN_LLM_ZERO_SPEND_CONFIRMED", "").strip() == "1"
+        if not confirmed or cost != "0":
+            return ScriptedLLMClient({})
+        client = HostedFreeTier(max_retries=0, gate=dispatch_gate)
+        model = env.get("TRIPWISE_POST_PLAN_LLM_MODEL", "").strip() or (client.model or "")
+        if model:
+            client.model = model
+            client.models = [model]
+        client.max_calls = 1
+        return client
+
     return HostedFreeTier(gate=dispatch_gate)

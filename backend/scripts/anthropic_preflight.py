@@ -13,6 +13,7 @@ import sys
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -51,7 +52,8 @@ def check_offline(env: Mapping[str, str] = os.environ) -> None:
     model = env.get("TRIPWISE_ANTHROPIC_MODEL", "claude-sonnet-5-5").strip()
     price = price_for(model)
     rate_info = f"rate={price.input_micro_usd_per_mtok} in, {price.output_micro_usd_per_mtok} out"
-    print(f"  Price row for {model!r}: verified ({rate_info})")
+    ver_status = f"needs_verification={price.needs_verification}"
+    print(f"  Price row for {model!r}: present ({rate_info}, {ver_status})")
 
     caps = SpendCaps.from_env(env)
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -84,6 +86,7 @@ def check_mock_run() -> None:
     mock_env = {
         "TRIPWISE_LLM_PROVIDER": "anthropic",
         "ANTHROPIC_API_KEY": "mock-preflight-key",
+        "TRIPWISE_ANTHROPIC_PREPAID_NO_OVERAGE_CONFIRMED": "1",
         "TRIPWISE_ANTHROPIC_MODEL": "claude-sonnet-5-5",
         "TRIPWISE_LLM_CAP_PER_PLAN_MICRO_USD": "500000",
         "TRIPWISE_LLM_CAP_PER_DAY_MICRO_USD": "5000000",
@@ -126,6 +129,73 @@ def check_mock_run() -> None:
     print("\nMock preflight suite complete: all offline and simulated checks passed.")
 
 
+def check_live(
+    env: Mapping[str, str] = os.environ,
+    http_client: Any | None = None,
+) -> int:
+    """Owner-run deployment-day check (§10) against the Anthropic Messages API."""
+    if env.get("TRIPWISE_ANTHROPIC_LIVE_CHECK_CONFIRMED", "").strip() != "1":
+        print(
+            "Live API checks require explicit owner confirmation: "
+            "set TRIPWISE_ANTHROPIC_LIVE_CHECK_CONFIRMED=1 to proceed.",
+            file=sys.stderr,
+        )
+        return 2
+
+    api_key = env.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        print("ANTHROPIC_API_KEY is not set.", file=sys.stderr)
+        return 1
+
+    check_offline(env)
+    print("Executing live API checks...")
+    import httpx
+
+    model = env.get("TRIPWISE_ANTHROPIC_MODEL", "claude-sonnet-5-5").strip()
+    client = http_client or httpx.Client(timeout=20.0)
+
+    # 1. Retrieve model metadata
+    resp = client.get(
+        f"https://api.anthropic.com/v1/models/{model}",
+        headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+    )
+    if resp.status_code != 200:
+        print(
+            f"Failed to retrieve model metadata (HTTP {resp.status_code}): {resp.text}",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"  Model metadata for {model!r}: verified live")
+
+    # 2. Token counting on DEL->SIN prompt
+    prompt = "DEL to SIN trip for 3 days"
+    count_resp = client.post(
+        "https://api.anthropic.com/v1/messages/count_tokens",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+    )
+    if count_resp.status_code != 200:
+        print(
+            f"Failed to count tokens (HTTP {count_resp.status_code}): {count_resp.text}",
+            file=sys.stderr,
+        )
+        return 1
+    token_count = count_resp.json().get("input_tokens", 0)
+    bound = input_token_upper_bound(system="", user=prompt, wire_schema_json="{}")
+    assert token_count <= bound - FRAMING_TOKENS + 64
+    print(f"  Live count_tokens: {token_count} tokens (within bound {bound})")
+
+    print("\nLive deployment preflight complete: API compatibility confirmed.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="anthropic_preflight")
     parser.add_argument(
@@ -134,7 +204,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--mock", action="store_true", help="Run mock transport preflight tests (zero network)"
     )
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="Run live API deployment check (requires TRIPWISE_ANTHROPIC_LIVE_CHECK_CONFIRMED=1)",
+    )
     args = parser.parse_args(argv)
+
+    if args.live:
+        return check_live()
 
     if args.mock:
         check_mock_run()
@@ -144,15 +222,17 @@ def main(argv: list[str] | None = None) -> int:
         check_offline()
         return 0
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if not api_key:
-        print("ANTHROPIC_API_KEY is not set. Running mock/offline checks instead:")
-        check_mock_run()
-        return 0
-
+    # No flags provided: run offline checks but do NOT report live success
     check_offline()
-    print("Live API checks are reserved for owner-supervised deployment only.")
-    return 0
+    print(
+        "\n[INCOMPLETE] Offline checks passed, but live API verification was NOT performed.\n"
+        "Specify an execution mode:\n"
+        "  --mock    Simulated preflight suite with mock transport (100% offline)\n"
+        "  --offline Offline schema, configuration, and budget checks only\n"
+        "  --live    Owner deployment check (TRIPWISE_ANTHROPIC_LIVE_CHECK_CONFIRMED=1)\n",
+        file=sys.stderr,
+    )
+    return 2
 
 
 if __name__ == "__main__":

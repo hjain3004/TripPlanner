@@ -48,29 +48,44 @@
 
 ---
 
-## 3. Verification & Gate Results
+## 3. Sol Review Corrections (R1–R8)
+
+1. **R1 (Production runtime dependency):** Promoted `httpx>=0.28` to `[project] dependencies` in `backend/pyproject.toml` and regenerated `backend/requirements.lock` via `make lock` (`uv`). Verified with isolated runtime-only import probe that `agents.llm_factory` and `api.main` import cleanly without any development packages.
+2. **R2 (Authenticated job identity binding):** Bound server-resolved authenticated owner (`user_id`) and durable job identity (`plan_id`) at execution boundaries (`start_confirmed_job`, saved-trip `_plan_inputs_from_saved_trip`, `POST /plan`, and `_run_job`). Verified that the durable ledger records `user_id` and `plan_id` for authenticated jobs, enforcing per-user and per-plan caps, while anonymous requests produce explicit typed refusal (`LLMSignInRequired`).
+3. **R3 (Usage validation & uncertain settlement):** Added strict response usage validation in `AnthropicMessagesClient` (nonnegative integers for input/output tokens). Responses with missing or invalid usage call `ledger.mark_uncertain(reservation_id)` and raise typed `LLMInvalidResponse`, preserving full committed reservation in the ledger and never settling to zero.
+4. **R4 (Mandatory no-overage attestation):** Enforced `TRIPWISE_ANTHROPIC_PREPAID_NO_OVERAGE_CONFIRMED=1` at startup in `api/runtime_config.py` and client construction in `agents/llm_factory.py`. Documented as operator attestation in `backend/.env.example` and `deploy/.env.example`.
+5. **R5 (Plan-wide call ceiling & deadline):** Added `PlanBudget` shared per plan bounding `TRIPWISE_LLM_MAX_CALLS` across all nodes and repair attempts. Re-verifies deadline after gate acquisition and immediately before dispatch; raises typed `LLMBudgetExceeded` on call ceiling.
+6. **R6 (Non-plan roles share process-wide gate):** Routed `get_interview_llm()` and `get_post_plan_llm()` through `build_llm_client`, acquiring the shared `ThreadingDispatchGate` before dispatch.
+7. **R7 (Provider error secret redaction):** Implemented `_redact_detail` in `AnthropicMessagesClient` scrubbing configured API keys, bearer tokens, and `sk-...` patterns from exception messages, logs, and durable breaker reasons.
+8. **R8 (Truthful deployment preflight):** Added explicit `--offline`, `--mock`, and `--live` (requires `TRIPWISE_ANTHROPIC_LIVE_CHECK_CONFIRMED=1`) modes to `scripts/anthropic_preflight.py`. Zero-flag invocations run offline checks and exit with code 2 (incomplete), never claiming live compatibility when unverified. Labeled cached price row as unverified.
+
+---
+
+## 4. Verification & Gate Results
 
 - **Unit & Component Suites:**
-  - `backend/evals/test_llm_budget.py`: 21 passed (includes lifetime cap, schema v1->v2 migration, role/run accounting).
-  - `backend/evals/test_llm_wire.py`: 5 passed (wire problem checks, round-trips, validation).
-  - `backend/evals/test_claude_client.py`: 9 passed (mock transport tests for all §8.1 outcomes, gate ordering, breakers).
-  - `backend/evals/test_llm_factory.py`: 4 passed (kill switch, role gating, anonymous user handling, dispatch gate).
-  - `backend/evals/test_runtime_e2e.py`: 2 passed (full pipeline run with mock client, unconfigured error mapping).
+  - `backend/evals/test_llm_budget.py`: 21 passed.
+  - `backend/evals/test_llm_wire.py`: 5 passed.
+  - `backend/evals/test_claude_client.py`: 12 passed (added usage validation, call ceiling, error redaction regressions).
+  - `backend/evals/test_llm_factory.py`: 5 passed (added shared gate on non-plan roles, typed refusal on missing identity/attestation).
+  - `backend/evals/test_runtime_e2e.py`: 2 passed.
   - `backend/evals/test_runtime_authority.py`: 19 passed.
+  - `backend/evals/test_d1_deployment_files.py`: 49 passed.
+  - `backend/evals/test_a4_save_api.py`, `evals/test_a4_rerun.py`, `evals/test_cp2_api.py`: 53 passed.
 - **Type Checking (`mypy --strict`):**
-  - Clean across all 213 source files in `core/ accounts/ planning/ agents/ api/ gateway/`.
-  - Clean across all 36 source files in `ingestion/`.
-  - Clean across all 5 source files in `welcome/`.
+  - Clean across all 215 source files in `core/ accounts/ planning/ agents/ api/ gateway/ scripts/`.
+  - Clean across all 41 source files in `ingestion/ welcome/`.
 - **Linting (`ruff check`):**
   - Zero-tolerance scope (`accounts/ planning/ agents/ gateway/ evals/`): 0 findings.
   - Ratcheted debt scope (`core/ api/`): 7 findings (well below the 12-finding ceiling; 0 new findings introduced).
 - **Preflight Script:**
-  - `python backend/scripts/anthropic_preflight.py --mock`: passes all simulated preflight assertions.
+  - `python backend/scripts/anthropic_preflight.py --mock`: passes all simulated preflight assertions (exit 0).
+  - `python backend/scripts/anthropic_preflight.py`: exits 2 with explicit incomplete status notice.
 
 ---
 
-## 4. Remaining Blockers & Handoff
+## 5. Remaining Blockers & Handoff
 
-- **Owner Action (P1–P7):** Real Claude API keys and paid deployment-day check (`anthropic_preflight.py` without mock) remain owner actions for deployment day after PR merge.
+- **Owner Action (P1–P7):** Real Claude API keys and paid deployment-day check (`anthropic_preflight.py --live` with `TRIPWISE_ANTHROPIC_LIVE_CHECK_CONFIRMED=1`) remain owner actions for deployment day after PR merge.
 - **Stream A Finish (Luna):** Luna owns the frontend/wizard phase: `TripIntakeRequest.trip` wiring, MSW fixtures, and rendering the new typed `LLM_*` error states and critic caveats.
 - **Review (Sol):** Independent branch code review by Sol before final merge.

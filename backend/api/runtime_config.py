@@ -137,6 +137,14 @@ def validate_runtime_config(env: Mapping[str, str] | None = None) -> list[Config
                     "is required when TRIPWISE_LLM_PROVIDER is 'anthropic'",
                 )
             )
+        if source.get("TRIPWISE_ANTHROPIC_PREPAID_NO_OVERAGE_CONFIRMED", "").strip() != "1":
+            issues.append(
+                ConfigIssue(
+                    "TRIPWISE_ANTHROPIC_PREPAID_NO_OVERAGE_CONFIRMED",
+                    "must be '1' when TRIPWISE_LLM_PROVIDER is 'anthropic' "
+                    "(operator attestation that provider workspace spend limit is set)",
+                )
+            )
         cap_vars = (
             "TRIPWISE_LLM_CAP_PER_PLAN_MICRO_USD",
             "TRIPWISE_LLM_CAP_PER_DAY_MICRO_USD",

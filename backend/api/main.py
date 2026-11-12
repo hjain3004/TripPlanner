@@ -16,8 +16,9 @@ from pydantic import BaseModel, Field
 import accounts.db as accounts_db
 from accounts.models import User
 from accounts.store import AccountStore, DuplicateEmailError
+from agents.claude_client import AnthropicMessagesClient
 from agents.confirmed_trip import ConfirmedTripInput
-from agents.llm import LLMCallError, LLMClient, llm_error_code
+from agents.llm import LLMCallError, LLMClient, RefusalLLMClient, llm_error_code
 from agents.llm_factory import build_llm_client
 from agents.models import (
     FinalReport,
@@ -266,6 +267,7 @@ def health() -> dict[str, str]:
 
 @app.post("/plan", status_code=202)
 def plan(
+    req: Request,
     request: TripIntakeRequest,
     kb: Annotated[KnowledgeBase, Depends(get_kb)],
     llm: Annotated[LLMClient, Depends(get_llm)],
@@ -273,12 +275,22 @@ def plan(
     booking_date: Annotated[date, Depends(get_booking_date)],
     trace_dir: Annotated[Path, Depends(get_trace_dir)],
     weather_service: Annotated[WeatherContextService, Depends(get_weather_context_service)],
+    store: Annotated[AccountStore, Depends(get_store)],
 ) -> dict[str, str]:
-    job_id = job_manager.create_job()
+    token = req.cookies.get(SESSION_COOKIE)
+    session = store.session_for_token(token, now=now_utc()) if token else None
+    owner_id = session.user_id if session else None
+
+    job_id = job_manager.create_job(owner_id=owner_id, store=store if owner_id else None)
+    current_llm = llm
+    if isinstance(current_llm, (RefusalLLMClient, AnthropicMessagesClient)):
+        planning_llm = build_llm_client("pipeline", plan_id=job_id, user_id=owner_id)
+    else:
+        planning_llm = current_llm
     thread = threading.Thread(
         target=_run_job,
-        args=(job_id, request, kb, llm, registry, booking_date, trace_dir),
-        kwargs={"weather_service": weather_service},
+        args=(job_id, request, kb, planning_llm, registry, booking_date, trace_dir),
+        kwargs={"weather_service": weather_service, "owner_id": owner_id},
         daemon=True,
     )
     thread.start()
@@ -357,16 +369,44 @@ def _run_job(
     job_id: str,
     request: TripIntakeRequest,
     kb: KnowledgeBase,
-    llm: LLMClient,
-    registry: ProviderRegistry,
-    booking_date: date,
-    trace_dir: Path,
+    llm: LLMClient | None = None,
+    registry: ProviderRegistry | None = None,
+    booking_date: date | None = None,
+    trace_dir: Path | None = None,
     *,
     confirmed_input: ConfirmedTripInput | None = None,
     inventory_service: TravelInventoryService | None = None,
     weather_service: WeatherContextService | None = None,
+    owner_id: str | None = None,
 ) -> None:
     try:
+        if llm is None:
+            current_llm = (
+                app.dependency_overrides[get_llm]()
+                if get_llm in app.dependency_overrides
+                else get_llm()
+            )
+            if isinstance(current_llm, (RefusalLLMClient, AnthropicMessagesClient)):
+                llm = build_llm_client("pipeline", plan_id=job_id, user_id=owner_id)
+            else:
+                llm = current_llm
+        elif isinstance(llm, AnthropicMessagesClient):
+            if llm.plan_id is None or (llm.user_id is None and owner_id is not None):
+                llm = build_llm_client(
+                    "pipeline",
+                    plan_id=job_id,
+                    user_id=owner_id,
+                    gate=llm.gate,
+                    ledger=llm.ledger,
+                    http_client=llm._http_client,
+                    budget=llm.budget,
+                )
+        if registry is None:
+            registry = get_place_registry()
+        if booking_date is None:
+            booking_date = get_booking_date()
+        if trace_dir is None:
+            trace_dir = get_trace_dir()
 
         def on_stage(stage_index: int, stage: str) -> None:
             job_manager.set_stage(job_id, stage_index, stage)
@@ -405,9 +445,15 @@ def _run_job(
             job_manager.complete(job_id, "complete", report=result.report)
     except Exception as exc:
         code = llm_error_code(exc)
-        if "HostedFreeTier is not configured" in str(exc) or "No model provider is configured" in str(exc):
+        exc_str = str(exc)
+        if (
+            "HostedFreeTier is not configured" in exc_str
+            or "No model provider is configured" in exc_str
+        ):
             code = "LLM_NOT_CONFIGURED"
             safe_message = "No model provider is configured; planning is unavailable."
+        elif code.startswith("LLM_"):
+            safe_message = str(exc)
         elif code == "PIPELINE_ERROR" and not isinstance(exc, LLMCallError):
             code = "INTERNAL_ERROR"
             safe_message = (

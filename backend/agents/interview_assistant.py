@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import unicodedata
 from typing import Any
 
 from pydantic import ValidationError
 
-from agents.llm import HostedFreeTier, LLMClient, ScriptedLLMClient
+from agents.llm import LLMClient
 from planning.answers import QuestionId
 from planning.assistance import AnswerCandidate, AssistantReview
 from planning.contracts import PlanningSession
@@ -48,16 +47,11 @@ def get_interview_llm() -> LLMClient:
 
     The operator confirms an eligible zero-spend/local configuration explicitly.
     Without it, no hosted dispatch occurs and the API reports unavailable.
+    Routes through the shared factory and process-wide dispatch limiter.
     """
-    declared_cost = os.getenv("TRIPWISE_INTERVIEW_LLM_COST_MICRO_USD", "0")
-    if os.getenv("TRIPWISE_INTERVIEW_LLM_ZERO_SPEND_CONFIRMED") != "1" or declared_cost != "0":
-        return ScriptedLLMClient({})
-    client = HostedFreeTier(max_retries=0)
-    model = os.getenv("TRIPWISE_INTERVIEW_LLM_MODEL") or client.model
-    client.model = model
-    client.models = [model] if model else []
-    client.max_calls = 1
-    return client
+    from agents.llm_factory import build_llm_client
+
+    return build_llm_client("interview")
 
 
 _SENSITIVE = re.compile(

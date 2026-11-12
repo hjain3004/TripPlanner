@@ -8,6 +8,9 @@ Never talks to a paid API during development.
 from __future__ import annotations
 
 import json
+import os
+import re
+import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -56,6 +59,35 @@ class AnthropicNodeSettings:
     thinking: Literal["off", "adaptive"] = "off"
 
 
+class PlanBudget:
+    """Shared per-job budget bounding provider call count and absolute wall-clock time."""
+
+    def __init__(
+        self,
+        *,
+        max_calls: int = 25,
+        deadline: float | None = None,
+        clock: Callable[[], float] | None = None,
+    ) -> None:
+        self.max_calls = max_calls
+        self.clock = clock or time.monotonic
+        self.deadline = deadline if deadline is not None else (self.clock() + 60.0)
+        self.calls_made = 0
+        self._lock = threading.Lock()
+
+    def remaining_seconds(self) -> float:
+        return max(0.0, self.deadline - self.clock())
+
+    def record_attempt(self) -> None:
+        with self._lock:
+            if self.calls_made >= self.max_calls:
+                msg = (
+                    f"Plan call ceiling reached ({self.max_calls}); refusing further provider calls"
+                )
+                raise LLMBudgetExceeded(msg, scope="call_ceiling")
+            self.calls_made += 1
+
+
 class AnthropicMessagesClient:
     """Satisfies agents.llm.LLMClient for the Anthropic Messages API."""
 
@@ -75,6 +107,8 @@ class AnthropicMessagesClient:
         http_client: httpx.Client | None = None,
         deadline: float | None = None,
         clock: Callable[[], float] = time.monotonic,
+        budget: PlanBudget | None = None,
+        max_calls: int | None = None,
         refusal_fallback_model: str | None = None,
     ) -> None:
         self.model = model
@@ -88,8 +122,17 @@ class AnthropicMessagesClient:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self._http_client = http_client
-        self.deadline = deadline
         self.clock = clock
+        effective_max_calls = (
+            max_calls
+            if max_calls is not None
+            else int(os.environ.get("TRIPWISE_LLM_MAX_CALLS", "25"))
+        )
+        self.budget = budget or PlanBudget(
+            max_calls=effective_max_calls,
+            deadline=deadline,
+            clock=clock,
+        )
         self.refusal_fallback_model = refusal_fallback_model
 
     def _get_client(self, timeout_s: float) -> httpx.Client:
@@ -98,9 +141,18 @@ class AnthropicMessagesClient:
         return httpx.Client(timeout=timeout_s)
 
     def _remaining_deadline(self) -> float:
-        if self.deadline is None:
-            return 60.0
-        return max(0.0, self.deadline - self.clock())
+        return self.budget.remaining_seconds()
+
+    def _redact_detail(self, detail: str) -> str:
+        redacted = detail
+        if self.api_key:
+            redacted = redacted.replace(self.api_key, "[REDACTED]")
+        redacted = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", redacted)
+        redacted = re.sub(r"sk-[A-Za-z0-9._~+/=-]+", "[REDACTED]", redacted)
+        redacted = re.sub(
+            r"(?i)anthropic-api-key\s*[:=]\s*\S+", "anthropic-api-key: [REDACTED]", redacted
+        )
+        return redacted[:500]
 
     def _format_thinking(
         self, model: str, settings: AnthropicNodeSettings | None
@@ -189,6 +241,9 @@ class AnthropicMessagesClient:
                 if rem < timeout_s:
                     raise LLMTimeoutError("deadline exceeded after gate acquisition")
 
+                # Count every actual attempt against plan-wide call ceiling
+                self.budget.record_attempt()
+
                 # 2. Reserve in ledger immediately before dispatch
                 reservation_id = self.ledger.reserve(
                     plan_id=self.plan_id,
@@ -218,14 +273,42 @@ class AnthropicMessagesClient:
                 status = response.status_code
                 if status == 200:
                     data = response.json()
-                    usage_data = data.get("usage", {})
+                    usage_data = data.get("usage")
+                    valid_usage = False
+                    if isinstance(usage_data, dict):
+                        in_tok = usage_data.get("input_tokens")
+                        out_tok = usage_data.get("output_tokens")
+                        cache_create = usage_data.get("cache_creation_input_tokens", 0)
+                        cache_read = usage_data.get("cache_read_input_tokens", 0)
+                        if (
+                            isinstance(in_tok, int)
+                            and not isinstance(in_tok, bool)
+                            and in_tok >= 0
+                            and isinstance(out_tok, int)
+                            and not isinstance(out_tok, bool)
+                            and out_tok >= 0
+                            and isinstance(cache_create, int)
+                            and not isinstance(cache_create, bool)
+                            and cache_create >= 0
+                            and isinstance(cache_read, int)
+                            and not isinstance(cache_read, bool)
+                            and cache_read >= 0
+                        ):
+                            valid_usage = True
+
+                    if not valid_usage:
+                        self.ledger.mark_uncertain(reservation_id)
+                        raise LLMInvalidResponse(
+                            f"missing or malformed usage in {node} response from provider"
+                        )
+
+                    assert isinstance(in_tok, int) and isinstance(out_tok, int)
+                    assert isinstance(cache_create, int) and isinstance(cache_read, int)
                     usage = UsageCounts(
-                        input_tokens=usage_data.get("input_tokens", 0),
-                        output_tokens=usage_data.get("output_tokens", 0),
-                        cache_creation_input_tokens=usage_data.get(
-                            "cache_creation_input_tokens", 0
-                        ),
-                        cache_read_input_tokens=usage_data.get("cache_read_input_tokens", 0),
+                        input_tokens=in_tok,
+                        output_tokens=out_tok,
+                        cache_creation_input_tokens=cache_create,
+                        cache_read_input_tokens=cache_read,
                     )
                     settled_cost = settled_micro_usd(model_price, usage)
                     self.ledger.settle(reservation_id, usage, settled_cost)
@@ -262,7 +345,7 @@ class AnthropicMessagesClient:
 
                 # HTTP error handling per Section 8.1
                 self.ledger.release(reservation_id)
-                error_body = response.text
+                error_body = self._redact_detail(response.text)
                 try:
                     error_json = response.json()
                 except Exception:
@@ -274,11 +357,12 @@ class AnthropicMessagesClient:
                     if isinstance(error_detail, dict)
                     else None
                 )
-                error_msg = (
+                raw_msg = (
                     error_detail.get("message", "")
                     if isinstance(error_detail, dict)
                     else error_body
                 )
+                error_msg = self._redact_detail(raw_msg)
 
                 if status == 429:
                     if error_code == "enforced_spend_limit_reached" or "spend_limit" in error_msg:

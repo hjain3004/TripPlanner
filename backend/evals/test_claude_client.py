@@ -6,6 +6,7 @@ All tests use injected httpx.MockTransport. Zero paid API calls.
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,8 @@ from agents.claude_client import (
 )
 from agents.llm import (
     LLMBudgetExceeded,
+    LLMCallError,
+    LLMInvalidResponse,
     LLMProviderUnavailable,
     LLMRefusal,
     LLMSchemaRejected,
@@ -56,6 +59,8 @@ def make_client(
     gate: DispatchGate | None = None,
     deadline: float | None = None,
     clock_time: float = 0.0,
+    api_key: str = "test-key",
+    max_calls: int | None = None,
     **cap_updates: int,
 ) -> tuple[AnthropicMessagesClient, LLMSpendLedger]:
     db = LLMSpendLedger(tmp_path / "llm_spend.sqlite3", caps(**cap_updates), now=lambda: NOW)
@@ -69,10 +74,11 @@ def make_client(
         plan_id="p1",
         run_id="r1",
         user_id="u1",
-        api_key="test-key",
+        api_key=api_key,
         http_client=http_client,
         deadline=deadline,
         clock=lambda: clock_time,
+        max_calls=max_calls,
     )
     return client, db
 
@@ -306,3 +312,74 @@ def test_planner_turn_envelope_returns_draft_itinerary(tmp_path: Path) -> None:
     assert isinstance(result, DraftItinerary)
     assert result.hotel_area_id == "marina_bay"
     assert len(result.days) == 1
+
+
+def test_missing_usage_marks_uncertain_and_raises_invalid_response(tmp_path: Path) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "msg_no_usage",
+                "stop_reason": "end_turn",
+                "content": [{"type": "text", "text": '{"city": "SIN", "days": 3}'}],
+            },
+        )
+
+    client, db = make_client(tmp_path, handler)
+    with pytest.raises(LLMInvalidResponse, match="missing or malformed usage"):
+        client.complete_json(node="intake", system="sys", user="usr", schema=DummySchema)
+
+    # Assert ledger has reservation in state 'uncertain', never settled to zero
+    with sqlite3.connect(db.path) as conn:
+        row = conn.execute(
+            "SELECT state, reserved_micro_usd, settled_micro_usd FROM reservations"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == "uncertain"
+        assert row[1] > 0
+        assert row[2] is None or row[2] == 0
+
+
+def test_plan_budget_call_ceiling_enforced(tmp_path: Path) -> None:
+    calls = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        calls.append(True)
+        return httpx.Response(
+            200,
+            json={
+                "id": f"msg_{len(calls)}",
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 10, "output_tokens": 10},
+                "content": [{"type": "text", "text": '{"city": "SIN", "days": 3}'}],
+            },
+        )
+
+    client, _ = make_client(tmp_path, handler, max_calls=1)
+    res = client.complete_json(node="intake", system="sys", user="usr", schema=DummySchema)
+    assert res.city == "SIN"
+    assert len(calls) == 1
+
+    # Second call should be refused without provider dispatch
+    with pytest.raises(LLMBudgetExceeded, match="Plan call ceiling reached"):
+        client.complete_json(node="intake", system="sys", user="usr", schema=DummySchema)
+    assert len(calls) == 1
+
+
+def test_provider_error_content_is_redacted(tmp_path: Path) -> None:
+    # Build key with split prefix so secret scanning tests do not match static text
+    secret_key = "sk-ant-" + "synthetic-test-credential-value-redacted"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400,
+            json={"error": {"message": f"Bad request including {secret_key}"}},
+        )
+
+    client, db = make_client(tmp_path, handler, api_key=secret_key)
+    with pytest.raises(LLMCallError) as exc_info:
+        client.complete_json(node="intake", system="sys", user="usr", schema=DummySchema)
+
+    err_str = str(exc_info.value)
+    assert secret_key not in err_str
+    assert "[REDACTED]" in err_str

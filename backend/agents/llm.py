@@ -93,6 +93,27 @@ class LLMClient(Protocol):
     ) -> T | Any: ...
 
 
+class RefusalLLMClient:
+    """An LLMClient that immediately raises an explicit typed refusal error."""
+
+    def __init__(self, error: LLMCallError) -> None:
+        self.error = error
+
+    def complete_json(
+        self,
+        *,
+        node: str,
+        system: str,
+        user: str,
+        schema: type[T],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        timeout_s: int = 20,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> T | Any:
+        raise self.error
+
+
 class ScriptedLLMClient:
     def __init__(self, scripts: dict[str, list[object]]) -> None:
         self._scripts = {node: list(rows) for node, rows in scripts.items()}
