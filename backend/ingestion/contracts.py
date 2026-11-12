@@ -63,7 +63,14 @@ class DiscoveryCandidate(BaseModel):
     hint_url: str
     hint_source: str = Field(min_length=1)
     corridor: Literal["IN", "AE", "US"]
-    kind: Literal["card", "offer", "welcome_bonus"]
+    kind: Literal[
+        "card",
+        "offer",
+        "welcome_bonus",
+        "transfer_bonus",
+        "welcome_offer",
+        "earn_rate_change",
+    ]
     issuer_guess: str = Field(min_length=1)
     product_guess: str = Field(min_length=1)
     claim_summary: str = Field(min_length=1)
@@ -91,6 +98,10 @@ class PageKind(StrEnum):
     OFFER_PAGE = "offer_page"
     TNC_PDF = "tnc_pdf"
     MANUAL_CAPTURE = "manual_capture"
+    PROMO_INDEX = "promo_index"
+    PARTNER_TABLE = "partner_table"
+    PROGRAMME_NEWS = "programme_news"
+    FEED = "feed"
 
 
 class WatchTarget(BaseModel):
@@ -176,7 +187,11 @@ class FetchResult(BaseModel):
     content_type: str | None = None
     raw_artifact: ImmutableArtifactRef | None = None
     rendered_html_artifact: ImmutableArtifactRef | None = None
+    provider_envelope_artifact: ImmutableArtifactRef | None = None
     normalized_artifact: ImmutableArtifactRef | None = None
+    evidence_fidelity: (
+        Literal["original_http_bytes", "provider_rendered_html", "manual_capture"] | None
+    ) = None
     normalized_text: str = ""
     outbound_links: tuple[str, ...] = ()
     engine: str | None = None
@@ -219,9 +234,14 @@ class SnapshotBundle(BaseModel):
     target_id: str = Field(min_length=1)
     captured_at: AwareDatetime
     raw_artifact: ImmutableArtifactRef
+    rendered_html_artifact: ImmutableArtifactRef | None = None
+    provider_envelope_artifact: ImmutableArtifactRef | None = None
     normalized_artifact: ImmutableArtifactRef
     raw_sha256: str = Field(pattern=SHA256)
     normalized_sha256: str = Field(pattern=SHA256)
+    evidence_fidelity: (
+        Literal["original_http_bytes", "provider_rendered_html", "manual_capture"] | None
+    ) = None
     canonical_markdown: str
     extraction_engine: str | None = None
     extraction_engine_version: str | None = None

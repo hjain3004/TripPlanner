@@ -425,7 +425,11 @@ class WatchlistEntry(BaseModel):
 
 
 def _watch_policy_issues(
-    entry: WatchlistEntry, policy: SourcePolicyRecord, location: str
+    entry: WatchlistEntry,
+    policy: SourcePolicyRecord,
+    location: str,
+    *,
+    allow_firecrawl: bool = False,
 ) -> list[ConfigIssue]:
     issues: list[ConfigIssue] = []
     try:
@@ -449,13 +453,33 @@ def _watch_policy_issues(
             )
         )
     if entry.backend == "firecrawl":
-        issues.append(
-            _issue(
-                "backend_not_authorized",
-                f"{location}.backend",
-                "firecrawl is a paid cloud provider and is not authorized; use 'local' or 'manual'",
+        if not allow_firecrawl:
+            issues.append(
+                _issue(
+                    "backend_not_authorized",
+                    f"{location}.backend",
+                    "firecrawl is a paid cloud provider and is not authorized; "
+                    "use 'local' or 'manual'",
+                )
             )
-        )
+        else:
+            if entry.manual_only:
+                issues.append(
+                    _issue(
+                        "config_policy_violation",
+                        f"{location}.backend",
+                        "a manual_only watch entry cannot use backend 'firecrawl'",
+                    )
+                )
+            if entry.kind not in {PageKind.CARD_PAGE, PageKind.OFFER_PAGE}:
+                issues.append(
+                    _issue(
+                        "backend_not_authorized",
+                        f"{location}.kind",
+                        "firecrawl backend is only eligible for HTML page classes "
+                        "('card_page', 'offer_page')",
+                    )
+                )
     manual_entry = entry.backend == "manual" or entry.manual_only
     if manual_kind and not (entry.backend == "manual" and entry.manual_only):
         issues.append(
@@ -482,6 +506,7 @@ def load_watchlist(
     *,
     policies: Mapping[str, SourcePolicyRecord],
     aggregator_domains: Iterable[str] = (),
+    allow_firecrawl: bool = False,
 ) -> tuple[WatchTarget, ...]:
     """Load ``watchlist.yaml`` into ``WatchTarget`` rows bound to known source policies.
 
@@ -527,7 +552,7 @@ def load_watchlist(
                 )
             )
             continue
-        problems = _watch_policy_issues(entry, policy, location)
+        problems = _watch_policy_issues(entry, policy, location, allow_firecrawl=allow_firecrawl)
         if problems:
             issues.extend(problems)
             continue

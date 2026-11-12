@@ -287,6 +287,36 @@ def test_an_automated_watch_entry_needs_a_policy_that_permits_automation(tmp_pat
     assert allowed[0].preferred_backend == "local"
 
 
+def test_firecrawl_watch_entry_requires_explicit_eligibility_and_automated_html_policy(
+    tmp_path: Path,
+) -> None:
+    automated_policies = {
+        p.policy_id: p
+        for p in load_source_policies(
+            write(tmp_path / "p.yaml", [policy(automated_access_permitted=True, manual_only=False)])
+        )
+    }
+    manual_policies = {
+        p.policy_id: p for p in load_source_policies(write(tmp_path / "pm.yaml", [policy()]))
+    }
+    w_html = write(tmp_path / "w_html.yaml", [watch(backend="firecrawl", manual_only=False)])
+    allowed = load_watchlist(w_html, policies=automated_policies, allow_firecrawl=True)
+    assert allowed[0].preferred_backend == "firecrawl"
+    assert allowed[0].manual_only is False
+
+    with pytest.raises(ConfigValidationError) as manual_refused:
+        load_watchlist(w_html, policies=manual_policies, allow_firecrawl=True)
+    assert "config_policy_violation" in codes(manual_refused.value)
+
+    w_pdf = write(
+        tmp_path / "w_pdf.yaml",
+        [watch(backend="firecrawl", manual_only=False, kind="tnc_pdf")],
+    )
+    with pytest.raises(ConfigValidationError) as pdf_refused:
+        load_watchlist(w_pdf, policies=automated_policies, allow_firecrawl=True)
+    assert "backend_not_authorized" in codes(pdf_refused.value)
+
+
 def test_duplicate_target_ids_are_refused(tmp_path: Path) -> None:
     with pytest.raises(ConfigValidationError) as refused:
         load(tmp_path, [watch(), watch()])
