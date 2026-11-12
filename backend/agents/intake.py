@@ -4,7 +4,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from agents.llm import LLMCallError, LLMClient, LLMTimeoutError, complete_with_repair
+from agents.llm import (
+    LLMCallError,
+    LLMClient,
+    LLMTimeoutError,
+    complete_with_repair,
+    llm_error_code,
+)
 from agents.models import TripSpec
 from core.db import KnowledgeBase
 from gateway.catalog.regions import load_regions
@@ -47,6 +53,7 @@ class IntakeResult(BaseModel):
     unresolved: list[str] = Field(default_factory=list)
     needs_clarification: bool = False
     runtime_error: str | None = None
+    runtime_error_code: str | None = None
 
 
 def _card_catalog(kb: KnowledgeBase) -> str:
@@ -65,6 +72,12 @@ def _validate_intake(spec: TripSpec, kb: KnowledgeBase) -> list[str]:
     if unsupported_origin or unsupported_destination:
         unresolved.append(f"unsupported route: {spec.origin_city}->{spec.destination_city}")
     return sorted(set(unresolved))
+
+
+def validate_trip_spec(spec: TripSpec, kb: KnowledgeBase) -> list[str]:
+    """The intake rules (IATA aliases, supported route, known cards) as a public entry point,
+    so a deterministic projection is held to exactly what a model-read request is."""
+    return _validate_intake(spec, kb)
 
 
 def run_intake(raw_request: str, kb: KnowledgeBase, llm: LLMClient) -> IntakeResult:
@@ -94,6 +107,7 @@ def run_intake(raw_request: str, kb: KnowledgeBase, llm: LLMClient) -> IntakeRes
     except LLMTimeoutError as exc:
         return IntakeResult(
             runtime_error=f"intake failed: {exc}",
+            runtime_error_code=llm_error_code(exc),
             needs_clarification=False,
         )
     except LLMCallError as exc:
@@ -105,6 +119,7 @@ def run_intake(raw_request: str, kb: KnowledgeBase, llm: LLMClient) -> IntakeRes
             )
         return IntakeResult(
             runtime_error=f"intake failed: {message}",
+            runtime_error_code=llm_error_code(exc),
             needs_clarification=False,
         )
 

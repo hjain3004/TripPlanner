@@ -17,6 +17,24 @@ llm:
     max_tokens: 2048
     timeout_s: 20
 
+anthropic:
+  intake:
+    max_tokens: 2048
+    effort: medium
+    thinking: "off"
+  planner:
+    max_tokens: 2048
+    effort: high
+    thinking: "off"
+  critic:
+    max_tokens: 1024
+    effort: medium
+    thinking: "off"
+  explainer:
+    max_tokens: 2048
+    effort: medium
+    thinking: "off"
+
 estimator:
   per_diem_sgd_minor:
     budget:

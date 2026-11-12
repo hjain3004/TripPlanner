@@ -6,7 +6,7 @@ from agents.critic import run_critic
 from agents.estimator import estimate_costed_trip
 from agents.explainer import build_final_report, run_explainer
 from agents.kernel import run_kernel
-from agents.llm import ScriptedLLMClient
+from agents.llm import LLMCallError, ScriptedLLMClient
 from agents.models import (
     CriticIssue,
     CriticVerdict,
@@ -101,11 +101,11 @@ def test_critic_returns_scripted_verdict(tmp_path) -> None:
 def test_critic_failure_skips_with_caveat(tmp_path) -> None:
     kb, spec, itinerary, estimate, _kernel = _artifacts(tmp_path)
     result = run_critic(
-        spec, itinerary, estimate, kb, ScriptedLLMClient({"critic": [RuntimeError()]})
+        spec, itinerary, estimate, kb, ScriptedLLMClient({"critic": [LLMCallError("critic down")]})
     )
 
     assert result.verdict.passed is True
-    assert result.caveats == ["Critic unavailable; itinerary was not LLM-reviewed."]
+    assert result.caveats == ["Critic unavailable (provider); itinerary was not LLM-reviewed."]
 
 
 def test_build_final_report_is_deterministic_and_uses_kernel_numbers(tmp_path) -> None:

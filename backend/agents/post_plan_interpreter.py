@@ -26,7 +26,6 @@ Kernel's import graph (the call-site guard test proves both).
 from __future__ import annotations
 
 import json
-import os
 import re
 import unicodedata
 from datetime import date
@@ -34,7 +33,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from agents.llm import HostedFreeTier, LLMClient, ScriptedLLMClient
+from agents.llm import LLMClient
 from planning.post_plan import (
     _SECTION_ATTR,
     MAX_COMMAND_CHARS,
@@ -80,16 +79,11 @@ def get_post_plan_llm() -> LLMClient:
     Hosted dispatch happens only when an operator explicitly confirms an eligible
     zero-spend or local configuration; otherwise nothing is dispatched and the caller sees
     the interpretation as unavailable (deterministic controls keep working).
+    Routes through the shared factory and process-wide dispatch limiter.
     """
-    declared_cost = os.getenv("TRIPWISE_POST_PLAN_LLM_COST_MICRO_USD", "0")
-    if os.getenv("TRIPWISE_POST_PLAN_LLM_ZERO_SPEND_CONFIRMED") != "1" or declared_cost != "0":
-        return ScriptedLLMClient({})
-    client = HostedFreeTier(max_retries=0)
-    model = os.getenv("TRIPWISE_POST_PLAN_LLM_MODEL") or client.model
-    client.model = model
-    client.models = [model] if model else []
-    client.max_calls = 1
-    return client
+    from agents.llm_factory import build_llm_client
+
+    return build_llm_client("post_plan")
 
 
 _REDACT = re.compile(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|bearer\s+\S+|sk-[A-Za-z0-9._-]+", re.I)
