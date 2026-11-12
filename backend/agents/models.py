@@ -161,6 +161,9 @@ class CriticVerdict(BaseModel):
 class CriticResult(BaseModel):
     verdict: CriticVerdict
     caveats: list[str] = Field(default_factory=list)
+    # True when the verdict is a placeholder because the critic could not run. It is never a
+    # pass: the trace records critic_skipped and the caveat says why.
+    skipped: bool = False
 
 
 class ExplainerOutput(BaseModel):
@@ -240,6 +243,9 @@ class PlanResponse(BaseModel):
     report: FinalReport | None = None
     unresolved: list[str] = Field(default_factory=list)
     error: str | None = None
+    # A stable machine code for the failure (for example LLM_BUDGET_EXHAUSTED); None for the
+    # generic pipeline error. Not part of the public contract: the job layer maps it.
+    error_code: str | None = None
 
 
 class JobError(BaseModel):

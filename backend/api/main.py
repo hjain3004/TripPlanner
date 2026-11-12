@@ -386,6 +386,7 @@ def _run_job(
             inventory_service=inventory_service,
             on_inventory=on_inventory,
             weather_service=weather_service,
+            wallet_override=request.wallet,
         )
         if result.status == PipelineStatus.NEEDS_CLARIFICATION:
             job_manager.complete(job_id, "needs_clarification", unresolved=result.unresolved)
@@ -394,7 +395,7 @@ def _run_job(
                 job_id,
                 "failed",
                 error={
-                    "code": "PIPELINE_ERROR",
+                    "code": result.error_code or "PIPELINE_ERROR",
                     "message": result.error or "Unknown pipeline error",
                     "trace_id": result.trace_id,
                 },

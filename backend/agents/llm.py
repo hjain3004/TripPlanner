@@ -24,6 +24,54 @@ class LLMTimeoutError(LLMCallError):
     pass
 
 
+class LLMInvalidResponse(LLMCallError):
+    """The model answered, but not with usable JSON for the schema (after the one repair)."""
+
+
+class LLMBudgetExceeded(LLMCallError):
+    """A spend reservation was refused or the provider reported a spend limit."""
+
+    code = "LLM_BUDGET_EXHAUSTED"
+
+    def __init__(self, message: str, *, scope: str = "") -> None:
+        super().__init__(message)
+        self.scope = scope
+
+
+class LLMProviderUnavailable(LLMCallError):
+    """The provider cannot be used right now (auth, billing, overload, kill switch)."""
+
+    code = "LLM_UNAVAILABLE"
+
+    def __init__(self, message: str, *, reason: str = "") -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+class LLMSignInRequired(LLMProviderUnavailable):
+    """Paid model dispatch is reserved for signed-in, owner-bound jobs."""
+
+    code = "LLM_SIGN_IN_REQUIRED"
+
+
+class LLMRefusal(LLMCallError):
+    """The model declined the request (stop_reason == refusal)."""
+
+
+class LLMTruncated(LLMCallError):
+    """Output hit max_tokens; a repeat at the same cap would truncate again."""
+
+
+class LLMSchemaRejected(LLMCallError):
+    """The provider rejected the wire schema (for example, too complex)."""
+
+
+def llm_error_code(error: BaseException) -> str:
+    """The job-level error code for an LLM failure; unknown failures are PIPELINE_ERROR."""
+    code = getattr(error, "code", None)
+    return code if isinstance(code, str) and code.startswith("LLM_") else "PIPELINE_ERROR"
+
+
 class LLMClient(Protocol):
     def complete_json(
         self,
@@ -451,9 +499,9 @@ def complete_with_repair(
                 tools=tools,
             )
         except (ValidationError, json.JSONDecodeError) as retry_exc:
-            raise LLMCallError(f"{node} schema repair failed") from retry_exc
+            raise LLMInvalidResponse(f"{node} schema repair failed") from retry_exc
     except json.JSONDecodeError as exc:
-        raise LLMCallError(f"{node} returned invalid JSON") from exc
+        raise LLMInvalidResponse(f"{node} returned invalid JSON") from exc
 
 
 _DEFAULT_RECORDINGS_DIR = Path(__file__).parent.parent / "evals" / "recorded"
