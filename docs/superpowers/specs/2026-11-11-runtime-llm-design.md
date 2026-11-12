@@ -4,7 +4,11 @@ Date: 2026-11-11 · Author: Opus (design only, no application code) · Base: `or
 
 Status: **design for implementation; several items are proposals awaiting owner confirmation** (§2). Nothing in this document authorizes a paid call, a credential, a deployment or a Tier-F change. Implementers build the parts marked *decided* and stop at each *owner decision*.
 
-Missing inputs: `docs/superpowers/plans/2026-11-11-agent-work-packages.md` and `2026-11-11-travel-change-feed.md` were untracked files on the owner's Mac and are not on any remote branch. This design does not depend on them. Their publication and corrections are still open (§13).
+Plans: Flash published `docs/superpowers/plans/2026-11-11-agent-work-packages.md` and `2026-11-11-travel-change-feed.md` on `codex/publish-change-feed-plans` `a537601`. This spec answers task A-design questions 1–8; §14 maps each question to its section. The plan's Step 0 "Owner decisions" block is an owner **draft**:
+- Its spend rule (no paid development calls) is an explicit instruction.
+- Its pipeline items (skip intake, critic off, new model roles, Claude in production) are treated here as proposals **P1, P2, P6, P7** until the owner confirms them.
+
+Plan corrections are on a separate branch stacked on Flash's (§13).
 
 ## 1. What the code does today (read, not assumed)
 
@@ -39,7 +43,8 @@ Missing inputs: `docs/superpowers/plans/2026-11-11-agent-work-packages.md` and `
 | P3 | Paid dispatch only for authenticated, owner-bound jobs; anonymous `/plan` and `/plan/refresh-prose` never dispatch paid calls. | Product scope for the public demo. |
 | P4 | Model choice (§6.2), caps (§7) and the server-side refusal fallback (§8.3). | Spend. |
 | P5 | Sending trip, wallet and points data to Anthropic, plus the privacy wording shown to users. | Legal and compliance wording. |
-| P6 | Any paid model for the interview or post-plan roles. | A runtime model role beyond the four call sites. This design keeps both **off**. |
+| P6 | Any paid model for the interview or post-plan roles, or the change-feed roles (Triage, Extractor, Corroborator, Writer). | A runtime model role beyond the four call sites. This design keeps all of them **off**. If they are approved, they use the same factory, ledger and gate (§5, §7). |
+| P7 | Critic off by default (plan Step 0 item 3). | It removes a frozen call site from the default graph. Precise semantics are in §4.1, ready if confirmed. |
 
 Everything else here is Tier C or V and is decided.
 
@@ -84,7 +89,15 @@ Rules:
 2. **Anonymous `/plan` with `wallet`.** When `TripIntakeRequest.wallet` is present, it replaces `spec.wallet` after intake, and every card id must pass `kb.has_card` or the request gets `NEEDS_CLARIFICATION`. This fixes the silently dropped wallet. Log it as a DEVIATIONS row.
 3. **Structured wizard submission** (Luna, later): `TripIntakeRequest` gains `trip: StructuredTripInput | None`. When it is present, the server renders `raw_request` from it deterministically (sorted JSON, the same style as `compile_confirmed_input`), calls intake as today, and then applies rule 1 with `authority = project_structured_trip_spec(trip, kb)`. A request carrying both `trip` and free text uses `trip` as the authority.
 
-**Mode B (P2, owner decision).** With Mode B on, the intake call is skipped when `authority` exists: `spec = authority`, and the trace records `intake: projected`. That saves one dispatch per plan and removes the model's ability to contradict confirmed facts. Until the owner approves it, Mode B stays unimplemented. It is **not** built behind a flag on `main`, because a flag would be a production stub.
+**Mode B (P2, owner decision; specified so Argon can start the day it is confirmed).** If P2 is confirmed, Mode B becomes the only behavior for structured input. It is not a flag:
+- The request's structured fields arrive as `TripIntakeRequest.trip`.
+- `spec = project_structured_trip_spec(trip, kb)`, and `run_intake` is not called.
+- The deterministic intake checks still run inside the projection: IATA aliases, origin set, `regions.yaml` destinations, `kb.has_card`. A failed check returns `NEEDS_CLARIFICATION` with the same `unresolved` strings as today.
+- For confirmed briefs, `compile_confirmed_input` returns `authority`, and the pipeline uses it as the spec. `validate_confirmed_intake` is deleted together with its call. Its tests become projection tests asserting the same 11 identity fields.
+- Free text behaves exactly as today. The trace records `intake: projected`.
+- Existing intake replays stay valid because free-text prompts are unchanged.
+
+Until the owner confirms P2, none of this is built. It is **not** placed behind a flag on `main`, because that would be a production stub.
 
 ## 4. Critic behavior (decided; consistent with spec 03 §6/§8)
 
@@ -99,10 +112,18 @@ Spec 03 §8 says "Critic fails → skip critique, add caveat." That policy stays
 
 The critic never retries outside `complete_with_repair`'s single repair. Blocking issues keep the frozen loop (≤ 2 critic calls, ≤ 1 re-plan). A critic `passed=True` produced by the failure path is recorded in the trace as `critic_skipped=true`, never as a pass.
 
+### 4.1 If P7 ("critic off by default") is confirmed
+
+- **Config.** `agents/config.yaml` gets `llm.critic.enabled: false`, read once per process.
+- **Stage order** when off: intake (or projection) → retrieval → planner → estimator → kernel → explainer. There is no re-plan loop and the `critic` stage callback is not emitted. The job stages stay numbered as today, and stage 5 is simply skipped. The frontend's stage list must tolerate the gap; Luna checks this.
+- **Caveats.** The planner's composer warnings already reach the report as `planner.caveats` (`pipeline.py:134`, `run_planner` → `result.warnings`); that is unchanged. One fixed caveat is added: `"Itinerary was not LLM-reviewed (critic disabled)."`
+- **When on**, behavior is §4 exactly.
+- **Tests and replays.** Existing critic tests and `evals/recorded/critic/*` replays run with `enabled: true` set explicitly, so they stay valid. New tests cover the off path: call counts per node with a counting scripted client, and the caveat.
+
 ## 5. Provider client (decided design; activation needs P1)
 
 ```python
-# backend/agents/llm_anthropic.py  (owner: Sonnet)
+# backend/agents/claude_client.py  (owner: Sonnet; file name from the plan's stream-A ownership table)
 class AnthropicMessagesClient:          # satisfies agents.llm.LLMClient
     def __init__(
         self, *, model: str, plan: PlanBudget, ledger: LLMSpendLedger,
@@ -158,11 +179,14 @@ def build_llm_client(role: LLMRole, *, plan_id: str, user_id: str | None,
   - `anthropic` is honored **only** for `role="pipeline"`. For the other roles, `anthropic` returns `ScriptedLLMClient({})`, which reports the role unavailable (P6).
   - `anthropic` with `user_id is None` also returns `ScriptedLLMClient({})` unless `TRIPWISE_LLM_PAID_SCOPE=all` (P3). Intake then fails, and the job ends `failed` with code `LLM_SIGN_IN_REQUIRED`.
   - `TRIPWISE_LLM_KILL_SWITCH=1` returns `ScriptedLLMClient({})` for every role, whatever the provider. It is read on every call to `build_llm_client`, not cached.
+  - **Nothing configured:** the app starts. A plan fails with `JobError.code = "LLM_NOT_CONFIGURED"` and the message "No model provider is configured; planning is unavailable." The variable names are not echoed, and the error comes from the `HostedFreeTier._endpoint` `LLMCallError`, mapped in `_run_job`.
+  - **Model per node:** `TRIPWISE_ANTHROPIC_MODEL` is the default. An optional `TRIPWISE_ANTHROPIC_MODEL_{INTAKE,PLANNER,CRITIC,EXPLAINER}` overrides it per node, and every value must be in `PRICE_TABLE`. Which model each node uses is the owner's choice (P4).
+  - `replay` uses `ReplayLLMClient` and `scripted` an empty `ScriptedLLMClient`. Both are for development and tests, and both are refused in production.
 - `api/main.py`: `get_llm` is removed as a request dependency. `_run_job` calls `build_llm_client("pipeline", plan_id=job_id, user_id=owner_id)`. `start_confirmed_job` passes `session.user_id`. `/plan/refresh-prose` passes `user_id=None`, which means template prose in Anthropic mode.
 - `api/runtime_config.py`: with `TRIPWISE_LLM_PROVIDER=anthropic`, startup requires:
   - `ANTHROPIC_API_KEY` present (never echoed);
   - `TRIPWISE_ANTHROPIC_MODEL` present in `PRICE_TABLE`;
-  - all four caps in §7 set as positive integers;
+  - all five caps in §7 set as positive integers;
   - `TRIPWISE_ANTHROPIC_PREPAID_NO_OVERAGE_CONFIRMED=1` (§6.1);
   - `TRIPWISE_DATA_DIR` writable.
 
@@ -234,7 +258,8 @@ Golden-style unit tests pin hand-computed values. These figures are not kernel m
 The ledger lives in `TRIPWISE_DATA_DIR/llm_spend.sqlite3`, a separate database owned by `agents/` (never imported by `core/`). It carries a `schema_version` table, and Argon owns its migration.
 
 ```sql
-reservations(id TEXT PRIMARY KEY, plan_id TEXT NOT NULL, user_id TEXT, node TEXT NOT NULL,
+reservations(id TEXT PRIMARY KEY, role TEXT NOT NULL, run_id TEXT NOT NULL, plan_id TEXT,
+  user_id TEXT, node TEXT NOT NULL,
   model TEXT NOT NULL, attempt INTEGER NOT NULL, reserved_micro_usd INTEGER NOT NULL CHECK(>0),
   settled_micro_usd INTEGER, state TEXT NOT NULL CHECK(state IN
   ('reserved','settled','released','uncertain')), created_at TEXT NOT NULL, settled_at TEXT,
@@ -248,7 +273,8 @@ class LLMSpendLedger:
     def reserve(self, *, plan_id: str, user_id: str | None, node: str, model: str,
                 amount_micro_usd: int) -> str: ...     # returns reservation id
         # BEGIN IMMEDIATE; raises LLMBudgetExceeded(scope) if any breaker is open or if
-        # committed(plan) / committed(UTC day) / committed(UTC month) + amount exceeds its cap,
+        # committed(plan) / committed(UTC day) / committed(UTC month) / committed(all time)
+        # + amount exceeds its cap,
         # or if this is a new plan_id and the user's distinct paid plans today >= cap.
         # committed = sum(settled for settled) + sum(reserved for reserved|uncertain).
     def settle(self, reservation_id: str, usage: UsageCounts, amount_micro_usd: int) -> None: ...
@@ -264,8 +290,13 @@ class SpendCaps:            # all required in anthropic mode, from env, positive
     per_plan_micro_usd: int          # TRIPWISE_LLM_CAP_PER_PLAN_MICRO_USD
     per_day_micro_usd: int           # TRIPWISE_LLM_CAP_PER_DAY_MICRO_USD
     per_month_micro_usd: int         # TRIPWISE_LLM_CAP_PER_MONTH_MICRO_USD (<= workspace limit)
+    lifetime_micro_usd: int          # TRIPWISE_LLM_CAP_LIFETIME_MICRO_USD (plan suggests 45 000 000 of the USD 50 credit)
     paid_plans_per_user_per_day: int # TRIPWISE_LLM_PAID_PLANS_PER_USER_PER_DAY
 ```
+
+The ledger follows the SQLite pattern of `gateway/weather/budget.py`. **One ledger file and one cap set serve every model role** that is ever enabled: pipeline, refresh-prose, and the change-feed roles if P6 is approved. Each row carries `role` and `run_id`, plus `plan_id` where there is one. The change-feed plan's daily, lifetime and per-run caps are these same caps, not a second budget.
+
+**A request already in flight when a cap is reached** was reserved within the cap, so it completes and settles. The next `reserve` call fails. Nothing is cancelled mid-request, and nothing in flight is retried.
 
 Lifecycle of one dispatch:
 1. Compute the reservation.
@@ -281,6 +312,7 @@ Lifecycle of one dispatch:
 - `LLM_BUDGET_EXHAUSTED`
 - `LLM_UNAVAILABLE`
 - `LLM_SIGN_IN_REQUIRED`
+- `LLM_NOT_CONFIGURED`
 
 These need no schema change. Luna adds the UI copy and MSW fixtures.
 
@@ -289,7 +321,7 @@ These need no schema change. Luna adds the UI copy and MSW fixtures.
 | Limit | Value | Enforced by |
 |---|---|---|
 | Calls per plan | `TRIPWISE_LLM_MAX_CALLS` (existing, default 25) | client |
-| Cost per plan, day, month; paid plans per user per day | §7.2 caps | ledger, before dispatch |
+| Cost per plan, day, month, lifetime; paid plans per user per day | §7.2 caps | ledger, before dispatch |
 | Wall-clock per plan | 60 s for LLM dispatch (spec 03 §8). A call is not sent unless `deadline - now >= timeout_s`. Past the deadline, the node takes its fail-soft path. | `PlanBudget(deadline=...)` |
 | Per call | `timeout_s` from config (20 s) | SDK timeout |
 | Concurrent dispatches, process-wide | `TRIPWISE_LLM_MAX_CONCURRENT_DISPATCH` (default 2) | `DispatchGate` |
@@ -345,6 +377,26 @@ The reservation becomes the sum of both models' bounds. The `"default"` form is 
 
 Revisit trigger: ledger `usage_json` shows a node with ≥ 1 024 identical-prefix tokens recurring within 5 minutes at least twice per plan. The ledger already records `cache_*` fields, so measuring needs no new code.
 
+### 9.1 Application response cache (plan question 7): yes, small and memory-only
+
+Prompt caching above is Anthropic's server-side prefix cache. The application response cache is a separate decision. Identical repeated requests are common in a demo (sample trips, retries, load tests), and a hit costs nothing.
+
+```python
+# backend/agents/llm_cache.py  (owner: Luna, per the plan's A-build-2)
+class ResponseCache:
+    def __init__(self, *, max_entries: int = 256, ttl: timedelta = timedelta(minutes=15),
+                 clock: Callable[[], datetime]) -> None: ...
+    def key(self, *, user_id: str, node: str, model: str, system: str, user: str,
+            wire_schema_json: str) -> str: ...      # sha256 over these, length-prefixed
+    def get(self, key: str) -> dict[str, Any] | None: ...   # validated payload JSON, never raw text
+    def put(self, key: str, payload: dict[str, Any]) -> None: ...
+```
+
+- **Scope:** one process, in memory, an LRU of 256 entries with a 15-minute TTL. It is **never written to disk or any database**: prompts contain traveler text and wallet data. A restart empties it.
+- **Per user:** the key includes `user_id`, so one traveler's request never returns another's response. Anonymous calls are not cached, and in Anthropic mode they are not dispatched anyway (P3).
+- **What is stored:** only a response that validated against its schema and ended with `end_turn`. Refusals, truncations, errors and repair calls are never stored.
+- **Ledger:** a hit makes no reservation and no dispatch, and the hit count is recorded in the trace. The cache wraps `claude_client.complete_json`, after the kill switch and before the ledger. It is disabled under tests (`TRIPWISE_LLM_RESPONSE_CACHE=0` in `evals/conftest.py`) and by the kill switch.
+
 ## 10. Owner-run deployment-day API check
 
 `backend/scripts/anthropic_preflight.py` (owner: Sonnet; built and tested offline with an injected transport; **run only by the owner**):
@@ -369,15 +421,22 @@ Pricing is re-read from the official page that day. The price rows flip to `need
 
 ## 11. Ownership and handoff (Argon → Sonnet → Luna, one feature branch)
 
-All of this ships on **one** feature branch, `codex/runtime-llm`, with sequential phases. Each phase starts from the exact previous handoff SHA. There are no stubs or deliberate xfails on `main`, and one PR is opened when the whole feature works.
+All of this ships on **one** feature branch, `codex/runtime-llm`, with sequential phases:
+- Each phase starts from the exact previous handoff SHA, and the previous owner stops writing.
+- Argon's acceptance test may carry `xfail(strict=True)` *on the branch* during handoff. The marker and every `NotImplementedError` seam are gone before the single PR is marked ready. Nothing incomplete reaches `main`.
+- A-build-0 (Sonnet's narrow `HostedFreeTier` fixes) is a separate, complete PR. It merges to `main` first, or the feature branch brings it in with a normal merge, never a rebase.
+
+The phases follow the plan's A-core / A-build-1 / A-build-2 split:
 
 | Phase | Owner | Files (sole owner while active) | Done when |
 |---|---|---|---|
-| Core | **Argon** | new `agents/llm_budget.py`, new `agents/structured_input.py`, `agents/confirmed_trip.py` (authority projection), `agents/critic.py` (§4), the `LLMCallError` subclasses in `agents/llm.py` (append only; Sonnet's narrow `HostedFreeTier` PR touches `complete_json` — it merges to `main` first, or Argon brings it in with a normal merge, never a rebase), and focused tests | Arithmetic pinned; ledger concurrency test under real SQLite contention; projection and authority tests; existing goldens untouched; hands Sonnet a SHA |
-| Build | **Sonnet** | new `agents/llm_anthropic.py`, new `agents/llm_factory.py`, `agents/pipeline.py` (apply authority, wallet rule), `api/main.py` (`_run_job`, factory wiring), `api/confirmed_planning.py`, `api/runtime_config.py`, `agents/config.yaml` (`anthropic:` block), `pyproject.toml` + both lockfiles (`make lock`), `scripts/anthropic_preflight.py`, OpenAPI snapshot for `TripIntakeRequest.trip` | Injected-transport tests show the exact request body for each node, envelope parsing, every §8.1 row, ledger states, and zero dispatch when over cap; scripted end-to-end `/plan` and confirmed plan pass; `make seed && make gate` passes in task-local storage; no network call made |
-| Frontend | **Luna** | `frontend/src/lib/api/generated/` (regen), MSW fixtures, wizard structured submission, rendering of `LLM_BUDGET_EXHAUSTED` / `LLM_UNAVAILABLE` / `LLM_SIGN_IN_REQUIRED` and the critic caveats | Live-local API with scripted model: structured submit → plan → each error state renders; frontend gate passes |
+| Core | **Argon** | new `agents/structured_input.py` (§3); `agents/confirmed_trip.py` (authority); `agents/pipeline.py` (authority, wallet rule; P2/P7 paths only if confirmed); `agents/critic.py` (§4); new `agents/llm_budget.py` (price table, reservation arithmetic, `LLMSpendLedger`, `SpendCaps`); the `LLMCallError` subclasses in `agents/llm.py` (append only); acceptance test with a counting scripted client | Arithmetic pinned by hand-computed tests; ledger under real SQLite contention; projection and authority tests; goldens and replays untouched; hands Sonnet a SHA |
+| Build | **Sonnet** | new `agents/claude_client.py`, new `agents/llm_factory.py` (incl. the process-wide dispatch gate), `api/main.py` (`_run_job`, factory wiring, error codes), `api/confirmed_planning.py`, `api/runtime_config.py`, `agents/config.yaml` (`anthropic:` block), `backend/.env.example`, `deploy/.env.example`, `pyproject.toml` + both lockfiles (`make lock`; the official `anthropic` SDK, whose `httpx2` dependency is already locked), `scripts/anthropic_preflight.py` | Injected-transport tests show the exact request body per node, envelope parsing, every §8.1 row, ledger states, and zero dispatch when over cap; two concurrent plans share one gate; with nothing configured the app starts and a plan fails `LLM_NOT_CONFIGURED`; no network call; hands Luna a SHA |
+| Finish | **Luna** | `TripIntakeRequest.trip` in `agents/models.py` + `contract/openapi.json` + `frontend/src/lib/api/generated/` + MSW fixtures (one PR, `evals/test_contract_one_pr.py`); wizard structured submission; UI for the four `LLM_*` codes and the critic caveats; new `agents/llm_cache.py` (§9.1); removes the xfail marker | Live-local API with a scripted model: a wizard plan and a free-text plan each show the expected per-node call counts (`BENCH_PROMPT_LOG`); each error state renders; `make seed && make gate` from a clean tree |
 
-After Luna: one independent review of the whole branch, then a PR, which the owner merges. Only after the merge does the owner do P1 setup (§6.1) and run §10. Deployment work depends on this feature, Sol's concurrency implementation and the feed commands all working. A deployment branch cannot be "done" before them.
+After Luna there is **one independent review** of the whole branch, by Sol: a different vendor from Sonnet, and not the designer. Then the PR is marked ready, and the owner merges it.
+
+Only after the merge does the owner do P1 setup (§6.1) and run §10. Deployment work depends on this feature, the stream-B concurrency implementation and the stream-D feed commands all working. A deployment branch cannot be "done" before them.
 
 ## 12. Non-negotiables check
 
@@ -389,14 +448,25 @@ After Luna: one independent review of the whole branch, then a PR, which the own
 
 ## 13. Open items outside this design
 
-- **Publication blocked:** the two 2026-11-11 plans and the load-test material are not on GitHub. Their corrections are still to be applied:
-  - no production stubs or xfails on `main`;
-  - core and build continue one feature branch;
-  - published Firecrawl history is reconciled by merge, not rebase;
-  - feed request code respects the ingestion boundary;
-  - deployment depends on working runtime, concurrency and feed commands;
-  - private captures are not auto-committed;
-  - reviewer assignments reflect actual authorship and independence.
+- **Plan corrections:** made on branch `codex/plan-corrections`, stacked on Flash's `codex/publish-change-feed-plans` `a537601`. They cover:
+  - no stubs or xfails on `main`;
+  - core and build continue one branch;
+  - Firecrawl history reconciled by merge;
+  - feed request code never imports ingestion;
+  - deployment gated on working runtime, concurrency and feed;
+  - private captures not committed;
+  - reviewer independence.
+- Owner decisions **P1–P7** (§2).
 
-  They need the owner to push the plan files, or attach the Mac checkout to this session.
-- Owner decisions **P1–P6** (§2).
+## 14. Plan question map (task A-design)
+
+| Plan question | Answer |
+|---|---|
+| 1. How a structured request enters; which intake checks still run | §3 (Mode A now; Mode B specified for P2) |
+| 2. Confirmed brief → TripSpec without a model; fate of `validate_confirmed_intake` | §3 rule 1 and Mode B |
+| 3. What "critic off" means | §4.1 (conditional on P7); §4 when on |
+| 4. Provider selection, model per role, nothing configured | §5 factory, §6.2 |
+| 5. Spend ledger, cost from usage, caps, in-flight requests | §7.1–7.2 |
+| 6. One shared limiter; HTTP 429 | §7.3, §8.1 |
+| 7. Response cache | §9.1 (memory-only, per-user); §9 (prompt caching not used) |
+| 8. Verifying the Claude client with no development spend | §5 injected-transport tests; §10 owner-run check |
