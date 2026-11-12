@@ -301,7 +301,7 @@ class DispatchGate(Protocol):
     def release(self) -> None: ...
 ```
 
-Sol's concurrency design is authoritative for the gate's implementation and its overload or restart semantics. Until it lands, Sonnet uses a `threading.BoundedSemaphore` with no queue beyond `acquire(timeout)`.
+This design owns the gate. `docs/superpowers/specs/2026-11-11-concurrency-design.md` (Sol, branch `codex/sol-feed-concurrency-design`) owns job admission and states that a job slot does not authorize a model call. The implementation is one process-wide `threading.BoundedSemaphore` in `agents/llm_factory.py` (Sonnet). Every client the factory builds acquires the gate before each dispatch, for **every role**: pipeline, refresh-prose, interview and post-plan, `HostedFreeTier` included. The gate has no queue beyond `acquire(min(remaining deadline, 5 s))`. On a failed acquire the client raises `LLMProviderUnavailable("overloaded")`, no reservation is made, and the node takes its fail-soft path. The gate holds no state that must survive a restart. Ledger recovery (§7.2) covers dispatches that were in flight.
 
 ## 8. Retry behavior (decided)
 
