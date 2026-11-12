@@ -20,10 +20,11 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from agents.llm import LLMBudgetExceeded
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 # Message framing and the structured-output system prompt are added by the provider, not by the
 # strings the caller passes; this is a deliberately generous allowance for them.
 FRAMING_TOKENS = 2048
@@ -189,6 +190,7 @@ _CAP_ENV_NAMES = {
     "per_plan_micro_usd": "TRIPWISE_LLM_CAP_PER_PLAN_MICRO_USD",
     "per_day_micro_usd": "TRIPWISE_LLM_CAP_PER_DAY_MICRO_USD",
     "per_month_micro_usd": "TRIPWISE_LLM_CAP_PER_MONTH_MICRO_USD",
+    "lifetime_micro_usd": "TRIPWISE_LLM_CAP_LIFETIME_MICRO_USD",
     "paid_plans_per_user_per_day": "TRIPWISE_LLM_PAID_PLANS_PER_USER_PER_DAY",
 }
 
@@ -198,6 +200,7 @@ class SpendCaps:
     per_plan_micro_usd: int
     per_day_micro_usd: int
     per_month_micro_usd: int
+    lifetime_micro_usd: int
     paid_plans_per_user_per_day: int
 
     def __post_init__(self) -> None:
@@ -221,7 +224,9 @@ _DDL = """
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS reservations (
     id TEXT PRIMARY KEY,
-    plan_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'pipeline',
+    run_id TEXT NOT NULL DEFAULT '',
+    plan_id TEXT,
     user_id TEXT,
     node TEXT NOT NULL,
     model TEXT NOT NULL,
@@ -234,6 +239,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     usage_json TEXT
 );
 CREATE INDEX IF NOT EXISTS reservations_plan ON reservations (plan_id);
+CREATE INDEX IF NOT EXISTS reservations_run ON reservations (run_id);
 CREATE INDEX IF NOT EXISTS reservations_created ON reservations (created_at);
 CREATE TABLE IF NOT EXISTS breakers (
     scope TEXT PRIMARY KEY,
@@ -262,10 +268,54 @@ class LLMSpendLedger:
         path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.path, timeout=30)
         try:
-            conn.executescript(_DDL)
+            conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
             row = conn.execute("SELECT version FROM schema_version").fetchone()
             if row is None:
+                conn.executescript(_DDL)
                 conn.execute("INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,))
+            elif row[0] == 1:
+                # Migrate version 1 to 2 while preserving all existing rows
+                conn.executescript("""
+                    CREATE TABLE reservations_v2 (
+                        id TEXT PRIMARY KEY,
+                        role TEXT NOT NULL DEFAULT 'pipeline',
+                        run_id TEXT NOT NULL DEFAULT '',
+                        plan_id TEXT,
+                        user_id TEXT,
+                        node TEXT NOT NULL,
+                        model TEXT NOT NULL,
+                        attempt INTEGER NOT NULL,
+                        reserved_micro_usd INTEGER NOT NULL CHECK (reserved_micro_usd > 0),
+                        settled_micro_usd INTEGER,
+                        state TEXT NOT NULL CHECK (
+                            state IN ('reserved','settled','released','uncertain')
+                        ),
+                        created_at TEXT NOT NULL,
+                        settled_at TEXT,
+                        usage_json TEXT
+                    );
+                    INSERT INTO reservations_v2 (
+                        id, role, run_id, plan_id, user_id, node, model, attempt,
+                        reserved_micro_usd, settled_micro_usd, state, created_at,
+                        settled_at, usage_json
+                    )
+                    SELECT
+                        id, 'pipeline', plan_id, plan_id, user_id, node, model, attempt,
+                        reserved_micro_usd, settled_micro_usd, state, created_at,
+                        settled_at, usage_json
+                    FROM reservations;
+                    DROP TABLE reservations;
+                    ALTER TABLE reservations_v2 RENAME TO reservations;
+                    CREATE INDEX IF NOT EXISTS reservations_plan ON reservations (plan_id);
+                    CREATE INDEX IF NOT EXISTS reservations_run ON reservations (run_id);
+                    CREATE INDEX IF NOT EXISTS reservations_created ON reservations (created_at);
+                    CREATE TABLE IF NOT EXISTS breakers (
+                        scope TEXT PRIMARY KEY,
+                        reason TEXT NOT NULL,
+                        opened_at TEXT NOT NULL
+                    );
+                    UPDATE schema_version SET version = 2;
+                """)
             elif row[0] != SCHEMA_VERSION:
                 raise RuntimeError(f"unsupported llm_spend schema version {row[0]}")
             conn.commit()
@@ -293,8 +343,10 @@ class LLMSpendLedger:
     def reserve(
         self,
         *,
-        plan_id: str,
-        user_id: str | None,
+        plan_id: str | None = None,
+        role: str = "pipeline",
+        run_id: str | None = None,
+        user_id: str | None = None,
         node: str,
         model: str,
         amount_micro_usd: int,
@@ -303,6 +355,7 @@ class LLMSpendLedger:
             raise ValueError("amount_micro_usd must be positive")
         stamp = self._stamp()
         day, month = stamp[:10], stamp[:7]
+        actual_run_id = run_id or plan_id or uuid.uuid4().hex
         with self._tx() as db:
             breaker = db.execute("SELECT scope FROM breakers ORDER BY scope LIMIT 1").fetchone()
             if breaker is not None:
@@ -310,25 +363,31 @@ class LLMSpendLedger:
                     f"spend breaker {breaker[0]!r} is open", scope=str(breaker[0])
                 )
 
-            def committed(where: str, arg: str) -> int:
+            def committed(where: str, args: tuple[Any, ...]) -> int:
                 row = db.execute(
-                    f"SELECT {_COMMITTED} FROM reservations WHERE {where}", (arg,)
+                    f"SELECT {_COMMITTED} FROM reservations WHERE {where}", args
                 ).fetchone()
                 return int(row[0])
 
-            if committed("plan_id=?", plan_id) + amount_micro_usd > self.caps.per_plan_micro_usd:
+            if (
+                plan_id is not None
+                and committed("plan_id=?", (plan_id,)) + amount_micro_usd
+                > self.caps.per_plan_micro_usd
+            ):
                 raise LLMBudgetExceeded("per-plan spend cap reached", scope="per_plan")
             if (
-                committed("substr(created_at,1,10)=?", day) + amount_micro_usd
+                committed("substr(created_at,1,10)=?", (day,)) + amount_micro_usd
                 > self.caps.per_day_micro_usd
             ):
                 raise LLMBudgetExceeded("daily spend cap reached", scope="per_day")
             if (
-                committed("substr(created_at,1,7)=?", month) + amount_micro_usd
+                committed("substr(created_at,1,7)=?", (month,)) + amount_micro_usd
                 > self.caps.per_month_micro_usd
             ):
                 raise LLMBudgetExceeded("monthly spend cap reached", scope="per_month")
-            if user_id is not None:
+            if committed("1=1", ()) + amount_micro_usd > self.caps.lifetime_micro_usd:
+                raise LLMBudgetExceeded("lifetime spend cap reached", scope="lifetime")
+            if user_id is not None and plan_id is not None:
                 known = db.execute(
                     "SELECT 1 FROM reservations WHERE plan_id=? AND user_id=? "
                     "AND substr(created_at,1,10)=? AND state != 'released' LIMIT 1",
@@ -338,7 +397,8 @@ class LLMSpendLedger:
                     plans_today = int(
                         db.execute(
                             "SELECT COUNT(DISTINCT plan_id) FROM reservations WHERE user_id=? "
-                            "AND substr(created_at,1,10)=? AND state != 'released'",
+                            "AND substr(created_at,1,10)=? AND state != 'released' "
+                            "AND plan_id IS NOT NULL",
                             (user_id, day),
                         ).fetchone()[0]
                     )
@@ -347,17 +407,37 @@ class LLMSpendLedger:
                             "daily paid-plan limit for this account reached",
                             scope="plans_per_user_per_day",
                         )
-            attempt = int(
-                db.execute(
-                    "SELECT COUNT(*) FROM reservations WHERE plan_id=? AND node=?",
-                    (plan_id, node),
-                ).fetchone()[0]
-            )
+            if plan_id is not None:
+                attempt = int(
+                    db.execute(
+                        "SELECT COUNT(*) FROM reservations WHERE plan_id=? AND node=?",
+                        (plan_id, node),
+                    ).fetchone()[0]
+                )
+            else:
+                attempt = int(
+                    db.execute(
+                        "SELECT COUNT(*) FROM reservations WHERE run_id=? AND node=?",
+                        (actual_run_id, node),
+                    ).fetchone()[0]
+                )
             reservation_id = uuid.uuid4().hex
             db.execute(
-                "INSERT INTO reservations (id, plan_id, user_id, node, model, attempt, "
-                "reserved_micro_usd, state, created_at) VALUES (?,?,?,?,?,?,?,'reserved',?)",
-                (reservation_id, plan_id, user_id, node, model, attempt, amount_micro_usd, stamp),
+                "INSERT INTO reservations (id, role, run_id, plan_id, user_id, "
+                "node, model, attempt, reserved_micro_usd, state, created_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,'reserved',?)",
+                (
+                    reservation_id,
+                    role,
+                    actual_run_id,
+                    plan_id,
+                    user_id,
+                    node,
+                    model,
+                    attempt,
+                    amount_micro_usd,
+                    stamp,
+                ),
             )
             return reservation_id
 
@@ -458,6 +538,34 @@ class LLMSpendLedger:
         finally:
             conn.close()
 
+    def run_committed_micro_usd(self, run_id: str) -> int:
+        conn = sqlite3.connect(self.path, timeout=30)
+        try:
+            row = conn.execute(
+                f"SELECT {_COMMITTED} FROM reservations WHERE run_id=?", (run_id,)
+            ).fetchone()
+            return int(row[0])
+        finally:
+            conn.close()
+
+    def role_committed_micro_usd(self, role: str) -> int:
+        conn = sqlite3.connect(self.path, timeout=30)
+        try:
+            row = conn.execute(
+                f"SELECT {_COMMITTED} FROM reservations WHERE role=?", (role,)
+            ).fetchone()
+            return int(row[0])
+        finally:
+            conn.close()
+
+    def lifetime_committed_micro_usd(self) -> int:
+        conn = sqlite3.connect(self.path, timeout=30)
+        try:
+            row = conn.execute(f"SELECT {_COMMITTED} FROM reservations").fetchone()
+            return int(row[0])
+        finally:
+            conn.close()
+
 
 def main(argv: list[str] | None = None) -> int:
     """``python -m agents.llm_budget --db PATH breakers|reset-breaker`` for the operator."""
@@ -469,7 +577,7 @@ def main(argv: list[str] | None = None) -> int:
     reset.add_argument("--scope", required=True)
     reset.add_argument("--operator", required=True)
     args = parser.parse_args(argv)
-    ledger = LLMSpendLedger(args.db, SpendCaps(1, 1, 1, 1))  # caps are unused by these commands
+    ledger = LLMSpendLedger(args.db, SpendCaps(1, 1, 1, 1, 1))  # caps are unused by these commands
     if args.command == "breakers":
         for scope, reason in sorted(ledger.open_breakers().items()):
             print(f"{scope}\t{reason}")

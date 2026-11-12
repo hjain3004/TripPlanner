@@ -34,6 +34,7 @@ def caps(**updates: int) -> SpendCaps:
         "per_plan_micro_usd": 5_000,
         "per_day_micro_usd": 50_000,
         "per_month_micro_usd": 500_000,
+        "lifetime_micro_usd": 50_000_000,
         "paid_plans_per_user_per_day": 2,
     }
     base.update(updates)
@@ -114,14 +115,15 @@ def test_caps_come_from_positive_integers_only() -> None:
         "TRIPWISE_LLM_CAP_PER_PLAN_MICRO_USD": "1000",
         "TRIPWISE_LLM_CAP_PER_DAY_MICRO_USD": "2000",
         "TRIPWISE_LLM_CAP_PER_MONTH_MICRO_USD": "3000",
+        "TRIPWISE_LLM_CAP_LIFETIME_MICRO_USD": "50000000",
         "TRIPWISE_LLM_PAID_PLANS_PER_USER_PER_DAY": "4",
     }
-    assert SpendCaps.from_env(env) == SpendCaps(1000, 2000, 3000, 4)
+    assert SpendCaps.from_env(env) == SpendCaps(1000, 2000, 3000, 50000000, 4)
     for bad in ("0", "-1", "1.5", "", "abc"):
         with pytest.raises(ValueError):
             SpendCaps.from_env({**env, "TRIPWISE_LLM_CAP_PER_DAY_MICRO_USD": bad})
     with pytest.raises(ValueError):
-        SpendCaps(1, 1, 1, True)
+        SpendCaps(1, 1, 1, 1, True)
 
 
 def test_per_plan_cap_counts_reserved_and_uncertain_but_not_released(tmp_path: Path) -> None:
@@ -263,7 +265,7 @@ def test_two_processes_share_one_allowance(tmp_path: Path) -> None:
         "from pathlib import Path\n"
         "from agents.llm import LLMBudgetExceeded\n"
         "from agents.llm_budget import LLMSpendLedger, SpendCaps\n"
-        "db = LLMSpendLedger(Path(sys.argv[1]), SpendCaps(3000, 50000, 500000, 2),"
+        "db = LLMSpendLedger(Path(sys.argv[1]), SpendCaps(3000, 50000, 500000, 50000000, 2),"
         " now=lambda: datetime(2026, 11, 11, 12, tzinfo=UTC))\n"
         "ok = 0\n"
         "for _ in range(4):\n"
@@ -330,3 +332,87 @@ def test_operator_cli_lists_and_resets_breakers(
         == 0
     )
     assert db.open_breakers() == {}
+
+
+def test_lifetime_cap_blocks_dispatch_when_exhausted(tmp_path: Path) -> None:
+    db = ledger(tmp_path, lifetime_micro_usd=2_500)
+    reserve(db, plan="p1", amount=1_500)
+    reserve(db, plan="p2", amount=1_000)
+    with pytest.raises(LLMBudgetExceeded) as error:
+        reserve(db, plan="p3", amount=1)
+    assert error.value.scope == "lifetime"
+    assert db.lifetime_committed_micro_usd() == 2_500
+
+
+def test_schema_v1_to_v2_migration_preserves_existing_data(tmp_path: Path) -> None:
+    import sqlite3
+
+    db_path = tmp_path / "v1_legacy.sqlite3"
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE schema_version (version INTEGER NOT NULL);
+        INSERT INTO schema_version (version) VALUES (1);
+        CREATE TABLE reservations (
+            id TEXT PRIMARY KEY,
+            plan_id TEXT NOT NULL,
+            user_id TEXT,
+            node TEXT NOT NULL,
+            model TEXT NOT NULL,
+            attempt INTEGER NOT NULL,
+            reserved_micro_usd INTEGER NOT NULL CHECK (reserved_micro_usd > 0),
+            settled_micro_usd INTEGER,
+            state TEXT NOT NULL CHECK (state IN ('reserved','settled','released','uncertain')),
+            created_at TEXT NOT NULL,
+            settled_at TEXT,
+            usage_json TEXT
+        );
+        INSERT INTO reservations VALUES (
+            'r1', 'plan_v1', 'u1', 'intake', 'claude-sonnet-5-5', 0,
+            1200, 800, 'settled', '2026-11-10T10:00:00+00:00', '2026-11-10T10:00:05+00:00', '{}'
+        );
+    """)
+    conn.commit()
+    conn.close()
+
+    # Opening with LLMSpendLedger should migrate schema version 1 to 2
+    ledger_instance = LLMSpendLedger(db_path, caps())
+    conn = sqlite3.connect(db_path)
+    version = conn.execute("SELECT version FROM schema_version").fetchone()[0]
+    row = conn.execute(
+        "SELECT id, role, run_id, plan_id, settled_micro_usd FROM reservations WHERE id='r1'"
+    ).fetchone()
+    conn.close()
+
+    assert version == 2
+    assert row == ("r1", "pipeline", "plan_v1", "plan_v1", 800)
+    assert ledger_instance.plan_committed_micro_usd("plan_v1") == 800
+    assert ledger_instance.run_committed_micro_usd("plan_v1") == 800
+    assert ledger_instance.role_committed_micro_usd("pipeline") == 800
+
+
+def test_shared_role_and_run_accounting(tmp_path: Path) -> None:
+    db = ledger(tmp_path)
+    # A non-plan role reservation (e.g. refresh-prose or feed with no plan_id)
+    db.reserve(
+        plan_id=None,
+        role="refresh-prose",
+        run_id="feed-run-1",
+        user_id="u1",
+        node="refresh",
+        model="claude-haiku-5-5",
+        amount_micro_usd=500,
+    )
+    db.reserve(
+        plan_id="p1",
+        role="pipeline",
+        run_id="p1",
+        user_id="u1",
+        node="intake",
+        model="claude-sonnet-5-5",
+        amount_micro_usd=1_000,
+    )
+    assert db.run_committed_micro_usd("feed-run-1") == 500
+    assert db.run_committed_micro_usd("p1") == 1_000
+    assert db.role_committed_micro_usd("refresh-prose") == 500
+    assert db.role_committed_micro_usd("pipeline") == 1_000
+    assert db.lifetime_committed_micro_usd() == 1_500

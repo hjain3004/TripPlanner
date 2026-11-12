@@ -82,7 +82,7 @@ def project_structured_trip_spec(inp: StructuredTripInput, kb: KnowledgeBase) ->
         problems.append("end date must be after the start date")
     if not 3 <= nights <= 7:
         problems.append("trip must be 3 to 7 nights")
-        # Keep going on a valid placeholder so cards and route are reported in the same pass.
+        # Keep going on a valid fallback so cards and route are reported in the same pass.
         end_date = inp.start_date + timedelta(days=3)
     try:
         spec = TripSpec(

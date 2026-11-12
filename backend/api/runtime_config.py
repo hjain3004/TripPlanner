@@ -128,6 +128,42 @@ def validate_runtime_config(env: Mapping[str, str] | None = None) -> list[Config
         if not (text.isascii() and text.isdigit()) or int(text) < 1:
             issues.append(ConfigIssue("TRIPWISE_LLM_MAX_CALLS", "must be a positive integer"))
 
+    llm_provider = source.get("TRIPWISE_LLM_PROVIDER", "").strip().lower()
+    if llm_provider == "anthropic":
+        if not source.get("ANTHROPIC_API_KEY", "").strip():
+            issues.append(
+                ConfigIssue(
+                    "ANTHROPIC_API_KEY",
+                    "is required when TRIPWISE_LLM_PROVIDER is 'anthropic'",
+                )
+            )
+        cap_vars = (
+            "TRIPWISE_LLM_CAP_PER_PLAN_MICRO_USD",
+            "TRIPWISE_LLM_CAP_PER_DAY_MICRO_USD",
+            "TRIPWISE_LLM_CAP_PER_MONTH_MICRO_USD",
+            "TRIPWISE_LLM_CAP_LIFETIME_MICRO_USD",
+            "TRIPWISE_LLM_PAID_PLANS_PER_USER_PER_DAY",
+        )
+        for var in cap_vars:
+            raw = source.get(var, "").strip()
+            if not raw.isdigit() or int(raw) <= 0:
+                issues.append(
+                    ConfigIssue(
+                        var,
+                        "must be a positive integer when TRIPWISE_LLM_PROVIDER is 'anthropic'",
+                    )
+                )
+        model = source.get("TRIPWISE_ANTHROPIC_MODEL", "claude-sonnet-5-5").strip()
+        from agents.llm_budget import PRICE_TABLE
+
+        if model not in PRICE_TABLE:
+            issues.append(
+                ConfigIssue(
+                    "TRIPWISE_ANTHROPIC_MODEL",
+                    f"model {model!r} is not in the price table",
+                )
+            )
+
     if production:
         flagged = flagged_live_providers(source)
         for provider_id, enable, _kill in LIVE_PROVIDER_FLAGS:

@@ -17,9 +17,13 @@ the documented limits would reject, instead of discovering it with a paid reques
 from __future__ import annotations
 
 import json
-from typing import Any
+from datetime import date
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from agents.discovery.contracts import SearchIntent
+from core.trip_models import DraftItinerary
 
 # Documented limits of structured outputs (platform.claude.com, structured outputs).
 MAX_OPTIONAL_PARAMETERS = 24
@@ -86,8 +90,64 @@ def _transform(node: Any) -> Any:
     return out
 
 
+class WireItineraryItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    poi_id: str
+    start_hint: str | None = None
+    meal_slots: list[str] = Field(default_factory=list)
+
+
+class WireItineraryDay(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    date: date
+    items: list[WireItineraryItem] = Field(default_factory=list)
+    unmet_needs: list[str] = Field(default_factory=list)
+
+
+class WireDraftItinerary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    hotel_area_id: str
+    days: list[WireItineraryDay] = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list)
+    unverified_suggestions: list[str] = Field(default_factory=list)
+
+
+class PlannerTurn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["itinerary", "search"]
+    itinerary: DraftItinerary | None = None
+    search_intent: SearchIntent | None = None
+
+    @model_validator(mode="after")
+    def _check_pairing(self) -> Self:
+        if self.kind == "itinerary":
+            if self.itinerary is None:
+                raise ValueError("kind is 'itinerary' but itinerary is None")
+            if self.search_intent is not None:
+                raise ValueError("kind is 'itinerary' but search_intent is populated")
+        elif self.kind == "search":
+            if self.search_intent is None:
+                raise ValueError("kind is 'search' but search_intent is None")
+            if self.itinerary is not None:
+                raise ValueError("kind is 'search' but itinerary is populated")
+        return self
+
+
+class WirePlannerTurn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["itinerary", "search"]
+    itinerary: WireDraftItinerary | None = None
+    search_intent: SearchIntent | None = None
+
+
 def to_wire_schema(model: type[BaseModel]) -> dict[str, Any]:
-    return dict(_transform(model.model_json_schema()))
+    if issubclass(model, DraftItinerary):
+        target_model: type[BaseModel] = WireDraftItinerary
+    elif model is PlannerTurn:
+        target_model = WirePlannerTurn
+    else:
+        target_model = model
+    return dict(_transform(target_model.model_json_schema()))
 
 
 def wire_schema_json(model: type[BaseModel]) -> str:

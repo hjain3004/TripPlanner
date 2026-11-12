@@ -161,7 +161,7 @@ class CriticVerdict(BaseModel):
 class CriticResult(BaseModel):
     verdict: CriticVerdict
     caveats: list[str] = Field(default_factory=list)
-    # True when the verdict is a placeholder because the critic could not run. It is never a
+    # True when the verdict is synthesized because the critic could not run. It is never a
     # pass: the trace records critic_skipped and the caveat says why.
     skipped: bool = False
 

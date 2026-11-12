@@ -17,7 +17,8 @@ import accounts.db as accounts_db
 from accounts.models import User
 from accounts.store import AccountStore, DuplicateEmailError
 from agents.confirmed_trip import ConfirmedTripInput
-from agents.llm import HostedFreeTier, LLMClient
+from agents.llm import LLMCallError, LLMClient, llm_error_code
+from agents.llm_factory import build_llm_client
 from agents.models import (
     FinalReport,
     PipelineStatus,
@@ -198,7 +199,7 @@ def get_kb() -> KnowledgeBase:
 
 
 def get_llm() -> LLMClient:
-    return HostedFreeTier()
+    return build_llm_client("pipeline")
 
 
 def get_booking_date() -> date:
@@ -403,16 +404,28 @@ def _run_job(
         else:
             job_manager.complete(job_id, "complete", report=result.report)
     except Exception as exc:
-        safe_message = (
-            "Confirmed planning failed; retry confirmation or review the saved brief."
-            if confirmed_input is not None
-            else str(exc)
-        )
+        code = llm_error_code(exc)
+        if "HostedFreeTier is not configured" in str(exc) or "No model provider is configured" in str(exc):
+            code = "LLM_NOT_CONFIGURED"
+            safe_message = "No model provider is configured; planning is unavailable."
+        elif code == "PIPELINE_ERROR" and not isinstance(exc, LLMCallError):
+            code = "INTERNAL_ERROR"
+            safe_message = (
+                "Confirmed planning failed; retry confirmation or review the saved brief."
+                if confirmed_input is not None
+                else str(exc)
+            )
+        else:
+            safe_message = (
+                "Confirmed planning failed; retry confirmation or review the saved brief."
+                if confirmed_input is not None
+                else str(exc)
+            )
         job_manager.complete(
             job_id,
             "failed",
             error={
-                "code": "INTERNAL_ERROR",
+                "code": code,
                 "message": safe_message,
                 "trace_id": "",
             },
