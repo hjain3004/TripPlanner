@@ -7,6 +7,21 @@
 watching known issuer pages. This one adds finding out what changed in travel rewards, and
 telling each traveler what it means for their wallet and trips.
 
+## Corrections (2026-11-12, Opus, design role)
+
+These correct the plan's orchestration and source assumptions. They approve nothing.
+
+- **Phase 0 item 1:** merge, not rebase, because `codex/firecrawl-ingestion` is published.
+- **Section 5:** request-time `backend/feed/` and `api/feed.py` also never import `backend/ingestion/`.
+- **Section 7:** the four model roles (Triage, Extractor, Corroborator, Writer) are **proposed runtime model roles, not approved** until the owner confirms them (runtime design P6). If approved, they use the same budgeted client, ledger, caps and process-wide model limiter as stream A.
+- **Section 8:**
+  - The Points Guy's terms have now been read (Kiro, PR #41). The recommendation is no automation, manual lead only.
+  - KrisFlyer and Air India could not be retrieved and are do-not-use until the owner reads their terms. See `reports/change_feed_source_permissions.md`.
+- **Phase 0 item 6 and Phase 4 item 1:**
+  - Programme and transfer rows have no review/apply path yet (rollout spec P-2/P-3).
+  - Applying goes to the owner's private seeds directory, not to repository seeds, until the owner decides on display permission (rollout spec §1).
+- **Private captures** and snapshots stay in private storage. They are never committed automatically.
+
 ## 1. Decision in one paragraph
 
 Build a daily feed of travel-rewards changes (transfer bonuses, welcome offers, earn and cap
@@ -82,7 +97,7 @@ difference.
 
 Where it runs: one process on one instance, started by a timer. Offline code stays in
 `backend/ingestion/`. Request-time code goes in a new `backend/feed/` package and `api/feed.py`,
-which read the events store and never fetch.
+which read the events store and never fetch. [corrected] They import nothing from `backend/ingestion/`.
 
 ## 6. Data model
 
@@ -156,7 +171,7 @@ to review, not sources I have checked.
 Decided exclusions:
 
 - **Daily Drop:** manual leads only. Its terms prohibit crawling, scraping and competing use.
-- **The Points Guy:** not used until a person reads its terms; I could not.
+- **The Points Guy:** [corrected] terms read (PR #41): no automation; manual lead only, pending the owner.
 - **point.me:** not a news source.
 
 Targets: about 25 watch targets by the end of Phase 1, about 60 by the end of Phase 4.
@@ -209,7 +224,7 @@ Effort is my estimate in working days for one person using coding agents.
 
 *Result: the existing pipeline has run end to end once with a real model on a real page.*
 
-1. Rebase and merge `codex/firecrawl-ingestion` into `main`.
+1. [corrected] Merge current `main` into `codex/firecrawl-ingestion` (no rebase), then merge it into `main`.
 2. Add a Claude client behind the existing `LLMClient` protocol, selected by an environment
    variable, with `LLMSpendLedger` and the caps. It is tested against documented response shapes
    and makes no real call until the owner's deployment-day check.
@@ -278,8 +293,8 @@ correctly confirmed, contradicted or not found, and the transport log shows no f
 
 *Result: an approved event changes what the optimizer recommends for everyone.*
 
-1. Link events to `ChangeProposal` rows. On approval, apply to the real seeds (apply has only run
-   on scratch seeds so far), mark the event `human_approved`, and recompute impacts as `reviewed`.
+1. Link events to `ChangeProposal` rows. On approval, [corrected] the owner applies to the private seeds
+   directory (rollout spec; `apply` refuses repository seeds), mark the event `human_approved`, and recompute impacts as `reviewed`.
 2. An expiry sweep for events and for rule `valid_to` dates.
 3. The remaining event types.
 4. About 60 targets and a second corridor.
