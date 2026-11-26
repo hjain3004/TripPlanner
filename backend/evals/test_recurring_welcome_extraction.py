@@ -363,3 +363,46 @@ def test_an_html_only_request_id_cannot_be_reused_for_json_extraction(tmp_path: 
     assert outcome.state == "failed"
     assert "different acquisition inputs" in outcome.diagnostic
     assert len(world.transport.calls) == 1
+
+
+def test_lifetime_allowance_is_durable_cross_run_and_cannot_be_loosened_by_a_later_start(
+    tmp_path: Path,
+) -> None:
+    def limits(*, cap: int, opening: int) -> AcquisitionControlLimits:
+        return AcquisitionControlLimits(
+            per_request_credits=5,
+            per_run_credits=100,
+            per_month_credits=1000,
+            pricing_version="test-v1",
+            extraction_intent="raw_html+firecrawl_json_v2",
+            lifetime_credits=cap,
+            lifetime_opening_used=opening,
+        )
+
+    world = World(tmp_path, [capture(page(), offer_json())], published=None)
+    # 67 credits were used before this ledger existed; the whole allowance is 80.
+    world.control = DurableAcquisitionControl(world.store, limits=limits(cap=80, opening=67))
+    world.service.control = world.control
+    first = world.run("evt-1")  # 67 + 5 = 72 <= 80
+    assert first.state == "completed"
+    status = world.control.lifetime_status()
+    assert status is not None and status["used"] == 72 and status["remaining"] == 8
+
+    # A later process that claims a larger cap and a smaller opening balance changes nothing.
+    world.control = DurableAcquisitionControl(world.store, limits=limits(cap=10_000, opening=0))
+    world.service.control = world.control
+    status = world.control.lifetime_status()
+    assert status is not None and status["lifetime_cap"] == 80 and status["opening_used"] == 67
+
+    second = world.run("evt-2")  # 72 + 5 = 77 <= 80: allowed
+    assert second.state in {"completed", "unchanged"}
+    third = world.run("evt-3")  # 77 + 5 = 82 > 80: refused before any dispatch
+    assert third.state == "blocked"
+    assert "lifetime credit allowance is exhausted" in third.diagnostic
+    assert len(world.transport.calls) == 2
+
+    # The cap can be raised only explicitly, attributed, and never below what is spent.
+    with pytest.raises(ValueError, match="below the credits already used"):
+        world.control.raise_lifetime_cap(50, operator="owner", note="try")
+    world.control.raise_lifetime_cap(100, operator="owner", note="owner authorised 20 more")
+    assert world.run("evt-4").state in {"completed", "unchanged"}
