@@ -947,3 +947,9 @@ Branch `codex/runtime-llm-continuation`. Report: `reports/runtime_llm_backend.md
 |---|---|---|---|---|---|
 | 2026-11-25 | spec 05 Stage 0, owner-directed collection | How should discovery records reopen when a product-specific issuer URL is genuinely unknown? | Accept `None` only for the already-optional `issuer_url_to_verify`; retain the existing URL checks for supplied strings. No storage migration or historical rewrite. Continue the private US/IN/AE collection through existing ingestion services within the owner's remaining 445 Firecrawl credits. | The actual collection persisted valid missing-URL records which failed validation on reopening. An unknown URL must not be replaced with an invented issuer address. Financial facts remain pending human approval; no apply or origin confirmation is authorized. | `backend/ingestion/contracts.py`, `backend/evals/test_discovery_candidate_reopen.py`, `reports/card_data_collection_continuation.md` |
 
+
+## Recurring welcome-offer applicability — owner-directed scope
+
+| date | doc§ | question | decision | rationale | affected_files |
+|---|---|---|---|---|---|
+| 2026-11-25 | spec 18 §1–2 · owner-directed recurring ingestion | How can archived campaigns avoid being selected for a card opened before their start? | Permit an optional issuer-supported `valid_from` on the internal welcome-offer model and include it when filtering applicable offers. An absent start remains unknown and cannot eliminate a candidate; overlapping candidates remain ambiguous. Existing fields and default selection behavior remain unchanged. | Preserves historical campaign applicability without inventing unpublished dates or changing financial arithmetic. The end-to-end ingestion/publication workflow remains in progress. | `backend/welcome/models.py`, `backend/welcome/catalog.py`, `backend/evals/test_recurring_welcome_selection.py` |

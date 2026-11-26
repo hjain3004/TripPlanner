@@ -56,9 +56,7 @@ def verification_status(offer: CardAcquisitionOffer) -> VerificationStatus:
     return "needs_verification" if offer.provenance.needs_verification else "verified"
 
 
-SelectionReason = Literal[
-    "NO_APPROVED_OFFER", "AMBIGUOUS_OFFER", "OFFER_NOT_IN_FORCE_AT_OPEN_DATE"
-]
+SelectionReason = Literal["NO_APPROVED_OFFER", "AMBIGUOUS_OFFER", "OFFER_NOT_IN_FORCE_AT_OPEN_DATE"]
 
 
 @dataclass(frozen=True)
@@ -84,9 +82,7 @@ class OfferCatalog:
     def approved_offers(self) -> list[CardAcquisitionOffer]:
         return [o for o in self._offers if is_approved(o)]
 
-    def select_acquisition_offer(
-        self, card_id: str, booking_date: date | None
-    ) -> OfferSelection:
+    def select_acquisition_offer(self, card_id: str, booking_date: date | None) -> OfferSelection:
         """The one approved offer that could apply to this unheld card, or none and why."""
         rows = self.offers_for_card(card_id)
         approved = [o for o in rows if is_approved(o)]
@@ -96,7 +92,12 @@ class OfferCatalog:
         in_force = (
             approved
             if booking_date is None
-            else [o for o in approved if booking_date <= o.valid_to]
+            else [
+                o
+                for o in approved
+                if (o.valid_from is None or o.valid_from <= booking_date)
+                and booking_date <= o.valid_to
+            ]
         )
         if not in_force:
             return OfferSelection(None, "OFFER_NOT_IN_FORCE_AT_OPEN_DATE", ineligible)
@@ -119,7 +120,11 @@ class OfferCatalog:
         in_force = (
             approved
             if opened_on is None
-            else [o for o in approved if opened_on <= o.valid_to]
+            else [
+                o
+                for o in approved
+                if (o.valid_from is None or o.valid_from <= opened_on) and opened_on <= o.valid_to
+            ]
         )
         if not in_force:
             return OfferSelection(None, "OFFER_NOT_IN_FORCE_AT_OPEN_DATE", ineligible)

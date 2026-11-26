@@ -57,6 +57,7 @@ class CardAcquisitionOffer(BaseModel):
     eligibility_exclusions: list[str] = Field(default_factory=list)  # VERBATIM T&C
     currency: str
     valid_to: date
+    valid_from: date | None = None  # unknown when the issuer did not publish a start
     provenance: Provenance
 
     @field_validator("currency")
@@ -69,6 +70,8 @@ class CardAcquisitionOffer(BaseModel):
 
     @model_validator(mode="after")
     def _exactly_one_bonus(self) -> CardAcquisitionOffer:
+        if self.valid_from is not None and self.valid_from > self.valid_to:
+            raise ValueError("offer validity start cannot follow its end")
         points = self.bonus_points is not None
         flat = self.bonus_flat_minor is not None
         if points == flat:
