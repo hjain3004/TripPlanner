@@ -203,7 +203,11 @@ def retrieve_candidates(
     if catalog and catalog.exists():
         from core.trip_models import POIEvidence
         from gateway.catalog.quality import SUPPORTED_CATEGORIES
-        from gateway.places.adapters.snapshot import SnapshotPlaceAdapter
+        from gateway.places.adapters.snapshot import (
+            _RANKED_CACHE,
+            SnapshotPlaceAdapter,
+            _cache_key,
+        )
 
         origin_lat = region.centroid_lat if region else 0.0
         origin_lon = region.centroid_lon if region else 0.0
@@ -217,11 +221,10 @@ def retrieve_candidates(
                     return claim.value
             return None
 
-        candidates = [c for c in adapter._load() if claim_value(c, "category") in supported]
-
-        # One pass per place, no temporary containers: this ranks every place in a regional
-        # catalog (tens of thousands) on each recompute, so allocation here dominates its time.
+        all_candidates = adapter._load()
         wanted = {canonical_travel_category(value) for value in spec.interests}
+        rank_key = (_cache_key(catalog), tuple(sorted(wanted)), origin_lat, origin_lon, limit)
+        cached = _RANKED_CACHE.get(rank_key)
 
         def rank(c: PlaceCandidate) -> tuple[int, float, str]:
             category = claim_value(c, "category")
@@ -238,8 +241,23 @@ def retrieve_candidates(
                 c.place_id,
             )
 
-        candidates = sorted(candidates, key=rank)
-        candidates = candidates[: max(limit * 4, limit)]
+        if cached is None:
+            import heapq
+
+            eligible = (c for c in all_candidates if claim_value(c, "category") in supported)
+            selection_size = max(limit * 4, limit)
+            candidates = (
+                heapq.nsmallest(selection_size, eligible, key=rank)
+                if selection_size >= 0
+                else sorted(eligible, key=rank)[:selection_size]
+            )
+            _RANKED_CACHE[rank_key] = tuple(candidates)
+            _RANKED_CACHE.move_to_end(rank_key)
+            while len(_RANKED_CACHE) > 8:
+                _RANKED_CACHE.popitem(last=False)
+        else:
+            _RANKED_CACHE.move_to_end(rank_key)
+            candidates = list(cached)
 
         for c in candidates:
             poi = _map_candidate_to_poi(c, city, region)

@@ -69,9 +69,12 @@ _LIMITATION_MESSAGES: dict[LimitationCode, str] = {
         "The approved offer terms for this card had ended before its recorded open "
         "date, so they are not assumed to apply to it."
     ),
+    "OFFER_TERMS_INCOMPLETE": (
+        "The offer's campaign end date or eligibility exclusions are unknown, so its "
+        "applicability cannot be established."
+    ),
     "OPENED_ON_UNKNOWN": (
-        "This card has no recorded open date. The window is not guessed from any "
-        "other data."
+        "This card has no recorded open date. The window is not guessed from any other data."
     ),
     "OPENED_ON_IN_FUTURE": (
         "The recorded open date is after today, which cannot be right. The window is "
@@ -115,9 +118,7 @@ _LIMITATION_MESSAGES: dict[LimitationCode, str] = {
     "NONPOSITIVE_NET_VALUE": (
         "The net first-year value is not greater than zero after accounting for the annual fee."
     ),
-    "OFFER_EXPIRED": (
-        "The offer validity ended before the planned booking date."
-    ),
+    "OFFER_EXPIRED": ("The offer validity ended before the planned booking date."),
     "ALREADY_HELD_CARD": (
         "This card is already held in your wallet; welcome window tracking for held cards "
         "is handled under held-card welcome status."
@@ -186,9 +187,7 @@ def parse_stored_plan(
         raw: Any = json.loads(report_json)
         artifacts = _StoredArtifacts.model_validate(raw)
     except (ValueError, ValidationError) as exc:
-        raise StoredPlanUnreadableError(
-            "stored revision has no readable optimizer result"
-        ) from exc
+        raise StoredPlanUnreadableError("stored revision has no readable optimizer result") from exc
     return StoredPlan(
         trip_id=trip_id,
         revision=revision,
@@ -293,6 +292,7 @@ def _bonus(offer: CardAcquisitionOffer) -> tuple[BonusOut, list[Limitation]]:
 
 
 def _offer_out(offer: CardAcquisitionOffer) -> OfferOut:
+    assert offer.eligibility_exclusions is not None
     prov = offer.provenance
     return OfferOut(
         id=offer.id,
@@ -303,7 +303,7 @@ def _offer_out(offer: CardAcquisitionOffer) -> OfferOut:
         min_spend_minor=offer.min_spend_minor,
         spend_window_days=offer.spend_window_days,
         currency=offer.currency,
-        valid_to=offer.valid_to,
+        valid_to=offer.valid_to,  # selection refuses offers without a known end
         eligibility_exclusions=list(offer.eligibility_exclusions),
         provenance=OfferProvenanceOut(
             source_url=prov.source_url,
@@ -408,9 +408,7 @@ def compute_welcome_status(
     gross = sum(item.amount_minor for item in lines)
     counted = sum(item.counted_minor for item in lines)
     conditional = sum(
-        item.counted_minor
-        for item in lines
-        if item.assessment == "could_count_if_paid_by_close"
+        item.counted_minor for item in lines if item.assessment == "could_count_if_paid_by_close"
     )
 
     min_spend = offer.min_spend_minor if offer is not None else None
@@ -502,8 +500,7 @@ def _assumptions(
         )
     if prior is None:
         notes.append(
-            "Spend already made on this card was not provided and is not assumed to "
-            "be zero."
+            "Spend already made on this card was not provided and is not assumed to be zero."
         )
     else:
         notes.append(

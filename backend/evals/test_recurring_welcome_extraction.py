@@ -619,8 +619,10 @@ def test_defects_seen_in_a_real_firecrawl_extraction_are_rejected_not_published(
     assert "min_spend_minor" not in welcome["evidenced"]
     assert "spend_window_days" not in welcome["evidenced"]
     assert "min_spend_minor" in welcome["rejected"] and "spend_window_days" in welcome["rejected"]
-    # The claimed points and flat amounts conflict; nothing guesses which one applies.
-    assert welcome["reason"].startswith("conflicting bonus")
+    # The fee is rejected as bonus evidence; the points remain pending further review.
+    assert "bonus_flat_minor" in welcome["rejected"]
+    assert "bonus_flat_minor" not in welcome["evidenced"]
+    assert "bonus_points" in welcome["evidenced"]
     assert "not a welcome offer" in drafts["Annual Benefit"]["reason"]
 
 
@@ -704,6 +706,81 @@ def test_a_points_offer_without_an_established_program_names_that_exact_gap(
         tmp_path, [capture(page(), offer_json())], published=None, points_currency_id=None
     )
     outcome = world.run("evt-1")
-    assert outcome.proposal_ids == ()
+    assert len(outcome.proposal_ids) == 1
+    proposal = world.store.get_proposal(outcome.proposal_ids[0])
+    assert proposal is not None and proposal.status.value == "pending"
+    assert proposal.proposed_row["bonus_currency_id"] is None
     (draft,) = world.store.list_incomplete_extractions()
     assert draft["missing"] == ["bonus_currency_id"]
+
+
+def test_flat_welcome_bonus_does_not_accept_a_fee_as_its_evidence() -> None:
+    from ingestion.welcome_extraction import _context_problem
+
+    text = "Welcome credit card benefits\nStandard annual fee (2nd year onwards)₹5,000\n"
+    start = text.index("₹5,000")
+    assert _context_problem("bonus_flat_minor", text, start, start + len("₹5,000")) is not None
+
+
+def test_incomplete_draft_preserves_issuer_program_name_without_mapping(tmp_path: Path) -> None:
+    html = (
+        "<main><h2>Welcome benefit</h2><p>Earn 5,000 EDGE REWARDPoints when "
+        "you spend ₹1,000 within 30 days.</p></main>"
+    )
+    extracted = {
+        "offers": [
+            {
+                "title": {"value": "Welcome benefit", "quote": "Welcome benefit"},
+                "bonus_points": {"value": "5000", "quote": "5,000 EDGE REWARDPoints"},
+                "min_spend_minor": {"value": "₹1,000", "quote": "₹1,000"},
+                "spend_window_days": {"value": "30", "quote": "30 days"},
+            }
+        ]
+    }
+    world = World(tmp_path, [capture(html, extracted)], published=None, points_currency_id=None)
+    outcome = world.run("program-name")
+    proposal = world.store.get_proposal(outcome.proposal_ids[0])
+    assert proposal is not None
+    assert proposal.proposed_row["eligibility_exclusions"] is None
+    draft = world.store.list_incomplete_extractions()[0]
+    assert "eligibility_exclusions" in draft["missing"]
+    evidence = draft["evidence"]["issuer_program_name"]
+    assert evidence["quote"] == "EDGE REWARDPoints"
+    assert evidence["mapping_status"] == "unmapped_requires_review"
+    assert "bonus_currency_id" in draft["missing"]
+
+
+def test_historical_cohort_does_not_inherit_current_offer_start() -> None:
+    from ingestion.welcome_extraction import _different_cohorts
+
+    text = (
+        "2500 miles applicable on cards sourced from 20th April 2024 onwards. "
+        "For cards sourced between 20th December 2022 to 19th April 2024, "
+        "5000 miles as welcome benefit."
+    )
+    assert _different_cohorts(text, text.index("5000"), text.index("20th April 2024"))
+    assert not _different_cohorts(text, text.index("2500"), text.index("20th April 2024"))
+
+
+def test_conflicting_atlas_cohorts_remain_visible_in_review(tmp_path: Path) -> None:
+    html = (
+        "<main><h2>Welcome benefit</h2><p>2500 EDGE Miles as welcome benefit on first "
+        "transaction; cards sourced from 20th April 2024 onwards.</p>"
+        "<p>For cards sourced between 20th December 2022 to 19th April 2024, "
+        "5000 EDGE Miles as welcome benefit upon first transaction.</p></main>"
+    )
+    extracted = {
+        "offers": [
+            {
+                "title": {"value": "Welcome benefit", "quote": "Welcome benefit"},
+                "bonus_points": {"value": "5000", "quote": "5000 EDGE Miles as welcome benefit"},
+                "valid_from": {"value": "20th April 2024", "quote": "20th April 2024"},
+            }
+        ]
+    }
+    world = World(tmp_path, [capture(html, extracted)], published=None, points_currency_id=None)
+    world.run("cohort-context")
+    draft = world.store.list_incomplete_extractions()[0]
+    assert "different application cohort" in draft["rejected"]["valid_from"]
+    context = draft["evidence"]["cohort_context"]["quote"]
+    assert "2500 EDGE Miles" in context and "5000 EDGE Miles" in context

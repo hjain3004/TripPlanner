@@ -61,25 +61,27 @@ mistakes the deterministic checks had to stop:
 Each was fixed against the retained responses without another request (`reextract-welcome`, 0
 credits), with regressions that use synthetic text of the same shapes.
 
-**Outcome: no complete real draft.** The pages genuinely omit required terms.
+**Outcome: a real pending proposal and incomplete review evidence.** REWARDS's retained
+response supports 5,000 points, a ₹1,000 qualifying spend and a 30-day window. Its pending proposal
+survives reopening SQLite and is visible in `review-queue`; the issuer names `EDGE REWARDPoints`,
+but its mapping to an approved program and the campaign end remain unknown. Eligibility exclusions
+also lack evidence. These gaps are visible to the reviewer; no real decision or publication was made.
+The initial immutable proposal retains its original empty exclusions field but the queue marks it as
+unresolved evidence (D1). A replay with corrected representation was refused as a conflicting
+immutable payload; the existing audit record was preserved. New extraction records absent exclusions
+as unknown, not as a claim that none exist.
 
-- Atlas: a "Welcome Benefit" with a points claim, a start date and a conflicting flat amount; the page
-  states no minimum spend (the benefit is "upon first transaction") and no end date. Recorded as an
-  incomplete draft ("conflicting bonus", a curator must decide).
-- REWARDS: "Welcome benefit": 5,000 points, minimum spend 1,000 rupees, 30 days, each with its verbatim
-  quote and offsets. Missing exactly `valid_to` (evergreen, no end date stated) and `bonus_currency_id`
-  (the page names "EDGE REWARD Points" but no program in our registry; none was invented).
-
-So there is **no pending real welcome proposal**. The review queue holds one older, unrelated pilot
-card proposal. Incomplete drafts persist across processes (each CLI call is a new process) and appear
-in `source-status` and the private review packet.
+Atlas's annual fee is not a welcome bonus. The source mixes 2,500- and 5,000-mile terms for different
+card-sourcing cohorts; the review packet preserves both and refuses the unsupported association.
+The first-transaction condition is not a monetary spend threshold. No start date or bonus is guessed.
 
 **Private paths (outside Git).** Workspace
 `~/tripwise-ingestion-data/recurring-live-acceptance-20261126/`:
 `data/` (database and artifacts, a copy of the pilot data so its charge stays in the ledger),
 `inputs/`, `retained-responses/` (the five complete responses and their request metadata, mode 0600,
 no credential), `live_run_1..3.json`, and the review packet
-`review_packet_incomplete_drafts.md`.
+`review_packet_incomplete_drafts.md` and the newer `review_packet_followup.md`. The pending proposal
+is accessible with `python -m ingestion.review_server review-queue --data-dir <workspace>/data`.
 
 **Credits.** Opening usage 67 (owner reconciliation) + 1 completed pilot request found in the pilot
 database (counted conservatively, possibly already inside the 67) = 68 before this work. This task:
@@ -127,23 +129,33 @@ approval → publication → rollback. These use retained synthetic captures and
 Published rows keep `needs_verification=true` unless every fact field was quoted. A campaign end date
 excludes a card opened afterwards but never an existing holder's historical window.
 
-## The gate
+## Gate status — pending
 
-The full-suite timing failure (`test_recompute_with_real_catalog_items_stays_fast`, about 950 ms
-against 500 ms in the full suite, about 115 ms alone) was a genuine hot loop: recompute's retrieval
-ranks about 46,000 catalog places and recomputed two pure taxonomy functions about 140,000 times per
-call under heavy GC pressure. Those two functions are now memoized; the threshold is unchanged. The
-final `make seed` and unchanged `make gate` log is kept outside Git:
-`~/tripwise-ingestion-data/recurring-live-acceptance-20261126/final_gate.log`.
+The previous `final_gate.log` predates the current code and failed both the process-confinement
+and warm-recompute checks. The private retention fix now passes its focused confinement and
+synthetic-secret checks. Process-wide `gc.freeze()` has been removed. Bounded top-k ranking and
+a ranking cache tied to catalog eviction replace repeated full-list sorting; focused retrieval and
+warm-recompute checks pass, including the unchanged test with more than one million tracked
+heap objects. The focused synthetic workflow suite exposed an obsolete expectation that an
+unknown end prevents proposal creation; the revised CLI regression now verifies the pending
+proposal and its missing end date after a separate process reopens the queue. Deterministic OpenAPI
+and client regeneration, frontend TypeScript, and ESLint (15 existing warnings) passed.
+The unchanged complete gate has not yet been run on this tree.
+
+The subsequent offline re-extraction rejects the Atlas annual fee as a bonus and refuses to
+associate the older cohort's 5,000-mile benefit with the later cohort's start date. It preserves
+quoted `EDGE Miles` and `EDGE REWARDPoints` names as unmapped evidence, not approved program
+identifiers. The refreshed private packet is `review_packet_followup.md` beside the live captures.
+No provider calls or credits were used for this follow-up.
 
 ## Genuine remaining limitations / owner decisions
 
-1. **Evergreen offers cannot become proposals today.** Real pages state no end date and no program
-   identity, and `valid_to` and `bonus_currency_id` are required. Options: allow an explicit
-   "no published end date", and add a verified program registry entry for each issuer currency (a
-   financial fact for the owner to approve).
+1. Unknown expiry is represented as unknown, not perpetual. Offers with unknown end or eligibility
+   exclusions are withheld from both acquisition and held-card selection. The latter is deliberately
+   conservative: historical entitlement is not independently established by an omitted expiry.
+   An unmapped issuer program stays unvalued and requires an owner-approved mapping.
 2. Firecrawl's extraction needs a deterministic filter in front of it (above); cache-hit and
    failed-extraction billing remain undocumented. An unchanged page still costs 1 credit per pass.
-3. Cohort variants on one page (older vs current welcome terms) cannot be separated by the extractor;
-   such an offer is reported as conflicting for a curator.
+3. Cohort variants require a curator: the mapper retains competing context rather than inferring
+   a qualifying window or joining a bonus to the wrong cohort.
 4. No real approval, origin confirmation or publication occurred.

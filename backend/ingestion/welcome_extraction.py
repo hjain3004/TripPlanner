@@ -237,6 +237,13 @@ def _context_problem(name: str, text: str, start: int, end: int) -> str | None:
     in_quote, nearby = _CONTEXT.get(name, ((), ()))
     quote = text[start:end]
     around = text[max(0, start - NEAR_CHARS) : end + NEAR_CHARS]
+    line_start = text.rfind("\n", 0, start) + 1
+    line_end = text.find("\n", end)
+    line = text[line_start : len(text) if line_end < 0 else line_end]
+    if name == "bonus_flat_minor" and re.search(
+        r"\b(?:annual|joining|renewal|membership)\s+fee\b", line, re.IGNORECASE
+    ):
+        return "fee text cannot establish a welcome bonus"
     for pattern in in_quote:
         if re.search(pattern, quote, re.IGNORECASE) is None:
             return f"the quote does not say what a {name} must (needs /{pattern}/)"
@@ -244,6 +251,14 @@ def _context_problem(name: str, text: str, start: int, end: int) -> str | None:
         if re.search(pattern, around, re.IGNORECASE) is None:
             return f"nothing near the quote indicates a {name} (needs /{pattern}/)"
     return None
+
+
+def _different_cohorts(text: str, bonus_start: int, date_start: int) -> bool:
+    """A historical cohort boundary between the values makes their association unsafe."""
+    if bonus_start <= date_start:
+        return False
+    between = text[date_start:bonus_start]
+    return bool(re.search(r"for\s+cards\s+sourced\s+between\b", between, re.I))
 
 
 def _field_for(
@@ -316,6 +331,16 @@ def _evidence(accepted: Mapping[str, tuple[ExtractedField, Any]]) -> dict[str, A
             "start": span.normalized_start,
             "end": span.normalized_end,
         }
+        if name == "bonus_points":
+            match = re.search(r"\bEDGE\s+REWARD\s*Points\b|\bEDGE\s+Miles\b", span.quote, re.I)
+            if match:
+                out["issuer_program_name"] = {
+                    "raw_value": match.group(),
+                    "quote": match.group(),
+                    "start": span.normalized_start + match.start(),
+                    "end": span.normalized_start + match.end(),
+                    "mapping_status": "unmapped_requires_review",
+                }
     return out
 
 
@@ -345,6 +370,7 @@ def build_welcome_drafts(
             continue
         accepted: dict[str, tuple[ExtractedField, Any]] = {}
         rejected: dict[str, str] = {}
+        context_evidence: dict[str, Any] = {}
         for name in EVIDENCED_FIELDS:
             pair = _entry(entry, name)
             if pair is None:
@@ -354,6 +380,23 @@ def build_welcome_drafts(
                 rejected[name] = outcome
             else:
                 accepted[name] = outcome
+        if "bonus_points" in accepted and "valid_from" in accepted:
+            bonus_span = accepted["bonus_points"][0].evidence_spans[0]
+            date_span = accepted["valid_from"][0].evidence_spans[0]
+            if _different_cohorts(
+                snapshot.canonical_markdown, bonus_span.normalized_start, date_span.normalized_start
+            ):
+                start = max(0, date_span.normalized_start - 550)
+                end = min(len(snapshot.canonical_markdown), bonus_span.normalized_end + 200)
+                quote = snapshot.canonical_markdown[start:end]
+                context_evidence["cohort_context"] = {
+                    "raw_value": "conflicting cohort context",
+                    "quote": quote,
+                    "start": start,
+                    "end": end,
+                }
+                del accepted["valid_from"]
+                rejected["valid_from"] = "date belongs to a different application cohort"
         evidence_text = " ".join(
             item[0].evidence_spans[0].quote for item in accepted.values()
         ) + " ".join(str(v.get("quote", "")) for v in entry.values() if isinstance(v, Mapping))
@@ -365,7 +408,7 @@ def build_welcome_drafts(
                     missing=(),
                     evidenced=tuple(sorted(accepted)),
                     rejected=rejected,
-                    evidence=_evidence(accepted),
+                    evidence={**_evidence(accepted), **context_evidence},
                     reason="not a welcome offer: no welcome, joining, sign-up or first-transaction "
                     "wording anywhere in its evidence",
                 )
@@ -389,7 +432,7 @@ def build_welcome_drafts(
                     missing=(),
                     evidenced=tuple(sorted(accepted)),
                     rejected=rejected,
-                    evidence=_evidence(accepted),
+                    evidence={**_evidence(accepted), **context_evidence},
                     reason="conflicting bonus: both points and a flat amount were claimed; "
                     "a curator must say which applies",
                 )
@@ -404,7 +447,7 @@ def build_welcome_drafts(
                     missing=("title",),
                     evidenced=tuple(sorted(accepted)),
                     rejected=rejected,
-                    evidence=_evidence(accepted),
+                    evidence={**_evidence(accepted), **context_evidence},
                     reason="no evidenced title to identify the offer",
                 )
             )
@@ -424,7 +467,7 @@ def build_welcome_drafts(
                     missing=("currency",),
                     evidenced=tuple(sorted(accepted)),
                     rejected=rejected,
-                    evidence=_evidence(accepted),
+                    evidence={**_evidence(accepted), **context_evidence},
                     reason=f"page currency {quoted_currency} conflicts with the card's {currency}",
                 )
             )
@@ -434,16 +477,32 @@ def build_welcome_drafts(
             row["currency"] = currency
         if "bonus_points" in row and config.points_currency_id:
             row["bonus_currency_id"] = config.points_currency_id
+        row["eligibility_exclusions"] = None  # absence is not evidence of no exclusions
         exclusions = entry.get("eligibility_exclusions")
         if isinstance(exclusions, list):
-            row["eligibility_exclusions"] = [
+            verified_exclusions = [
                 item.strip()
                 for item in exclusions
                 if isinstance(item, str)
                 and item.strip()
                 and item.strip() in snapshot.canonical_markdown
             ][:20]
+            if verified_exclusions:
+                row["eligibility_exclusions"] = verified_exclusions
         row["provenance"] = _draft_provenance(config, today)
+        if "valid_to" in rejected:
+            incomplete.append(
+                IncompleteDraft(
+                    offer_id=offer_id,
+                    title=title,
+                    missing=("valid_to",),
+                    evidenced=tuple(sorted(accepted)),
+                    rejected=rejected,
+                    evidence={**_evidence(accepted), **context_evidence},
+                    reason="expiry evidence is contradictory or invalid",
+                )
+            )
+            continue
         try:
             CardAcquisitionOffer.model_validate(row)
         except ValidationError as error:
@@ -459,7 +518,7 @@ def build_welcome_drafts(
                     missing=tuple(missing) or ("schema",),
                     evidenced=tuple(sorted(accepted)),
                     rejected=rejected,
-                    evidence=_evidence(accepted),
+                    evidence={**_evidence(accepted), **context_evidence},
                     reason=(
                         "required fields are missing"
                         if missing
@@ -468,6 +527,25 @@ def build_welcome_drafts(
                 )
             )
             continue
+        unresolved = []
+        if "valid_to" not in row:
+            unresolved.append("valid_to")
+        if row["eligibility_exclusions"] is None:
+            unresolved.append("eligibility_exclusions")
+        if "bonus_points" in row and not row.get("bonus_currency_id"):
+            unresolved.append("bonus_currency_id")
+        if unresolved:
+            incomplete.append(
+                IncompleteDraft(
+                    offer_id=offer_id,
+                    title=title,
+                    missing=tuple(unresolved),
+                    evidenced=tuple(sorted(accepted)),
+                    rejected=rejected,
+                    evidence={**_evidence(accepted), **context_evidence},
+                    reason="proposal has unresolved terms or program mapping",
+                )
+            )
         drafts.append(
             OfferDraft(
                 offer_id=offer_id,

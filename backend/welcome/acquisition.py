@@ -57,6 +57,7 @@ def format_money(minor: int, currency: str) -> str:
 
 
 def _acquisition_offer_out(offer: CardAcquisitionOffer) -> AcquisitionOfferOut:
+    assert offer.eligibility_exclusions is not None
     prov = offer.provenance
     return AcquisitionOfferOut(
         id=offer.id,
@@ -194,6 +195,8 @@ def compute_acquisition_assessment(
                     ref_reason = "OFFER_EXPIRED"
                 elif sel_reason == "AMBIGUOUS_OFFER":
                     ref_reason = "AMBIGUOUS_OFFER"
+                elif sel_reason == "OFFER_TERMS_INCOMPLETE":
+                    ref_reason = "OFFER_TERMS_INCOMPLETE"
                 else:
                     ref_reason = "NO_APPROVED_OFFER"
                 refusals.append(
@@ -236,6 +239,8 @@ def compute_acquisition_assessment(
             continue
 
         # Gate 5: offer.valid_to >= booking_date
+        if offer.valid_to is None:
+            raise AssertionError("catalog selected offer without an end date")
         if offer.valid_to < pt.booking_date:
             refusals.append(
                 AcquisitionRefusal(
@@ -381,9 +386,7 @@ def compute_acquisition_assessment(
         )
         trip_earn_delta_minor = candidate_benefit - held_benefit
 
-        candidate_assignments = [
-            a for a in candidate_result.assignments if a.card_id == card_id
-        ]
+        candidate_assignments = [a for a in candidate_result.assignments if a.card_id == card_id]
         trip_eligible_spend_minor = sum(
             max(0, a.line.amount_minor - sum(o.discount_minor for o in a.offers_applied))
             for a in candidate_assignments
@@ -436,9 +439,7 @@ def compute_acquisition_assessment(
 
         # Gate 4: net_first_year_minor > 0
         annual_fee_minor = offer.annual_fee_minor
-        net_first_year_minor = (
-            bonus_value_minor + trip_earn_delta_minor - annual_fee_minor
-        )
+        net_first_year_minor = bonus_value_minor + trip_earn_delta_minor - annual_fee_minor
         if net_first_year_minor <= 0:
             refusals.append(
                 AcquisitionRefusal(
@@ -482,6 +483,7 @@ def compute_acquisition_assessment(
             f"{format_money(net_first_year_minor, offer.currency)} on this trip if you held it"
         )
 
+        assert offer.eligibility_exclusions is not None
         suggestions.append(
             AcquisitionSuggestion(
                 card_id=card_id,

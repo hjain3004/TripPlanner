@@ -56,9 +56,9 @@ class CardAcquisitionOffer(BaseModel):
     expected_card_in_hand_days: int | None = Field(default=None, ge=0)
     annual_fee_minor: int | None = Field(default=None, ge=0)
     fee_waiver_condition: str | None = None
-    eligibility_exclusions: list[str] = Field(default_factory=list)  # VERBATIM T&C
+    eligibility_exclusions: list[str] | None = Field(default_factory=list)  # None means unknown
     currency: str
-    valid_to: date
+    valid_to: date | None = None  # unknown is not a claim of perpetual availability
     valid_from: date | None = None  # unknown when the issuer did not publish a start
     provenance: Provenance
 
@@ -72,14 +72,16 @@ class CardAcquisitionOffer(BaseModel):
 
     @model_validator(mode="after")
     def _exactly_one_bonus(self) -> CardAcquisitionOffer:
-        if self.valid_from is not None and self.valid_from > self.valid_to:
+        if (
+            self.valid_from is not None
+            and self.valid_to is not None
+            and self.valid_from > self.valid_to
+        ):
             raise ValueError("offer validity start cannot follow its end")
         points = self.bonus_points is not None
         flat = self.bonus_flat_minor is not None
         if points == flat:
             raise ValueError("exactly one of bonus_points / bonus_flat_minor must be set")
-        if points and not self.bonus_currency_id:
-            raise ValueError("a points-denominated bonus needs bonus_currency_id")
         if flat and self.bonus_currency_id is not None:
             raise ValueError("a flat bonus must not name a points currency")
         return self
@@ -97,6 +99,7 @@ LimitationCode = Literal[
     "NO_APPROVED_OFFER",
     "AMBIGUOUS_OFFER",
     "OFFER_NOT_IN_FORCE_AT_OPEN_DATE",
+    "OFFER_TERMS_INCOMPLETE",
     "OPENED_ON_UNKNOWN",
     "OPENED_ON_IN_FUTURE",
     "PRIOR_SPEND_UNKNOWN",

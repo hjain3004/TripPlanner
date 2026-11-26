@@ -55,6 +55,7 @@ class QueueItem(BaseModel):
     findings: list[str]
     fields: list[QueueField]
     unresolved_fields: list[str] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
     blocked_by: list[str]
     decisions: list[str]
     owner_actions: list[str]
@@ -91,7 +92,15 @@ def build_review_queue(
                     quote_verified=evidence.verified if evidence else None,
                 )
             )
-        row = context.current_row or {}
+        row = (proposal.proposed_row if proposal.intent == "insert" else context.current_row) or {}
+        missing_fields: list[str] = []
+        if proposal.target_table == "card_acquisition_offers":
+            if row.get("eligibility_exclusions") is None:
+                missing_fields.append("eligibility_exclusions")
+            if row.get("valid_to") is None:
+                missing_fields.append("valid_to")
+            if row.get("bonus_points") is not None and not row.get("bonus_currency_id"):
+                missing_fields.append("bonus_currency_id")
         covered = {f.field_path for f in proposal.field_proposals}
         unresolved = [p for p in required_fact_paths(row) if p not in covered] if row else []
         lineage = context.lineage
@@ -123,6 +132,7 @@ def build_review_queue(
                 ],
                 fields=fields,
                 unresolved_fields=unresolved,
+                missing_fields=missing_fields,
                 blocked_by=blocked,
                 decisions=[
                     f"{d.status} by {d.reviewer_id} at {d.decided_at.isoformat()} "
@@ -181,6 +191,7 @@ def render_queue_markdown(items: list[QueueItem], *, as_of: datetime) -> str:
         lines += [
             "",
             f"Left unverified by this draft (it quotes nothing for them): {unresolved}",
+            "Missing or unknown terms: " + (", ".join(item.missing_fields) or "none"),
             "",
         ]
         if item.decisions:

@@ -725,6 +725,12 @@ export function savedTripErrorHandler(
 }
 
 // --- Spec 18 Case A welcome-window status (mirrors api/welcome.py) -------------
+// Synthetic response limitation for approved offers whose availability is unresolved.
+export const WELCOME_INCOMPLETE_TERMS_FIXTURE: WelcomeWindowReport["limitations"][number] = {
+  code: "OFFER_TERMS_INCOMPLETE",
+  message: "The offer has incomplete terms, so its applicability cannot be determined.",
+};
+
 //
 // With no approved offer data shipped, the real route answers `unknown` /
 // NO_APPROVED_OFFER, so that is what this mock answers: it never invents a window, a

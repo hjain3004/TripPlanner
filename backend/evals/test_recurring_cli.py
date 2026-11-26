@@ -315,9 +315,12 @@ def test_incomplete_drafts_are_listed_for_the_operator(tmp_path: Path) -> None:
     ws = Workspace(tmp_path)
     extracted = offer_json(valid_to=None)  # the page states no end date
     run = ws.refresh(ws.manifest("m1", ws.capture("c", page(), extracted)), prefix="cli-run-0001")
-    assert run["outcomes"][0]["proposal_ids"] == []
+    (proposal_id,) = run["outcomes"][0]["proposal_ids"]
     (draft,) = json.loads(cli("incomplete-drafts", "--data-dir", str(ws.data)).stdout)
     assert draft["missing"] == ["valid_to"] and draft["title"]
+    queue = json.loads(cli("review-queue", "--data-dir", str(ws.data), "--format", "json").stdout)
+    (proposal,) = [item for item in queue if item["proposal_id"] == proposal_id]
+    assert proposal["status"] == "pending" and "valid_to" in proposal["missing_fields"]
 
 
 @pytest.mark.parametrize("flag", ["--lifetime-credits"])

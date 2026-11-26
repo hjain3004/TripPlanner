@@ -57,7 +57,12 @@ def verification_status(offer: CardAcquisitionOffer) -> VerificationStatus:
     return "needs_verification" if offer.provenance.needs_verification else "verified"
 
 
-SelectionReason = Literal["NO_APPROVED_OFFER", "AMBIGUOUS_OFFER", "OFFER_NOT_IN_FORCE_AT_OPEN_DATE"]
+SelectionReason = Literal[
+    "NO_APPROVED_OFFER",
+    "AMBIGUOUS_OFFER",
+    "OFFER_NOT_IN_FORCE_AT_OPEN_DATE",
+    "OFFER_TERMS_INCOMPLETE",
+]
 
 
 @dataclass(frozen=True)
@@ -97,13 +102,15 @@ class OfferCatalog:
                 o
                 for o in approved
                 if (o.valid_from is None or o.valid_from <= booking_date)
-                and booking_date <= o.valid_to
+                and (o.valid_to is None or booking_date <= o.valid_to)
             ]
         )
         if not in_force:
             return OfferSelection(None, "OFFER_NOT_IN_FORCE_AT_OPEN_DATE", ineligible)
         if len(in_force) > 1:
             return OfferSelection(None, "AMBIGUOUS_OFFER", ineligible)
+        if in_force[0].valid_to is None or in_force[0].eligibility_exclusions is None:
+            return OfferSelection(None, "OFFER_TERMS_INCOMPLETE", ineligible)
         return OfferSelection(in_force[0], None, ineligible)
 
     def select_offer(self, card_id: str, opened_on: date | None) -> OfferSelection:
@@ -124,13 +131,16 @@ class OfferCatalog:
             else [
                 o
                 for o in approved
-                if (o.valid_from is None or o.valid_from <= opened_on) and opened_on <= o.valid_to
+                if (o.valid_from is None or o.valid_from <= opened_on)
+                and (o.valid_to is None or opened_on <= o.valid_to)
             ]
         )
         if not in_force:
             return OfferSelection(None, "OFFER_NOT_IN_FORCE_AT_OPEN_DATE", ineligible)
         if len(in_force) > 1:
             return OfferSelection(None, "AMBIGUOUS_OFFER", ineligible)
+        if in_force[0].valid_to is None or in_force[0].eligibility_exclusions is None:
+            return OfferSelection(None, "OFFER_TERMS_INCOMPLETE", ineligible)
         return OfferSelection(in_force[0], None, ineligible)
 
 
