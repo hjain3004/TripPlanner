@@ -494,6 +494,15 @@ class FirecrawlBackend:
     @staticmethod
     def _credits(data: Mapping[str, Any]) -> int | None:
         metadata = _mapping(data.get("metadata"))
-        provider = _mapping(metadata.get("provider")) if metadata is not None else None
-        value = provider.get("creditsCost") if provider is not None else None
-        return value if isinstance(value, int) and value >= 0 else None
+        if metadata is None:
+            return None
+        # A real v2 response reports the charge as metadata.creditsUsed (observed on a live
+        # capture); provider-routed scrapes report provider.creditsCost instead.
+        provider = _mapping(metadata.get("provider"))
+        for value in (
+            metadata.get("creditsUsed"),
+            provider.get("creditsCost") if provider is not None else None,
+        ):
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                return value
+        return None

@@ -429,3 +429,23 @@ def build_update_response(
         ),
         extractor_confidence=0.0,
     )
+
+
+_RELEVANT = re.compile(
+    r"welcome|joining|sign[- ]?up|bonus|gift|voucher|reward|miles|points?|spend|transaction|"
+    r"within \d+|valid|offer|terms|\bdays?\b|₹|\brs\.?|inr|fee",
+    re.IGNORECASE,
+)
+
+
+def relevant_digest(text: str) -> str:
+    """A hash of only the lines that can carry an offer's terms.
+
+    Navigation, footers, scripts-as-text and other boilerplate rarely match, and whitespace and
+    case never matter, so reshuffled page chrome does not look like a financial change while any
+    edited number, date or sentence in a term-bearing line does.
+    """
+    lines = [
+        " ".join(line.split()).casefold() for line in text.splitlines() if _RELEVANT.search(line)
+    ]
+    return hashlib.sha256("\n".join(line for line in lines if line).encode()).hexdigest()

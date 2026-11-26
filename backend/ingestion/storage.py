@@ -937,6 +937,42 @@ class FinancialIngestionStore:
                 payload=body,
             )
 
+    def record_extraction_checkpoint(
+        self,
+        *,
+        target_id: str,
+        snapshot_id: str,
+        relevant_digest: str,
+        extraction_envelope_sha256: str | None = None,
+    ) -> None:
+        """The capture whose structured extraction last completed for this target (insert-only)."""
+        with self._connect() as connection:
+            self._audit(
+                connection,
+                entity_type="extraction_checkpoint",
+                entity_id=target_id,
+                event_type="extracted",
+                payload=json.dumps(
+                    {
+                        "snapshot_id": snapshot_id,
+                        "relevant_digest": relevant_digest,
+                        "extraction_envelope_sha256": extraction_envelope_sha256,
+                    },
+                    sort_keys=True,
+                ),
+            )
+
+    def last_extraction_checkpoint(self, target_id: str) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload, created_at FROM audit_events WHERE entity_type = "
+                "'extraction_checkpoint' AND entity_id = ? ORDER BY rowid DESC LIMIT 1",
+                (target_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {**json.loads(row[0]), "recorded_at": row[1]}
+
     def record_publication_event(
         self, *, publication_id: str, event_type: str, payload: dict[str, Any]
     ) -> None:

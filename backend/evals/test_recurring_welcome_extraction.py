@@ -18,11 +18,12 @@ import pytest
 from ingestion.acquisition import DurableAcquisitionService, RetainedCaptureTransport
 from ingestion.acquisition_control import AcquisitionControlLimits, DurableAcquisitionControl
 from ingestion.artifacts import ContentAddressedStore
-from ingestion.contracts import PageKind, SourcePolicyRecord, WatchTarget
+from ingestion.contracts import FetchFailureKind, PageKind, SourcePolicyRecord, WatchTarget
 from ingestion.extraction_runtime import ExtractionMode, ExtractionRuntimeConfig
 from ingestion.firecrawl_backend import FirecrawlBackend
 from ingestion.firecrawl_transport import (
     FirecrawlScrapeRequest,
+    FirecrawlTransportError,
     JsonExtraction,
     canonical_schema_json,
 )
@@ -83,6 +84,41 @@ def capture(html: str, extracted: dict[str, Any] | None, *, credits: int = 5) ->
     return {"success": True, "data": data}
 
 
+class CycleTransport:
+    """Serves the capture for the current collection cycle to every request in that cycle.
+
+    A welcome-offer cycle makes one plain fetch (the change check) and, only if the page changed,
+    one JSON-extraction fetch; both see the same page, as a real source would within seconds.
+    """
+
+    def __init__(self, world: World, payloads: list[dict[str, Any]]) -> None:
+        self.world = world
+        self.payloads = payloads
+        self.per_call = False  # serve payloads by call index instead of by cycle
+        self.fail_next = 0  # raise a provider failure for this many upcoming calls
+        self.calls: list[FirecrawlScrapeRequest] = []
+
+    async def scrape(self, request: FirecrawlScrapeRequest) -> dict[str, Any]:
+        self.calls.append(request)
+        if self.fail_next > 0:
+            self.fail_next -= 1
+            raise FirecrawlTransportError(FetchFailureKind.TIMEOUT, "provider timed out")
+        position = len(self.calls) - 1 if self.per_call else self.world.cycle
+        index = min(max(position, 0), len(self.payloads) - 1)
+        payload: dict[str, Any] = json.loads(json.dumps(self.payloads[index]))
+        data = payload["data"]
+        metadata = data["metadata"]
+        metadata.pop("provider", None)
+        metadata["creditsUsed"] = request.estimated_credits  # what the real v2 response reports
+        if request.json_extraction is None:
+            data.pop("json", None)  # a plain fetch carries no structured extraction
+        return payload
+
+    @property
+    def extraction_calls(self) -> list[FirecrawlScrapeRequest]:
+        return [c for c in self.calls if c.json_extraction is not None]
+
+
 class World:
     """One real store, artifact directory, control and clock, reopenable like a restart."""
 
@@ -98,8 +134,9 @@ class World:
         self.offer_id = offer_id_for(card, TITLE)
         self.root = tmp_path / "data"
         self.clock = START
+        self.cycle = -1
         self.published = published or {}
-        self.transport = RetainedCaptureTransport(payloads)
+        self.transport = CycleTransport(self, payloads)
         self.open()
         self.store.put_source_policy(
             SourcePolicyRecord(
@@ -164,11 +201,16 @@ class World:
             published_welcome_rows=lambda: self.published,
             default_robots=RobotsRules.parse("User-agent: *\nAllow: /\n"),
             firecrawl_enabled=True,
+            source_spacing=self._space,
             now=lambda: self.clock,
         )
 
+    async def _space(self, seconds: float) -> None:
+        self.clock += timedelta(seconds=seconds)  # the pause between two requests to one source
+
     def run(self, event: str, *, days: int = 8) -> Any:
         self.clock += timedelta(days=days)
+        self.cycle += 1
         return self.service.acquire_sync("watch:atlas-offers", client_event_id=event)
 
 
@@ -228,9 +270,11 @@ def test_initial_collection_creates_one_evidenced_unverified_insert_proposal(
     assert outcome.extraction_mode == "firecrawl_managed"
     assert outcome.llm_calls == 0  # Firecrawl ran the model; nothing here called one
     assert len(outcome.proposal_ids) == 1
-    request = world.transport.calls[0]
-    assert request.json_extraction is not None and request.estimated_credits == 5
-    assert request.timeout_seconds >= 60
+    check, extraction = world.transport.calls  # a plain page fetch, then the JSON extraction
+    assert check.json_extraction is None and check.estimated_credits == 1
+    assert extraction.json_extraction is not None and extraction.estimated_credits == 5
+    assert extraction.timeout_seconds >= 60
+    assert outcome.credits_reserved == 6 and len(outcome.request_ids) == 2
 
     proposal = world.store.get_proposal(outcome.proposal_ids[0])
     assert proposal is not None
@@ -272,7 +316,8 @@ def test_the_same_event_replays_after_a_restart_without_another_scrape(tmp_path:
     replay = world.service.acquire_sync("watch:atlas-offers", client_event_id="evt-1")
     assert replay.state == "completed" and replay.replayed_fetch is True
     assert replay.proposal_ids == first.proposal_ids
-    assert len(world.transport.calls) == 1
+    assert replay.credits_reserved == 0  # a replay dispatches and spends nothing
+    assert len(world.transport.calls) == 2
 
 
 def test_an_unchanged_page_makes_no_proposal(tmp_path: Path) -> None:
@@ -281,6 +326,9 @@ def test_an_unchanged_page_makes_no_proposal(tmp_path: Path) -> None:
     again = world.run("evt-2")
     assert again.state == "unchanged" and again.proposal_ids == ()
     assert len(world.store.list_proposals()) == 1
+    # Only the 1-credit check was paid for; no JSON extraction was requested.
+    assert again.credits_reserved == 1 and len(world.transport.extraction_calls) == 1
+    assert len(world.transport.calls) == 3
 
 
 def test_changed_terms_on_a_published_offer_become_an_update_proposal(tmp_path: Path) -> None:
@@ -359,10 +407,11 @@ def test_an_html_only_request_id_cannot_be_reused_for_json_extraction(tmp_path: 
         firecrawl_enabled=True,
         now=lambda: world.clock,
     )
-    outcome = html_only.acquire_sync("watch:atlas-offers", client_event_id="evt-1")
+    # The same request id as the JSON extraction request, asked for as a plain fetch.
+    outcome = html_only.acquire_sync("watch:atlas-offers", client_event_id="evt-1:extract")
     assert outcome.state == "failed"
     assert "different acquisition inputs" in outcome.diagnostic
-    assert len(world.transport.calls) == 1
+    assert len(world.transport.calls) == 2
 
 
 def test_lifetime_allowance_is_durable_cross_run_and_cannot_be_loosened_by_a_later_start(
@@ -379,14 +428,18 @@ def test_lifetime_allowance_is_durable_cross_run_and_cannot_be_loosened_by_a_lat
             lifetime_opening_used=opening,
         )
 
-    world = World(tmp_path, [capture(page(), offer_json())], published=None)
+    payloads = [
+        capture(page(spend=amount), offer_json(spend=amount))
+        for amount in ("30,000", "40,000", "50,000")
+    ]
+    world = World(tmp_path, payloads, published=None)
     # 67 credits were used before this ledger existed; the whole allowance is 80.
     world.control = DurableAcquisitionControl(world.store, limits=limits(cap=80, opening=67))
     world.service.control = world.control
-    first = world.run("evt-1")  # 67 + 5 = 72 <= 80
+    first = world.run("evt-1")  # check 1 + extraction 5: 67 + 6 = 73 <= 80
     assert first.state == "completed"
     status = world.control.lifetime_status()
-    assert status is not None and status["used"] == 72 and status["remaining"] == 8
+    assert status is not None and status["used"] == 73 and status["remaining"] == 7
 
     # A later process that claims a larger cap and a smaller opening balance changes nothing.
     world.control = DurableAcquisitionControl(world.store, limits=limits(cap=10_000, opening=0))
@@ -394,15 +447,122 @@ def test_lifetime_allowance_is_durable_cross_run_and_cannot_be_loosened_by_a_lat
     status = world.control.lifetime_status()
     assert status is not None and status["lifetime_cap"] == 80 and status["opening_used"] == 67
 
-    second = world.run("evt-2")  # 72 + 5 = 77 <= 80: allowed
-    assert second.state in {"completed", "unchanged"}
-    third = world.run("evt-3")  # 77 + 5 = 82 > 80: refused before any dispatch
+    world.published = {}
+    second = world.run("evt-2")  # the page changed: 73 + 6 = 79 <= 80
+    assert second.state == "completed"
+    third = world.run("evt-3")  # changed again: the check fits (80), the extraction (85) does not
     assert third.state == "blocked"
     assert "lifetime credit allowance is exhausted" in third.diagnostic
-    assert len(world.transport.calls) == 2
+    assert len(world.transport.extraction_calls) == 2  # nothing was dispatched past the cap
 
     # The cap can be raised only explicitly, attributed, and never below what is spent.
     with pytest.raises(ValueError, match="below the credits already used"):
         world.control.raise_lifetime_cap(50, operator="owner", note="try")
     world.control.raise_lifetime_cap(100, operator="owner", note="owner authorised 20 more")
     assert world.run("evt-4").state in {"completed", "unchanged"}
+
+
+def test_boilerplate_changes_do_not_trigger_a_paid_extraction(tmp_path: Path) -> None:
+    first = page()
+    chrome = first.replace(
+        "<main>",
+        "<nav>Home | Cards | Support</nav><footer>Copyright 2027 Example Bank</footer><main>",
+    )
+    world = World(
+        tmp_path, [capture(first, offer_json()), capture(chrome, offer_json())], published=None
+    )
+    world.run("evt-1")
+    again = world.run("evt-2")
+    assert again.state == "unchanged" and again.credits_reserved == 1
+    assert len(world.transport.extraction_calls) == 1
+    # ...and a changed term inside a term-bearing line does trigger one.
+    world.transport.payloads.append(capture(page(points="3,000"), offer_json(points="3,000")))
+    world.published = {}
+    third = world.run("evt-3")
+    assert third.state == "completed" and len(world.transport.extraction_calls) == 2
+
+
+def test_a_failed_check_is_not_read_as_the_offer_being_withdrawn(tmp_path: Path) -> None:
+    world = World(tmp_path, [capture(page(), offer_json())], published=None)
+    first = world.run("evt-1")
+    inserted = world.store.get_proposal(first.proposal_ids[0])
+    assert inserted is not None
+    world.published = {inserted.target_id: dict(inserted.proposed_row)}
+    checkpoint = world.store.last_extraction_checkpoint("watch:atlas-offers")
+
+    world.transport.fail_next = 1  # the plain fetch times out
+    failed = world.run("evt-2")
+    assert failed.state in {"failed", "needs_reconciliation"}
+    assert failed.proposal_ids == ()
+    assert world.store.last_extraction_checkpoint("watch:atlas-offers") == checkpoint
+    assert (
+        world.published and len(world.store.list_proposals()) == 1
+    )  # nothing was removed or added
+    assert len(world.transport.extraction_calls) == 1
+
+
+def test_extraction_binds_to_the_version_it_actually_read(tmp_path: Path) -> None:
+    check_view = page(points="2,500")
+    extraction_view = page(points="3,000")  # the page changed between the two requests
+    world = World(
+        tmp_path,
+        [capture(check_view, None), capture(extraction_view, offer_json(points="3,000"))],
+        published=None,
+    )
+    world.transport.per_call = True
+    outcome = world.run("evt-1")
+    assert outcome.state == "completed", outcome.diagnostic
+    proposal = world.store.get_proposal(outcome.proposal_ids[0])
+    assert proposal is not None and proposal.proposed_row["bonus_points"] == 3000
+    snapshot = world.store.get_snapshot(proposal.lineage_ids[0])
+    assert snapshot is not None and "3,000" in snapshot.canonical_markdown
+    quote = next(f for f in proposal.field_proposals if f.field_path == "bonus_points")
+    span = quote.evidence_spans[0]
+    assert snapshot.canonical_markdown[span.normalized_start : span.normalized_end] == span.quote
+
+
+def test_a_failed_extraction_is_retried_on_the_next_pass_even_if_the_page_is_unchanged(
+    tmp_path: Path,
+) -> None:
+    world = World(tmp_path, [capture(page(), None), capture(page(), offer_json())], published=None)
+    first = world.run("evt-1")
+    assert first.state == "failed" and first.proposal_ids == ()
+    assert world.store.last_extraction_checkpoint("watch:atlas-offers") is None
+    second = world.run("evt-2")  # same page text, but nothing was ever extracted from it
+    assert second.state == "completed" and len(second.proposal_ids) == 1
+    third = world.run("evt-3")
+    assert third.state == "unchanged"  # now it has been extracted, so it is not paid for again
+
+
+def test_one_failing_source_does_not_stop_the_others(tmp_path: Path) -> None:
+    world = World(tmp_path, [capture(page(), offer_json())], published=None)
+
+    async def boom(*_a: Any, **_k: Any) -> Any:
+        raise RuntimeError("unexpected")
+
+    original = world.service.acquire
+    calls: list[str] = []
+
+    async def flaky(target_id: str, *, client_event_id: str) -> Any:
+        calls.append(target_id)
+        if target_id == "watch:broken":
+            return await boom()
+        return await original(target_id, client_event_id=client_event_id)
+
+    world.service.acquire = flaky  # type: ignore[method-assign]
+    world.store.put_watch_target(
+        WatchTarget(
+            target_id="watch:broken",
+            canonical_url="https://issuer.example/cards/broken",
+            source_policy_id="issuer-offers",
+            target_fact_ids=("x",),
+            page_kind=PageKind.OFFER_PAGE,
+            check_frequency_days=7,
+            preferred_backend="firecrawl",
+            manual_only=False,
+        )
+    )
+    world.clock += timedelta(days=8)
+    batch = world.service.refresh_due_sync(limit=5, client_event_prefix="batch-1")
+    states = {o.target_id: o.state for o in batch.outcomes}
+    assert states["watch:broken"] == "failed" and states["watch:atlas-offers"] == "completed"

@@ -6,8 +6,8 @@ import asyncio
 import copy
 import hashlib
 import json
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol
@@ -18,6 +18,7 @@ from ingestion.contracts import (
     FetchFailureKind,
     FetchRequest,
     FetchResult,
+    ImmutableArtifactRef,
     PageKind,
     SnapshotBundle,
     SourcePolicyRecord,
@@ -50,6 +51,7 @@ from ingestion.welcome_extraction import (
     WelcomeTargetConfig,
     build_update_response,
     build_welcome_drafts,
+    relevant_digest,
     structured_extraction_from_envelope,
     welcome_json_extraction,
 )
@@ -232,6 +234,9 @@ class AcquisitionResultRecord:
     normalized_sha256: str | None = None
     evidence_fidelity: str | None = None
     diagnostic: str = ""
+    # Documented credits reserved for requests this call actually dispatched (0 on a replay).
+    credits_reserved: int = 0
+    request_ids: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -251,6 +256,8 @@ class AcquisitionResultRecord:
             "normalized_sha256": self.normalized_sha256,
             "evidence_fidelity": self.evidence_fidelity,
             "diagnostic": self.diagnostic,
+            "credits_reserved": self.credits_reserved,
+            "request_ids": list(self.request_ids),
         }
 
 
@@ -365,6 +372,7 @@ class DurableAcquisitionService:
         default_robots: RobotsRules | None = None,
         preflight: SourcePreflight | None = None,
         firecrawl_enabled: bool = False,
+        source_spacing: Callable[[float], Awaitable[None]] | None = None,
         estimated_credits: int = 1,
         max_bytes: int = 2_000_000,
         max_pages: int = 5,
@@ -389,6 +397,7 @@ class DurableAcquisitionService:
         self.default_robots = default_robots
         self.preflight = preflight or SourcePreflight()
         self.firecrawl_enabled = firecrawl_enabled
+        self.source_spacing: Callable[[float], Awaitable[None]] = source_spacing or asyncio.sleep
         self.estimated_credits = estimated_credits
         self.max_bytes = max_bytes
         self.max_pages = max_pages
@@ -424,14 +433,93 @@ class DurableAcquisitionService:
         *,
         client_event_id: str,
     ) -> AcquisitionResultRecord:
+        """Collect one target. Welcome-offer pages are checked cheaply before they are extracted.
+
+        A plain page fetch (1 credit) is compared with the relevant text that was last extracted.
+        Only a changed page, or one never extracted, is fetched again with Firecrawl's JSON
+        extraction (5 credits), and that second capture is the source version the quotes bind to.
+        A failed check proves nothing about the offer and changes nothing.
+        """
         event_key = client_event_id.strip()
         if not event_key:
             raise ValueError("client_event_id must not be blank")
-        request_id = self.request_id_for(target_id, client_event_id=event_key)
+        ext_config = self._resolve_extraction_config(target_id)
+        if (
+            target_id not in self.welcome_targets
+            or ext_config.mode is not ExtractionMode.FIRECRAWL_MANAGED
+        ):
+            single = await self._acquire_once(target_id, client_event_id=event_key)
+            dispatched = not single.replayed_fetch and single.state in {"completed", "unchanged"}
+            return replace(
+                single,
+                request_ids=(single.request_id,),
+                credits_reserved=self.estimated_credits if dispatched else 0,
+            )
+        check = await self._acquire_once(
+            target_id, client_event_id=event_key, phase="check", request_suffix=":check"
+        )
+        if check.state != "completed" or check.snapshot_id is None:
+            return check
+        extract_id = self.request_id_for(target_id, client_event_id=f"{event_key}:extract")
+        prior_extract = self.control.status(extract_id)
+        snapshot = self.store.get_snapshot(check.snapshot_id)
+        checkpoint = self.store.last_extraction_checkpoint(target_id)
+        if (
+            prior_extract is None
+            and snapshot is not None
+            and checkpoint is not None
+            and checkpoint["relevant_digest"] == relevant_digest(snapshot.canonical_markdown)
+        ):
+            return replace(
+                check,
+                state="unchanged",
+                extraction_status="unchanged",
+                diagnostic=(
+                    "the welcome-relevant text is unchanged since the last extraction; "
+                    "no extraction was requested"
+                ),
+            )
+        target = self.store.get_watch_target(target_id)
+        policy = None if target is None else self.store.get_source_policy(target.source_policy_id)
+        if prior_extract is None and policy is not None:
+            await self.source_spacing(float(policy.minimum_delay_seconds) + 1.0)
+        baseline = (
+            None if checkpoint is None else self.store.get_snapshot(str(checkpoint["snapshot_id"]))
+        )
+        extracted = await self._acquire_once(
+            target_id,
+            client_event_id=event_key,
+            phase="extract",
+            request_suffix=":extract",
+            baseline=baseline,
+        )
+        return replace(
+            extracted,
+            credits_reserved=extracted.credits_reserved + check.credits_reserved,
+            request_ids=(*check.request_ids, *extracted.request_ids),
+        )
+
+    async def _acquire_once(
+        self,
+        target_id: str,
+        *,
+        client_event_id: str,
+        phase: Literal["single", "check", "extract"] = "single",
+        request_suffix: str = "",
+        baseline: SnapshotBundle | None = None,
+    ) -> AcquisitionResultRecord:
+        event_key = client_event_id.strip()
+        if not event_key:
+            raise ValueError("client_event_id must not be blank")
+        request_id = self.request_id_for(target_id, client_event_id=f"{event_key}{request_suffix}")
         ext_config = self._resolve_extraction_config(target_id)
         welcome = self.welcome_targets.get(target_id)
         # Firecrawl-hosted extraction is billed on top of the page: reserve what it documents.
-        managed = welcome is not None and ext_config.mode is ExtractionMode.FIRECRAWL_MANAGED
+        managed = (
+            phase == "extract"
+            and welcome is not None
+            and ext_config.mode is ExtractionMode.FIRECRAWL_MANAGED
+        )
         credits = (
             max(self.estimated_credits, HTML_SCRAPE_CREDITS + JSON_EXTRACTION_EXTRA_CREDITS)
             if managed
@@ -722,11 +810,35 @@ class DurableAcquisitionService:
         else:
             previous_snapshot = before_capture
 
+        if phase == "check":
+            return AcquisitionResultRecord(
+                state="completed",
+                snapshot_id=snapshot.snapshot_id,
+                proposal_ids=(),
+                target_id=target_id,
+                request_id=request_id,
+                client_event_id=event_key,
+                operator_outcome=operator_outcome,
+                extraction_mode=ext_config.mode.value,
+                extraction_status="extraction_pending",
+                llm_calls=0,
+                replayed_fetch=was_completed,
+                provider_envelope_sha256=envelope_sha,
+                raw_sha256=snapshot.raw_sha256,
+                normalized_sha256=snapshot.normalized_sha256,
+                evidence_fidelity=snapshot.evidence_fidelity,
+                diagnostic="page captured; change check pending",
+                credits_reserved=0 if was_completed else credits,
+                request_ids=(request_id,),
+            )
+        if phase == "extract":
+            # The extraction is bound to this capture; the diff base is the last extracted version.
+            previous_snapshot = baseline
         diff = diff_text(
             None if previous_snapshot is None else previous_snapshot.canonical_markdown,
             snapshot.canonical_markdown,
         )
-        if not diff.changed:
+        if phase != "extract" and not diff.changed:
             return AcquisitionResultRecord(
                 state="unchanged",
                 snapshot_id=snapshot.snapshot_id,
@@ -766,7 +878,7 @@ class DurableAcquisitionService:
                 diagnostic="snapshot persisted; extraction disabled",
             )
 
-        if welcome is not None:
+        if welcome is not None and phase == "extract":
             return self._extract_welcome(
                 welcome,
                 managed=managed,
@@ -779,6 +891,8 @@ class DurableAcquisitionService:
                 ext_mode=ext_config.mode.value,
                 was_completed=was_completed,
                 envelope_sha=envelope_sha,
+                credits=credits,
+                extraction_envelope=result.provider_envelope_artifact,
             )
 
         proposal_ids: list[str] = []
@@ -901,6 +1015,8 @@ class DurableAcquisitionService:
         ext_mode: str,
         was_completed: bool,
         envelope_sha: str | None,
+        credits: int,
+        extraction_envelope: ImmutableArtifactRef | None,
     ) -> AcquisitionResultRecord:
         """Insert/update proposals for welcome offers from the retained Firecrawl extraction."""
 
@@ -927,6 +1043,8 @@ class DurableAcquisitionService:
                 normalized_sha256=snapshot.normalized_sha256,
                 evidence_fidelity=snapshot.evidence_fidelity,
                 diagnostic=diagnostic,
+                credits_reserved=0 if was_completed else credits,
+                request_ids=(request_id,),
             )
 
         if not managed:
@@ -935,11 +1053,13 @@ class DurableAcquisitionService:
                 "extraction_failed",
                 "a welcome-offer target needs firecrawl_managed extraction",
             )
-        if snapshot.provider_envelope_artifact is None:
+        # The snapshot of identical page content is shared with the earlier plain fetch, so the
+        # extraction's own envelope (which holds Firecrawl's JSON) is read from this request's
+        # result, not from the snapshot. Its quotes are still verified against the snapshot text.
+        if extraction_envelope is None:
             return record("failed", "extraction_failed", "the capture has no provider envelope")
-        status, data = structured_extraction_from_envelope(
-            self.artifacts.read(snapshot.provider_envelope_artifact)
-        )
+        envelope_sha = extraction_envelope.sha256
+        status, data = structured_extraction_from_envelope(self.artifacts.read(extraction_envelope))
         today = self.now().date()
         build = build_welcome_drafts(
             data if status == "ok" else None,
@@ -967,6 +1087,10 @@ class DurableAcquisitionService:
             )
             current = published.get(draft.offer_id)
             fact_event = f"{event_key}:{draft.offer_id}"
+            already = self.store.get_proposal_by_client_event(fact_event)
+            if already is not None:  # this event was already extracted: replay, never repeat
+                proposal_ids.append(already[0].proposal_id)
+                continue
             if current is None:
                 outcome = extractor.extract_insert(
                     target_table=WELCOME_TABLE,
@@ -1006,6 +1130,14 @@ class DurableAcquisitionService:
         for item in incomplete:
             self.store.record_incomplete_extraction(
                 snapshot_id=snapshot.snapshot_id, target_id=target_id, payload=item.to_dict()
+            )
+        if build.provider_status in {"ok", "empty"} and not failures:
+            # This capture is now the extracted version: an unchanged page is not paid for again.
+            self.store.record_extraction_checkpoint(
+                target_id=target_id,
+                snapshot_id=snapshot.snapshot_id,
+                relevant_digest=relevant_digest(snapshot.canonical_markdown),
+                extraction_envelope_sha256=envelope_sha,
             )
         notes = [*build.diagnostics, *failures]
         if incomplete:
@@ -1049,10 +1181,21 @@ class DurableAcquisitionService:
         due_ids = tuple(self.control.due_targets(candidate_targets, now=self.now(), limit=limit))
         outcomes: list[AcquisitionResultRecord] = []
         for target_id in due_ids:
-            outcome = await self.acquire(
-                target_id,
-                client_event_id=f"{prefix}:{target_id}",
-            )
+            try:
+                outcome = await self.acquire(
+                    target_id,
+                    client_event_id=f"{prefix}:{target_id}",
+                )
+            except Exception as error:  # one source's failure must not stop the others
+                outcome = AcquisitionResultRecord(
+                    state="failed",
+                    snapshot_id=None,
+                    proposal_ids=(),
+                    target_id=target_id,
+                    client_event_id=f"{prefix}:{target_id}",
+                    operator_outcome="failed_with_retained_evidence",
+                    diagnostic=f"{type(error).__name__}: {str(error)[:300]}",
+                )
             outcomes.append(outcome)
         return RefreshDueBatchResult(
             limit=limit,
