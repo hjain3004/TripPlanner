@@ -265,19 +265,19 @@ def compute_acquisition_assessment(
             if value is None
         ]
         if unknown_terms:
-            # The issuer page did not say, and an unknown is never defaulted to a number. The
-            # closed refusal-code set is part of the public contract, so the nearest existing
-            # code is used with an explicit message; a precise code needs a contract change.
+            # An approved offer exists, but its published terms do not state an input the
+            # assessment needs. That is not "no offer": nothing is guessed (no approval or
+            # delivery timing, no fee), and the card is simply not assessable from this offer.
             refusals.append(
                 AcquisitionRefusal(
                     card_id=card_id,
                     card_name=card_name,
                     offer_id=offer.id,
-                    reason="NO_APPROVED_OFFER",
+                    reason="OFFER_TERMS_INCOMPLETE",
                     message=(
-                        "This offer's published terms do not state "
-                        + ", ".join(unknown_terms)
-                        + ", so a new-card assessment cannot be computed from it."
+                        "An approved offer exists for this card, but its published terms do not "
+                        "state " + ", ".join(unknown_terms) + ", so a new-card assessment "
+                        "cannot be computed from it."
                     ),
                     details={"offer_id": offer.id, "unknown_terms": unknown_terms},
                 )

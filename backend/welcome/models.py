@@ -371,6 +371,7 @@ AcquisitionRefusalReason = Literal[
     "CURRENCY_MISMATCH",
     "NO_APPROVED_OFFER",
     "AMBIGUOUS_OFFER",
+    "OFFER_TERMS_INCOMPLETE",
 ]
 
 

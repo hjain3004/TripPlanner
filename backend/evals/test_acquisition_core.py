@@ -561,3 +561,45 @@ def test_currency_mismatch_is_refused(kb: KnowledgeBase) -> None:
     assert len(report.suggestions) == 0
     assert len(report.refusals) == 1
     assert report.refusals[0].reason == "CURRENCY_MISMATCH"
+
+
+# --------------------------------------------------------------------------- #
+# Approved offer whose published terms omit an assessment input                #
+# --------------------------------------------------------------------------- #
+
+
+def test_an_approved_offer_missing_assessment_terms_is_incomplete_not_absent(
+    kb: KnowledgeBase,
+) -> None:
+    plan = _make_stored_plan(kb)
+    complete = _flat_offer(approval_days=7, in_hand_days=7)
+    incomplete = complete.model_copy(
+        update={"expected_approval_days": None, "annual_fee_minor": None}
+    )
+    pt = PaymentTimingIn(booking_date=BOOKING_DATE, first_bookable_spend_date=date(2026, 11, 10))
+
+    def assess(offer: CardAcquisitionOffer) -> Any:
+        return compute_acquisition_assessment(
+            trip_id=plan.trip_id,
+            revision=plan.revision,
+            as_of=BOOKING_DATE,
+            kb=kb,
+            catalog=OfferCatalog([offer]),
+            plan=plan,
+            user_held_card_ids={HELD_CARD},
+            payload=AcquisitionAssessmentIn(candidate_card_id=CANDIDATE_CARD, payment_timing=pt),
+        )
+
+    assert len(assess(complete).suggestions) == 1  # the same offer with its terms still works
+
+    report = assess(incomplete)
+    assert report.suggestions == []
+    (refusal,) = report.refusals
+    assert refusal.reason == "OFFER_TERMS_INCOMPLETE"  # not "no approved offer"
+    assert refusal.offer_id == incomplete.id
+    assert refusal.details["unknown_terms"] == ["expected_approval_days", "annual_fee_minor"]
+    assert "approved offer exists" in refusal.message
+    # Nothing was guessed to get past the gates: no fee, no approval or delivery timing.
+    assert "net_first_year_minor" not in refusal.details
+    # The held-card strategy is still reported, unchanged.
+    assert report.held_cards_strategy.card_ids == [HELD_CARD]
