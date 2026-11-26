@@ -937,6 +937,16 @@ class FinancialIngestionStore:
                 payload=body,
             )
 
+    def last_checked_at(self, target_id: str) -> str | None:
+        """When a fetch for this target last completed: the machine's check, not a human's."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT MAX(completed_at) FROM acquisition_requests "
+                "WHERE state = 'completed' AND request_id LIKE ? ESCAPE '\\'",
+                (f"acq:{target_id.replace('_', chr(92) + '_').replace('%', chr(92) + '%')}:%",),
+            ).fetchone()
+        return None if row is None or row[0] is None else str(row[0])
+
     def record_extraction_checkpoint(
         self,
         *,

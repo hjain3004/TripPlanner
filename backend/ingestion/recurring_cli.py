@@ -210,7 +210,6 @@ def source_status(
     from ingestion.contracts import ProposalStatus
 
     target = store.get_watch_target(target_id)
-    snapshot = store.latest_snapshot(target_id)
     checkpoint = store.last_extraction_checkpoint(target_id)
     pending = 0
     for proposal in store.list_proposals(ProposalStatus.PENDING):
@@ -221,12 +220,15 @@ def source_status(
     ]
     rows = [row for row in published.values() if row["card_id"] == config.card_id]
     next_due = None
-    if snapshot is not None and target is not None:
-        next_due = (snapshot.captured_at + timedelta(days=target.check_frequency_days)).isoformat()
+    checked = store.last_checked_at(target_id)
+    if checked is not None and target is not None:
+        next_due = (
+            datetime.fromisoformat(checked) + timedelta(days=target.check_frequency_days)
+        ).isoformat()
     return {
         "target_id": target_id,
         "card_id": config.card_id,
-        "last_checked_at": None if snapshot is None else snapshot.captured_at.isoformat(),
+        "last_checked_at": store.last_checked_at(target_id),
         "last_extracted_at": None if checkpoint is None else checkpoint["recorded_at"],
         "next_due_at": next_due,
         "pending_proposals": pending,
