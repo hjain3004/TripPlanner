@@ -3,11 +3,12 @@ from __future__ import annotations
 import math
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from agents.models import RetrievalContext, TripSpec
 from core.db import KnowledgeBase
 from core.models import POI, Area, Provenance
-from core.travel_taxonomy import canonical_overlap
+from core.travel_taxonomy import canonical_overlap, canonical_travel_category
 from gateway.catalog.regions import Region
 from gateway.places.contracts import PlaceCandidate
 
@@ -37,14 +38,11 @@ def resolve_destination_city(destination_iata: str) -> str:
         return region.city_name
     return CITY_BY_IATA.get(destination_iata, destination_iata)
 
-def _map_candidate_to_poi(
-    c: PlaceCandidate, city: str, region: Region | None = None
-) -> POI:
+
+def _map_candidate_to_poi(c: PlaceCandidate, city: str, region: Region | None = None) -> POI:
     name = next((cl.value for cl in c.claims if cl.field == "name"), "Unknown")
     cat = next((cl.value for cl in c.claims if cl.field == "category"), "other")
-    coords = next(
-        (cl.value for cl in c.claims if cl.field == "coordinates"), None
-    )
+    coords = next((cl.value for cl in c.claims if cl.field == "coordinates"), None)
 
     lat = coords["lat"] if isinstance(coords, dict) and "lat" in coords else None
     lon = coords["lon"] if isinstance(coords, dict) and "lon" in coords else None
@@ -133,6 +131,7 @@ def _geo_cell_area(area_id: str, city: str, tags: list[str]) -> Area:
         ),
     )
 
+
 def get_catalog_poi(poi_id: str, destination_iata: str) -> POI | None:
 
     from gateway.catalog.activate import active_catalog_path
@@ -145,6 +144,7 @@ def get_catalog_poi(poi_id: str, destination_iata: str) -> POI | None:
         catalog = active_catalog_path(default_catalog_root(), catalog_id=region.catalog_id)
         if catalog and catalog.exists():
             from gateway.places.adapters.snapshot import SnapshotPlaceAdapter
+
             adapter = SnapshotPlaceAdapter(catalog)
             for c in adapter._load():
                 if c.place_id == poi_id:
@@ -184,10 +184,12 @@ def retrieve_candidates(
     spec: TripSpec, kb: KnowledgeBase, limit: int = 40, catalog: Path | None = None
 ) -> RetrievalContext:
     from gateway.catalog.regions import get_region
+
     region = get_region(spec.destination_city)
-    
+
     if catalog is None and region is not None:
         from gateway.catalog.activate import active_catalog_path
+
         try:
             catalog = active_catalog_path(default_catalog_root(), catalog_id=region.catalog_id)
         except FileNotFoundError:
@@ -195,62 +197,48 @@ def retrieve_candidates(
 
     city = resolve_destination_city(spec.destination_city)
     pois = kb.pois(city)
-    
+
     poi_provenance = []
 
     if catalog and catalog.exists():
         from core.trip_models import POIEvidence
         from gateway.catalog.quality import SUPPORTED_CATEGORIES
         from gateway.places.adapters.snapshot import SnapshotPlaceAdapter
-        
+
         origin_lat = region.centroid_lat if region else 0.0
         origin_lon = region.centroid_lon if region else 0.0
 
         adapter = SnapshotPlaceAdapter(catalog)
         supported = set(SUPPORTED_CATEGORIES)
-        candidates = [
-            c
-            for c in adapter._load()
-            if next(
-                (cl.value for cl in c.claims if cl.field == "category"),
-                None,
-            )
-            in supported
-        ]
 
-        def distance_sort(c: PlaceCandidate) -> tuple[float, str]:
-            coords = next(
-                (cl.value for cl in c.claims if cl.field == "coordinates"),
-                None,
-            )
-            if not isinstance(coords, dict):
-                return (float("inf"), c.place_id)
-            lat = coords.get("lat")
-            lon = coords.get("lon")
+        def claim_value(c: PlaceCandidate, field: str) -> Any:
+            for claim in c.claims:
+                if claim.field == field:
+                    return claim.value
+            return None
+
+        candidates = [c for c in adapter._load() if claim_value(c, "category") in supported]
+
+        # One pass per place, no temporary containers: this ranks every place in a regional
+        # catalog (tens of thousands) on each recompute, so allocation here dominates its time.
+        wanted = {canonical_travel_category(value) for value in spec.interests}
+
+        def rank(c: PlaceCandidate) -> tuple[int, float, str]:
+            category = claim_value(c, "category")
+            matched = wanted and canonical_travel_category(str(category or "")) in wanted
+            overlap = 1 if matched else 0
+            coords = claim_value(c, "coordinates")
+            lat = coords.get("lat") if isinstance(coords, dict) else None
+            lon = coords.get("lon") if isinstance(coords, dict) else None
             if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
-                return (float("inf"), c.place_id)
+                return (-overlap, float("inf"), c.place_id)
             return (
+                -overlap,
                 (float(lat) - origin_lat) ** 2 + (float(lon) - origin_lon) ** 2,
                 c.place_id,
             )
 
-        candidates = sorted(
-            candidates,
-            key=lambda c: (
-                -canonical_overlap(
-                    [
-                        str(
-                            next(
-                                (cl.value for cl in c.claims if cl.field == "category"),
-                                "",
-                            )
-                        )
-                    ],
-                    spec.interests,
-                ),
-                distance_sort(c),
-            ),
-        )
+        candidates = sorted(candidates, key=rank)
         candidates = candidates[: max(limit * 4, limit)]
 
         for c in candidates:
@@ -317,10 +305,7 @@ def retrieve_candidates(
             if poi.area == "Unknown":
                 continue
             by_area.setdefault(poi.area, []).extend(poi.tags)
-        areas = [
-            _geo_cell_area(area_id, city, tags)
-            for area_id, tags in sorted(by_area.items())
-        ]
+        areas = [_geo_cell_area(area_id, city, tags) for area_id, tags in sorted(by_area.items())]
     return RetrievalContext(
         pois=sorted_pois,
         areas=areas,
