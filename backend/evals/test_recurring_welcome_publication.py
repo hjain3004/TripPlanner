@@ -344,3 +344,38 @@ def test_historical_and_expired_offer_rules_still_apply_to_a_last_good_catalog(
     assert stale.select_offer(CARD, date(2026, 10, 1)).offer is not None
     expired = stale.select_offer(CARD, date(2026, 12, 15))
     assert expired.offer is None and expired.reason == "OFFER_NOT_IN_FORCE_AT_OPEN_DATE"
+
+
+def test_a_published_offer_without_case_b_terms_is_refused_precisely_by_the_acquisition_api(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end: collected, approved, published, then asked about as a *new* card.
+
+    The page stated no approval time, delivery time or annual fee, none was invented, and the
+    assessment says exactly that instead of "no approved offer"."""
+    from evals.welcome_support import request_acquisition_assessment
+
+    rig = Rig(tmp_path, [capture(page(), offer_json())])
+    client, _store, trip_id, _entry = (lambda r: (r[0], r[1], r[2]["trip"]["id"], r[3][0]))(
+        plan_and_save(tmp_path, monkeypatch, cards=[("sbi-cashback", None)])
+    )
+    app.dependency_overrides[get_as_of] = lambda: AS_OF
+    _publish_one(rig, monkeypatch)
+
+    response = request_acquisition_assessment(
+        client,
+        trip_id,
+        candidate_card_id=CARD,
+        payment_timing={"booking_date": "2026-10-24", "first_bookable_spend_date": "2026-11-10"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["suggestions"] == []
+    (refusal,) = body["refusals"]
+    assert refusal["reason"] == "OFFER_TERMS_INCOMPLETE"
+    assert refusal["details"]["unknown_terms"] == [
+        "expected_approval_days",
+        "expected_card_in_hand_days",
+        "annual_fee_minor",
+    ]
+    assert body["held_cards_strategy"]["card_ids"] == ["sbi-cashback"]  # held-card result intact

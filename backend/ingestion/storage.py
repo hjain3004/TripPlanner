@@ -1002,13 +1002,29 @@ class FinancialIngestionStore:
             for row in rows
         ]
 
-    def list_incomplete_extractions(self) -> list[dict[str, Any]]:
+    def list_incomplete_extractions(self, *, latest_only: bool = True) -> list[dict[str, Any]]:
+        """Incomplete-draft records, newest derivation per offer by default.
+
+        Re-extracting after a rule fix records new rows; the older ones stay in the audit history
+        (``latest_only=False``) but are not what a reviewer should be shown.
+        """
         with self._connect() as connection:
             rows = connection.execute(
                 "SELECT payload, created_at FROM audit_events WHERE entity_type = 'extraction' "
                 "AND event_type = 'incomplete_draft' ORDER BY rowid"
             ).fetchall()
-        return [{**json.loads(row[0]), "recorded_at": row[1]} for row in rows]
+        records = [{**json.loads(row[0]), "recorded_at": row[1]} for row in rows]
+        if not latest_only:
+            return records
+        newest: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for record in records:
+            key = (
+                str(record.get("target_id")),
+                str(record.get("snapshot_id")),
+                str(record.get("title") or record.get("offer_id")),
+            )
+            newest[key] = record
+        return list(newest.values())
 
     def list_audit_events(self, *, entity_id: str | None = None) -> list[dict[str, str]]:
         with self._connect() as connection:

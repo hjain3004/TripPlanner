@@ -162,6 +162,8 @@ def _add_commands(sub: Any) -> None:
     history.add_argument("--data-dir", default=None)
     incomplete = sub.add_parser("incomplete-drafts")
     incomplete.add_argument("--data-dir", default=None)
+    incomplete.add_argument("--format", choices=("json", "md"), default="json")
+    incomplete.add_argument("--out", default=None, help="write here (never inside a git checkout)")
     reextract = sub.add_parser("reextract-welcome")
     reextract.add_argument("--data-dir", default=None)
     reextract.add_argument("--target-id", required=True)
@@ -189,6 +191,35 @@ WELCOME_COMMANDS = frozenset(
         "raise-lifetime-cap",
     }
 )
+
+
+def render_incomplete_markdown(rows: list[dict[str, Any]]) -> str:
+    lines = [
+        "# Incomplete welcome-offer drafts",
+        "",
+        f"{len(rows)} record(s). **Nothing here is approved or publishable.** Quotes are verbatim "
+        "from retained captures: keep this file out of Git.",
+        "",
+    ]
+    for row in rows:
+        lines += [
+            f"## {row.get('title') or '(untitled)'}  — `{row.get('offer_id')}`",
+            "",
+            f"* target `{row['target_id']}`, snapshot `{row['snapshot_id']}`, recorded "
+            f"{row.get('recorded_at')}",
+            f"* reason: {row['reason']}",
+            f"* missing: {', '.join(row['missing']) or 'none (see reason)'}",
+            "",
+        ]
+        for name, item in sorted((row.get("evidence") or {}).items()):
+            lines.append(
+                f"* **{name}** = `{item['raw_value']}` — “{item['quote']}” "
+                f"(offsets {item['start']}-{item['end']})"
+            )
+        for name, why in sorted((row.get("rejected") or {}).items()):
+            lines.append(f"* rejected `{name}`: {why}")
+        lines.append("")
+    return "\n".join(lines)
 
 
 class _NoNetwork:
@@ -236,8 +267,18 @@ def run_welcome_command(
             say(store.list_publication_events())
             return 0
         if args.command == "incomplete-drafts":
-            say(store.list_incomplete_extractions())
-            return 0
+            rows = store.list_incomplete_extractions()
+            if args.format == "json" and not args.out:
+                say(rows)
+                return 0
+            from ingestion.review_server import emit_local_report
+
+            text = (
+                json.dumps(rows, indent=2, sort_keys=True, default=str)
+                if args.format == "json"
+                else render_incomplete_markdown(rows)
+            )
+            return emit_local_report(text, args.out, repo_root=Path(__file__).resolve().parents[2])
         if args.command == "reextract-welcome":
             from ingestion.acquisition import DurableAcquisitionService
 

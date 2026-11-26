@@ -119,9 +119,13 @@ class IncompleteDraft:
     evidenced: tuple[str, ...]
     rejected: Mapping[str, str]
     reason: str = "required fields are missing"
+    # What was accepted, with the verbatim quote and its offsets in the retained page text, so a
+    # reviewer can judge an incomplete draft without reopening the capture.
+    evidence: Mapping[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "evidence": dict(self.evidence),
             "offer_id": self.offer_id,
             "title": self.title,
             "missing": list(self.missing),
@@ -302,6 +306,19 @@ def _draft_provenance(config: WelcomeTargetConfig, today: date) -> dict[str, Any
     }
 
 
+def _evidence(accepted: Mapping[str, tuple[ExtractedField, Any]]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for name, (extracted, _value) in accepted.items():
+        span = extracted.evidence_spans[0]
+        out[name] = {
+            "raw_value": extracted.proposed_raw_value,
+            "quote": span.quote,
+            "start": span.normalized_start,
+            "end": span.normalized_end,
+        }
+    return out
+
+
 def build_welcome_drafts(
     provider_json: object,
     *,
@@ -348,6 +365,7 @@ def build_welcome_drafts(
                     missing=(),
                     evidenced=tuple(sorted(accepted)),
                     rejected=rejected,
+                    evidence=_evidence(accepted),
                     reason="not a welcome offer: no welcome, joining, sign-up or first-transaction "
                     "wording anywhere in its evidence",
                 )
@@ -371,6 +389,7 @@ def build_welcome_drafts(
                     missing=(),
                     evidenced=tuple(sorted(accepted)),
                     rejected=rejected,
+                    evidence=_evidence(accepted),
                     reason="conflicting bonus: both points and a flat amount were claimed; "
                     "a curator must say which applies",
                 )
@@ -385,6 +404,7 @@ def build_welcome_drafts(
                     missing=("title",),
                     evidenced=tuple(sorted(accepted)),
                     rejected=rejected,
+                    evidence=_evidence(accepted),
                     reason="no evidenced title to identify the offer",
                 )
             )
@@ -404,6 +424,7 @@ def build_welcome_drafts(
                     missing=("currency",),
                     evidenced=tuple(sorted(accepted)),
                     rejected=rejected,
+                    evidence=_evidence(accepted),
                     reason=f"page currency {quoted_currency} conflicts with the card's {currency}",
                 )
             )
@@ -438,6 +459,7 @@ def build_welcome_drafts(
                     missing=tuple(missing) or ("schema",),
                     evidenced=tuple(sorted(accepted)),
                     rejected=rejected,
+                    evidence=_evidence(accepted),
                     reason=(
                         "required fields are missing"
                         if missing
