@@ -140,6 +140,14 @@ passing acceptance gate. The private retention and confinement checks passed, as
 and lint for the changed packages, deterministic contract regeneration, frontend TypeScript and
 ESLint (15 warnings). The old process-wide `gc.freeze()` is removed.
 
+A follow-up investigation traced avoidable heap growth to each `load_kb` creating a one-use
+SQLAlchemy engine with a compiled-query cache that survives in cyclic garbage. Disabling that
+engine's cache leaves database reads fresh and does not change financial data or process-wide GC.
+After 500 local knowledge-base loads with GC paused solely for measurement in a separate process,
+the previous cache retained 918,816 tracked objects versus 188,233 with the fix. The unchanged
+performance test passed after the 500-load workload, and a regression verifies both no retained
+one-use cache and visibility of a subsequent SQLite change. Final exact-tree gate remains pending.
+
 The unchanged performance test passed in isolation with synthetic heaps of one million and six
 million tracked objects. A diagnostic run through the preceding tests observed about 3.1 million
 tracked objects and 835–877 ms full collections during catalog setup; in that run the timed test
