@@ -12,6 +12,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from core.models import OptimizationPrefs
 from core.trip_models import DraftItinerary, TripSpec
 from gateway.travel.contracts import FlightSearchRequest, HotelSearchRequest, TravelerMix
 from planning.contracts import ConfirmedBriefSnapshot
@@ -39,6 +40,9 @@ class ConfirmedTripInput:
     expected_fields: dict[str, object]
     planner_notes: tuple[str, ...]
     limitations: tuple[str, ...]
+    # The TripSpec the confirmed brief denotes. The intake model's reading must agree on the
+    # identity fields, and the brief's interests / pace / dietary replace the model's.
+    authority: TripSpec
 
 
 def _canonical_wallet(snapshot: ConfirmedBriefSnapshot) -> dict[str, object]:
@@ -110,6 +114,23 @@ def compile_confirmed_input(snapshot: ConfirmedBriefSnapshot) -> ConfirmedTripIn
     raw_request = "Confirmed trip facts (JSON):\n" + json.dumps(
         payload, sort_keys=True, separators=(",", ":")
     )
+    dietary = list(brief.hard_constraints.dietary) if brief.hard_constraints else []
+    authority = TripSpec(
+        home_country=brief.home.home_country,
+        origin_city=essentials.origin,
+        destination_city=essentials.destination,
+        start_date=essentials.start_date,
+        end_date=essentials.end_date,
+        travelers=travelers,
+        budget_minor=budget.budget_minor if budget else None,
+        budget_currency=str(expected["budget_currency"]),
+        style=budget.travel_style if budget else "balanced",
+        interests=list(brief.experiences_and_food.interests) if brief.experiences_and_food else [],
+        pace=rhythm.pace if rhythm and rhythm.pace != "no_preference" else "moderate",
+        dietary=dietary,
+        wallet=brief.wallet.model_copy(deep=True),
+        optimization=OptimizationPrefs(objective=objective),
+    )
     notes = (
         f"Confirmed cabin preference: {cabin_label}.",
         f"Confirmed objective: {objective}.",
@@ -121,6 +142,7 @@ def compile_confirmed_input(snapshot: ConfirmedBriefSnapshot) -> ConfirmedTripIn
         expected_fields=expected,
         planner_notes=notes,
         limitations=tuple(limitations),
+        authority=authority,
     )
 
 

@@ -74,8 +74,10 @@ def start_confirmed_job(session: PlanningSession, job_id: str) -> None:
     """
     if not session.confirmed_briefs:
         raise ValueError("confirmed brief is required")
+    from agents.llm_factory import build_llm_client
     from api.main import (
         _run_job,
+        app,
         get_booking_date,
         get_kb,
         get_llm,
@@ -94,6 +96,18 @@ def start_confirmed_job(session: PlanningSession, job_id: str) -> None:
         now=lambda: datetime.now(UTC),
     )
     request = TripIntakeRequest(raw_request=confirmed.raw_request, wallet=session.wallet)
+    current_llm = (
+        app.dependency_overrides[get_llm]()
+        if get_llm in app.dependency_overrides
+        else get_llm()
+    )
+    from agents.claude_client import AnthropicMessagesClient
+    from agents.llm import RefusalLLMClient
+
+    if isinstance(current_llm, (RefusalLLMClient, AnthropicMessagesClient)):
+        planning_llm = build_llm_client("pipeline", plan_id=job_id, user_id=session.user_id)
+    else:
+        planning_llm = current_llm
     import threading
 
     thread = threading.Thread(
@@ -102,7 +116,7 @@ def start_confirmed_job(session: PlanningSession, job_id: str) -> None:
             job_id,
             request,
             get_kb(),
-            get_llm(),
+            planning_llm,
             get_place_registry(),
             get_booking_date(),
             get_trace_dir(),
@@ -111,6 +125,7 @@ def start_confirmed_job(session: PlanningSession, job_id: str) -> None:
             "confirmed_input": confirmed,
             "inventory_service": service,
             "weather_service": get_weather_context_service(),
+            "owner_id": session.user_id,
         },
         daemon=True,
     )

@@ -24,6 +24,60 @@ class LLMTimeoutError(LLMCallError):
     pass
 
 
+class LLMInvalidResponse(LLMCallError):
+    """The model answered, but not with usable JSON for the schema (after the one repair)."""
+
+
+class LLMBudgetExceeded(LLMCallError):
+    """A spend reservation was refused or the provider reported a spend limit."""
+
+    code = "LLM_BUDGET_EXHAUSTED"
+
+    def __init__(self, message: str, *, scope: str = "") -> None:
+        super().__init__(message)
+        self.scope = scope
+
+
+class LLMProviderUnavailable(LLMCallError):
+    """The provider cannot be used right now (auth, billing, overload, kill switch)."""
+
+    code = "LLM_UNAVAILABLE"
+
+    def __init__(self, message: str, *, reason: str = "") -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+class LLMSignInRequired(LLMProviderUnavailable):
+    """Paid model dispatch is reserved for signed-in, owner-bound jobs."""
+
+    code = "LLM_SIGN_IN_REQUIRED"
+
+
+class LLMRefusal(LLMCallError):
+    """The model declined the request (stop_reason == refusal)."""
+
+
+class LLMTruncated(LLMCallError):
+    """Output hit max_tokens; a repeat at the same cap would truncate again."""
+
+
+class LLMSchemaRejected(LLMCallError):
+    """The provider rejected the wire schema (for example, too complex)."""
+
+
+class LLMNotConfigured(LLMCallError):
+    """No model provider is configured; planning is unavailable."""
+
+    code = "LLM_NOT_CONFIGURED"
+
+
+def llm_error_code(error: BaseException) -> str:
+    """The job-level error code for an LLM failure; unknown failures are PIPELINE_ERROR."""
+    code = getattr(error, "code", None)
+    return code if isinstance(code, str) and code.startswith("LLM_") else "PIPELINE_ERROR"
+
+
 class LLMClient(Protocol):
     def complete_json(
         self,
@@ -37,6 +91,27 @@ class LLMClient(Protocol):
         timeout_s: int = 20,
         tools: list[dict[str, Any]] | None = None,
     ) -> T | Any: ...
+
+
+class RefusalLLMClient:
+    """An LLMClient that immediately raises an explicit typed refusal error."""
+
+    def __init__(self, error: LLMCallError) -> None:
+        self.error = error
+
+    def complete_json(
+        self,
+        *,
+        node: str,
+        system: str,
+        user: str,
+        schema: type[T],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        timeout_s: int = 20,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> T | Any:
+        raise self.error
 
 
 class ScriptedLLMClient:
@@ -151,8 +226,9 @@ class HostedFreeTier:
     # instead of holding a request open.
     DEFAULT_MAX_BACKOFF_SECONDS = 60.0
 
-    def __init__(self, *, max_retries: int = 3) -> None:
+    def __init__(self, *, max_retries: int = 3, gate: Any = None) -> None:
         self.max_retries = max_retries
+        self.gate = gate
         self.base_url = os.getenv("TRIPWISE_LLM_BASE_URL")
         self.model = os.getenv("TRIPWISE_LLM_MODEL")
         fallback_models = [
@@ -189,7 +265,7 @@ class HostedFreeTier:
             if not value
         ]
         if missing:
-            raise LLMCallError("HostedFreeTier is not configured; set " + ", ".join(missing))
+            raise LLMNotConfigured("HostedFreeTier is not configured; set " + ", ".join(missing))
         assert self.base_url is not None
         return self.base_url.rstrip("/") + "/chat/completions"
 
@@ -230,6 +306,36 @@ class HostedFreeTier:
         return redacted[:500]
 
     def complete_json(
+        self,
+        *,
+        node: str,
+        system: str,
+        user: str,
+        schema: type[T],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        timeout_s: int = 20,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> T | Any:
+        if self.gate is not None:
+            if not self.gate.acquire(timeout_s=min(float(timeout_s), 5.0)):
+                raise LLMProviderUnavailable("overloaded", reason="gate_timeout")
+        try:
+            return self._complete_json_core(
+                node=node,
+                system=system,
+                user=user,
+                schema=schema,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout_s=timeout_s,
+                tools=tools,
+            )
+        finally:
+            if self.gate is not None:
+                self.gate.release()
+
+    def _complete_json_core(
         self,
         *,
         node: str,
@@ -451,9 +557,9 @@ def complete_with_repair(
                 tools=tools,
             )
         except (ValidationError, json.JSONDecodeError) as retry_exc:
-            raise LLMCallError(f"{node} schema repair failed") from retry_exc
+            raise LLMInvalidResponse(f"{node} schema repair failed") from retry_exc
     except json.JSONDecodeError as exc:
-        raise LLMCallError(f"{node} returned invalid JSON") from exc
+        raise LLMInvalidResponse(f"{node} returned invalid JSON") from exc
 
 
 _DEFAULT_RECORDINGS_DIR = Path(__file__).parent.parent / "evals" / "recorded"

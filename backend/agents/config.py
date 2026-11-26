@@ -15,6 +15,12 @@ class LLMNodeConfig(BaseModel):
     max_replan_loops: int | None = None
 
 
+class AnthropicNodeConfig(BaseModel):
+    max_tokens: int
+    effort: str = "medium"
+    thinking: str = "off"
+
+
 class EstimatorConfig(BaseModel):
     per_diem_sgd_minor: dict[str, dict[str, int]]
 
@@ -22,6 +28,7 @@ class EstimatorConfig(BaseModel):
 class AgentConfig(BaseModel):
     llm: dict[str, LLMNodeConfig]
     estimator: EstimatorConfig
+    anthropic: dict[str, AnthropicNodeConfig] | None = None
 
 
 def load_agent_config(path: Path = CONFIG_PATH) -> AgentConfig:
