@@ -129,18 +129,23 @@ approval → publication → rollback. These use retained synthetic captures and
 Published rows keep `needs_verification=true` unless every fact field was quoted. A campaign end date
 excludes a card opened afterwards but never an existing holder's historical window.
 
-## Gate status — pending
+## Gate status — failed, acceptance pending
 
-The previous `final_gate.log` predates the current code and failed both the process-confinement
-and warm-recompute checks. The private retention fix now passes its focused confinement and
-synthetic-secret checks. Process-wide `gc.freeze()` has been removed. Bounded top-k ranking and
-a ranking cache tied to catalog eviction replace repeated full-list sorting; focused retrieval and
-warm-recompute checks pass, including the unchanged test with more than one million tracked
-heap objects. The focused synthetic workflow suite exposed an obsolete expectation that an
-unknown end prevents proposal creation; the revised CLI regression now verifies the pending
-proposal and its missing end date after a separate process reopens the queue. Deterministic OpenAPI
-and client regeneration, frontend TypeScript, and ESLint (15 existing warnings) passed.
-The unchanged complete gate has not yet been run on this tree.
+On committed tree `85d3f6b6ca5cf9a559fe892a515e81dbb8e51e14`, `make seed` succeeded and the
+unchanged `make gate` failed in full pytest: `test_recompute_with_real_catalog_items_stays_fast`
+took 899.03 ms (limit 500 ms). The suite otherwise reported 3,414 passed, one skipped and three
+warnings; gate stopped before its later phases. Its complete log is retained outside Git at
+`~/tripwise-ingestion-data/recurring-live-acceptance-20261126/gate-85d3f6b.log`. This is not a
+passing acceptance gate. The private retention and confinement checks passed, as did strict typing
+and lint for the changed packages, deterministic contract regeneration, frontend TypeScript and
+ESLint (15 warnings). The old process-wide `gc.freeze()` is removed.
+
+The unchanged performance test passed in isolation with synthetic heaps of one million and six
+million tracked objects. A diagnostic run through the preceding tests observed about 3.1 million
+tracked objects and 835–877 ms full collections during catalog setup; in that run the timed test
+passed. These observations support the GC concern but do not establish a reliable fix for the
+full-suite timing failure. The diagnostic was stopped after reaching that test, and its log and
+GC events remain in the task's private evidence directory and `/private/tmp` respectively.
 
 The subsequent offline re-extraction rejects the Atlas annual fee as a bonus and refuses to
 associate the older cohort's 5,000-mile benefit with the later cohort's start date. It preserves
