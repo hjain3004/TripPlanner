@@ -26,6 +26,7 @@ from agents.llm import (
     LLMProviderUnavailable,
     LLMRefusal,
     LLMSchemaRejected,
+    LLMTimeoutError,
     LLMTruncated,
 )
 from agents.llm_budget import LLMSpendLedger, SpendCaps
@@ -87,6 +88,7 @@ def test_happy_path_settles_ledger_and_returns_model(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["x-api-key"] == "test-key"
         assert request.headers["anthropic-version"] == "2023-06-01"
+        assert request.extensions["timeout"]["read"] == 20.0
         body = json.loads(request.content)
         assert "temperature" not in body
         assert body["model"] == "claude-sonnet-5-5"
@@ -383,3 +385,45 @@ def test_provider_error_content_is_redacted(tmp_path: Path) -> None:
     err_str = str(exc_info.value)
     assert secret_key not in err_str
     assert "[REDACTED]" in err_str
+
+
+def test_reservation_delay_prevents_expired_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = [0.0]
+    calls: list[bool] = []
+    client, db = make_client(tmp_path, lambda _request: calls.append(True), deadline=60.0)
+    client.budget.clock = lambda: now[0]
+    original = db.reserve
+
+    def reserve_late(**kwargs: Any) -> str:
+        reservation = original(**kwargs)
+        now[0] += 29
+        return reservation
+
+    monkeypatch.setattr(db, "reserve", reserve_late)
+    now[0] = 40
+    with pytest.raises(LLMTimeoutError):
+        client.complete_json(node="intake", system="sys", user="usr", schema=DummySchema)
+    assert not calls
+    with sqlite3.connect(db.path) as conn:
+        assert conn.execute("SELECT state FROM reservations").fetchone() == ("released",)
+    assert client.gate.acquire(timeout_s=0)
+    client.gate.release()
+
+
+@pytest.mark.parametrize("error_type", [httpx.ReadTimeout, httpx.ConnectError])
+def test_transport_errors_redact_secrets(tmp_path: Path, error_type: Any) -> None:
+    secret = "synthetic-test-api-key"
+    token = "synthetic-bearer-token"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise error_type(f"upstream {secret} Bearer {token}", request=request)
+
+    client, db = make_client(tmp_path, handler, api_key=secret)
+    with pytest.raises((LLMTimeoutError, LLMProviderUnavailable)) as exc:
+        client.complete_json(node="intake", system="sys", user="usr", schema=DummySchema)
+    assert secret not in str(exc.value)
+    assert token not in str(exc.value)
+    with sqlite3.connect(db.path) as conn:
+        assert conn.execute("SELECT state FROM reservations").fetchone() == ("uncertain",)

@@ -89,3 +89,18 @@
 - **Owner Action (P1–P7):** Real Claude API keys and paid deployment-day check (`anthropic_preflight.py --live` with `TRIPWISE_ANTHROPIC_LIVE_CHECK_CONFIRMED=1`) remain owner actions for deployment day after PR merge.
 - **Stream A Finish (Luna):** Luna owns the frontend/wizard phase: `TripIntakeRequest.trip` wiring, MSW fixtures, and rendering the new typed `LLM_*` error states and critic caveats.
 - **Review (Sol):** Independent branch code review by Sol before final merge.
+
+## Follow-up: deadline and transport diagnostics
+
+An offline fake-clock reproduction showed a successful reservation finishing after the plan
+deadline could previously dispatch anyway. The client now checks the remaining deadline after
+reservation and client construction, releases a known-undispatched reservation when the existing
+operation timeout cannot fit, and applies the bounded timeout to the HTTP request. Gate capacity
+is released as before. Dispatched transport failures continue to be accounted as uncertain.
+
+Timeout and network errors now expose fixed safe messages rather than raw transport diagnostics.
+Focused regressions cover both error types with synthetic secrets, late reservation, reservation
+release and gate availability. Client/factory checks and the existing runtime checks passed.
+An authenticated confirmation completed through the actual factory and real scratch SQLite with
+an injected HTTP transport and scripted responses; the ledger identified the owner and job.
+No live model requests or credentials were used. Final integrated acceptance and CI are pending.

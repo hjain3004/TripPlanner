@@ -256,19 +256,24 @@ class AnthropicMessagesClient:
                 )
 
                 client = self._get_client(timeout_s)
+                rem = self._remaining_deadline()
+                if rem < timeout_s:
+                    self.ledger.release(reservation_id)
+                    raise LLMTimeoutError("deadline exceeded before dispatch")
                 try:
                     response = client.post(
                         f"{self.base_url}/v1/messages",
                         headers=headers,
                         json=payload,
+                        timeout=min(float(timeout_s), rem),
                     )
                 except (httpx.TimeoutException, httpx.NetworkError) as exc:
                     self.ledger.mark_uncertain(reservation_id)
                     if isinstance(exc, httpx.TimeoutException):
-                        raise LLMTimeoutError(f"{node} timed out: {exc}") from exc
+                        raise LLMTimeoutError(f"{node} timed out") from None
                     raise LLMProviderUnavailable(
-                        f"{node} connection error: {exc}", reason="network_error"
-                    ) from exc
+                        f"{node} connection error", reason="network_error"
+                    ) from None
 
                 status = response.status_code
                 if status == 200:
