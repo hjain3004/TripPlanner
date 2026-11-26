@@ -21,7 +21,7 @@ import json
 import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -170,6 +170,10 @@ def _add_commands(sub: Any) -> None:
     reextract.add_argument("--client-event-id", required=True)
     reextract.add_argument("--per-request-credits", type=int, default=MANAGED_CREDITS)
     add_arguments(reextract)
+    source_status = sub.add_parser("source-status")
+    source_status.add_argument("--data-dir", default=None)
+    source_status.add_argument("--per-request-credits", type=int, default=MANAGED_CREDITS)
+    add_arguments(source_status)
     credits = sub.add_parser("credit-status")
     credits.add_argument("--data-dir", default=None)
     raise_cap = sub.add_parser("raise-lifetime-cap")
@@ -187,10 +191,57 @@ WELCOME_COMMANDS = frozenset(
         "welcome-history",
         "incomplete-drafts",
         "reextract-welcome",
+        "source-status",
         "credit-status",
         "raise-lifetime-cap",
     }
 )
+
+
+def source_status(
+    store: FinancialIngestionStore,
+    target_id: str,
+    config: Any,
+    published: Mapping[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Per-source state. ``last_checked_at`` is the machine's: when this page was last fetched.
+    ``last_verified`` is a human's: the date on a published row's provenance. They never stand in
+    for each other, and a fresh check says nothing about whether a person has verified anything."""
+    from ingestion.contracts import ProposalStatus
+
+    target = store.get_watch_target(target_id)
+    snapshot = store.latest_snapshot(target_id)
+    checkpoint = store.last_extraction_checkpoint(target_id)
+    pending = 0
+    for proposal in store.list_proposals(ProposalStatus.PENDING):
+        owner = store.get_snapshot(proposal.lineage_ids[0])
+        pending += owner is not None and owner.target_id == target_id
+    incomplete = [
+        row for row in store.list_incomplete_extractions() if row.get("target_id") == target_id
+    ]
+    rows = [row for row in published.values() if row["card_id"] == config.card_id]
+    next_due = None
+    if snapshot is not None and target is not None:
+        next_due = (snapshot.captured_at + timedelta(days=target.check_frequency_days)).isoformat()
+    return {
+        "target_id": target_id,
+        "card_id": config.card_id,
+        "last_checked_at": None if snapshot is None else snapshot.captured_at.isoformat(),
+        "last_extracted_at": None if checkpoint is None else checkpoint["recorded_at"],
+        "next_due_at": next_due,
+        "pending_proposals": pending,
+        "incomplete_drafts": len(incomplete),
+        "published_offers": [
+            {
+                "offer_id": row["id"],
+                "last_verified": row["provenance"]["last_verified"],
+                "verified_by": row["provenance"]["verified_by"],
+                "needs_verification": row["provenance"]["needs_verification"],
+                "valid_to": row["valid_to"],
+            }
+            for row in rows
+        ],
+    }
 
 
 def render_incomplete_markdown(rows: list[dict[str, Any]]) -> str:
@@ -279,6 +330,15 @@ def run_welcome_command(
                 else render_incomplete_markdown(rows)
             )
             return emit_local_report(text, args.out, repo_root=Path(__file__).resolve().parents[2])
+        if args.command == "source-status":
+            wiring = build_welcome_wiring(args, seeds_dir=_seeds_dir(args))
+            say(
+                [
+                    source_status(store, target_id, config, wiring.published_rows())
+                    for target_id, config in sorted(wiring.targets.items())
+                ]
+            )
+            return 0
         if args.command == "reextract-welcome":
             from ingestion.acquisition import DurableAcquisitionService
 
@@ -367,7 +427,27 @@ def run_recurring(
             "limit": args.limit,
         }
         code = refresh_due(args)
-        summary.update({"exit_code": code, "finished_at": now().isoformat()})
+        batch = getattr(args, "batch_result", None) or {}
+        sources = [
+            {
+                "target_id": item["target_id"],
+                "state": item["state"],
+                "extraction_status": item["extraction_status"],
+                "credits_reserved": item.get("credits_reserved", 0),
+                "proposals": len(item["proposal_ids"]),
+                "diagnostic": str(item["diagnostic"])[:200],
+            }
+            for item in batch.get("outcomes", [])
+        ]
+        summary.update(
+            {
+                "exit_code": code,
+                "finished_at": now().isoformat(),
+                "counts": batch.get("counts", {}),
+                "credits_reserved": sum(item["credits_reserved"] for item in sources),
+                "sources": sources,
+            }
+        )
         (run_dir / "last_run.json").write_text(
             json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8"
         )

@@ -1,0 +1,2 @@
+# Daily at 09:00. Not installed by anything here. Exit 75 means another pass was still running.
+0 9 * * * /path/to/TripPlanner/deploy/recurring-ingestion/run.sh /Users/you/tripwise-ingestion-data/recurring/recurring.env >> /Users/you/tripwise-ingestion-data/recurring/cron.log 2>&1

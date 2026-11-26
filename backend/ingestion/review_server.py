@@ -989,6 +989,7 @@ def run_refresh_due(
         limit=args.limit,
         client_event_prefix=args.client_event_prefix,
     )
+    args.batch_result = batch.to_dict()  # for a scheduled run's per-source summary
     print(json.dumps(batch.to_dict(), indent=2, sort_keys=True))
     return 0
 

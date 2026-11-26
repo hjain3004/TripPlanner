@@ -202,6 +202,19 @@ def test_the_recurring_workflow_end_to_end_across_separate_processes(tmp_path: P
     served = load_offer_catalog(ws.catalog / CATALOG_FILE).offers_for_card(CARD)
     assert [offer.id for offer in served] == list(rows)
 
+    # The machine's last check and a human's last verification are different facts.
+    status = json.loads(
+        cli("source-status", "--data-dir", str(ws.data),
+            "--welcome-targets", str(ws.inputs / "welcome_targets.yaml"),
+            "--published-welcome-catalog", str(ws.catalog)).stdout
+    )  # fmt: skip
+    (source,) = status
+    assert source["last_checked_at"] is not None and source["last_extracted_at"] is not None
+    assert source["pending_proposals"] == 0 and source["incomplete_drafts"] == 0
+    (offer,) = source["published_offers"]
+    assert offer["verified_by"] == "acceptance-curator" and offer["needs_verification"] is True
+    assert offer["last_verified"] != source["last_checked_at"]  # a date, set by the decision
+
     # 6. The issuer changes terms: the next pass proposes an update; the published row is unchanged
     #    until a curator decides.
     changed = ws.capture("changed", page(spend="40,000"), offer_json(spend="40,000"))
@@ -266,8 +279,14 @@ def test_recurring_run_is_slot_idempotent_and_exclusive(tmp_path: Path) -> None:
 
     summary = json.loads((ws.data / "recurring" / "last_run.json").read_text())
     assert summary["slot"] == "2026-11-28T09" and summary["exit_code"] == 0
+    assert summary["credits_reserved"] == 0  # the second pass, a repeat, spent nothing
     history = (ws.data / "recurring" / "history.jsonl").read_text().splitlines()
     assert len(history) == 2
+    first_pass = json.loads(history[0])
+    (source,) = first_pass["sources"]
+    assert source["target_id"] == "watch-atlas-offers" and source["state"] == "completed"
+    assert source["credits_reserved"] == 6 and source["proposals"] == 1  # 1 check + 5 extraction
+    assert first_pass["credits_reserved"] == 6
 
     with (ws.data / "recurring" / "run.lock").open("w") as held:  # another run is in progress
         fcntl.flock(held.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -309,3 +328,50 @@ def test_a_lifetime_cap_is_recorded_once(tmp_path: Path, flag: str) -> None:
     status = ws.credits()
     assert status["lifetime_cap"] == 80 and status["opening_used"] == 69
     assert flag  # the allowance now lives in the database, not in the flags
+
+
+def _run_wrapper(env_file: Path, **extra: str) -> subprocess.CompletedProcess[str]:
+    script = BACKEND.parent / "deploy" / "recurring-ingestion" / "run.sh"
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"TRIPWISE_ENV", "TRIPWISE_DATA_DIR", "FIRECRAWL_API_KEY"}
+    }
+    env["TRIPWISE_RECURRING_PYTHON"] = sys.executable
+    env.update(extra)
+    return subprocess.run(
+        ["bash", str(script), str(env_file)], env=env, capture_output=True, text=True, timeout=300
+    )
+
+
+def test_the_scheduler_wrapper_runs_offline_by_default_and_never_goes_live_unasked(
+    tmp_path: Path,
+) -> None:
+    ws = Workspace(tmp_path)
+    cli("init-welcome-catalog", "--data-dir", str(ws.data), "--catalog-dir", str(ws.catalog))
+    manifest = ws.manifest("m1", ws.capture("first", page(), offer_json()))
+    env_file = tmp_path / "recurring.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                f"TRIPWISE_RECURRING_DATA_DIR={ws.data}",
+                f"TRIPWISE_RECURRING_POLICIES={ws.inputs / 'policies.yaml'}",
+                f"TRIPWISE_RECURRING_WATCHLIST={ws.inputs / 'watchlist.yaml'}",
+                f"TRIPWISE_RECURRING_WELCOME_TARGETS={ws.inputs / 'welcome_targets.yaml'}",
+                f"TRIPWISE_RECURRING_PUBLISHED_CATALOG={ws.catalog}",
+                "TRIPWISE_RECURRING_LIFETIME_CREDITS=80",
+                "TRIPWISE_RECURRING_OPENING_CREDITS_USED=69",
+                f"TRIPWISE_RECURRING_MANIFEST={manifest}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    done = _run_wrapper(env_file)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout)["counts"]["completed"] == 1
+    assert ws.credits()["used"] == 75  # 69 + 1 check + 5 extraction, offline recording
+
+    # Live mode is refused without an explicit opt-in and a credential, and spends nothing.
+    live = _run_wrapper(env_file, TRIPWISE_RECURRING_LIVE="1")
+    assert live.returncode != 0 and "FIRECRAWL_API_KEY" in live.stderr
+    assert ws.credits()["used"] == 75
