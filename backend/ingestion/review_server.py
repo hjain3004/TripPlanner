@@ -795,6 +795,11 @@ def _build_cli_transport_and_robots(
             FirecrawlHttpTransport(
                 api_key=api_key,
                 enabled=True,
+                retain_dir=(
+                    Path(args.retain_responses_dir)
+                    if getattr(args, "retain_responses_dir", None)
+                    else None
+                ),
             ),
             robots,
         )
@@ -1058,6 +1063,7 @@ def _add_refresh_arguments(refresh_cmd: argparse.ArgumentParser, *, prefix_requi
     refresh_cmd.add_argument("--retained-capture", default=None)
     refresh_cmd.add_argument("--retained-captures-manifest", default=None)
     refresh_cmd.add_argument("--live-firecrawl", action="store_true", default=False)
+    refresh_cmd.add_argument("--retain-responses-dir", default=None)
     refresh_cmd.add_argument("--confirm-no-overage", action="store_true", default=False)
     refresh_cmd.add_argument("--disable-firecrawl", action="store_true", default=False)
     refresh_cmd.add_argument("--robots-file", default=None)
@@ -1200,6 +1206,11 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     acquire_cmd.add_argument("--client-event-id", required=True)
     acquire_cmd.add_argument("--retained-capture", default=None)
     acquire_cmd.add_argument("--live-firecrawl", action="store_true", default=False)
+    acquire_cmd.add_argument(
+        "--retain-responses-dir",
+        default=None,
+        help="private directory that keeps every complete live response before analysis",
+    )
     acquire_cmd.add_argument("--confirm-no-overage", action="store_true", default=False)
     acquire_cmd.add_argument("--disable-firecrawl", action="store_true", default=False)
     acquire_cmd.add_argument("--robots-file", default=None)

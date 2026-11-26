@@ -429,3 +429,36 @@ def test_http_error_bodies_map_to_typed_failures_without_retry(
     assert error.value.kind is kind
     assert calls == 1
     assert "forbidden" not in error.value.diagnostic
+
+
+def test_live_transport_retains_the_complete_response_before_parsing_without_the_credential(
+    tmp_path: Path,
+) -> None:
+    body = (
+        b'{"success": true, "data": {"rawHtml": "<p>x</p>", "note": "kept verbatim"}'  # malformed
+    )
+    transport = FirecrawlHttpTransport(
+        api_key="not-a-real-secret",
+        enabled=True,
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _request: httpx.Response(200, content=body))
+        ),
+        retain_dir=tmp_path / "private",
+    )
+    with pytest.raises(FirecrawlTransportError) as error:
+        asyncio.run(
+            transport.scrape(
+                FirecrawlScrapeRequest(
+                    url="https://issuer.example/card", timeout_seconds=3, max_response_bytes=4096
+                )
+            )
+        )
+    assert error.value.kind is FetchFailureKind.INVALID_RESPONSE  # unparseable, yet retained
+    responses = sorted((tmp_path / "private").glob("*.response.json"))
+    requests = sorted((tmp_path / "private").glob("*.request.json"))
+    assert [p.read_bytes() for p in responses] == [body]
+    meta = json.loads(requests[0].read_text())
+    assert meta["http_status"] == 200 and meta["estimated_credits"] == 1
+    assert meta["request"]["url"] == "https://issuer.example/card"
+    assert "not-a-real-secret" not in requests[0].read_text()
+    assert oct(responses[0].stat().st_mode & 0o777) == "0o600"

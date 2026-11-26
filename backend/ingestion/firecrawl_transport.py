@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Protocol, cast
 
 from ingestion.contracts import FetchFailureKind
@@ -191,12 +194,22 @@ class FirecrawlHttpTransport:
     key, enables this transport, or invokes it implicitly.
     """
 
-    def __init__(self, *, api_key: str, enabled: bool = False, client: Any | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        enabled: bool = False,
+        client: Any | None = None,
+        retain_dir: Path | None = None,
+    ) -> None:
         if not api_key:
             raise ValueError("Firecrawl API key is required")
         self._api_key = api_key
         self.enabled = enabled
         self._client = client
+        # When set, every complete response body is written here, verbatim and before it is
+        # parsed or analysed, together with the request that produced it (never the credential).
+        self._retain_dir = retain_dir
 
     def __repr__(self) -> str:
         return (
@@ -241,6 +254,7 @@ class FirecrawlHttpTransport:
                     "Firecrawl transport failure",
                     retryable=True,
                 ) from error
+            self._retain(scrape_request, status_code, body)
             if status_code < 200 or status_code >= 300:
                 raise _http_failure(status_code, _error_code(body))
             try:
@@ -257,6 +271,32 @@ class FirecrawlHttpTransport:
         finally:
             if owned_client:
                 await client.aclose()
+
+    def _retain(
+        self, scrape_request: FirecrawlScrapeRequest, status_code: int, body: bytes
+    ) -> None:
+        if self._retain_dir is None:
+            return
+        self._retain_dir.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha256(body).hexdigest()
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
+        meta = {
+            "retained_at": datetime.now(UTC).isoformat(),
+            "http_status": status_code,
+            "response_sha256": digest,
+            "response_bytes": len(body),
+            "endpoint": FIRECRAWL_SCRAPE_URL,
+            "request": scrape_request.wire_payload(),
+            "estimated_credits": scrape_request.estimated_credits,
+        }
+        for suffix, data in (
+            (".response.json", body),
+            (".request.json", json.dumps(meta).encode()),
+        ):
+            path = self._retain_dir / f"{stamp}-{digest[:12]}{suffix}"
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(data)
 
     @staticmethod
     async def _read_bounded(response: _ByteStream, max_response_bytes: int) -> bytes:
