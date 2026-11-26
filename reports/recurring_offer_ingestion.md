@@ -129,37 +129,13 @@ approval → publication → rollback. These use retained synthetic captures and
 Published rows keep `needs_verification=true` unless every fact field was quoted. A campaign end date
 excludes a card opened afterwards but never an existing holder's historical window.
 
-## Gate status — failed, acceptance pending
+## Gate status — passed
 
-On committed tree `85d3f6b6ca5cf9a559fe892a515e81dbb8e51e14`, `make seed` succeeded and the
-unchanged `make gate` failed in full pytest: `test_recompute_with_real_catalog_items_stays_fast`
-took 899.03 ms (limit 500 ms). The suite otherwise reported 3,414 passed, one skipped and three
-warnings; gate stopped before its later phases. Its complete log is retained outside Git at
-`~/tripwise-ingestion-data/recurring-live-acceptance-20261126/gate-85d3f6b.log`. This is not a
-passing acceptance gate. The private retention and confinement checks passed, as did strict typing
-and lint for the changed packages, deterministic contract regeneration, frontend TypeScript and
-ESLint (15 warnings). The old process-wide `gc.freeze()` is removed.
+On committed tree `085d0efab14ee83174a8a4819f72e746b934472f`, `make seed` and the unchanged `make gate` passed end-to-end (`pytest`, `mypy --strict` across `core/`/`accounts/`/`planning/`/`agents/`/`api/`/`gateway/`, `ingestion/`, and `welcome/`, `ruff check`, `GOLDENS_OK`, `CONTRACT_OK`, `BRIEFS_IDENTICAL`, and `TREE_CLEAN`). Its log is retained outside Git at `~/tripwise-ingestion-data/recurring-live-acceptance-20261126/gate-085d0ef.log`, and the final clean-tree gate log for this report update is retained at `~/tripwise-ingestion-data/recurring-live-acceptance-20261126/gate-final.log`.
 
-A follow-up investigation traced avoidable heap growth to each `load_kb` creating a one-use
-SQLAlchemy engine with a compiled-query cache that survives in cyclic garbage. Disabling that
-engine's cache leaves database reads fresh and does not change financial data or process-wide GC.
-After 500 local knowledge-base loads with GC paused solely for measurement in a separate process,
-the previous cache retained 918,816 tracked objects versus 188,233 with the fix. The unchanged
-performance test passed after the 500-load workload, and a regression verifies both no retained
-one-use cache and visibility of a subsequent SQLite change. Final exact-tree gate remains pending.
+**Historical gate failure note (`gate-85d3f6b.log`).** Earlier on `85d3f6b6ca5cf9a559fe892a515e81dbb8e51e14`, `make gate` failed in full pytest because `test_recompute_with_real_catalog_items_stays_fast` took 899.03 ms (limit 500 ms); its log is preserved outside Git at `~/tripwise-ingestion-data/recurring-live-acceptance-20261126/gate-85d3f6b.log`. Investigation traced avoidable heap growth to each `load_kb` creating a one-use SQLAlchemy engine with a compiled-query cache that survived in cyclic garbage. Removing the old process-wide `gc.freeze()` and disabling that one-use engine query cache in `085d0ef` reduced retained tracked objects after 500 local `load_kb` calls from 918,816 to 188,233 while keeping database reads fresh and leaving financial data and process-wide GC unchanged, and passed the unchanged warm-recompute requirement in the full `make gate`.
 
-The unchanged performance test passed in isolation with synthetic heaps of one million and six
-million tracked objects. A diagnostic run through the preceding tests observed about 3.1 million
-tracked objects and 835–877 ms full collections during catalog setup; in that run the timed test
-passed. These observations support the GC concern but do not establish a reliable fix for the
-full-suite timing failure. The diagnostic was stopped after reaching that test, and its log and
-GC events remain in the task's private evidence directory and `/private/tmp` respectively.
-
-The subsequent offline re-extraction rejects the Atlas annual fee as a bonus and refuses to
-associate the older cohort's 5,000-mile benefit with the later cohort's start date. It preserves
-quoted `EDGE Miles` and `EDGE REWARDPoints` names as unmapped evidence, not approved program
-identifiers. The refreshed private packet is `review_packet_followup.md` beside the live captures.
-No provider calls or credits were used for this follow-up.
+The subsequent offline re-extraction (`reextract-welcome`, 0 credits) rejects the Atlas annual fee as a bonus and refuses to associate the older cohort's 5,000-mile benefit with the later cohort's start date. It preserves quoted `EDGE Miles` and `EDGE REWARDPoints` names as unmapped evidence, not approved program identifiers. The refreshed private packet is `review_packet_followup.md` beside the live captures.
 
 ## Genuine remaining limitations / owner decisions
 
