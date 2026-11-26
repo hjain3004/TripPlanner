@@ -91,3 +91,17 @@ FIRECRAWL_API_KEY=… python -m ingestion.review_server acquire --data-dir D --s
   --robots-file R --client-event-id live-… --per-request-credits 5 --per-run-credits 5 \
   --per-month-credits 5 --lifetime-credits 500 --opening-credits-used 67 --timeout-seconds 60
 ```
+
+## Verification (commit `632aac7`, task-local `TRIPWISE_DATA_DIR`, `make seed` first)
+
+- `make gate` did **not** pass: its pytest stage fails exactly one test in three consecutive full runs,
+  `evals/test_recompute_endpoint.py::test_recompute_with_real_catalog_items_stays_fast` (about 947 ms
+  against its 500 ms bound), and `make` stops there. The test passes alone (9 passed, about 5 s) and
+  does not touch this work; it failed the same way on an unrelated branch cut from `origin/main`
+  (`codex/llm-complete-json-fixes`, PR #43), so it predates this change. Its threshold was not changed.
+- All other pytest results in those runs passed. The stages after pytest were then run by hand on
+  the same commit and passed: strict mypy for `core/ accounts/ planning/ agents/ api/ gateway/`,
+  `ingestion/` and `welcome/`; zero-tolerance ruff scopes; the `core/`+`api/` ratchet (6, ceiling 12);
+  goldens unchanged; contract one-PR check; briefs identical; clean tree.
+- A first full run also failed `test_d1_deployment_files` because the new
+  `TRIPWISE_WELCOME_OFFERS_PATH` was undocumented; it is now in `deploy/.env.example`.
