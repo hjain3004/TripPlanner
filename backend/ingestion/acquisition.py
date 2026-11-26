@@ -197,7 +197,21 @@ class RetainedCaptureTransport:
     async def scrape(self, request: FirecrawlScrapeRequest) -> dict[str, Any]:
         index = min(len(self.calls), len(self._payloads) - 1)
         self.calls.append(request)
-        return copy.deepcopy(dict(self._payloads[index]))
+        payload = copy.deepcopy(dict(self._payloads[index]))
+        data = payload.get("data")
+        if isinstance(data, dict):
+            # A replay of one recording must not claim more than the request it answers could
+            # return: a plain fetch gets no structured extraction and no more than its own
+            # documented charge.
+            if request.json_extraction is None:
+                data.pop("json", None)
+            metadata = data.get("metadata")
+            if isinstance(metadata, dict):
+                provider = metadata.get("provider")
+                for holder, key in ((metadata, "creditsUsed"), (provider, "creditsCost")):
+                    if isinstance(holder, dict) and isinstance(holder.get(key), int):
+                        holder[key] = min(holder[key], request.estimated_credits)
+        return payload
 
 
 class _PrebuiltExtraction:

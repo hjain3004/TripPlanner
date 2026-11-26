@@ -115,7 +115,7 @@ class Workspace:
             "--retained-captures-manifest", str(manifest),
             "--client-event-prefix", prefix,
             "--lifetime-credits", "80",
-            "--opening-credits-used", "67",
+            "--opening-credits-used", "69",
             *MANAGED_FLAGS,
             *(extra or []),
         )  # fmt: skip
@@ -136,7 +136,7 @@ class Workspace:
             "--retained-capture", str(capture_path),
             "--client-event-id", event,
             "--lifetime-credits", "80",
-            "--opening-credits-used", "67",
+            "--opening-credits-used", "69",
             *MANAGED_FLAGS,
             *(extra or []),
             check=False,
@@ -161,7 +161,7 @@ def test_the_recurring_workflow_end_to_end_across_separate_processes(tmp_path: P
     assert outcome["extraction_mode"] == "firecrawl_managed" and outcome["llm_calls"] == 0
     (proposal_id,) = outcome["proposal_ids"]
     assert read_catalog_rows(ws.catalog) == {}
-    assert ws.credits()["used"] == 72  # 67 before this ledger + 5 for page and extraction
+    assert ws.credits()["used"] == 75  # 69 before this ledger + 1 check + 5 extraction
 
     # 2. The queue, in a new process, shows it with its quotes.
     queue = json.loads(cli("review-queue", "--data-dir", str(ws.data), "--format", "json").stdout)
@@ -177,7 +177,7 @@ def test_the_recurring_workflow_end_to_end_across_separate_processes(tmp_path: P
     time.sleep(10.5)  # the source policy's minimum delay between requests to one domain
     code, again = ws.acquire(first, event="cli-acquire-0002")
     assert code == 0 and again["state"] == "unchanged" and again["proposal_ids"] == []
-    assert ws.credits()["used"] == 77  # the page was fetched again (5), nothing was proposed
+    assert ws.credits()["used"] == 76  # only the 1-credit check; no extraction was bought
     assert (
         len(json.loads(cli("review-queue", "--data-dir", str(ws.data), "--format", "json").stdout))
         == 1
@@ -205,7 +205,8 @@ def test_the_recurring_workflow_end_to_end_across_separate_processes(tmp_path: P
     # 6. The issuer changes terms: the next pass proposes an update; the published row is unchanged
     #    until a curator decides.
     changed = ws.capture("changed", page(spend="40,000"), offer_json(spend="40,000"))
-    # (the credit allowance of 80 has room for exactly one more page: 77 + 5 > 80 is refused)
+    # (76 + the 1-credit check fits, but the 5-credit extraction would pass 80: refused)
+    time.sleep(10.5)  # minimum delay since the previous request to this source
     code, blocked = ws.acquire(changed, event="cli-acquire-0003")
     assert code == 2 and blocked["state"] == "blocked"
     assert "lifetime credit allowance is exhausted" in blocked["diagnostic"]
@@ -248,7 +249,7 @@ def test_recurring_run_is_slot_idempotent_and_exclusive(tmp_path: Path) -> None:
             "--published-welcome-catalog", str(ws.catalog),
             "--retained-captures-manifest", str(manifest),
             "--lifetime-credits", "80",
-            "--opening-credits-used", "67",
+            "--opening-credits-used", "69",
             "--slot", slot,
             *MANAGED_FLAGS,
             check=check,
@@ -257,7 +258,7 @@ def test_recurring_run_is_slot_idempotent_and_exclusive(tmp_path: Path) -> None:
     one = run("2026-11-28T09")
     assert json.loads(one.stdout)["counts"]["completed"] == 1
     used = ws.credits()["used"]
-    assert used == 72
+    assert used == 75
 
     repeat = run("2026-11-28T09")  # the scheduler fired twice for the same slot
     assert json.loads(repeat.stdout)["counts"]["selected"] == 0  # not due again; nothing spent
@@ -306,5 +307,5 @@ def test_a_lifetime_cap_is_recorded_once(tmp_path: Path, flag: str) -> None:
     first = ws.capture("first", page(), offer_json())
     ws.refresh(ws.manifest("m1", first), prefix="cli-run-0001")
     status = ws.credits()
-    assert status["lifetime_cap"] == 80 and status["opening_used"] == 67
+    assert status["lifetime_cap"] == 80 and status["opening_used"] == 69
     assert flag  # the allowance now lives in the database, not in the flags
