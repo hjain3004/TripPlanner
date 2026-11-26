@@ -84,3 +84,10 @@ class ContentAddressedStore:
                 f"stored artifact failed integrity check: {reference.sha256}"
             )
         return data
+
+
+def write_private_file(path: Path, data: bytes) -> None:
+    """Create ``path`` exclusively with owner-only permissions (never overwrites)."""
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(data)

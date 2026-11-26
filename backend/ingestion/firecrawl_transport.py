@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
@@ -18,6 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol, cast
 
+from ingestion.artifacts import write_private_file
 from ingestion.contracts import FetchFailureKind
 
 FIRECRAWL_SCRAPE_URL = "https://api.firecrawl.dev/v2/scrape"
@@ -277,6 +277,12 @@ class FirecrawlHttpTransport:
     ) -> None:
         if self._retain_dir is None:
             return
+        request_bytes = json.dumps(scrape_request.wire_payload()).encode()
+        if self._api_key.encode() in body or self._api_key.encode() in request_bytes:
+            raise FirecrawlTransportError(
+                FetchFailureKind.INVALID_RESPONSE,
+                "response or request contains the configured credential; retention refused",
+            )
         self._retain_dir.mkdir(parents=True, exist_ok=True)
         digest = hashlib.sha256(body).hexdigest()
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
@@ -294,9 +300,7 @@ class FirecrawlHttpTransport:
             (".request.json", json.dumps(meta).encode()),
         ):
             path = self._retain_dir / f"{stamp}-{digest[:12]}{suffix}"
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(fd, "wb") as handle:
-                handle.write(data)
+            write_private_file(path, data)
 
     @staticmethod
     async def _read_bounded(response: _ByteStream, max_response_bytes: int) -> bytes:

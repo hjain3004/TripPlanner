@@ -462,3 +462,25 @@ def test_live_transport_retains_the_complete_response_before_parsing_without_the
     assert meta["request"]["url"] == "https://issuer.example/card"
     assert "not-a-real-secret" not in requests[0].read_text()
     assert oct(responses[0].stat().st_mode & 0o777) == "0o600"
+
+
+def test_retention_refuses_body_containing_configured_secret(tmp_path: Path) -> None:
+    secret = "synthetic-provider-key-unique"
+    transport = FirecrawlHttpTransport(api_key=secret, enabled=True, retain_dir=tmp_path)
+    request = FirecrawlScrapeRequest(
+        url="https://issuer.example/card", timeout_seconds=3, max_response_bytes=4096
+    )
+    with pytest.raises(FirecrawlTransportError):
+        transport._retain(request, 200, f'{{"error":"{secret}"}}'.encode())
+    assert not list(tmp_path.iterdir())
+
+
+def test_private_writer_does_not_overwrite_existing_file(tmp_path: Path) -> None:
+    from ingestion.artifacts import write_private_file
+
+    path = tmp_path / "retained.json"
+    write_private_file(path, b"original")
+    with pytest.raises(FileExistsError):
+        write_private_file(path, b"replacement")
+    assert path.read_bytes() == b"original"
+    assert path.stat().st_mode & 0o777 == 0o600
