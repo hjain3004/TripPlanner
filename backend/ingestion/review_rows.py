@@ -37,22 +37,34 @@ def flatten_row(row: dict[str, Any]) -> dict[str, Any]:
     return _flatten(row)
 
 
-class SeedRowSource:
-    def __init__(self, seeds_dir: Path) -> None:
-        self.seeds_dir = seeds_dir
+def _spec(table: str) -> tuple[str, type[BaseModel]] | None:
+    return SUPPORTED_TABLES.get(table) or CATALOG_TABLES.get(table)
 
-    def _raw_rows(self, table: str) -> list[dict[str, Any]]:
-        spec = SUPPORTED_TABLES.get(table)
+
+class SeedRowSource:
+    def __init__(self, seeds_dir: Path, catalog_dir: Path | None = None) -> None:
+        self.seeds_dir = seeds_dir
+        # Where catalog tables (the welcome offers) are read from; the shipped data by default.
+        self.catalog_dir = (
+            catalog_dir or Path(__file__).resolve().parent.parent / "welcome" / "data"
+        )
+
+    def _path(self, table: str) -> Path:
+        spec = _spec(table)
         if spec is None:
             raise SeedRowError("unsupported_target_table", f"unsupported target table: {table}")
-        path = self.seeds_dir / spec[0]
+        base = self.catalog_dir if table in CATALOG_TABLES else self.seeds_dir
+        return base / spec[0]
+
+    def _raw_rows(self, table: str) -> list[dict[str, Any]]:
+        path = self._path(table)
         raw = yaml.safe_load(path.read_bytes())
         if not isinstance(raw, list):
             raise SeedRowError("current_row_missing", f"seed file is not a list: {path.name}")
         return [value for value in raw if isinstance(value, dict)]
 
     def table_rows(self, table: str) -> list[dict[str, Any]]:
-        filename, model = SUPPORTED_TABLES.get(table, ("", BaseModel))
+        filename, model = _spec(table) or ("", BaseModel)
         del filename
         rows: list[dict[str, Any]] = []
         seen: set[str] = set()
@@ -80,7 +92,4 @@ class SeedRowSource:
         raise SeedRowError("current_row_missing", f"missing {table} row: {target_id}")
 
     def seed_file_sha256(self, table: str) -> str:
-        filename, _model = SUPPORTED_TABLES.get(table, (None, None))
-        if filename is None:
-            raise SeedRowError("unsupported_target_table", f"unsupported target table: {table}")
-        return hashlib.sha256((self.seeds_dir / filename).read_bytes()).hexdigest()
+        return hashlib.sha256(self._path(table).read_bytes()).hexdigest()

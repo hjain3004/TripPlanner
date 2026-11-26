@@ -87,8 +87,15 @@ class World:
     """One real store, artifact directory, control and clock, reopenable like a restart."""
 
     def __init__(
-        self, tmp_path: Path, payloads: list[dict[str, Any]], *, published: dict[str, Any] | None
+        self,
+        tmp_path: Path,
+        payloads: list[dict[str, Any]],
+        *,
+        published: dict[str, Any] | None,
+        card: str = CARD,
     ) -> None:
+        self.card = card
+        self.offer_id = offer_id_for(card, TITLE)
         self.root = tmp_path / "data"
         self.clock = START
         self.published = published or {}
@@ -116,7 +123,7 @@ class World:
                 target_id="watch:atlas-offers",
                 canonical_url=URL,
                 source_policy_id="issuer-offers",
-                target_fact_ids=(OFFER_ID,),
+                target_fact_ids=(self.offer_id,),
                 page_kind=PageKind.OFFER_PAGE,
                 check_frequency_days=7,
                 preferred_backend="firecrawl",
@@ -148,7 +155,7 @@ class World:
             },
             welcome_targets={
                 "watch:atlas-offers": WelcomeTargetConfig(
-                    card_id=CARD,
+                    card_id=self.card,
                     source_url=URL,
                     default_currency="INR",
                     points_currency_id="axis-edge-miles",

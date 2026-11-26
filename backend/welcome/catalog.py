@@ -9,9 +9,9 @@ several candidates return no offer and say why.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import date
-from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
@@ -156,6 +156,57 @@ def load_offer_catalog(
     return OfferCatalog(offers)
 
 
-@lru_cache(maxsize=1)
+OFFERS_PATH_ENV = "TRIPWISE_WELCOME_OFFERS_PATH"
+
+
+def active_offers_path() -> Path:
+    """The catalog file the service reads: the operator's published file, else the shipped one.
+
+    ``TRIPWISE_WELCOME_OFFERS_PATH`` names a file outside the repository that the controlled
+    publisher writes. Unset, the shipped (empty) file is used and nothing changes.
+    """
+    configured = os.environ.get(OFFERS_PATH_ENV, "").strip()
+    return Path(configured) if configured else DEFAULT_OFFERS_PATH
+
+
+@dataclass
+class _Loaded:
+    key: tuple[str, int, int]
+    catalog: OfferCatalog
+
+
+_loaded: _Loaded | None = None
+last_reload_error: str | None = None
+
+
+def reload_offer_catalog() -> OfferCatalog:
+    """Drop the cached catalog and read the active file again."""
+    global _loaded
+    _loaded = None
+    return shipped_offer_catalog()
+
+
 def shipped_offer_catalog() -> OfferCatalog:
-    return load_offer_catalog()
+    """The approved catalog, reloaded whenever its file changes (no restart needed).
+
+    The file is checked by modification time and size on every call, which is a single ``stat``.
+    If a changed file is unreadable or invalid, the last catalog that loaded cleanly keeps being
+    served and ``last_reload_error`` says why, instead of failing every welcome request or
+    serving a half-written file. With no earlier catalog the error is raised.
+    """
+    global _loaded, last_reload_error
+    path = active_offers_path()
+    stat = path.stat()
+    key = (str(path), stat.st_mtime_ns, stat.st_size)
+    if _loaded is not None and _loaded.key == key:
+        return _loaded.catalog
+    try:
+        catalog = load_offer_catalog(path)
+    except (OfferCatalogError, ValueError, OSError, yaml.YAMLError) as error:
+        last_reload_error = f"{type(error).__name__}: {error}"[:300]
+        if _loaded is None:
+            raise
+        return _loaded.catalog
+    last_reload_error = None
+    _loaded = _Loaded(key=key, catalog=catalog)
+    return catalog

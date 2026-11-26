@@ -937,6 +937,35 @@ class FinancialIngestionStore:
                 payload=body,
             )
 
+    def record_publication_event(
+        self, *, publication_id: str, event_type: str, payload: dict[str, Any]
+    ) -> None:
+        """Insert-only history of welcome-catalog publications and rollbacks."""
+        with self._connect() as connection:
+            self._audit(
+                connection,
+                entity_type="welcome_publication",
+                entity_id=publication_id,
+                event_type=event_type,
+                payload=json.dumps(payload, sort_keys=True, default=str),
+            )
+
+    def list_publication_events(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT entity_id, event_type, payload, created_at FROM audit_events "
+                "WHERE entity_type = 'welcome_publication' ORDER BY rowid"
+            ).fetchall()
+        return [
+            {
+                "publication_id": row[0],
+                "event_type": row[1],
+                "recorded_at": row[3],
+                **json.loads(row[2]),
+            }
+            for row in rows
+        ]
+
     def list_incomplete_extractions(self) -> list[dict[str, Any]]:
         with self._connect() as connection:
             rows = connection.execute(
