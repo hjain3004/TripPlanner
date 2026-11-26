@@ -9,9 +9,10 @@ several candidates return no offer and say why.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -177,6 +178,8 @@ class _Loaded:
 
 _loaded: _Loaded | None = None
 last_reload_error: str | None = None
+_failed_since: datetime | None = None
+logger = logging.getLogger(__name__)
 
 
 def reload_offer_catalog() -> OfferCatalog:
@@ -189,24 +192,49 @@ def reload_offer_catalog() -> OfferCatalog:
 def shipped_offer_catalog() -> OfferCatalog:
     """The approved catalog, reloaded whenever its file changes (no restart needed).
 
-    The file is checked by modification time and size on every call, which is a single ``stat``.
-    If a changed file is unreadable or invalid, the last catalog that loaded cleanly keeps being
-    served and ``last_reload_error`` says why, instead of failing every welcome request or
-    serving a half-written file. With no earlier catalog the error is raised.
+    The file is checked by modification time and size on every call (one ``stat``). If it has
+    gone missing, or a changed file is unreadable or invalid, the last catalog that loaded cleanly
+    keeps being served: its offers keep the provenance dates they were approved with, nothing is
+    re-stamped as freshly verified, and ``catalog_status()`` reports the failure. With no earlier
+    good catalog there is nothing honest to serve, so an ``OfferCatalogError`` is raised and no
+    offer data is invented.
     """
-    global _loaded, last_reload_error
+    global _loaded, last_reload_error, _failed_since
     path = active_offers_path()
-    stat = path.stat()
-    key = (str(path), stat.st_mtime_ns, stat.st_size)
-    if _loaded is not None and _loaded.key == key:
-        return _loaded.catalog
     try:
+        stat = path.stat()
+        key = (str(path), stat.st_mtime_ns, stat.st_size)
+        if _loaded is not None and _loaded.key == key:
+            last_reload_error = None
+            _failed_since = None
+            return _loaded.catalog
         catalog = load_offer_catalog(path)
     except (OfferCatalogError, ValueError, OSError, yaml.YAMLError) as error:
         last_reload_error = f"{type(error).__name__}: {error}"[:300]
+        if _failed_since is None:
+            _failed_since = datetime.now(UTC)
         if _loaded is None:
-            raise
+            raise OfferCatalogError(
+                f"the approved offer catalog is unavailable and no earlier good copy exists: "
+                f"{last_reload_error}"
+            ) from error
+        logger.warning(
+            "welcome offer catalog reload failed; serving the last good copy: %s",
+            last_reload_error,
+        )
         return _loaded.catalog
     last_reload_error = None
+    _failed_since = None
     _loaded = _Loaded(key=key, catalog=catalog)
     return catalog
+
+
+def catalog_status() -> dict[str, object]:
+    """Whether the served catalog is the current file or an earlier good copy, and why."""
+    return {
+        "path": str(active_offers_path()),
+        "loaded": _loaded is not None,
+        "serving_last_good_copy": last_reload_error is not None and _loaded is not None,
+        "last_reload_error": last_reload_error,
+        "failing_since": None if _failed_since is None else _failed_since.isoformat(),
+    }

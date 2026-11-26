@@ -273,3 +273,74 @@ def test_a_synthetic_verifier_is_never_served_from_the_service_catalog(
     assert welcome_catalog.shipped_offer_catalog().offers_for_card(CARD) == []
     assert welcome_catalog.last_reload_error is not None
     assert "synthetic" in welcome_catalog.last_reload_error
+
+
+def _publish_one(rig: Rig, monkeypatch: pytest.MonkeyPatch) -> None:
+    rig.point_service_at_catalog(monkeypatch)
+    outcome = rig.acquire()
+    rig.approve(outcome.proposal_ids[0])
+    rig.publisher.publish(outcome.proposal_ids[0])
+
+
+def test_a_catalog_file_that_disappears_keeps_the_last_good_copy_and_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rig = Rig(tmp_path, [capture(page(), offer_json())])
+    _publish_one(rig, monkeypatch)
+    path = rig.catalog_dir / CATALOG_FILE
+    good = path.read_bytes()
+    assert len(welcome_catalog.shipped_offer_catalog().offers_for_card(CARD)) == 1
+    assert welcome_catalog.catalog_status()["serving_last_good_copy"] is False
+
+    path.unlink()  # temporarily gone
+    served = welcome_catalog.shipped_offer_catalog()
+    assert len(served.offers_for_card(CARD)) == 1  # the earlier approved copy, not invented data
+    status = welcome_catalog.catalog_status()
+    assert status["serving_last_good_copy"] is True
+    assert "FileNotFoundError" in str(status["last_reload_error"])
+    assert status["failing_since"] is not None
+
+    path.write_bytes(good)  # restored: the failure clears and nothing is reported stale
+    assert len(welcome_catalog.shipped_offer_catalog().offers_for_card(CARD)) == 1
+    status = welcome_catalog.catalog_status()
+    assert status["serving_last_good_copy"] is False and status["last_reload_error"] is None
+
+
+def test_with_no_good_catalog_ever_loaded_the_failure_is_controlled_and_nothing_is_invented(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(welcome_catalog.OFFERS_PATH_ENV, str(tmp_path / "missing.yaml"))
+    welcome_catalog._loaded = None
+    with pytest.raises(welcome_catalog.OfferCatalogError, match="unavailable"):
+        welcome_catalog.shipped_offer_catalog()
+    assert welcome_catalog.catalog_status()["loaded"] is False
+
+
+def test_the_api_answers_503_not_an_empty_success_when_the_catalog_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _store, trip_id, entry_id = (lambda r: (r[0], r[1], r[2]["trip"]["id"], r[3][0]))(
+        plan_and_save(tmp_path, monkeypatch, cards=[(CARD, OPENED)])
+    )
+    app.dependency_overrides[get_as_of] = lambda: AS_OF
+    monkeypatch.setenv(welcome_catalog.OFFERS_PATH_ENV, str(tmp_path / "missing.yaml"))
+    welcome_catalog._loaded = None
+    response = request_status(client, entry_id, trip_id, prior=100)
+    assert response.status_code == 503
+    assert "unavailable" in response.json()["detail"]
+
+
+def test_historical_and_expired_offer_rules_still_apply_to_a_last_good_catalog(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rig = Rig(tmp_path, [capture(page(), offer_json())])
+    _publish_one(rig, monkeypatch)
+    catalog = welcome_catalog.shipped_offer_catalog()
+    (rig.catalog_dir / CATALOG_FILE).unlink()
+    stale = welcome_catalog.shipped_offer_catalog()
+    assert stale is catalog
+    # The offer's campaign ended 2026-11-30. A card opened before then still gets it; a card
+    # opened after is not matched to an expired campaign, whether or not the catalog is stale.
+    assert stale.select_offer(CARD, date(2026, 10, 1)).offer is not None
+    expired = stale.select_offer(CARD, date(2026, 12, 15))
+    assert expired.offer is None and expired.reason == "OFFER_NOT_IN_FORCE_AT_OPEN_DATE"
