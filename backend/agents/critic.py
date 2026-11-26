@@ -1,6 +1,16 @@
 from __future__ import annotations
 
-from agents.llm import LLMClient, complete_with_repair
+import json
+
+from pydantic import ValidationError
+
+from agents.llm import (
+    LLMBudgetExceeded,
+    LLMCallError,
+    LLMClient,
+    LLMInvalidResponse,
+    complete_with_repair,
+)
 from agents.models import CriticResult, CriticVerdict, DraftItinerary, EstimatorResult, TripSpec
 from agents.retrieval import resolve_destination_city
 from core.db import KnowledgeBase
@@ -42,6 +52,17 @@ def _critic_user(
     )
 
 
+CRITIC_UNAVAILABLE = "Critic unavailable ({cause}); itinerary was not LLM-reviewed."
+
+
+def _skipped(cause: str) -> CriticResult:
+    return CriticResult(
+        verdict=CriticVerdict(passed=True, issues=[]),
+        caveats=[CRITIC_UNAVAILABLE.format(cause=cause)],
+        skipped=True,
+    )
+
+
 def run_critic(
     spec: TripSpec,
     itinerary: DraftItinerary,
@@ -60,9 +81,11 @@ def run_critic(
             max_tokens=1024,
             timeout_s=20,
         )
-    except Exception:
-        return CriticResult(
-            verdict=CriticVerdict(passed=True, issues=[]),
-            caveats=["Critic unavailable; itinerary was not LLM-reviewed."],
-        )
+    except LLMBudgetExceeded:
+        return _skipped("budget")
+    except (LLMInvalidResponse, ValidationError, json.JSONDecodeError):
+        return _skipped("invalid response")
+    except LLMCallError:
+        return _skipped("provider")
+    # Anything else is a bug, not an unavailable critic: it propagates to a 500 with a trace id.
     return CriticResult(verdict=verdict)

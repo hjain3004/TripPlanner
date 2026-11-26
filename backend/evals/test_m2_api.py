@@ -134,7 +134,7 @@ def test_plan_accepts_wallet_in_request(tmp_path: Path) -> None:
         json={
             "raw_request": "Delhi to Singapore Aug 1-5",
             "wallet": {
-                "card_ids": ["amex-platinum"],
+                "card_ids": ["axis-atlas"],
                 "points_balances": {"star-alliance": 50000},
             },
         },

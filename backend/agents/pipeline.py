@@ -22,8 +22,11 @@ from agents.llm import LLMClient
 from agents.models import PipelineStatus, PlanResponse, RegionCapability
 from agents.planner import run_planner
 from agents.retrieval import retrieve_candidates
+from agents.structured_input import PREFERENCE_FIELDS, apply_authoritative_fields
 from agents.trace import TraceRecorder
 from core.db import KnowledgeBase
+from core.models import UserWallet
+from core.trip_models import TripSpec
 from gateway.catalog.activate import active_catalog_summary
 from gateway.catalog.regions import get_region
 from gateway.travel.product import TravelInventorySnapshot
@@ -81,6 +84,8 @@ def run_pipeline(
     inventory_service: TravelInventoryService | None = None,
     on_inventory: Callable[[GatewayEstimateResult], None] | None = None,
     weather_service: WeatherContextService | None = None,
+    authority: TripSpec | None = None,
+    wallet_override: UserWallet | None = None,
 ) -> PlanResponse:
     trace_id = uuid4().hex
     trace = TraceRecorder(trace_id, trace_dir)
@@ -94,6 +99,7 @@ def run_pipeline(
             status=PipelineStatus.ERROR,
             trace_id=trace_id,
             error=intake.runtime_error,
+            error_code=intake.runtime_error_code,
         )
     if intake.needs_clarification or intake.trip_spec is None:
         return PlanResponse(
@@ -112,6 +118,42 @@ def run_pipeline(
                 trace_id=trace_id,
                 unresolved=[str(exc)],
             )
+        authority = confirmed_input.authority
+
+    # Server-owned facts beat the model's reading: identity fields must agree, and the
+    # preference fields (interests, pace, dietary) are replaced silently but traced.
+    if authority is not None:
+        before = spec
+        spec, mismatched = apply_authoritative_fields(spec, authority)
+        if mismatched:
+            return PlanResponse(
+                status=PipelineStatus.NEEDS_CLARIFICATION,
+                trace_id=trace_id,
+                unresolved=["Trip facts do not match intake: " + ", ".join(mismatched)],
+            )
+        trace.record(
+            "authority",
+            {name: getattr(spec, name) for name in PREFERENCE_FIELDS},
+            attributes={
+                "overridden": [
+                    name
+                    for name in PREFERENCE_FIELDS
+                    if getattr(before, name) != getattr(spec, name)
+                ]
+            },
+        )
+
+    # A wallet supplied with the request replaces the model's reading; unknown cards are refused.
+    if wallet_override is not None:
+        unknown = [card for card in wallet_override.card_ids if not kb.has_card(card)]
+        if unknown:
+            return PlanResponse(
+                status=PipelineStatus.NEEDS_CLARIFICATION,
+                trace_id=trace_id,
+                unresolved=[f"unknown card id: {card}" for card in sorted(set(unknown))],
+            )
+        spec = spec.model_copy(update={"wallet": wallet_override.model_copy(deep=True)})
+        trace.record("wallet", wallet_override, attributes={"source": "request"})
 
     region_cap = build_region_capability(spec.destination_city, Path("catalogs"))
 
@@ -164,7 +206,7 @@ def run_pipeline(
             "critic",
             critic,
             model="llm:critic",
-            attributes={"loop_index": loop_index},
+            attributes={"loop_index": loop_index, "critic_skipped": critic.skipped},
         )
         critic_caveats.extend(critic.caveats)
         blocking = critic.verdict.blocking_issues

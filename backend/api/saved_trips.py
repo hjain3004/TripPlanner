@@ -825,7 +825,9 @@ def _prepare_rerun(
     confirmed = compile_confirmed_input(
         latest.model_copy(update={"brief": latest.brief.model_copy(update={"wallet": wallet})})
     )
+    from agents.llm_factory import build_llm_client
     from api.main import (
+        app,
         get_booking_date,
         get_kb,
         get_llm,
@@ -841,8 +843,31 @@ def _prepare_rerun(
         now=lambda: datetime.now(UTC),
     )
     request = TripIntakeRequest(raw_request=confirmed.raw_request, wallet=wallet)
-    run_args = (request, kb, get_llm(), get_place_registry(), get_booking_date(), get_trace_dir())
-    return session, run_args, {"confirmed_input": confirmed, "inventory_service": service}
+    current_llm = (
+        app.dependency_overrides[get_llm]()
+        if get_llm in app.dependency_overrides
+        else get_llm()
+    )
+    from agents.claude_client import AnthropicMessagesClient
+    from agents.llm import RefusalLLMClient
+
+    if isinstance(current_llm, (RefusalLLMClient, AnthropicMessagesClient)):
+        planning_llm = build_llm_client("pipeline", plan_id=job_id, user_id=session.user_id)
+    else:
+        planning_llm = current_llm
+    run_args = (
+        request,
+        kb,
+        planning_llm,
+        get_place_registry(),
+        get_booking_date(),
+        get_trace_dir(),
+    )
+    return session, run_args, {
+        "confirmed_input": confirmed,
+        "inventory_service": service,
+        "owner_id": session.user_id,
+    }
 
 
 def _dispatch_rerun(job_id: str, run_args: tuple[Any, ...], run_kwargs: dict[str, Any]) -> None:

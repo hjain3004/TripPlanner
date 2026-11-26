@@ -195,7 +195,7 @@ def test_pipeline_skips_critic_failure_and_falls_back_for_explainer_failure(tmp_
         {
             "intake": [_spec()],
             "planner": [_itinerary()],
-            "critic": [RuntimeError("critic down")],
+            "critic": [LLMCallError("critic down")],
             "explainer": [RuntimeError("explainer down")],
         }
     )

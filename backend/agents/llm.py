@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 from collections import defaultdict
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
@@ -21,6 +24,60 @@ class LLMTimeoutError(LLMCallError):
     pass
 
 
+class LLMInvalidResponse(LLMCallError):
+    """The model answered, but not with usable JSON for the schema (after the one repair)."""
+
+
+class LLMBudgetExceeded(LLMCallError):
+    """A spend reservation was refused or the provider reported a spend limit."""
+
+    code = "LLM_BUDGET_EXHAUSTED"
+
+    def __init__(self, message: str, *, scope: str = "") -> None:
+        super().__init__(message)
+        self.scope = scope
+
+
+class LLMProviderUnavailable(LLMCallError):
+    """The provider cannot be used right now (auth, billing, overload, kill switch)."""
+
+    code = "LLM_UNAVAILABLE"
+
+    def __init__(self, message: str, *, reason: str = "") -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+class LLMSignInRequired(LLMProviderUnavailable):
+    """Paid model dispatch is reserved for signed-in, owner-bound jobs."""
+
+    code = "LLM_SIGN_IN_REQUIRED"
+
+
+class LLMRefusal(LLMCallError):
+    """The model declined the request (stop_reason == refusal)."""
+
+
+class LLMTruncated(LLMCallError):
+    """Output hit max_tokens; a repeat at the same cap would truncate again."""
+
+
+class LLMSchemaRejected(LLMCallError):
+    """The provider rejected the wire schema (for example, too complex)."""
+
+
+class LLMNotConfigured(LLMCallError):
+    """No model provider is configured; planning is unavailable."""
+
+    code = "LLM_NOT_CONFIGURED"
+
+
+def llm_error_code(error: BaseException) -> str:
+    """The job-level error code for an LLM failure; unknown failures are PIPELINE_ERROR."""
+    code = getattr(error, "code", None)
+    return code if isinstance(code, str) and code.startswith("LLM_") else "PIPELINE_ERROR"
+
+
 class LLMClient(Protocol):
     def complete_json(
         self,
@@ -34,6 +91,27 @@ class LLMClient(Protocol):
         timeout_s: int = 20,
         tools: list[dict[str, Any]] | None = None,
     ) -> T | Any: ...
+
+
+class RefusalLLMClient:
+    """An LLMClient that immediately raises an explicit typed refusal error."""
+
+    def __init__(self, error: LLMCallError) -> None:
+        self.error = error
+
+    def complete_json(
+        self,
+        *,
+        node: str,
+        system: str,
+        user: str,
+        schema: type[T],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        timeout_s: int = 20,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> T | Any:
+        raise self.error
 
 
 class ScriptedLLMClient:
@@ -72,6 +150,7 @@ class ScriptedLLMClient:
             except ValidationError:
                 if tools is not None:
                     from agents.discovery.contracts import SearchIntent
+
                     return SearchIntent.model_validate(response)
                 raise
         raise LLMCallError(f"unsupported scripted response for {node}: {type(response).__name__}")
@@ -142,9 +221,14 @@ class HostedFreeTier:
     """
 
     DEFAULT_MAX_CALLS = 25
+    # Total seconds one complete_json call may spend sleeping on HTTP 429 backoff,
+    # across every configured model. A Retry-After beyond what is left fails fast
+    # instead of holding a request open.
+    DEFAULT_MAX_BACKOFF_SECONDS = 60.0
 
-    def __init__(self, *, max_retries: int = 3) -> None:
+    def __init__(self, *, max_retries: int = 3, gate: Any = None) -> None:
         self.max_retries = max_retries
+        self.gate = gate
         self.base_url = os.getenv("TRIPWISE_LLM_BASE_URL")
         self.model = os.getenv("TRIPWISE_LLM_MODEL")
         fallback_models = [
@@ -168,6 +252,7 @@ class HostedFreeTier:
         self.json_mode = os.getenv("TRIPWISE_LLM_JSON_MODE", "1") != "0"
         self.max_calls = int(os.getenv("TRIPWISE_LLM_MAX_CALLS", str(self.DEFAULT_MAX_CALLS)))
         self.calls_made = 0
+        self.max_backoff_seconds = self.DEFAULT_MAX_BACKOFF_SECONDS
 
     def _endpoint(self) -> str:
         missing = [
@@ -180,7 +265,7 @@ class HostedFreeTier:
             if not value
         ]
         if missing:
-            raise LLMCallError("HostedFreeTier is not configured; set " + ", ".join(missing))
+            raise LLMNotConfigured("HostedFreeTier is not configured; set " + ", ".join(missing))
         assert self.base_url is not None
         return self.base_url.rstrip("/") + "/chat/completions"
 
@@ -192,6 +277,26 @@ class HostedFreeTier:
             )
         self.calls_made += 1
 
+    @staticmethod
+    def _retry_after_seconds(headers: Any) -> float | None:
+        """Retry-After in seconds (delta-seconds or HTTP-date); None if absent or unusable."""
+        raw = headers.get("Retry-After") if headers else None
+        if not raw:
+            return None
+        try:
+            seconds = float(raw)
+            if math.isnan(seconds):
+                return None
+        except ValueError:
+            try:
+                moment = parsedate_to_datetime(raw)
+            except (TypeError, ValueError):
+                return None
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=UTC)
+            seconds = (moment - datetime.now(UTC)).total_seconds()
+        return seconds if seconds >= 0 else 0.0
+
     def _redact_provider_detail(self, detail: str) -> str:
         redacted = detail
         if self.api_key:
@@ -201,6 +306,36 @@ class HostedFreeTier:
         return redacted[:500]
 
     def complete_json(
+        self,
+        *,
+        node: str,
+        system: str,
+        user: str,
+        schema: type[T],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        timeout_s: int = 20,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> T | Any:
+        if self.gate is not None:
+            if not self.gate.acquire(timeout_s=min(float(timeout_s), 5.0)):
+                raise LLMProviderUnavailable("overloaded", reason="gate_timeout")
+        try:
+            return self._complete_json_core(
+                node=node,
+                system=system,
+                user=user,
+                schema=schema,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout_s=timeout_s,
+                tools=tools,
+            )
+        finally:
+            if self.gate is not None:
+                self.gate.release()
+
+    def _complete_json_core(
         self,
         *,
         node: str,
@@ -235,7 +370,7 @@ class HostedFreeTier:
             )
         if tools:
             system_prompt = (
-                f"{system}\n\nYou may either return the requested JSON object, or call a "
+                f"{system_prompt}\n\nYou may either return the requested JSON object, or call a "
                 "tool by returning ONLY that tool's argument object as JSON.\n"
                 f"Available tools:\n{json.dumps(tools, indent=2)}"
             )
@@ -255,6 +390,7 @@ class HostedFreeTier:
         import time
 
         max_retries = self.max_retries
+        backoff_left = self.max_backoff_seconds
         raw = ""
         last_model_error: LLMCallError | None = None
         for model_index, model in enumerate(self.models):
@@ -293,11 +429,32 @@ class HostedFreeTier:
                         else str(exc)
                     )
                     safe_detail = self._redact_provider_detail(detail)
-                    if exc.code == 429 and attempt < max_retries:
-                        retry_after = exc.headers.get("Retry-After") if exc.headers else None
-                        delay = float(retry_after) if retry_after else float(2**attempt * 3)
-                        time.sleep(min(60.0, delay))
-                        continue
+                    if exc.code == 429:
+                        retry_after = self._retry_after_seconds(exc.headers)
+                        if model_index < len(self.models) - 1:
+                            # Rate limits are commonly per model: move to the next
+                            # configured model instead of waiting on this one. This
+                            # model is not called again in this request, so its
+                            # Retry-After is honored by construction, and the call
+                            # ceiling still bounds the total.
+                            last_model_error = LLMCallError(
+                                f"{node} provider rate-limited configured model {model}: "
+                                f"HTTP {exc.code}: {safe_detail}"
+                            )
+                            break
+                        if attempt < max_retries:
+                            delay = (
+                                retry_after if retry_after is not None else float(2**attempt * 3)
+                            )
+                            if delay <= backoff_left:
+                                backoff_left -= delay
+                                time.sleep(delay)
+                                continue
+                            raise LLMCallError(
+                                f"{node} provider returned HTTP 429: retry delay "
+                                f"{delay:.0f}s exceeds the remaining backoff budget "
+                                f"({backoff_left:.0f}s)"
+                            ) from exc
                     if exc.code == 404 and model_index < len(self.models) - 1:
                         last_model_error = LLMCallError(
                             f"{node} provider rejected configured model {model}: "
@@ -310,9 +467,7 @@ class HostedFreeTier:
                 except urllib.error.URLError as exc:
                     if isinstance(exc.reason, TimeoutError):
                         if attempt == max_retries:
-                            raise LLMTimeoutError(
-                                f"{node} timed out after {timeout_s}s"
-                            ) from exc
+                            raise LLMTimeoutError(f"{node} timed out after {timeout_s}s") from exc
                         time.sleep(2)
                         continue
                     raise LLMCallError(f"{node} provider unreachable: {exc.reason}") from exc
@@ -402,9 +557,9 @@ def complete_with_repair(
                 tools=tools,
             )
         except (ValidationError, json.JSONDecodeError) as retry_exc:
-            raise LLMCallError(f"{node} schema repair failed") from retry_exc
+            raise LLMInvalidResponse(f"{node} schema repair failed") from retry_exc
     except json.JSONDecodeError as exc:
-        raise LLMCallError(f"{node} returned invalid JSON") from exc
+        raise LLMInvalidResponse(f"{node} returned invalid JSON") from exc
 
 
 _DEFAULT_RECORDINGS_DIR = Path(__file__).parent.parent / "evals" / "recorded"
@@ -481,9 +636,7 @@ class RecordingLLMClient:
 class ReplayLLMClient:
     """Replays recorded LLM responses from evals/recorded/ with zero network calls."""
 
-    def __init__(
-        self, recordings_dir: Path = _DEFAULT_RECORDINGS_DIR, model: str = ""
-    ) -> None:
+    def __init__(self, recordings_dir: Path = _DEFAULT_RECORDINGS_DIR, model: str = "") -> None:
         self.recordings_dir = recordings_dir
         self.model = model
         self.calls_replayed = 0
