@@ -176,7 +176,11 @@ class FetchResult(BaseModel):
     content_type: str | None = None
     raw_artifact: ImmutableArtifactRef | None = None
     rendered_html_artifact: ImmutableArtifactRef | None = None
+    provider_envelope_artifact: ImmutableArtifactRef | None = None
     normalized_artifact: ImmutableArtifactRef | None = None
+    evidence_fidelity: (
+        Literal["original_http_bytes", "provider_rendered_html", "manual_capture"] | None
+    ) = None
     normalized_text: str = ""
     outbound_links: tuple[str, ...] = ()
     engine: str | None = None
@@ -219,9 +223,14 @@ class SnapshotBundle(BaseModel):
     target_id: str = Field(min_length=1)
     captured_at: AwareDatetime
     raw_artifact: ImmutableArtifactRef
+    rendered_html_artifact: ImmutableArtifactRef | None = None
+    provider_envelope_artifact: ImmutableArtifactRef | None = None
     normalized_artifact: ImmutableArtifactRef
     raw_sha256: str = Field(pattern=SHA256)
     normalized_sha256: str = Field(pattern=SHA256)
+    evidence_fidelity: (
+        Literal["original_http_bytes", "provider_rendered_html", "manual_capture"] | None
+    ) = None
     canonical_markdown: str
     extraction_engine: str | None = None
     extraction_engine_version: str | None = None

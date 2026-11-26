@@ -447,9 +447,12 @@ def test_package_boundaries_and_fi0_are_offline_only() -> None:
         imported.extend(
             (node.module or "").split(".")[0] for node in walk(tree) if isinstance(node, ImportFrom)
         )
-        assert not set(imported).intersection(
-            {"requests", "httpx", "crawl4ai", "firecrawl", "playwright"}
+        forbidden_http = (
+            {"requests", "crawl4ai", "firecrawl", "playwright"}
+            if source.name == "firecrawl_transport.py"
+            else {"requests", "httpx", "crawl4ai", "firecrawl", "playwright"}
         )
+        assert not set(imported).intersection(forbidden_http), source.name
 
 
 def test_stale_and_duplicate_decisions_fail_closed(tmp_path: Path) -> None:

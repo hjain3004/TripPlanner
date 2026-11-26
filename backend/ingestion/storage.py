@@ -51,6 +51,10 @@ class ConflictingWriteError(IngestionStoreError):
     pass
 
 
+class AcquisitionLockContentionError(IngestionStoreError):
+    """Typed, bounded failure when SQLite write contention prevents reservation or update."""
+
+
 _SCHEMA = """
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS source_policies (
@@ -97,6 +101,22 @@ CREATE TABLE IF NOT EXISTS activation_bundles (
     request_fingerprint TEXT NOT NULL, payload TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS acquisition_requests (
+    request_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL,
+    policy_hash TEXT NOT NULL, canonical_url TEXT NOT NULL, domain TEXT NOT NULL,
+    run_id TEXT NOT NULL, month_key TEXT NOT NULL, state TEXT NOT NULL,
+    estimated_credits INTEGER NOT NULL, charged_credits INTEGER,
+    pricing_version TEXT NOT NULL, reserved_at TEXT NOT NULL,
+    dispatch_started_at TEXT, completed_at TEXT,
+    result_payload TEXT, safe_diagnostic TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS acquisition_domain_reservations (
+    domain TEXT PRIMARY KEY, next_dispatch_at TEXT NOT NULL, request_id TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_acquisition_requests_run
+    ON acquisition_requests(run_id, state);
+CREATE INDEX IF NOT EXISTS idx_acquisition_requests_month
+    ON acquisition_requests(month_key, state);
 """
 
 
@@ -104,7 +124,13 @@ def _snapshot_identity(snapshot: SnapshotBundle) -> dict[str, object]:
     """A snapshot's content-addressed identity: not when or by which attempt it was captured,
     and not its lineage pointer (a simultaneous loser can even point at the winner's own id)."""
     return snapshot.model_dump(
-        mode="json", exclude={"captured_at", "attempts", "supersedes_snapshot_id"}
+        mode="json",
+        exclude={
+            "captured_at",
+            "attempts",
+            "supersedes_snapshot_id",
+            "provider_envelope_artifact",
+        },
     )
 
 
@@ -268,12 +294,35 @@ class FinancialIngestionStore:
             ).fetchone()
         return None if row is None else WatchTarget.model_validate_json(row[0])
 
+    def list_watch_targets(self) -> list[WatchTarget]:
+        with self._connect() as connection:
+            rows = connection.execute("SELECT payload FROM watch_targets ORDER BY id").fetchall()
+        return [WatchTarget.model_validate_json(row[0]) for row in rows]
+
     def get_source_policy(self, policy_id: str) -> SourcePolicyRecord | None:
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT payload FROM source_policies WHERE id = ?", (policy_id,)
             ).fetchone()
         return None if row is None else SourcePolicyRecord.model_validate_json(row[0])
+
+    def list_source_policies(self) -> list[SourcePolicyRecord]:
+        with self._connect() as connection:
+            rows = connection.execute("SELECT payload FROM source_policies ORDER BY id").fetchall()
+        return [SourcePolicyRecord.model_validate_json(row[0]) for row in rows]
+
+    def list_snapshots(self, target_id: str | None = None) -> list[SnapshotBundle]:
+        with self._connect() as connection:
+            if target_id is None:
+                rows = connection.execute(
+                    "SELECT payload FROM snapshot_manifests ORDER BY rowid"
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT payload FROM snapshot_manifests WHERE target_id = ? ORDER BY rowid",
+                    (target_id,),
+                ).fetchall()
+        return [SnapshotBundle.model_validate_json(row[0]) for row in rows]
 
     def list_proposals(self, status: ProposalStatus | None = None) -> list[ChangeProposal]:
         with self._connect() as connection:

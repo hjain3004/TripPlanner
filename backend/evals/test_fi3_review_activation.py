@@ -11,6 +11,7 @@ from evals.test_fi2_extraction import NOW, response, snapshot
 from ingestion.activation import ActivationPlanner
 from ingestion.artifacts import ContentAddressedStore
 from ingestion.contracts import CuratorRecord
+from ingestion.migrations import SCHEMA_VERSION
 from ingestion.review import ReviewService, _supported_edit_value
 from ingestion.review_rows import SeedRowSource
 from ingestion.review_server import LocalOnlyError, resolve_bind_host, resolve_data_dir
@@ -136,10 +137,13 @@ def test_schema_three_database_migrates_to_four_without_losing_rows(tmp_path: Pa
         connection.execute("PRAGMA user_version = 3")
     FinancialIngestionStore(path)
     with sqlite3.connect(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone() == (4,)
+        assert connection.execute("PRAGMA user_version").fetchone() == (SCHEMA_VERSION,)
         assert connection.execute(
             "SELECT name FROM sqlite_master WHERE name = 'curators'"
         ).fetchone() == ("curators",)
+        assert connection.execute(
+            "SELECT name FROM sqlite_master WHERE name = 'acquisition_requests'"
+        ).fetchone() == ("acquisition_requests",)
         assert connection.execute(
             "SELECT payload FROM source_policies WHERE id = 'policy:v3-existing'"
         ).fetchone() == ("{}",)

@@ -20,6 +20,8 @@ def verify_evidence_span(
     try:
         normalized_bytes = artifacts.read(snapshot.normalized_artifact)
         raw_bytes = artifacts.read(snapshot.raw_artifact)
+        if snapshot.provider_envelope_artifact is not None:
+            artifacts.read(snapshot.provider_envelope_artifact)
     except Exception as error:
         raise EvidenceVerificationError(
             "snapshot artifacts failed integrity verification"
@@ -117,16 +119,30 @@ def financial_draft_graph(
             version=1,
         )
     )
+    parent_ids = [raw_artifact_id, normalized_artifact_id]
+    if snapshot.provider_envelope_artifact is not None:
+        envelope_artifact_id = (
+            f"financial-provider-envelope:{snapshot.provider_envelope_artifact.sha256}"
+        )
+        graph.add_artifact(
+            Artifact(
+                artifact_id=envelope_artifact_id,
+                kind="financial_provider_envelope",
+                run_id=run_id,
+                version=1,
+            )
+        )
+        parent_ids.append(envelope_artifact_id)
     graph.add_artifact(
         Artifact(
             artifact_id=artifact_id,
             kind="financial_draft_snapshot",
             run_id=run_id,
             version=1,
-            derived_from=[raw_artifact_id, normalized_artifact_id],
+            derived_from=parent_ids,
         )
     )
-    for parent_id in (raw_artifact_id, normalized_artifact_id):
+    for parent_id in parent_ids:
         graph.add_edge(
             Edge(
                 kind=EdgeKind.DERIVED_FROM,
@@ -145,7 +161,9 @@ def financial_draft_graph(
                 kind=ClaimKind.REFERENCE_FACT,
                 identity=ReferenceFactIdentity(
                     kind="reference_fact",
-                    namespace="financial_draft", entity_id=snapshot.target_id, field=field
+                    namespace="financial_draft",
+                    entity_id=snapshot.target_id,
+                    field=field,
                 ),
                 payload={"snapshot_id": snapshot.snapshot_id, "field_path": field},
                 source_id=source_id,
