@@ -14,12 +14,12 @@ from typing import TypeVar
 
 from pydantic import ValidationError
 
+from ingestion import recurring_cli
 from ingestion.acquisition import (
     DurableAcquisitionService,
     RetainedCaptureTransport,
 )
 from ingestion.acquisition_control import (
-    AcquisitionControlLimits,
     DurableAcquisitionControl,
 )
 from ingestion.activation import ActivationPlanner
@@ -761,11 +761,8 @@ def _build_cli_control(
 ) -> DurableAcquisitionControl:
     return DurableAcquisitionControl(
         store,
-        limits=AcquisitionControlLimits(
-            per_request_credits=args.per_request_credits,
-            per_run_credits=args.per_run_credits,
-            per_month_credits=args.per_month_credits,
-            pricing_version=args.pricing_version,
+        limits=recurring_cli.control_limits(
+            args, managed=bool(getattr(args, "welcome_targets", None))
         ),
     )
 
@@ -881,6 +878,8 @@ def run_acquire(
 
     try:
         ext_config, ext_by_target = _build_cli_extraction_config(args)
+        wiring = recurring_cli.build_welcome_wiring(args, seeds_dir=seeds_dir)
+        ext_by_target = {**ext_by_target, **wiring.ext_by_target}
         transport, default_robots = _build_cli_transport_and_robots(args, environment=environment)
         control = _build_cli_control(args, store)
     except (ValidationError, ValueError) as invalid:
@@ -894,6 +893,8 @@ def run_acquire(
         transport=transport,
         extraction_config=ext_config,
         extraction_configs_by_target=ext_by_target,
+        welcome_targets=wiring.targets,
+        published_welcome_rows=wiring.published_rows,
         seeds_dir=seeds_dir,
         default_robots=default_robots,
         firecrawl_enabled=not bool(getattr(args, "disable_firecrawl", False)),
@@ -951,6 +952,8 @@ def run_refresh_due(
 
     try:
         ext_config, ext_by_target = _build_cli_extraction_config(args)
+        wiring = recurring_cli.build_welcome_wiring(args, seeds_dir=seeds_dir)
+        ext_by_target = {**ext_by_target, **wiring.ext_by_target}
         transport, default_robots = _build_cli_transport_and_robots(args, environment=environment)
         control = _build_cli_control(args, store)
     except (ValidationError, ValueError) as invalid:
@@ -964,6 +967,8 @@ def run_refresh_due(
         transport=transport,
         extraction_config=ext_config,
         extraction_configs_by_target=ext_by_target,
+        welcome_targets=wiring.targets,
+        published_welcome_rows=wiring.published_rows,
         seeds_dir=seeds_dir,
         default_robots=default_robots,
         firecrawl_enabled=not bool(getattr(args, "disable_firecrawl", False)),
@@ -1040,6 +1045,40 @@ def run_apply_command(args: argparse.Namespace, applier: ControlledApplier) -> i
         print(f"refused: {failure.code}: {failure}", file=sys.stderr)
         return 2
     return 0
+
+
+def _add_refresh_arguments(refresh_cmd: argparse.ArgumentParser, *, prefix_required: bool) -> None:
+    refresh_cmd.add_argument("--data-dir", default=None)
+    refresh_cmd.add_argument("--seeds-dir", default=None)
+    refresh_cmd.add_argument("--source-policies", default=None)
+    refresh_cmd.add_argument("--watchlist", default=None)
+    refresh_cmd.add_argument("--discovery-sources", default=None)
+    refresh_cmd.add_argument("--limit", type=int, default=10)
+    refresh_cmd.add_argument("--client-event-prefix", required=prefix_required)
+    refresh_cmd.add_argument("--retained-capture", default=None)
+    refresh_cmd.add_argument("--retained-captures-manifest", default=None)
+    refresh_cmd.add_argument("--live-firecrawl", action="store_true", default=False)
+    refresh_cmd.add_argument("--confirm-no-overage", action="store_true", default=False)
+    refresh_cmd.add_argument("--disable-firecrawl", action="store_true", default=False)
+    refresh_cmd.add_argument("--robots-file", default=None)
+    refresh_cmd.add_argument(
+        "--extraction-mode",
+        choices=("disabled", "scripted_replay", "curator_authored"),
+        default=None,
+    )
+    refresh_cmd.add_argument("--scripted-extraction", default=None)
+    refresh_cmd.add_argument("--extractor-version", default="firecrawl-fi2-extractor-v1")
+    refresh_cmd.add_argument("--per-request-credits", type=int, default=1)
+    refresh_cmd.add_argument("--per-run-credits", type=int, default=5)
+    refresh_cmd.add_argument("--per-month-credits", type=int, default=20)
+    refresh_cmd.add_argument("--pricing-version", default="firecrawl-v2-scrape-2026-11")
+    refresh_cmd.add_argument("--estimated-credits", type=int, default=1)
+    refresh_cmd.add_argument("--run-id", default="firecrawl-refresh-due")
+    refresh_cmd.add_argument("--forced-freshness", action="store_true", default=False)
+    refresh_cmd.add_argument("--max-bytes", type=int, default=StageLimits.max_bytes)
+    refresh_cmd.add_argument("--max-pages", type=int, default=StageLimits.max_pages)
+    refresh_cmd.add_argument("--timeout-seconds", type=int, default=StageLimits.timeout_seconds)
+    recurring_cli.add_arguments(refresh_cmd)
 
 
 def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = None) -> int:
@@ -1182,36 +1221,12 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     acquire_cmd.add_argument("--max-pages", type=int, default=StageLimits.max_pages)
     acquire_cmd.add_argument("--timeout-seconds", type=int, default=StageLimits.timeout_seconds)
     refresh_cmd = sub.add_parser("refresh-due")
-    refresh_cmd.add_argument("--data-dir", default=None)
-    refresh_cmd.add_argument("--seeds-dir", default=None)
-    refresh_cmd.add_argument("--source-policies", default=None)
-    refresh_cmd.add_argument("--watchlist", default=None)
-    refresh_cmd.add_argument("--discovery-sources", default=None)
-    refresh_cmd.add_argument("--limit", type=int, default=10)
-    refresh_cmd.add_argument("--client-event-prefix", required=True)
-    refresh_cmd.add_argument("--retained-capture", default=None)
-    refresh_cmd.add_argument("--retained-captures-manifest", default=None)
-    refresh_cmd.add_argument("--live-firecrawl", action="store_true", default=False)
-    refresh_cmd.add_argument("--confirm-no-overage", action="store_true", default=False)
-    refresh_cmd.add_argument("--disable-firecrawl", action="store_true", default=False)
-    refresh_cmd.add_argument("--robots-file", default=None)
-    refresh_cmd.add_argument(
-        "--extraction-mode",
-        choices=("disabled", "scripted_replay", "curator_authored"),
-        default=None,
-    )
-    refresh_cmd.add_argument("--scripted-extraction", default=None)
-    refresh_cmd.add_argument("--extractor-version", default="firecrawl-fi2-extractor-v1")
-    refresh_cmd.add_argument("--per-request-credits", type=int, default=1)
-    refresh_cmd.add_argument("--per-run-credits", type=int, default=5)
-    refresh_cmd.add_argument("--per-month-credits", type=int, default=20)
-    refresh_cmd.add_argument("--pricing-version", default="firecrawl-v2-scrape-2026-11")
-    refresh_cmd.add_argument("--estimated-credits", type=int, default=1)
-    refresh_cmd.add_argument("--run-id", default="firecrawl-refresh-due")
-    refresh_cmd.add_argument("--forced-freshness", action="store_true", default=False)
-    refresh_cmd.add_argument("--max-bytes", type=int, default=StageLimits.max_bytes)
-    refresh_cmd.add_argument("--max-pages", type=int, default=StageLimits.max_pages)
-    refresh_cmd.add_argument("--timeout-seconds", type=int, default=StageLimits.timeout_seconds)
+    _add_refresh_arguments(refresh_cmd, prefix_required=True)
+    recurring_cmd = sub.add_parser("recurring-run")
+    _add_refresh_arguments(recurring_cmd, prefix_required=False)
+    recurring_cli.add_recurring_arguments(recurring_cmd)
+    recurring_cli.add_arguments(acquire_cmd)
+    recurring_cli.add_commands(sub)
     confirm = sub.add_parser("confirm-origin")
     confirm.add_argument("--data-dir", default=None)
     confirm.add_argument("--seeds-dir", required=True)
@@ -1293,6 +1308,25 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
             )
         except ConfigValidationError as error:
             return _config_refusal(error)
+    if args.command in recurring_cli.WELCOME_COMMANDS:
+        return recurring_cli.run_welcome_command(
+            args, data_dir=data_dir, store=store, artifacts=service.artifacts, now=now
+        )
+    if args.command == "recurring-run":
+        recurring_seeds = Path(args.seeds_dir) if args.seeds_dir else SEEDS_DIR
+        return recurring_cli.run_recurring(
+            args,
+            data_dir=data_dir,
+            refresh_due=lambda a: run_refresh_due(
+                a,
+                store=store,
+                artifacts=service.artifacts,
+                seeds_dir=recurring_seeds,
+                environment=environment,
+                now=now,
+            ),
+            now=now,
+        )
     if args.command in {"acquire", "refresh-due"}:
         acq_runner = run_acquire if args.command == "acquire" else run_refresh_due
         try:
