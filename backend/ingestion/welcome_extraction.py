@@ -192,6 +192,32 @@ def _entry(offer: Mapping[str, Any], name: str) -> tuple[str, str] | None:
     return None
 
 
+_MONEY = re.compile(r"(?:₹|\brs\.?|\binr\b|\busd\b|\baed\b|\bsgd\b|s\$)\s*\d", re.IGNORECASE)
+# What the quoted text itself must contain for a field to mean what its name says. The shared
+# parser would accept the bare number 30 as a rupee amount from "within 30 days"; Firecrawl's model
+# made exactly that mistake on a real page, so a field is rejected unless its quote says what it is.
+_CONTEXT: dict[str, tuple[str, ...]] = {
+    "bonus_points": (r"\b(?:edge\s+)?(?:miles?|points?)\b",),
+    "bonus_flat_minor": (
+        _MONEY.pattern,
+        r"welcome|voucher|cash\s*back|gift|bonus|credit",
+    ),
+    "min_spend_minor": (_MONEY.pattern, r"spend|spent|transaction|purchase|retail"),
+    "spend_window_days": (r"\bdays?\b",),
+}
+_WELCOME_WORDS = re.compile(
+    r"welcome|joining|sign[- ]?up|activation|first transaction|new (?:card|customer|cardholder)",
+    re.IGNORECASE,
+)
+
+
+def _context_problem(name: str, quote: str) -> str | None:
+    for pattern in _CONTEXT.get(name, ()):
+        if re.search(pattern, quote, re.IGNORECASE) is None:
+            return f"the quote does not say what a {name} must (needs /{pattern}/)"
+    return None
+
+
 def _field_for(
     name: str,
     raw: str,
@@ -205,6 +231,9 @@ def _field_for(
     if where is None:
         return "the quote is not present in the retained page text"
     start, end = where
+    problem = _context_problem(name, snapshot.canonical_markdown[start:end])
+    if problem is not None:
+        return problem
     span = EvidenceSpan(
         snapshot_id=snapshot.snapshot_id,
         snapshot_hash=snapshot.normalized_sha256,
@@ -284,6 +313,35 @@ def build_welcome_drafts(
                 rejected[name] = outcome
             else:
                 accepted[name] = outcome
+        evidence_text = " ".join(
+            item[0].evidence_spans[0].quote for item in accepted.values()
+        ) + " ".join(str(v.get("quote", "")) for v in entry.values() if isinstance(v, Mapping))
+        if not _WELCOME_WORDS.search(evidence_text):
+            incomplete.append(
+                IncompleteDraft(
+                    offer_id=None,
+                    title=str(accepted["title"][1]) if "title" in accepted else None,
+                    missing=(),
+                    evidenced=tuple(sorted(accepted)),
+                    rejected=rejected,
+                    reason="not a welcome offer: no welcome, joining, sign-up or first-transaction "
+                    "wording anywhere in its evidence",
+                )
+            )
+            continue
+        if "bonus_points" in accepted and "bonus_flat_minor" in accepted:
+            incomplete.append(
+                IncompleteDraft(
+                    offer_id=None,
+                    title=str(accepted["title"][1]) if "title" in accepted else None,
+                    missing=(),
+                    evidenced=tuple(sorted(accepted)),
+                    rejected=rejected,
+                    reason="conflicting bonus: both points and a flat amount were claimed; "
+                    "a curator must say which applies",
+                )
+            )
+            continue
         title_pair = accepted.get("title")
         if title_pair is None:
             incomplete.append(

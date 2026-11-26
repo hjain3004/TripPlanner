@@ -162,6 +162,12 @@ def _add_commands(sub: Any) -> None:
     history.add_argument("--data-dir", default=None)
     incomplete = sub.add_parser("incomplete-drafts")
     incomplete.add_argument("--data-dir", default=None)
+    reextract = sub.add_parser("reextract-welcome")
+    reextract.add_argument("--data-dir", default=None)
+    reextract.add_argument("--target-id", required=True)
+    reextract.add_argument("--client-event-id", required=True)
+    reextract.add_argument("--per-request-credits", type=int, default=MANAGED_CREDITS)
+    add_arguments(reextract)
     credits = sub.add_parser("credit-status")
     credits.add_argument("--data-dir", default=None)
     raise_cap = sub.add_parser("raise-lifetime-cap")
@@ -178,10 +184,24 @@ WELCOME_COMMANDS = frozenset(
         "rollback-welcome",
         "welcome-history",
         "incomplete-drafts",
+        "reextract-welcome",
         "credit-status",
         "raise-lifetime-cap",
     }
 )
+
+
+class _NoNetwork:
+    """Re-extraction never fetches: any attempt to is refused."""
+
+    async def scrape(self, request: Any) -> dict[str, Any]:
+        raise RuntimeError("re-extraction must not make a network request")
+
+
+def _seeds_dir(args: argparse.Namespace) -> Path:
+    from core.db import SEEDS_DIR
+
+    return Path(args.seeds_dir) if getattr(args, "seeds_dir", None) else SEEDS_DIR
 
 
 def run_welcome_command(
@@ -218,6 +238,25 @@ def run_welcome_command(
         if args.command == "incomplete-drafts":
             say(store.list_incomplete_extractions())
             return 0
+        if args.command == "reextract-welcome":
+            from ingestion.acquisition import DurableAcquisitionService
+
+            wiring = build_welcome_wiring(args, seeds_dir=_seeds_dir(args))
+            service = DurableAcquisitionService(
+                store=store,
+                artifacts=artifacts,
+                control=DurableAcquisitionControl(store, limits=control_limits(args, managed=True)),
+                transport=_NoNetwork(),
+                extraction_configs_by_target=wiring.ext_by_target,
+                welcome_targets=wiring.targets,
+                published_welcome_rows=wiring.published_rows,
+                now=now,
+            )
+            outcome = service.reextract_welcome_sync(
+                args.target_id, client_event_id=args.client_event_id
+            )
+            say(outcome.to_dict())
+            return 0 if outcome.state == "completed" else 2
         control = DurableAcquisitionControl(
             store,
             limits=AcquisitionControlLimits(

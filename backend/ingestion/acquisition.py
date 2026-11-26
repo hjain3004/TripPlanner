@@ -1169,6 +1169,57 @@ class DurableAcquisitionService:
             proposal_ids,
         )
 
+    def reextract_welcome_sync(
+        self, target_id: str, *, client_event_id: str
+    ) -> AcquisitionResultRecord:
+        """Derive welcome drafts again from the material already retained for a target.
+
+        For use after a mapping or validation fix: it reads the stored snapshot and Firecrawl's
+        stored extraction, makes no request and spends no credits, and creates new proposals only
+        for what the current deterministic rules accept.
+        """
+        event_key = client_event_id.strip()
+        welcome = self.welcome_targets.get(target_id)
+        checkpoint = self.store.last_extraction_checkpoint(target_id)
+
+        def refuse(diagnostic: str) -> AcquisitionResultRecord:
+            return AcquisitionResultRecord(
+                state="failed",
+                snapshot_id=None,
+                proposal_ids=(),
+                target_id=target_id,
+                client_event_id=event_key,
+                extraction_mode=ExtractionMode.FIRECRAWL_MANAGED.value,
+                extraction_status="extraction_failed",
+                diagnostic=diagnostic,
+            )
+
+        if not event_key or welcome is None:
+            return refuse("a client event id and a configured welcome target are required")
+        if checkpoint is None or not checkpoint.get("extraction_envelope_sha256"):
+            return refuse("no completed Firecrawl extraction is retained for this target")
+        snapshot = self.store.get_snapshot(str(checkpoint["snapshot_id"]))
+        if snapshot is None:
+            return refuse("the extracted snapshot is not retained")
+        envelope = self.artifacts.get_ref(
+            str(checkpoint["extraction_envelope_sha256"]), media_type="application/json"
+        )
+        return self._extract_welcome(
+            welcome,
+            managed=True,
+            snapshot=snapshot,
+            previous_snapshot=None,
+            target_id=target_id,
+            request_id=f"reextract:{checkpoint['extraction_envelope_sha256'][:16]}",
+            event_key=event_key,
+            operator_outcome="reextracted_from_retained_material",
+            ext_mode=ExtractionMode.FIRECRAWL_MANAGED.value,
+            was_completed=True,
+            envelope_sha=envelope.sha256,
+            credits=0,
+            extraction_envelope=envelope,
+        )
+
     def acquire_sync(
         self,
         target_id: str,

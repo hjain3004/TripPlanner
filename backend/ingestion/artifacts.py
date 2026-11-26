@@ -69,6 +69,11 @@ class ContentAddressedStore:
             relative_path=str(path.relative_to(self.root)),
         )
 
+    def get_ref(self, digest: str, *, media_type: str) -> ImmutableArtifactRef:
+        """The reference for bytes already stored under ``digest`` (verified on the way)."""
+        self._validate_digest(digest)
+        return self.put(self._path(digest).read_bytes(), media_type=media_type)
+
     def read(self, reference: ImmutableArtifactRef) -> bytes:
         path = self._path(reference.sha256)
         if not path.exists():

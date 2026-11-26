@@ -566,3 +566,81 @@ def test_one_failing_source_does_not_stop_the_others(tmp_path: Path) -> None:
     batch = world.service.refresh_due_sync(limit=5, client_event_prefix="batch-1")
     states = {o.target_id: o.state for o in batch.outcomes}
     assert states["watch:broken"] == "failed" and states["watch:atlas-offers"] == "completed"
+
+
+def test_defects_seen_in_a_real_firecrawl_extraction_are_rejected_not_published(
+    tmp_path: Path,
+) -> None:
+    """Synthetic text that reproduces the *kinds* of mistakes a real extraction made.
+
+    A real Firecrawl response labelled "within 30 days" as the minimum spend (a bare 30 parses as
+    a rupee amount), returned a quote that was only the number "37", mixed an annual-fee line into a
+    welcome offer, claimed both points and a flat amount, and listed a non-welcome "Annual Benefit".
+    """
+    html = (
+        "<html><body><main><h2>Welcome Benefit</h2>"
+        "<p>Enjoy 5000 EDGE Miles as welcome benefit upon first transaction within 30 days of card "
+        "issuance. Applicable from 20th April 2024.</p><p>Annual fee ₹5,000 + GST.</p>"
+        "<h2>Annual Benefit</h2><p>Earn 2500 EDGE Miles on payment of the annual fee.</p>"
+        "<p>Window 37</p></main></body></html>"
+    )
+    extracted = {
+        "offers": [
+            {
+                "title": {"value": "Welcome Benefit", "quote": "Welcome Benefit"},
+                "bonus_points": {
+                    "value": "5000",
+                    "quote": "5000 EDGE Miles as welcome benefit upon first transaction",
+                },
+                "bonus_flat_minor": {"value": "₹5,000", "quote": "₹5,000"},
+                "min_spend_minor": {"value": "30", "quote": "within 30 days of card issuance"},
+                "spend_window_days": {"value": "37", "quote": "37"},
+                "valid_from": {"value": "20th April 2024", "quote": "20th April 2024"},
+            },
+            {
+                "title": {"value": "Annual Benefit", "quote": "Annual Benefit"},
+                "bonus_points": {
+                    "value": "2500",
+                    "quote": "2500 EDGE Miles on payment of the annual fee",
+                },
+            },
+        ]
+    }
+    world = World(tmp_path, [capture(html, extracted)], published=None)
+    outcome = world.run("evt-1")
+    assert outcome.proposal_ids == ()  # nothing is proposed from this page
+    drafts = {d["title"]: d for d in world.store.list_incomplete_extractions()}
+
+    welcome = drafts["Welcome Benefit"]
+    assert set(welcome["missing"]) >= {"min_spend_minor", "spend_window_days", "valid_to"}
+    assert "30" not in welcome["evidenced"]  # the bare 30 was not accepted as a rupee amount
+    assert "min_spend_minor" in welcome["rejected"] and "spend_window_days" in welcome["rejected"]
+    assert "bonus_flat_minor" in welcome["rejected"]  # "₹5,000" alone says nothing about a bonus
+    assert "min_spend_minor" not in welcome["evidenced"]
+    assert "not a welcome offer" in drafts["Annual Benefit"]["reason"]
+
+
+def test_conflicting_points_and_flat_bonuses_are_not_resolved_by_guessing(tmp_path: Path) -> None:
+    extracted = offer_json()
+    extracted["offers"][0]["bonus_flat_minor"] = {
+        "value": "₹2,000",
+        "quote": "welcome gift voucher of ₹2,000",
+    }
+    html = page().replace("</main>", "<p>Also a welcome gift voucher of ₹2,000.</p></main>")
+    world = World(tmp_path, [capture(html, extracted)], published=None)
+    outcome = world.run("evt-1")
+    assert outcome.proposal_ids == ()
+    (draft,) = world.store.list_incomplete_extractions()
+    assert "conflicting bonus" in draft["reason"]
+
+
+def test_reextraction_uses_only_retained_material_and_spends_nothing(tmp_path: Path) -> None:
+    extracted = offer_json()
+    world = World(tmp_path, [capture(page(), extracted)], published=None)
+    first = world.run("evt-1")
+    assert len(first.proposal_ids) == 1
+    calls_before = len(world.transport.calls)
+    again = world.service.reextract_welcome_sync("watch:atlas-offers", client_event_id="re-1")
+    assert again.state == "completed" and again.credits_reserved == 0
+    assert len(world.transport.calls) == calls_before  # no request was made
+    assert len(again.proposal_ids) == 1  # derived again from the same retained extraction
