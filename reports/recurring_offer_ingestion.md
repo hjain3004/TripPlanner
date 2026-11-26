@@ -1,107 +1,149 @@
 # Recurring welcome-offer ingestion
 
-Branch `codex/recurring-offer-ingestion`. Nothing here approves a financial fact, writes a repository
-seed or catalog, or spends a Firecrawl credit. **No live Firecrawl request has been made for this work**
-(recorded allowance: 67 of 500 used before this branch; this branch has used 0).
+Branch `codex/recurring-offer-ingestion`. Nothing here approves a financial fact, confirms an origin,
+publishes a real offer or writes a repository seed or catalog. Everything real stays pending the
+owner. Raw captures, private databases, review packets and logs are outside Git.
 
-## What an operator can do now
+## What works
+
+Collect → cheap change check → Firecrawl-hosted JSON extraction only when needed → deterministic
+validation → draft proposal or precise incomplete draft → existing review queue → named-curator
+approval → controlled publication to an operator catalog → the API reloads it → changed terms become
+an update proposal → rollback. A scheduler-compatible wrapper runs the same command repeatedly.
 
 All commands are `python -m ingestion.review_server <command>` from `backend/`.
 
-1. **Name the welcome-offer pages** in a YAML file (what the operator, not the page, says):
+| Step | Command |
+|---|---|
+| Name welcome pages (what the operator says) | `--welcome-targets targets.yaml` (`card_id`, `source_url`, optional `default_currency`, `points_currency_id`) |
+| Collect | `acquire`, `refresh-due`, or `recurring-run --slot S` |
+| Review packet of incomplete drafts | `incomplete-drafts --format md --out <private path>` |
+| Re-derive drafts after a rule fix, no request, no credits | `reextract-welcome --target-id T --client-event-id E` |
+| Review/approve | existing `review-queue`, `inspect`, `decision` |
+| Publish / history / undo | `init-welcome-catalog`, `publish-welcome`, `welcome-history`, `rollback-welcome` |
+| Per-source state | `source-status` (`last_checked_at` is the machine's; `last_verified` on a published row is a human's) |
+| Credits | `credit-status`, `raise-lifetime-cap` (explicit, attributed); flags `--lifetime-credits --opening-credits-used` |
+| Serve | `TRIPWISE_WELCOME_OFFERS_PATH=<catalog>/card_acquisition_offers.yaml` |
 
-   ```yaml
-   targets:
-     watch-atlas-offers:            # an existing, policy-approved Firecrawl watch target
-       card_id: axis-atlas          # a seeded card
-       source_url: https://…        # the offers page
-       points_currency_id: …        # optional: LoyaltyProgram id for a points bonus
-   ```
+### How collection spends credits
 
-2. **Collect** (`acquire`, `refresh-due`, or the scheduled `recurring-run`) with
-   `--welcome-targets targets.yaml --published-welcome-catalog <dir> --per-request-credits 5 …`.
-   For those targets the scrape requests Firecrawl's v2 `json` format next to `rawHtml`
-   (5 credits reserved: 1 page + 4 extraction, per the billing page), keeps the provider's structured
-   result in the provider-envelope artifact, and turns it into **unverified draft proposals**
-   (`insert` for a new offer, `update` for a changed published one). Firecrawl runs the model; no model
-   client exists here and `llm_calls` is 0.
-3. **Review** in the existing queue (`review-queue`, `inspect`, `decision`). Quotes and offsets are
-   shown as for every other fact.
-4. **Publish** an approved proposal: `init-welcome-catalog --catalog-dir D` once, then
-   `publish-welcome --catalog-dir D --proposal-id P`. History: `welcome-history`. Undo:
-   `rollback-welcome --publication-id …`.
-5. **Serve**: set `TRIPWISE_WELCOME_OFFERS_PATH=D/card_acquisition_offers.yaml`. The API reloads the file
-   whenever its mtime/size changes (no restart); an invalid edit keeps the last good catalog and sets
-   `welcome.catalog.last_reload_error`. Unset, the shipped empty catalog is used.
-6. **Credits**: `--lifetime-credits N --opening-credits-used M` record a lifetime allowance once in the
-   database; later flags cannot loosen it; `credit-status`; raised only by `raise-lifetime-cap`.
-7. **Incomplete extractions** are listed by `incomplete-drafts` (what is missing and why each field was
-   rejected) instead of becoming padded rows.
-8. **Schedule**: `recurring-run … --slot 2026-11-28T09` is one bounded `refresh-due` pass under a file
-   lock (exit 75 if another is running), keyed by slot so a repeated slot replays and spends nothing,
-   with `recurring/last_run.json` and `history.jsonl`. Example cron:
-   `0 9 * * * cd backend && .venv/bin/python -m ingestion.review_server recurring-run <same flags>`.
+1. **Check** (1 credit): a plain page fetch, compared with the *welcome-relevant text* (term-bearing
+   lines only, so navigation and footer changes do not count) recorded at the last completed
+   extraction. Unchanged → stop. A failed check proves nothing about the offer and changes nothing.
+2. **Extract** (5 credits: 1 page + 4 JSON) only for a changed page or one never successfully
+   extracted. This second capture is the version the quotes bind to; its own envelope carries
+   Firecrawl's JSON. A failed extraction is retried next pass, never read as "offer withdrawn".
+3. Both requests are separate durable reservations with the documented cost; real charges are read
+   from `metadata.creditsUsed`. Replays spend nothing. A lifetime allowance is recorded once in the
+   database and cannot be loosened by later flags.
 
-## Demonstrated (execution mode: retained synthetic captures, real SQLite/artifacts/CLI processes)
+## Real Firecrawl acceptance (executed, within the existing allowance)
 
-`evals/test_recurring_cli.py` drives one process per step: initial collection → queue → publication
-refused before approval → unchanged page → curator approval → publication → changed terms (blocked by
-the lifetime allowance, then allowed after an explicit raise) → update proposal → history → rollback;
-plus slot idempotence, lock exclusion, the 5-credit requirement and incomplete drafts.
-`evals/test_recurring_welcome_extraction.py` covers initial / replay-after-restart / unchanged /
-changed / dropped-quote / unsupported-value / missing-extraction and request-id conflicts.
-`evals/test_recurring_welcome_publication.py` proves review, approval, publication, reload, rollback,
-and consumption by the **authenticated `/account/wallet/{entry}/welcome-status` route** with no
-restart; a synthetic verifier is never served.
+**Sources and access basis.** Two Axis Bank public card pages on `www.axis.bank.in`:
+`.../axis-bank-atlas-credit-card` and `.../rewards-credit-card`, under the owner-approved policy
+`axis-bank-in-firecrawl-card-page-v1` (automated access permitted, reviewed by the owner on
+2026-11-07; retained `robots.txt`: `User-agent: * / Allow: /`). Basic proxy, no actions, no
+retries, 31-second spacing between requests to the domain (policy minimum 30), Firecrawl-hosted JSON
+extraction only, no separate model.
 
-The `data.json` blocks in those captures are **authored**. They prove the integration, not what
-Firecrawl returns.
+**What Firecrawl returned.** HTTP 200; `creditsUsed` was 1 for each check and 5 for each JSON
+extraction, matching the documented cost. The JSON listed 2 offers (Atlas) and 4 (REWARDS), but with
+mistakes the deterministic checks had to stop:
 
-## Not verified / limits
+- a bare `30` from "within 30 days" as a rupee minimum spend (it parses as a rupee amount);
+- a quote that was only `37`; an annual-fee amount (5,000 rupees) offered as the welcome bonus; both a
+  points bonus and a flat amount for one offer; the older cohort's 5,000-mile variant mixed with the
+  current 2,500-mile / 37-day rule on the Atlas page;
+- non-welcome benefits (annual, milestone, lounge, a Swiggy discount) listed as offers;
+- `N/A` placeholders; and a quote with a space the page text lacks ("REWARD Points" vs
+  "REWARDPoints").
 
-- **No live Firecrawl response has been seen for `json` extraction.** The documented shape
-  (`data.json`), cost (+4) and timeout (60 s default for `json`) come from the official docs read on
-  2026-11-25; cache-hit and failed-extraction billing are not documented. Extraction runs on Firecrawl's
-  markdown conversion, so a quote that differs from the retained normalized text is rejected; how often
-  that happens on real issuer pages is unknown until one real capture.
-- Unchanged pages still cost 5 credits per pass (the extraction is bundled with the fetch). Intervals
-  are the lever; a two-step fetch would cost 1 credit unchanged but 6 when changed.
-- Currency, the points-currency mapping and exclusions have no quoted evidence, so published rows keep
-  `needs_verification=true`; Case-B-only terms stay unknown (`None`).
-- Case B treats an offer with unknown Case-B terms as not assessable (reason `NO_APPROVED_OFFER` with an
-  explicit message); a precise code needs a contract change.
-- No real issuer proposal exists; the shipped catalog is untouched; nothing was approved.
-- **Alexandria** (Firecrawl's catalogued provider tools): the docs I read name no card or offer data, no
-  per-call pricing, and require a human to accept third-party terms. Not used; no terms accepted.
-- No local model or Ollama is needed or used.
+Each was fixed against the retained responses without another request (`reextract-welcome`, 0
+credits), with regressions that use synthetic text of the same shapes.
 
-## Owner decisions still needed
+**Outcome: no complete real draft.** The pages genuinely omit required terms.
 
-1. Authorise one live `json` capture: which permitted issuer offers URL, policy and exact request
-   (5 credits against the remaining allowance), so the real response shape can be checked.
-2. Whether `NO_APPROVED_OFFER` is acceptable for unknown Case-B terms or a new contract code should ship.
-3. Curators and the real approvals; whether to commit any real offer to the repository catalog.
-4. The schedule interval per target (credit cost per pass is 5).
+- Atlas: a "Welcome Benefit" with a points claim, a start date and a conflicting flat amount; the page
+  states no minimum spend (the benefit is "upon first transaction") and no end date. Recorded as an
+  incomplete draft ("conflicting bonus", a curator must decide).
+- REWARDS: "Welcome benefit": 5,000 points, minimum spend 1,000 rupees, 30 days, each with its verbatim
+  quote and offsets. Missing exactly `valid_to` (evergreen, no end date stated) and `bonus_currency_id`
+  (the page names "EDGE REWARD Points" but no program in our registry; none was invented).
 
-## Live command (not run)
+So there is **no pending real welcome proposal**. The review queue holds one older, unrelated pilot
+card proposal. Incomplete drafts persist across processes (each CLI call is a new process) and appear
+in `source-status` and the private review packet.
 
-```
-FIRECRAWL_API_KEY=… python -m ingestion.review_server acquire --data-dir D --source-policy P \
-  --watch-target W --target-id watch-… --welcome-targets T --live-firecrawl --confirm-no-overage \
-  --robots-file R --client-event-id live-… --per-request-credits 5 --per-run-credits 5 \
-  --per-month-credits 5 --lifetime-credits 500 --opening-credits-used 67 --timeout-seconds 60
-```
+**Private paths (outside Git).** Workspace
+`~/tripwise-ingestion-data/recurring-live-acceptance-20261126/`:
+`data/` (database and artifacts, a copy of the pilot data so its charge stays in the ledger),
+`inputs/`, `retained-responses/` (the five complete responses and their request metadata, mode 0600,
+no credential), `live_run_1..3.json`, and the review packet
+`review_packet_incomplete_drafts.md`.
 
-## Verification (commit `632aac7`, task-local `TRIPWISE_DATA_DIR`, `make seed` first)
+**Credits.** Opening usage 67 (owner reconciliation) + 1 completed pilot request found in the pilot
+database (counted conservatively, possibly already inside the 67) = 68 before this work. This task:
+Atlas check 1 + extraction 5, REWARDS check 1 + extraction 5, and one unchanged real pass (check 1, no
+extraction) = **13 of the 20 allocated**. Lifetime used **81 of 500; remaining 419**. `raise-lifetime-cap`
+was not used. The 7 unspent allocated credits were deliberately not spent: no remaining permitted page
+states every required term, so more calls would not change the outcome.
 
-- `make gate` did **not** pass: its pytest stage fails exactly one test in three consecutive full runs,
-  `evals/test_recompute_endpoint.py::test_recompute_with_real_catalog_items_stays_fast` (about 947 ms
-  against its 500 ms bound), and `make` stops there. The test passes alone (9 passed, about 5 s) and
-  does not touch this work; it failed the same way on an unrelated branch cut from `origin/main`
-  (`codex/llm-complete-json-fixes`, PR #43), so it predates this change. Its threshold was not changed.
-- All other pytest results in those runs passed. The stages after pytest were then run by hand on
-  the same commit and passed: strict mypy for `core/ accounts/ planning/ agents/ api/ gateway/`,
-  `ingestion/` and `welcome/`; zero-tolerance ruff scopes; the `core/`+`api/` ratchet (6, ceiling 12);
-  goldens unchanged; contract one-PR check; briefs identical; clean tree.
-- A first full run also failed `test_d1_deployment_files` because the new
-  `TRIPWISE_WELCOME_OFFERS_PATH` was undocumented; it is now in `deploy/.env.example`.
+**Unchanged vs changed (real and recorded).** Real: a second pass over the Atlas page cost 1 credit,
+requested no extraction and made no proposal (the relevant text hash matched). Changed terms were
+exercised from retained recordings (never a modified issuer response presented as live): a changed term
+costs 1 + 5 and yields an update proposal; boilerplate-only changes cost 1 and extract nothing.
+
+## Catalog failure handling
+
+A deleted file after a good load no longer raises: the last good copy keeps being served (offers keep
+their own approval dates; nothing is re-stamped as fresh), the failure is logged and exposed by
+`catalog_status()` (`serving_last_good_copy`, `last_reload_error`, `failing_since`), and recovery clears
+it. With no good copy ever loaded the API answers 503, never data. Expiry and historical-offer rules
+still apply to the served copy.
+
+## Case B
+
+An approved offer lacking approval time, delivery time or annual fee is now refused as
+`OFFER_TERMS_INCOMPLETE` (`details.unknown_terms`), not "no approved offer". OpenAPI, the generated
+client types (verified identical to a fresh generation) and a typed mock ship together. Nothing is
+guessed; held-card behavior and arithmetic are unchanged.
+
+## Scheduling and restart
+
+`recurring-run` selects due targets in stable order, spaces requests to one source, holds a file lock
+(exit 75 if busy), is idempotent per `--slot`, isolates a failing source from the rest, writes
+`recurring/last_run.json` and `history.jsonl` with per-source state and credits, and keeps lifetime
+accounting in the database across restarts. `deploy/recurring-ingestion/` has a wrapper, an env
+template, a launchd and a cron example. It is **offline by default**; live spending needs an explicit
+`TRIPWISE_RECURRING_LIVE=1` and a credential in the scheduler's environment. Nothing was scheduled or
+enabled.
+
+## Synthetic approval → publication → API (never the owner's real facts)
+
+`evals/test_recurring_cli.py` (separate processes) and `evals/test_recurring_welcome_publication.py`:
+pending proposal → named acceptance-curator approval → controlled publication → authenticated
+welcome-status and acquisition behavior with reload and no restart → changed terms → update proposal →
+approval → publication → rollback. These use retained synthetic captures and are not real evidence.
+Published rows keep `needs_verification=true` unless every fact field was quoted. A campaign end date
+excludes a card opened afterwards but never an existing holder's historical window.
+
+## The gate
+
+The full-suite timing failure (`test_recompute_with_real_catalog_items_stays_fast`, about 950 ms
+against 500 ms in the full suite, about 115 ms alone) was a genuine hot loop: recompute's retrieval
+ranks about 46,000 catalog places and recomputed two pure taxonomy functions about 140,000 times per
+call under heavy GC pressure. Those two functions are now memoized; the threshold is unchanged. The
+final `make seed` and unchanged `make gate` log is kept outside Git:
+`~/tripwise-ingestion-data/recurring-live-acceptance-20261126/final_gate.log`.
+
+## Genuine remaining limitations / owner decisions
+
+1. **Evergreen offers cannot become proposals today.** Real pages state no end date and no program
+   identity, and `valid_to` and `bonus_currency_id` are required. Options: allow an explicit
+   "no published end date", and add a verified program registry entry for each issuer currency (a
+   financial fact for the owner to approve).
+2. Firecrawl's extraction needs a deterministic filter in front of it (above); cache-hit and
+   failed-extraction billing remain undocumented. An unchanged page still costs 1 credit per pass.
+3. Cohort variants on one page (older vs current welcome terms) cannot be separated by the extractor;
+   such an offer is reported as conflicting for a curator.
+4. No real approval, origin confirmation or publication occurred.
