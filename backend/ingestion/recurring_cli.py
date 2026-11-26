@@ -127,9 +127,9 @@ def build_welcome_wiring(args: argparse.Namespace, *, seeds_dir: Path) -> Welcom
 def control_limits(args: argparse.Namespace, *, managed: bool) -> AcquisitionControlLimits:
     return AcquisitionControlLimits(
         per_request_credits=args.per_request_credits,
-        per_run_credits=args.per_run_credits,
-        per_month_credits=args.per_month_credits,
-        pricing_version=args.pricing_version,
+        per_run_credits=getattr(args, "per_run_credits", args.per_request_credits),
+        per_month_credits=getattr(args, "per_month_credits", args.per_request_credits),
+        pricing_version=getattr(args, "pricing_version", "firecrawl-v2-reextract"),
         extraction_intent="raw_html+firecrawl_json_v2" if managed else "raw_html",
         lifetime_credits=getattr(args, "lifetime_credits", None),
         lifetime_opening_used=int(getattr(args, "opening_credits_used", 0) or 0),

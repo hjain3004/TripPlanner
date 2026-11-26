@@ -150,16 +150,31 @@ def offer_id_for(card_id: str, title: str) -> str:
 
 
 def locate_quote(text: str, quote: str) -> tuple[int, int] | None:
-    """Offsets of ``quote`` in ``text``; whitespace may differ, nothing else may."""
+    """Offsets of ``quote`` in ``text``, ignoring whitespace differences and nothing else.
+
+    Extracted page text often joins adjacent inline elements ("REWARDPoints") that a model reads
+    as two words, or the reverse, so spaces and line breaks never decide a match. Every other
+    character must agree, and the offsets returned select the page's own text.
+    """
     quote = quote.strip()
     if not quote or len(quote) > MAX_FIELD_CHARS:
         return None
     start = text.find(quote)
     if start >= 0:
         return start, start + len(quote)
-    pattern = r"\s+".join(re.escape(part) for part in quote.split())
-    found = re.search(pattern, text)
-    return (found.start(), found.end()) if found else None
+    needle = "".join(quote.split())
+    if not needle:
+        return None
+    compact: list[str] = []
+    origin: list[int] = []
+    for index, char in enumerate(text):
+        if not char.isspace():
+            compact.append(char)
+            origin.append(index)
+    found = "".join(compact).find(needle)
+    if found < 0:
+        return None
+    return origin[found], origin[found + len(needle) - 1] + 1
 
 
 _CURRENCY_MARKS = (
@@ -187,6 +202,8 @@ def _entry(offer: Mapping[str, Any], name: str) -> tuple[str, str] | None:
     value, quote = raw.get("value"), raw.get("quote")
     if isinstance(value, (str, int)) and not isinstance(value, bool) and isinstance(quote, str):
         text = str(value).strip()
+        if text.casefold() in _ABSENT or quote.strip().casefold() in _ABSENT:
+            return None  # a model's way of saying "the page does not state this"
         if text and quote.strip() and len(text) <= MAX_FIELD_CHARS:
             return text, quote
     return None
@@ -196,25 +213,32 @@ _MONEY = re.compile(r"(?:₹|\brs\.?|\binr\b|\busd\b|\baed\b|\bsgd\b|s\$)\s*\d",
 # What the quoted text itself must contain for a field to mean what its name says. The shared
 # parser would accept the bare number 30 as a rupee amount from "within 30 days"; Firecrawl's model
 # made exactly that mistake on a real page, so a field is rejected unless its quote says what it is.
-_CONTEXT: dict[str, tuple[str, ...]] = {
-    "bonus_points": (r"\b(?:edge\s+)?(?:miles?|points?)\b",),
-    "bonus_flat_minor": (
-        _MONEY.pattern,
-        r"welcome|voucher|cash\s*back|gift|bonus|credit",
-    ),
-    "min_spend_minor": (_MONEY.pattern, r"spend|spent|transaction|purchase|retail"),
-    "spend_window_days": (r"\bdays?\b",),
+# Patterns the quote itself must contain, and patterns that may sit in the text around it (the
+# model often quotes only the number or amount).
+_CONTEXT: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "bonus_points": ((r"\b(?:edge\s+)?(?:miles?|points?)\b|(?:miles?|points?)\b",), ()),
+    "bonus_flat_minor": ((_MONEY.pattern,), (r"welcome|voucher|cash\s*back|gift|bonus|credit",)),
+    "min_spend_minor": ((_MONEY.pattern,), (r"spend|spent|transaction|purchase|retail",)),
+    "spend_window_days": ((r"\bdays?\b",), ()),
 }
+NEAR_CHARS = 140
+_ABSENT = frozenset({"n/a", "na", "none", "null", "nil", "-", "--", "not applicable", "not stated"})
 _WELCOME_WORDS = re.compile(
     r"welcome|joining|sign[- ]?up|activation|first transaction|new (?:card|customer|cardholder)",
     re.IGNORECASE,
 )
 
 
-def _context_problem(name: str, quote: str) -> str | None:
-    for pattern in _CONTEXT.get(name, ()):
+def _context_problem(name: str, text: str, start: int, end: int) -> str | None:
+    in_quote, nearby = _CONTEXT.get(name, ((), ()))
+    quote = text[start:end]
+    around = text[max(0, start - NEAR_CHARS) : end + NEAR_CHARS]
+    for pattern in in_quote:
         if re.search(pattern, quote, re.IGNORECASE) is None:
             return f"the quote does not say what a {name} must (needs /{pattern}/)"
+    for pattern in nearby:
+        if re.search(pattern, around, re.IGNORECASE) is None:
+            return f"nothing near the quote indicates a {name} (needs /{pattern}/)"
     return None
 
 
@@ -231,7 +255,7 @@ def _field_for(
     if where is None:
         return "the quote is not present in the retained page text"
     start, end = where
-    problem = _context_problem(name, snapshot.canonical_markdown[start:end])
+    problem = _context_problem(name, snapshot.canonical_markdown, start, end)
     if problem is not None:
         return problem
     span = EvidenceSpan(
@@ -329,6 +353,16 @@ def build_welcome_drafts(
                 )
             )
             continue
+        if "bonus_flat_minor" in accepted and "min_spend_minor" in accepted:
+            flat_span = accepted["bonus_flat_minor"][0].evidence_spans[0]
+            spend_span = accepted["min_spend_minor"][0].evidence_spans[0]
+            if flat_span.normalized_start < spend_span.normalized_end and (
+                spend_span.normalized_start < flat_span.normalized_end
+            ):
+                del accepted["bonus_flat_minor"]
+                rejected["bonus_flat_minor"] = (
+                    "the same text was claimed as both the bonus and the minimum spend"
+                )
         if "bonus_points" in accepted and "bonus_flat_minor" in accepted:
             incomplete.append(
                 IncompleteDraft(
@@ -392,7 +426,11 @@ def build_welcome_drafts(
         try:
             CardAcquisitionOffer.model_validate(row)
         except ValidationError as error:
-            missing = missing_required_fields(error)
+            missing = list(missing_required_fields(error))
+            if "bonus_points" in row and not row.get("bonus_currency_id"):
+                # The page names a points currency but not which program it belongs to; that
+                # identity is a mapping a curator establishes, never one read from prose.
+                missing.append("bonus_currency_id")
             incomplete.append(
                 IncompleteDraft(
                     offer_id=offer_id,

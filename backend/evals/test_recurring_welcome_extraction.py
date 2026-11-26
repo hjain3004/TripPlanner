@@ -129,7 +129,9 @@ class World:
         *,
         published: dict[str, Any] | None,
         card: str = CARD,
+        points_currency_id: str | None = "axis-edge-miles",
     ) -> None:
+        self.points_currency_id = points_currency_id
         self.card = card
         self.offer_id = offer_id_for(card, TITLE)
         self.root = tmp_path / "data"
@@ -195,7 +197,7 @@ class World:
                     card_id=self.card,
                     source_url=URL,
                     default_currency="INR",
-                    points_currency_id="axis-edge-miles",
+                    points_currency_id=self.points_currency_id,
                 )
             },
             published_welcome_rows=lambda: self.published,
@@ -612,11 +614,13 @@ def test_defects_seen_in_a_real_firecrawl_extraction_are_rejected_not_published(
     drafts = {d["title"]: d for d in world.store.list_incomplete_extractions()}
 
     welcome = drafts["Welcome Benefit"]
-    assert set(welcome["missing"]) >= {"min_spend_minor", "spend_window_days", "valid_to"}
-    assert "30" not in welcome["evidenced"]  # the bare 30 was not accepted as a rupee amount
-    assert "min_spend_minor" in welcome["rejected"] and "spend_window_days" in welcome["rejected"]
-    assert "bonus_flat_minor" in welcome["rejected"]  # "₹5,000" alone says nothing about a bonus
+    # The bare 30 was not accepted as a rupee amount, and the quote that was only "37" was not
+    # accepted as a number of days.
     assert "min_spend_minor" not in welcome["evidenced"]
+    assert "spend_window_days" not in welcome["evidenced"]
+    assert "min_spend_minor" in welcome["rejected"] and "spend_window_days" in welcome["rejected"]
+    # The claimed points and flat amounts conflict; nothing guesses which one applies.
+    assert welcome["reason"].startswith("conflicting bonus")
     assert "not a welcome offer" in drafts["Annual Benefit"]["reason"]
 
 
@@ -644,3 +648,62 @@ def test_reextraction_uses_only_retained_material_and_spends_nothing(tmp_path: P
     assert again.state == "completed" and again.credits_reserved == 0
     assert len(world.transport.calls) == calls_before  # no request was made
     assert len(again.proposal_ids) == 1  # derived again from the same retained extraction
+
+
+def test_quotes_survive_joined_inline_text_and_unstated_fields_are_not_rejections(
+    tmp_path: Path,
+) -> None:
+    """A real page rendered 'REWARD<span>Points</span>' as 'REWARDPoints' while the model returned
+    'REWARD Points'; it also filled unstated fields with 'N/A'. Synthetic text, same shapes."""
+    html = (
+        "<html><body><main><h2>Welcome benefit</h2><p>Enjoy 5,000 EDGE REWARD<span>Points</span> "
+        "on cumulative net spends of ₹1,000 or above within 30 days of card issuance. "
+        "Offer valid till 30 November 2026.</p></main></body></html>"
+    )
+    extracted = {
+        "offers": [
+            {
+                "title": {"value": "Welcome benefit", "quote": "Welcome benefit"},
+                "bonus_points": {"value": "5000", "quote": "5,000 EDGE REWARD Points"},
+                "min_spend_minor": {
+                    "value": "1000",
+                    "quote": "cumulative net spends of ₹1,000",
+                },
+                "spend_window_days": {"value": "30", "quote": "within 30 days of card issuance"},
+                "valid_to": {
+                    "value": "30 November 2026",
+                    "quote": "Offer valid till 30 November 2026",
+                },
+                "valid_from": {"value": "N/A", "quote": "N/A"},
+                "bonus_flat_minor": {"value": "N/A", "quote": "N/A"},
+            }
+        ]
+    }
+    world = World(tmp_path, [capture(html, extracted)], published=None)
+    outcome = world.run("evt-1")
+    assert outcome.state == "completed", outcome.diagnostic
+    (proposal_id,) = outcome.proposal_ids
+    proposal = world.store.get_proposal(proposal_id)
+    assert proposal is not None
+    row = proposal.proposed_row
+    assert row["bonus_points"] == 5000 and row["min_spend_minor"] == 100_000
+    assert row["spend_window_days"] == 30 and row["valid_to"] == "2026-11-30"
+    snapshot = world.store.get_snapshot(proposal.lineage_ids[0])
+    assert snapshot is not None
+    for field in proposal.field_proposals:  # each span is the page's own verbatim text
+        span = field.evidence_spans[0]
+        assert (
+            snapshot.canonical_markdown[span.normalized_start : span.normalized_end] == span.quote
+        )
+
+
+def test_a_points_offer_without_an_established_program_names_that_exact_gap(
+    tmp_path: Path,
+) -> None:
+    world = World(
+        tmp_path, [capture(page(), offer_json())], published=None, points_currency_id=None
+    )
+    outcome = world.run("evt-1")
+    assert outcome.proposal_ids == ()
+    (draft,) = world.store.list_incomplete_extractions()
+    assert draft["missing"] == ["bonus_currency_id"]
