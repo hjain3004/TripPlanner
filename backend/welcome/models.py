@@ -50,9 +50,11 @@ class CardAcquisitionOffer(BaseModel):
     bonus_flat_minor: int | None = Field(default=None, ge=1)
     min_spend_minor: int = Field(ge=1)
     spend_window_days: int = Field(ge=1)  # measured from the card open date, per T&C
-    expected_approval_days: int = Field(ge=0)  # Case B only
-    expected_card_in_hand_days: int = Field(ge=0)  # Case B only
-    annual_fee_minor: int = Field(ge=0)  # Case B only
+    # Case B only. None means the issuer page did not say; it is never defaulted to a number
+    # (an automated draft may not invent a processing time or a fee). Case A never reads them.
+    expected_approval_days: int | None = Field(default=None, ge=0)
+    expected_card_in_hand_days: int | None = Field(default=None, ge=0)
+    annual_fee_minor: int | None = Field(default=None, ge=0)
     fee_waiver_condition: str | None = None
     eligibility_exclusions: list[str] = Field(default_factory=list)  # VERBATIM T&C
     currency: str

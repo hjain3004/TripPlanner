@@ -38,7 +38,7 @@ from ingestion.contracts import (
 from ingestion.evidence import EvidenceVerificationError, verify_evidence_span
 from ingestion.extraction_types import ExtractionResponse
 from ingestion.parsing import UnresolvedValueError, parse_field_value
-from ingestion.review_rows import SUPPORTED_TABLES
+from ingestion.review_rows import CATALOG_TABLES, SUPPORTED_TABLES
 from ingestion.validation import (
     TARGET_MODELS,
     ProposalValidationError,
@@ -195,7 +195,7 @@ def validate_insert(
         ) from error
     if parsed.target_table != target_table or parsed.target_id != target_id:
         raise ProposalValidationError("extractor target does not match the requested row")
-    if target_table not in SUPPORTED_TABLES:
+    if target_table not in SUPPORTED_TABLES and target_table not in CATALOG_TABLES:
         raise ProposalValidationError(f"unsupported financial target table: {target_table}")
     model = TARGET_MODELS[target_table]
     if target_id in existing_ids:

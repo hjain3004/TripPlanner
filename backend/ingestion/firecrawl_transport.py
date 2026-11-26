@@ -8,6 +8,7 @@ specific request.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections.abc import AsyncIterator, Mapping
@@ -22,9 +23,48 @@ _MIN_PROVIDER_TIMEOUT_SECONDS = 1
 _MAX_PROVIDER_TIMEOUT_SECONDS = 300
 
 
+JSON_EXTRACTION_EXTRA_CREDITS = 4  # billing page: "JSON format (LLM extraction): +4 credits / page"
+HTML_SCRAPE_CREDITS = 1
+
+
+@dataclass(frozen=True)
+class JsonExtraction:
+    """Firecrawl-hosted structured extraction requested alongside the retained HTML.
+
+    ``schema_json`` is canonical JSON text so the request stays hashable and its identity can be
+    bound into the acquisition fingerprint. v2 embeds the schema in the format object:
+    ``formats: [{"type": "json", "schema": {...}, "prompt": "..."}]``.
+    """
+
+    schema_json: str
+    prompt: str
+
+    def __post_init__(self) -> None:
+        try:
+            schema = json.loads(self.schema_json)
+        except json.JSONDecodeError as error:
+            raise ValueError("JSON extraction schema must be valid JSON") from error
+        if not isinstance(schema, dict) or not schema:
+            raise ValueError("JSON extraction schema must be a non-empty object")
+        if not self.prompt.strip():
+            raise ValueError("JSON extraction prompt must not be blank")
+
+    @property
+    def fingerprint(self) -> str:
+        digest = hashlib.sha256(f"{self.schema_json}\n--\n{self.prompt}".encode())
+        return digest.hexdigest()
+
+    def wire_format(self) -> dict[str, object]:
+        return {"type": "json", "schema": json.loads(self.schema_json), "prompt": self.prompt}
+
+
+def canonical_schema_json(schema: Mapping[str, Any]) -> str:
+    return json.dumps(schema, sort_keys=True, separators=(",", ":"))
+
+
 @dataclass(frozen=True)
 class FirecrawlScrapeRequest:
-    """The non-agent, HTML-only subset of Firecrawl's scrape request."""
+    """The non-agent subset of Firecrawl's scrape request: raw HTML, optionally with JSON."""
 
     url: str
     timeout_seconds: float
@@ -36,6 +76,13 @@ class FirecrawlScrapeRequest:
     proxy: str = "basic"
     parsers: tuple[str, ...] = ()
     actions: tuple[object, ...] = ()
+    json_extraction: JsonExtraction | None = None
+
+    @property
+    def estimated_credits(self) -> int:
+        """The documented cost of this request: one page, plus 4 when JSON extraction is on."""
+        extra = JSON_EXTRACTION_EXTRA_CREDITS if self.json_extraction is not None else 0
+        return HTML_SCRAPE_CREDITS + extra
 
     def __post_init__(self) -> None:
         if self.formats != ("rawHtml",):
@@ -61,7 +108,10 @@ class FirecrawlScrapeRequest:
         """Return the documented v2 JSON shape without unsupported features."""
         return {
             "url": self.url,
-            "formats": list(self.formats),
+            "formats": [
+                *self.formats,
+                *([self.json_extraction.wire_format()] if self.json_extraction else []),
+            ],
             "onlyMainContent": self.only_main_content,
             "onlyCleanContent": self.only_clean_content,
             "maxAge": self.max_age_ms,

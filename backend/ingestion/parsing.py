@@ -146,16 +146,71 @@ def parse_ratio(raw: Any) -> tuple[int, int]:
     return left, right
 
 
+_MONTHS = {
+    name: index
+    for index, names in enumerate(
+        (
+            ("january", "jan"),
+            ("february", "feb"),
+            ("march", "mar"),
+            ("april", "apr"),
+            ("may",),
+            ("june", "jun"),
+            ("july", "jul"),
+            ("august", "aug"),
+            ("september", "sept", "sep"),
+            ("october", "oct"),
+            ("november", "nov"),
+            ("december", "dec"),
+        ),
+        start=1,
+    )
+    for name in names
+}
+_MONTH_WORDS = "|".join(sorted(_MONTHS, key=len, reverse=True))
+# Written-month notation only. Numeric day/month/year forms are ambiguous (01/02/2026) and are
+# deliberately not read.
+_WRITTEN_DATE = re.compile(
+    rf"(?<![\w])(?:(?P<d1>\d{{1,2}})(?:st|nd|rd|th)?[\s-]+(?P<m1>{_MONTH_WORDS})\.?,?[\s-]+(?P<y1>\d{{4}})"
+    rf"|(?P<m2>{_MONTH_WORDS})\.?\s+(?P<d2>\d{{1,2}})(?:st|nd|rd|th)?,?\s+(?P<y2>\d{{4}}))(?![\w])",
+    re.IGNORECASE,
+)
+
+
+def _written_match_date(match: re.Match[str]) -> date | None:
+    day = match.group("d1") or match.group("d2")
+    month = match.group("m1") or match.group("m2")
+    year = match.group("y1") or match.group("y2")
+    try:
+        return date(int(year), _MONTHS[month.lower()], int(day))
+    except (ValueError, KeyError):
+        return None
+
+
+def find_written_dates(text: str) -> list[date]:
+    """Every date written with a month name inside ``text`` (invalid calendar dates are skipped)."""
+    found = (_written_match_date(match) for match in _WRITTEN_DATE.finditer(_text(text)))
+    return [value for value in found if value is not None]
+
+
 def parse_date_value(raw: Any) -> date:
     if isinstance(raw, date):
         return raw
     text = _text(raw)
+    written = _WRITTEN_DATE.fullmatch(text)
+    if written is not None:
+        parsed = _written_match_date(written)
+        if parsed is None:
+            raise UnresolvedValueError("not a calendar date")
+        return parsed
     try:
         if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text) is None:
             raise ValueError("date must use extended ISO form")
         return date.fromisoformat(text)
     except ValueError as error:
-        raise UnresolvedValueError("dates must use ISO YYYY-MM-DD notation") from error
+        raise UnresolvedValueError(
+            "dates must use ISO YYYY-MM-DD notation or a written month (30 November 2026)"
+        ) from error
 
 
 def parse_rate_micro(raw: Any) -> int:

@@ -255,6 +255,37 @@ def compute_acquisition_assessment(
             )
             continue
 
+        unknown_terms = [
+            name
+            for name, value in (
+                ("expected_approval_days", offer.expected_approval_days),
+                ("expected_card_in_hand_days", offer.expected_card_in_hand_days),
+                ("annual_fee_minor", offer.annual_fee_minor),
+            )
+            if value is None
+        ]
+        if unknown_terms:
+            # The issuer page did not say, and an unknown is never defaulted to a number. The
+            # closed refusal-code set is part of the public contract, so the nearest existing
+            # code is used with an explicit message; a precise code needs a contract change.
+            refusals.append(
+                AcquisitionRefusal(
+                    card_id=card_id,
+                    card_name=card_name,
+                    offer_id=offer.id,
+                    reason="NO_APPROVED_OFFER",
+                    message=(
+                        "This offer's published terms do not state "
+                        + ", ".join(unknown_terms)
+                        + ", so a new-card assessment cannot be computed from it."
+                    ),
+                    details={"offer_id": offer.id, "unknown_terms": unknown_terms},
+                )
+            )
+            continue
+        assert offer.expected_approval_days is not None
+        assert offer.expected_card_in_hand_days is not None
+        assert offer.annual_fee_minor is not None
         lead_time_days = offer.expected_approval_days + offer.expected_card_in_hand_days
         earliest_usable_date = pt.booking_date + timedelta(days=lead_time_days)
         window_closes_on = earliest_usable_date + timedelta(days=offer.spend_window_days)

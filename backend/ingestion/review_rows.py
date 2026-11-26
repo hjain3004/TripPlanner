@@ -9,12 +9,21 @@ from pydantic import BaseModel
 
 from core.models import Card, Offer, PointValuation, RewardRule
 from ingestion.validation import _flatten
+from welcome.models import CardAcquisitionOffer
 
 SUPPORTED_TABLES: dict[str, tuple[str, type[BaseModel]]] = {
     "cards": ("cards.yaml", Card),
     "reward_rules": ("reward_rules.yaml", RewardRule),
     "offers": ("offers.yaml", Offer),
     "point_valuations": ("point_valuations.yaml", PointValuation),
+}
+
+
+# Catalogs that are reference data but not core seeds. They take part in extraction and review
+# like a seed table, and are published by their own controlled publisher (welcome/publication.py),
+# never through the core seed bundle.
+CATALOG_TABLES: dict[str, tuple[str, type[BaseModel]]] = {
+    "card_acquisition_offers": ("card_acquisition_offers.yaml", CardAcquisitionOffer),
 }
 
 

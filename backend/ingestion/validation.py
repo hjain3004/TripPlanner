@@ -22,7 +22,8 @@ from ingestion.artifacts import ContentAddressedStore
 from ingestion.contracts import ChangeProposal, SnapshotBundle, ValidationFinding
 from ingestion.evidence import EvidenceVerificationError, verify_evidence_span
 from ingestion.extraction_types import ExtractionResponse
-from ingestion.parsing import UnresolvedValueError, parse_field_value
+from ingestion.parsing import UnresolvedValueError, find_written_dates, parse_field_value
+from welcome.models import CardAcquisitionOffer
 
 
 class ProposalValidationError(ValueError):
@@ -37,6 +38,7 @@ TARGET_MODELS: dict[str, type[BaseModel]] = {
     "fx_rates": FxRate,
     "transfer_bonuses": TransferBonus,
     "transfer_edges": TransferEdge,
+    "card_acquisition_offers": CardAcquisitionOffer,
 }
 
 
@@ -112,7 +114,9 @@ def _quote_supports_value(
     if normalized_raw and _contains_whole_token(normalized_quote, normalized_raw):
         return True
     if isinstance(parsed_value, date):
-        return parsed_value.isoformat() in normalized_quote
+        return parsed_value.isoformat() in normalized_quote or parsed_value in find_written_dates(
+            quote
+        )
     if isinstance(raw_value, (bool, list, dict)):
         return False
     if field_path.rsplit(".", 1)[-1] in {"ratio_from", "ratio_to"}:
@@ -179,7 +183,7 @@ def _sanity_findings(
                     field_path="fee_currency",
                 )
             )
-    if table in {"reward_rules", "offers"}:
+    if table in {"reward_rules", "offers", "card_acquisition_offers"}:
         valid_to = row.get("valid_to")
         if valid_to is not None and valid_to < today.date():
             findings.append(
