@@ -380,3 +380,52 @@ def structured_extraction_from_envelope(envelope_bytes: bytes) -> tuple[str, obj
     if not isinstance(block, dict):
         return "none", None
     return str(block.get("status", "missing")), block.get("data")
+
+
+def build_update_response(
+    draft: OfferDraft, current_row: Mapping[str, Any]
+) -> ExtractionResponse | IncompleteDraft | None:
+    """Turn a draft for an already-published offer id into an *update* of that row.
+
+    Only evidenced fields whose value differs from the published row are proposed; everything else
+    in the row stays as published. Returns ``None`` when no published term changed, and an
+    :class:`IncompleteDraft` when the page now states a term in a shape the published row does
+    not hold (an update cannot invent where a value did not exist before).
+    """
+    proposed = json.loads(json.dumps(dict(current_row)))
+    new_row = draft.response.proposed_row
+    changed: list[ExtractedField] = []
+    unsupported: list[str] = []
+    for extracted in draft.response.fields:
+        path = extracted.field_path
+        new_value = new_row.get(path)
+        old_value = current_row.get(path)
+        if new_value == old_value:
+            continue
+        if old_value is None:
+            unsupported.append(path)
+            continue
+        proposed[path] = new_value
+        changed.append(extracted)
+    if unsupported:
+        return IncompleteDraft(
+            offer_id=draft.offer_id,
+            title=str(new_row.get("title")),
+            missing=tuple(sorted(unsupported)),
+            evidenced=tuple(sorted(f.field_path for f in draft.response.fields)),
+            rejected=draft.rejected,
+            reason="the page now states terms the published offer does not hold; needs a curator",
+        )
+    if not changed:
+        return None
+    return ExtractionResponse(
+        target_table=TARGET_TABLE,
+        target_id=draft.offer_id,
+        proposed_row=proposed,
+        fields=tuple(changed),
+        change_summary=(
+            f"Changed terms for published offer {draft.offer_id}: "
+            + ", ".join(sorted(f.field_path for f in changed))
+        ),
+        extractor_confidence=0.0,
+    )

@@ -7,6 +7,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -914,6 +915,35 @@ class FinancialIngestionStore:
                 payload=self._payload(task),
             )
         return task
+
+    def record_incomplete_extraction(
+        self, *, snapshot_id: str, target_id: str, payload: dict[str, Any]
+    ) -> None:
+        """Keep an extraction that could not become a valid draft visible to operators.
+
+        Insert-only audit history: nothing here is a proposal and nothing can be approved from it.
+        """
+        body = json.dumps(
+            {"snapshot_id": snapshot_id, "target_id": target_id, **payload},
+            sort_keys=True,
+            default=str,
+        )
+        with self._connect() as connection:
+            self._audit(
+                connection,
+                entity_type="extraction",
+                entity_id=snapshot_id,
+                event_type="incomplete_draft",
+                payload=body,
+            )
+
+    def list_incomplete_extractions(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT payload, created_at FROM audit_events WHERE entity_type = 'extraction' "
+                "AND event_type = 'incomplete_draft' ORDER BY rowid"
+            ).fetchall()
+        return [{**json.loads(row[0]), "recorded_at": row[1]} for row in rows]
 
     def list_audit_events(self, *, entity_id: str | None = None) -> list[dict[str, str]]:
         with self._connect() as connection:

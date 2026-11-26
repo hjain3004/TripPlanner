@@ -24,12 +24,16 @@ from ingestion.contracts import (
     WatchTarget,
 )
 from ingestion.diff import diff_text
+from ingestion.extraction import FinancialExtractor
 from ingestion.extraction_runtime import (
     ExtractionMode,
     ExtractionRuntimeConfig,
     FinancialExtractionRuntime,
 )
+from ingestion.extraction_types import ExtractionResponse
 from ingestion.firecrawl_transport import (
+    HTML_SCRAPE_CREDITS,
+    JSON_EXTRACTION_EXTRA_CREDITS,
     FirecrawlScrapeRequest,
     FirecrawlTransport,
 )
@@ -38,6 +42,17 @@ from ingestion.review_rows import SUPPORTED_TABLES, SeedRowError, SeedRowSource
 from ingestion.snapshots import SnapshotService
 from ingestion.storage import FinancialIngestionStore
 from ingestion.validation import canonical_row_hash
+from ingestion.welcome_extraction import (
+    TARGET_TABLE as WELCOME_TABLE,
+)
+from ingestion.welcome_extraction import (
+    IncompleteDraft,
+    WelcomeTargetConfig,
+    build_update_response,
+    build_welcome_drafts,
+    structured_extraction_from_envelope,
+    welcome_json_extraction,
+)
 
 if TYPE_CHECKING:
     from ingestion.acquisition_control import DurableAcquisitionControl
@@ -181,6 +196,20 @@ class RetainedCaptureTransport:
         index = min(len(self.calls), len(self._payloads) - 1)
         self.calls.append(request)
         return copy.deepcopy(dict(self._payloads[index]))
+
+
+class _PrebuiltExtraction:
+    """An 'extractor client' that returns a response already built from Firecrawl's own result.
+
+    No model is called: the only thing it does is hand the deterministic validator a typed
+    response, so managed extraction passes through exactly the same checks as any other.
+    """
+
+    def __init__(self, response: ExtractionResponse) -> None:
+        self._response = response
+
+    def complete_json(self, **_kwargs: Any) -> ExtractionResponse:
+        return self._response
 
 
 @dataclass(frozen=True)
@@ -328,6 +357,8 @@ class DurableAcquisitionService:
         | Callable[[WatchTarget, SourcePolicyRecord], FirecrawlTransport],
         extraction_config: ExtractionRuntimeConfig | None = None,
         extraction_configs_by_target: Mapping[str, ExtractionRuntimeConfig] | None = None,
+        welcome_targets: Mapping[str, WelcomeTargetConfig] | None = None,
+        published_welcome_rows: Callable[[], Mapping[str, dict[str, Any]]] | None = None,
         seeds_dir: Path | None = None,
         custom_rows: Mapping[str, tuple[str, dict[str, Any]]] | None = None,
         robots_by_domain: Mapping[str, RobotsRules] | None = None,
@@ -350,6 +381,8 @@ class DurableAcquisitionService:
             mode=ExtractionMode.DISABLED
         )
         self.extraction_configs_by_target = dict(extraction_configs_by_target or {})
+        self.welcome_targets = dict(welcome_targets or {})
+        self.published_welcome_rows = published_welcome_rows or (lambda: {})
         self.seeds = None if seeds_dir is None else SeedRowSource(seeds_dir)
         self.custom_rows = dict(custom_rows or {})
         self.robots_by_domain = {k.lower(): v for k, v in (robots_by_domain or {}).items()}
@@ -396,6 +429,15 @@ class DurableAcquisitionService:
             raise ValueError("client_event_id must not be blank")
         request_id = self.request_id_for(target_id, client_event_id=event_key)
         ext_config = self._resolve_extraction_config(target_id)
+        welcome = self.welcome_targets.get(target_id)
+        # Firecrawl-hosted extraction is billed on top of the page: reserve what it documents.
+        managed = welcome is not None and ext_config.mode is ExtractionMode.FIRECRAWL_MANAGED
+        credits = (
+            max(self.estimated_credits, HTML_SCRAPE_CREDITS + JSON_EXTRACTION_EXTRA_CREDITS)
+            if managed
+            else self.estimated_credits
+        )
+        request_timeout = max(self.timeout_seconds, 60) if managed else self.timeout_seconds
 
         target = self.store.get_watch_target(target_id)
         if target is None:
@@ -494,7 +536,7 @@ class DurableAcquisitionService:
             page_class=target.page_kind,
             max_bytes=self.max_bytes,
             max_pages=self.max_pages,
-            timeout_seconds=self.timeout_seconds,
+            timeout_seconds=request_timeout,
             forced_freshness=self.forced_freshness,
             run_id=self.run_id,
         )
@@ -508,7 +550,8 @@ class DurableAcquisitionService:
             preflight=self.preflight,
             control=self.control,
             enabled=self.firecrawl_enabled,
-            estimated_credits=self.estimated_credits,
+            estimated_credits=credits,
+            json_extraction=welcome_json_extraction() if managed else None,
             now=self.now,
         )
         result = await backend.fetch(fetch_request)
@@ -522,9 +565,7 @@ class DurableAcquisitionService:
         settled_credits = (
             post_status.charged_credits
             if (post_status is not None and post_status.charged_credits is not None)
-            else (
-                0 if result.failure is not None and post_status is None else self.estimated_credits
-            )
+            else (0 if result.failure is not None and post_status is None else credits)
         )
         operator_outcome = (
             post_status.operator_outcome
@@ -580,7 +621,7 @@ class DurableAcquisitionService:
                     response_class=response_class,
                     failure=result.failure,
                     retry_index=0,
-                    credits_reserved=self.estimated_credits if was_dispatched else 0,
+                    credits_reserved=credits if was_dispatched else 0,
                     credits_settled=settled_credits,
                 )
                 self.store.put_fetch_attempt(failed_attempt)
@@ -638,7 +679,7 @@ class DurableAcquisitionService:
             **({"final_url": result.final_url} if result.final_url is not None else {}),
             response_class="success",
             retry_index=0,
-            credits_reserved=self.estimated_credits,
+            credits_reserved=credits,
             credits_settled=settled_credits,
         )
         snapshots = SnapshotService(
@@ -723,6 +764,21 @@ class DurableAcquisitionService:
                 normalized_sha256=snapshot.normalized_sha256,
                 evidence_fidelity=snapshot.evidence_fidelity,
                 diagnostic="snapshot persisted; extraction disabled",
+            )
+
+        if welcome is not None:
+            return self._extract_welcome(
+                welcome,
+                managed=managed,
+                snapshot=snapshot,
+                previous_snapshot=previous_snapshot,
+                target_id=target_id,
+                request_id=request_id,
+                event_key=event_key,
+                operator_outcome=operator_outcome,
+                ext_mode=ext_config.mode.value,
+                was_completed=was_completed,
+                envelope_sha=envelope_sha,
             )
 
         proposal_ids: list[str] = []
@@ -829,6 +885,142 @@ class DurableAcquisitionService:
             normalized_sha256=snapshot.normalized_sha256,
             evidence_fidelity=snapshot.evidence_fidelity,
             diagnostic="snapshot persisted and draft proposal queued for curator review",
+        )
+
+    def _extract_welcome(
+        self,
+        welcome: WelcomeTargetConfig,
+        *,
+        managed: bool,
+        snapshot: SnapshotBundle,
+        previous_snapshot: SnapshotBundle | None,
+        target_id: str,
+        request_id: str,
+        event_key: str,
+        operator_outcome: str,
+        ext_mode: str,
+        was_completed: bool,
+        envelope_sha: str | None,
+    ) -> AcquisitionResultRecord:
+        """Insert/update proposals for welcome offers from the retained Firecrawl extraction."""
+
+        def record(
+            state: AcquisitionOutcomeState,
+            status: str,
+            diagnostic: str,
+            proposal_ids: Sequence[str] = (),
+        ) -> AcquisitionResultRecord:
+            return AcquisitionResultRecord(
+                state=state,
+                snapshot_id=snapshot.snapshot_id,
+                proposal_ids=tuple(proposal_ids),
+                target_id=target_id,
+                request_id=request_id,
+                client_event_id=event_key,
+                operator_outcome=operator_outcome,
+                extraction_mode=ext_mode,
+                extraction_status=status,
+                llm_calls=0,
+                replayed_fetch=was_completed,
+                provider_envelope_sha256=envelope_sha,
+                raw_sha256=snapshot.raw_sha256,
+                normalized_sha256=snapshot.normalized_sha256,
+                evidence_fidelity=snapshot.evidence_fidelity,
+                diagnostic=diagnostic,
+            )
+
+        if not managed:
+            return record(
+                "failed",
+                "extraction_failed",
+                "a welcome-offer target needs firecrawl_managed extraction",
+            )
+        if snapshot.provider_envelope_artifact is None:
+            return record("failed", "extraction_failed", "the capture has no provider envelope")
+        status, data = structured_extraction_from_envelope(
+            self.artifacts.read(snapshot.provider_envelope_artifact)
+        )
+        today = self.now().date()
+        build = build_welcome_drafts(
+            data if status == "ok" else None,
+            snapshot=snapshot,
+            artifacts=self.artifacts,
+            config=welcome,
+            today=today,
+        )
+        incomplete: list[IncompleteDraft] = list(build.incomplete)
+        published = dict(self.published_welcome_rows())
+        diff = diff_text(
+            None if previous_snapshot is None else previous_snapshot.canonical_markdown,
+            snapshot.canonical_markdown,
+        )
+        proposal_ids: list[str] = []
+        unchanged_terms = 0
+        failures: list[str] = []
+        for draft in build.drafts:
+            extractor = FinancialExtractor(
+                client=_PrebuiltExtraction(draft.response),
+                store=self.store,
+                artifacts=self.artifacts,
+                now=self.now,
+                extractor_version="firecrawl-managed-welcome-v1",
+            )
+            current = published.get(draft.offer_id)
+            fact_event = f"{event_key}:{draft.offer_id}"
+            if current is None:
+                outcome = extractor.extract_insert(
+                    target_table=WELCOME_TABLE,
+                    target_id=draft.offer_id,
+                    existing_ids=set(published),
+                    snapshot=snapshot,
+                    diff=diff,
+                    client_event_id=fact_event,
+                )
+            else:
+                update = build_update_response(draft, current)
+                if update is None:
+                    unchanged_terms += 1
+                    continue
+                if isinstance(update, IncompleteDraft):
+                    incomplete.append(update)
+                    continue
+                outcome = FinancialExtractor(
+                    client=_PrebuiltExtraction(update),
+                    store=self.store,
+                    artifacts=self.artifacts,
+                    now=self.now,
+                    extractor_version="firecrawl-managed-welcome-v1",
+                ).extract(
+                    target_table=WELCOME_TABLE,
+                    target_id=draft.offer_id,
+                    current_row=current,
+                    current_row_hash=canonical_row_hash(current),
+                    snapshot=snapshot,
+                    diff=diff,
+                    client_event_id=fact_event,
+                )
+            if outcome.status == "proposal_pending" and outcome.proposal is not None:
+                proposal_ids.append(outcome.proposal.proposal_id)
+            else:
+                failures.append(f"{draft.offer_id}: {outcome.diagnostic or outcome.status}")
+        for item in incomplete:
+            self.store.record_incomplete_extraction(
+                snapshot_id=snapshot.snapshot_id, target_id=target_id, payload=item.to_dict()
+            )
+        notes = [*build.diagnostics, *failures]
+        if incomplete:
+            notes.append(f"{len(incomplete)} incomplete draft(s) recorded for review")
+        if unchanged_terms:
+            notes.append(f"{unchanged_terms} published offer(s) unchanged")
+        if build.provider_status != "ok":
+            return record("failed", "extraction_failed", "; ".join(notes) or "no extraction")
+        if failures and not proposal_ids:
+            return record("failed", "invalid_response", "; ".join(notes))
+        return record(
+            "completed",
+            "proposal_pending" if proposal_ids else "no_new_proposal",
+            "; ".join(notes) or "draft proposals queued for curator review",
+            proposal_ids,
         )
 
     def acquire_sync(

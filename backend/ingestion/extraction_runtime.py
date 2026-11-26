@@ -29,6 +29,9 @@ class ExtractionMode(StrEnum):
     SCRIPTED_REPLAY = "scripted_replay"
     CURATOR_AUTHORED = "curator_authored"
     AUTHORIZED_CLIENT = "authorized_client"
+    # Firecrawl ran the model while fetching (the JSON format); the acquisition service reads
+    # that retained result. No model client exists here and no extra call is made.
+    FIRECRAWL_MANAGED = "firecrawl_managed"
     DISABLED = "disabled"
 
 
@@ -65,9 +68,11 @@ class ExtractionRuntimeConfig:
                 raise ExtractionRuntimeError(
                     "authorized_client mode cannot contain scripted responses"
                 )
-        elif self.mode is ExtractionMode.DISABLED and (self.client is not None or self.responses):
+        elif self.mode in {ExtractionMode.DISABLED, ExtractionMode.FIRECRAWL_MANAGED} and (
+            self.client is not None or self.responses
+        ):
             raise ExtractionRuntimeError(
-                "disabled mode cannot contain a client or scripted response"
+                f"{self.mode.value} mode cannot contain a client or scripted response"
             )
 
 
@@ -115,8 +120,8 @@ def build_financial_extraction_client(config: ExtractionRuntimeConfig) -> LLMCli
     invocation.
     """
 
-    if config.mode is ExtractionMode.DISABLED:
-        raise ExtractionRuntimeError("disabled extraction has no client")
+    if config.mode in {ExtractionMode.DISABLED, ExtractionMode.FIRECRAWL_MANAGED}:
+        raise ExtractionRuntimeError(f"{config.mode.value} extraction has no client")
     if config.mode in {ExtractionMode.SCRIPTED_REPLAY, ExtractionMode.CURATOR_AUTHORED}:
         return _OneAttemptClient(ScriptedLLMClient({"financial_extractor": list(config.responses)}))
     assert config.client is not None
@@ -166,6 +171,17 @@ class FinancialExtractionRuntime:
             None if previous_snapshot is None else previous_snapshot.canonical_markdown,
             snapshot.canonical_markdown,
         )
+        if self.config.mode is ExtractionMode.FIRECRAWL_MANAGED:
+            return ExtractionRuntimeOutcome(
+                mode=self.config.mode,
+                diff=diff,
+                outcome=ExtractionOutcome(
+                    status="extraction_failed",
+                    calls=0,
+                    diagnostic="managed extraction is read from the retained Firecrawl result "
+                    "by the acquisition service, not run here",
+                ),
+            )
         if self.config.mode is ExtractionMode.DISABLED:
             return ExtractionRuntimeOutcome(
                 mode=self.config.mode,
