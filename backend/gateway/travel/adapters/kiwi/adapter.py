@@ -99,8 +99,8 @@ class KiwiAdapter:
         }
         if request.return_date is not None:
             args["returnDate"] = request.return_date.strftime("%d/%m/%Y")
-        if request.nonstop_only:
-            args["max_sector_stopovers"] = 0
+        # Do not send unverified stopover parameter names to Kiwi MCP's camelCase schema;
+        # ``normalize_kiwi_flights`` enforces ``request.nonstop_only`` strictly locally.
         return args
 
     async def search_flights(self, request: FlightSearchRequest) -> list[FlightQuote]:

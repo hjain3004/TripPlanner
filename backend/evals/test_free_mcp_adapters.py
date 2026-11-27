@@ -775,3 +775,65 @@ def test_exception_mapping_deep_link_userinfo_and_request_alignment() -> None:
     assert len(nonstop) == 4
     assert all(len(q.segments) == 1 for q in nonstop)
     assert nonstop[0].segments[0].flight_number == "6E1207"
+
+    # Kiwi adapter must not emit unverified snake_case stopover args when nonstop_only=True.
+    _, _, kiwi_adapter = build_fixture_adapters(now=FIXED_NOW)
+    kiwi_args = kiwi_adapter._build_search_args(
+        FlightSearchRequest(
+            origin="DEL",
+            destination="SIN",
+            depart_date=date(2026, 12, 27),
+            travelers=TravelerMix(adults=1),
+            cabin="economy",
+            nonstop_only=True,
+            currency="INR",
+        )
+    )
+    assert "max_sector_stopovers" not in kiwi_args
+
+    # Trivago property_kind must not misclassify hotel names containing "apart" (e.g. Bonaparte).
+    bonaparte_raw = RawMcpToolResponse(
+        provider_id="trivago",
+        tool_name="trivago-accommodation-search",
+        text_blocks=[
+            json.dumps(
+                {
+                    "output": [
+                        {
+                            "accommodation_id": "100-99",
+                            "arrival": "2026-12-27",
+                            "departure": "2026-12-30",
+                            "accommodation_name": "Hotel Bonaparte Singapore",
+                            "deals": [
+                                {"advertiser": "A", "price_per_stay": "15000", "currency": "INR"}
+                            ],
+                        },
+                        {
+                            "accommodation_id": "100-100",
+                            "arrival": "2026-12-27",
+                            "departure": "2026-12-30",
+                            "accommodation_name": "Oakwood Serviced Apartments Singapore",
+                            "deals": [
+                                {"advertiser": "A", "price_per_stay": "18000", "currency": "INR"}
+                            ],
+                        },
+                    ]
+                }
+            )
+        ],
+    )
+    bonaparte_quotes = normalize_trivago_hotels(
+        bonaparte_raw,
+        HotelSearchRequest(
+            city="Singapore",
+            check_in=date(2026, 12, 27),
+            check_out=date(2026, 12, 30),
+            travelers=TravelerMix(adults=2),
+            rooms=1,
+            style="balanced",
+            currency="INR",
+        ),
+        now=FIXED_NOW,
+    )
+    assert [q.name for q in bonaparte_quotes] == ["Hotel Bonaparte Singapore"]
+    assert bonaparte_quotes[0].property_kind == "hotel"

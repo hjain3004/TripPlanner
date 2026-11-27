@@ -6,7 +6,7 @@ import argparse
 import asyncio
 import json
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from core.db import SEEDS_DIR, KnowledgeBase, load_kb, seed_database
@@ -300,35 +300,44 @@ def evaluate_real_quotes_in_kernel(
 async def run_smoke(*, live: bool, work_dir: Path) -> dict[str, object]:
     registry = get_default_travel_registry()
     if live:
+        live_now = datetime.now(UTC)
+        depart_date = live_now.date() + timedelta(days=30)
+        checkout_date = depart_date + timedelta(days=3)
+        award_date = depart_date + timedelta(days=1)
         seats = SeatsAeroAdapter(
             transport=build_live_seats_aero_transport(),
             budget=McpCallBudget(provider_id="seats_aero"),
             plan_id="live-smoke-free-mcp",
-            now=lambda: SMOKE_NOW,
+            now=lambda: live_now,
             live_enabled=True,
         )
         trivago = TrivagoAdapter(
             transport=build_live_trivago_transport(),
             budget=McpCallBudget(provider_id="trivago"),
             plan_id="live-smoke-free-mcp",
-            now=lambda: SMOKE_NOW,
+            now=lambda: live_now,
             live_enabled=True,
         )
         kiwi = KiwiAdapter(
             transport=build_live_kiwi_transport(),
             budget=McpCallBudget(provider_id="kiwi"),
             plan_id="live-smoke-free-mcp",
-            now=lambda: SMOKE_NOW,
+            now=lambda: live_now,
             live_enabled=True,
         )
+        booking_date = live_now.date()
     else:
+        depart_date = date(2026, 12, 27)
+        checkout_date = date(2026, 12, 30)
+        award_date = date(2026, 12, 28)
+        booking_date = date(2026, 11, 27)
         seats, trivago, kiwi = build_fixture_adapters()
 
     flight_quotes = await kiwi.search_flights(
         FlightSearchRequest(
             origin="DEL",
             destination="SIN",
-            depart_date=date(2026, 12, 27),
+            depart_date=depart_date,
             travelers=TravelerMix(adults=1),
             cabin="economy",
             currency="INR",
@@ -337,8 +346,8 @@ async def run_smoke(*, live: bool, work_dir: Path) -> dict[str, object]:
     hotel_quotes = await trivago.search_hotels(
         HotelSearchRequest(
             city="Singapore",
-            check_in=date(2026, 12, 27),
-            check_out=date(2026, 12, 30),
+            check_in=depart_date,
+            check_out=checkout_date,
             travelers=TravelerMix(adults=2),
             rooms=1,
             style="balanced",
@@ -349,7 +358,7 @@ async def run_smoke(*, live: bool, work_dir: Path) -> dict[str, object]:
         AwardSearchRequest(
             origin="DEL",
             destination="SIN",
-            depart_date=date(2026, 12, 28),
+            depart_date=award_date,
             travelers=TravelerMix(adults=1),
             cabin="business",
         )
@@ -359,6 +368,7 @@ async def run_smoke(*, live: bool, work_dir: Path) -> dict[str, object]:
         hotel_quotes=hotel_quotes,
         award_quotes=award_quotes,
         db_dir=work_dir,
+        booking_date=booking_date,
     )
     summary["registry_providers"] = [e.provider_id for e in registry.entries]
     if live:

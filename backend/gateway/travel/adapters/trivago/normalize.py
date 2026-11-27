@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, Literal
@@ -101,11 +102,16 @@ def _parse_review_count(raw_count: Any) -> int | None:
     return None
 
 
+_SERVICED_APARTMENT_RE = re.compile(
+    r"\b(?:serviced\s+apartments?|aparthotels?|apart-hotels?|apartments?)\b"
+)
+
+
 def _infer_property_kind(name: str) -> PropertyKind:
     lowered = name.casefold()
     if "hostel" in lowered:
         return "hostel"
-    if "serviced apartment" in lowered or "apart" in lowered:
+    if _SERVICED_APARTMENT_RE.search(lowered):
         return "serviced_apartment"
     return "hotel"
 
