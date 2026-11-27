@@ -42,6 +42,13 @@ def _gondola_live_enabled_from_env() -> bool:
     return os.environ.get("TRIPWISE_GONDOLA_LIVE_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def _mcp_provider_enabled_from_env(prefix: str) -> bool:
+    """Read-once kill-switch-first flag check for keyless student-profile MCPs."""
+    if os.environ.get(f"TRIPWISE_{prefix}_KILL_SWITCH", "").strip().lower() in _TRUTHY:
+        return False
+    return os.environ.get(f"TRIPWISE_{prefix}_LIVE_ENABLED", "").strip().lower() in _TRUTHY
+
+
 Domain = Literal["flight", "flight_trend", "hotel", "award", "fx", "poi"]
 SourceMethod = Literal[
     "sample", "official_api", "provider_mcp", "community_mcp", "scraper_wrapper", "open_data"
@@ -110,4 +117,37 @@ def get_default_travel_registry() -> TravelProviderRegistry:
         monthly_cost_minor=0,
         priority=500,
     )
-    return TravelProviderRegistry(entries=[sample, gondola])
+    seats_aero = TravelProviderRegistryEntry(
+        provider_id="seats_aero",
+        enabled=_mcp_provider_enabled_from_env("SEATS_AERO"),
+        allowed_profiles={"student_noncommercial"},
+        domains={"award"},
+        countries="configured",
+        source_method="provider_mcp",
+        live_data=False,
+        monthly_cost_minor=0,
+        priority=400,
+    )
+    trivago = TravelProviderRegistryEntry(
+        provider_id="trivago",
+        enabled=_mcp_provider_enabled_from_env("TRIVAGO"),
+        allowed_profiles={"student_noncommercial"},
+        domains={"hotel"},
+        countries="configured",
+        source_method="provider_mcp",
+        live_data=True,
+        monthly_cost_minor=0,
+        priority=410,
+    )
+    kiwi = TravelProviderRegistryEntry(
+        provider_id="kiwi",
+        enabled=_mcp_provider_enabled_from_env("KIWI"),
+        allowed_profiles={"student_noncommercial"},
+        domains={"flight"},
+        countries="configured",
+        source_method="provider_mcp",
+        live_data=True,
+        monthly_cost_minor=0,
+        priority=420,
+    )
+    return TravelProviderRegistry(entries=[sample, gondola, seats_aero, trivago, kiwi])
