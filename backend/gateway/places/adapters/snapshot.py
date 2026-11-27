@@ -13,10 +13,12 @@ from gateway.places.registry import PlaceGatewayError
 _CACHE_MAX_ENTRIES = 8
 _SnapshotCacheKey = tuple[str, int, int]
 _SNAPSHOT_CACHE: OrderedDict[_SnapshotCacheKey, list[PlaceCandidate]] = OrderedDict()
+_RANKED_CACHE: OrderedDict[tuple[object, ...], tuple[PlaceCandidate, ...]] = OrderedDict()
 
 
 def clear_snapshot_catalog_cache() -> None:
     _SNAPSHOT_CACHE.clear()
+    _RANKED_CACHE.clear()
 
 
 def _cache_key(catalog_path: Path) -> _SnapshotCacheKey:
@@ -71,8 +73,8 @@ class SnapshotPlaceAdapter:
                     if not c_dict.get("source_release"):
                         c_dict["source_release"] = src.get("release") or src.get("source_release")
                     if not c_dict.get("attribution_requirements"):
-                        c_dict["attribution_requirements"] = (
-                            src.get("attribution_text") or src.get("attribution_requirements")
+                        c_dict["attribution_requirements"] = src.get("attribution_text") or src.get(
+                            "attribution_requirements"
                         )
                     if not c_dict.get("verified_by"):
                         c_dict["verified_by"] = (
@@ -105,7 +107,10 @@ class SnapshotPlaceAdapter:
             _SNAPSHOT_CACHE[key] = candidates
             _SNAPSHOT_CACHE.move_to_end(key)
             while len(_SNAPSHOT_CACHE) > _CACHE_MAX_ENTRIES:
-                _SNAPSHOT_CACHE.popitem(last=False)
+                evicted, _ = _SNAPSHOT_CACHE.popitem(last=False)
+                for ranked_key in tuple(_RANKED_CACHE):
+                    if ranked_key[0] == evicted:
+                        del _RANKED_CACHE[ranked_key]
             return self._cache
 
         except PlaceGatewayError:

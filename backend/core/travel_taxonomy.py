@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from functools import lru_cache
 
 from core.models import SpendCategory
 
@@ -62,10 +63,12 @@ _PROVIDER_CATEGORIES: dict[TravelCategory, set[str]] = {
 }
 
 
+@lru_cache(maxsize=8192)
 def normalize_taxonomy_token(value: str) -> str:
     return value.strip().casefold().replace("-", "_")
 
 
+@lru_cache(maxsize=8192)
 def canonical_travel_category(value: str) -> TravelCategory:
     token = normalize_taxonomy_token(value).replace("_", " ")
     underscore_token = token.replace(" ", "_")

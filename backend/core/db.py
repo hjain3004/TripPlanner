@@ -523,7 +523,9 @@ def seed_database(seeds_dir: Path = SEEDS_DIR, db_path: Path = DB_PATH) -> dict[
 
 def load_kb(db_path: Path = DB_PATH) -> KnowledgeBase:
     """Load a KnowledgeBase from the seeded SQLite DB (runtime path, M2+)."""
-    engine = create_engine(f"sqlite:///{db_path}")
+    # This engine runs each query once and is then discarded. A compiled-query
+    # cache cannot be reused and leaves large statement cycles for a later GC.
+    engine = create_engine(f"sqlite:///{db_path}", query_cache_size=0)
     with Session(engine) as session:
         cards = [Card.model_validate_json(r.payload) for r in session.scalars(select(CardRow))]
         rules = [

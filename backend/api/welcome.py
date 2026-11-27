@@ -33,7 +33,7 @@ from api.auth import current_user, get_store, now_utc, require_csrf
 from api.saved_trips import AuthErrorResponse, RequestValidationErrorResponse
 from api.wallet import get_kb
 from core.db import KnowledgeBase
-from welcome.catalog import OfferCatalog, shipped_offer_catalog
+from welcome.catalog import OfferCatalog, OfferCatalogError, shipped_offer_catalog
 from welcome.models import WelcomeWindowReport
 from welcome.status import StoredPlanUnreadableError, compute_welcome_status, parse_stored_plan
 
@@ -90,8 +90,13 @@ class WelcomeStatusIn(BaseModel):
 
 
 def get_offer_catalog() -> OfferCatalog:
-    """The shipped offer catalog. Tests and the demo override this dependency."""
-    return shipped_offer_catalog()
+    """The approved offer catalog. Tests and the demo override this dependency."""
+    try:
+        return shipped_offer_catalog()
+    except OfferCatalogError as error:
+        raise HTTPException(
+            status_code=503, detail="The approved welcome-offer catalog is unavailable."
+        ) from error
 
 
 def get_as_of() -> date:
@@ -102,9 +107,7 @@ def get_as_of() -> date:
 @router.post(
     "/wallet/{entry_id}/welcome-status",
     response_model=WelcomeWindowReport,
-    responses={
-        code: {"model": model} for code, model in _ERROR_MODELS.items()
-    },
+    responses={code: {"model": model} for code, model in _ERROR_MODELS.items()},
 )
 def post_welcome_status(
     request: Request,
@@ -147,8 +150,7 @@ def post_welcome_status(
         raise _error(
             status.HTTP_409_CONFLICT,
             "REVISION_NOT_READABLE",
-            "This revision was stored under an older schema and is not read for welcome "
-            "status.",
+            "This revision was stored under an older schema and is not read for welcome status.",
         )
     try:
         plan = parse_stored_plan(

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- macOS launchd example. NOT installed or loaded by anything in this repository. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.tripwise.recurring-ingestion</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/path/to/TripPlanner/deploy/recurring-ingestion/run.sh</string>
+    <string>/Users/you/tripwise-ingestion-data/recurring/recurring.env</string>
+  </array>
+  <!-- Once a day at 09:00 local time. A repeated or overlapping start is harmless: the command
+       holds a file lock (exit 75 when busy) and a slot replays instead of spending. -->
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
+  <key>StandardOutPath</key><string>/Users/you/tripwise-ingestion-data/recurring/launchd.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/tripwise-ingestion-data/recurring/launchd.err.log</string>
+</dict>
+</plist>

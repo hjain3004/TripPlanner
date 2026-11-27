@@ -7,6 +7,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -914,6 +915,126 @@ class FinancialIngestionStore:
                 payload=self._payload(task),
             )
         return task
+
+    def record_incomplete_extraction(
+        self, *, snapshot_id: str, target_id: str, payload: dict[str, Any]
+    ) -> None:
+        """Keep an extraction that could not become a valid draft visible to operators.
+
+        Insert-only audit history: nothing here is a proposal and nothing can be approved from it.
+        """
+        body = json.dumps(
+            {"snapshot_id": snapshot_id, "target_id": target_id, **payload},
+            sort_keys=True,
+            default=str,
+        )
+        with self._connect() as connection:
+            self._audit(
+                connection,
+                entity_type="extraction",
+                entity_id=snapshot_id,
+                event_type="incomplete_draft",
+                payload=body,
+            )
+
+    def last_checked_at(self, target_id: str) -> str | None:
+        """When a fetch for this target last completed: the machine's check, not a human's."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT MAX(completed_at) FROM acquisition_requests "
+                "WHERE state = 'completed' AND request_id LIKE ? ESCAPE '\\'",
+                (f"acq:{target_id.replace('_', chr(92) + '_').replace('%', chr(92) + '%')}:%",),
+            ).fetchone()
+        return None if row is None or row[0] is None else str(row[0])
+
+    def record_extraction_checkpoint(
+        self,
+        *,
+        target_id: str,
+        snapshot_id: str,
+        relevant_digest: str,
+        extraction_envelope_sha256: str | None = None,
+    ) -> None:
+        """The capture whose structured extraction last completed for this target (insert-only)."""
+        with self._connect() as connection:
+            self._audit(
+                connection,
+                entity_type="extraction_checkpoint",
+                entity_id=target_id,
+                event_type="extracted",
+                payload=json.dumps(
+                    {
+                        "snapshot_id": snapshot_id,
+                        "relevant_digest": relevant_digest,
+                        "extraction_envelope_sha256": extraction_envelope_sha256,
+                    },
+                    sort_keys=True,
+                ),
+            )
+
+    def last_extraction_checkpoint(self, target_id: str) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload, created_at FROM audit_events WHERE entity_type = "
+                "'extraction_checkpoint' AND entity_id = ? ORDER BY rowid DESC LIMIT 1",
+                (target_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {**json.loads(row[0]), "recorded_at": row[1]}
+
+    def record_publication_event(
+        self, *, publication_id: str, event_type: str, payload: dict[str, Any]
+    ) -> None:
+        """Insert-only history of welcome-catalog publications and rollbacks."""
+        with self._connect() as connection:
+            self._audit(
+                connection,
+                entity_type="welcome_publication",
+                entity_id=publication_id,
+                event_type=event_type,
+                payload=json.dumps(payload, sort_keys=True, default=str),
+            )
+
+    def list_publication_events(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT entity_id, event_type, payload, created_at FROM audit_events "
+                "WHERE entity_type = 'welcome_publication' ORDER BY rowid"
+            ).fetchall()
+        return [
+            {
+                "publication_id": row[0],
+                "event_type": row[1],
+                "recorded_at": row[3],
+                **json.loads(row[2]),
+            }
+            for row in rows
+        ]
+
+    def list_incomplete_extractions(self, *, latest_only: bool = True) -> list[dict[str, Any]]:
+        """Incomplete-draft records, newest derivation per offer by default.
+
+        Re-extracting after a rule fix records new rows; the older ones stay in the audit history
+        (``latest_only=False``) but are not what a reviewer should be shown.
+        """
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT payload, created_at FROM audit_events WHERE entity_type = 'extraction' "
+                "AND event_type = 'incomplete_draft' ORDER BY rowid"
+            ).fetchall()
+        records = [{**json.loads(row[0]), "recorded_at": row[1]} for row in rows]
+        if not latest_only:
+            return records
+        newest: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for record in records:
+            key = (
+                str(record.get("target_id")),
+                str(record.get("snapshot_id")),
+                str(record.get("title") or record.get("offer_id")),
+            )
+            newest[key] = record
+        return list(newest.values())
 
     def list_audit_events(self, *, entity_id: str | None = None) -> list[dict[str, str]]:
         with self._connect() as connection:

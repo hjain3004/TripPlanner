@@ -24,14 +24,18 @@ from ingestion.contracts import (
 )
 from ingestion.firecrawl_transport import (
     DEFAULT_MAX_AGE_MS,
+    HTML_SCRAPE_CREDITS,
+    JSON_EXTRACTION_EXTRA_CREDITS,
     FirecrawlHttpTransport,
     FirecrawlScrapeRequest,
     FirecrawlTransport,
     FirecrawlTransportError,
+    JsonExtraction,
 )
 from ingestion.preflight import RobotsRules, SourcePreflight
 
 _PROVIDER_ENVELOPE_ALLOWANCE = 65_536
+_JSON_MIN_TIMEOUT_SECONDS = 60
 _TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 _PASSWORD_INPUT_RE = re.compile(r"<input\b[^>]*\btype\s*=\s*[\"']?password", re.IGNORECASE)
 # Fingerprints of interstitial pages, not words that appear on ordinary issuer pages (a card
@@ -102,10 +106,19 @@ class FirecrawlBackend:
         control: AcquisitionControl | None = None,
         enabled: bool = False,
         estimated_credits: int = 1,
+        json_extraction: JsonExtraction | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         if estimated_credits < 0:
             raise ValueError("estimated_credits cannot be negative")
+        self.json_extraction = json_extraction
+        if json_extraction is not None:
+            documented = HTML_SCRAPE_CREDITS + JSON_EXTRACTION_EXTRA_CREDITS
+            if estimated_credits < documented:
+                raise ValueError(
+                    f"a request with JSON extraction costs at least {documented} credits "
+                    f"(1 page + {JSON_EXTRACTION_EXTRA_CREDITS} for extraction); reserve them"
+                )
         self.artifacts = artifacts
         self.policy = policy
         self.transport = transport
@@ -115,6 +128,19 @@ class FirecrawlBackend:
         self.enabled = enabled
         self.estimated_credits = estimated_credits
         self.now = now or (lambda: datetime.now(UTC))
+
+    def _request_policy_hash(self) -> str:
+        """The fingerprint the control binds a request id to: policy plus extraction options.
+
+        An HTML-only request and a JSON-extraction request cost different amounts, so reusing an
+        id across them must be a conflict, not a replay.
+        """
+        base = _policy_hash(self.policy)
+        if self.json_extraction is None:
+            return base
+        return hashlib.sha256(
+            f"{base}:json:{self.json_extraction.fingerprint}".encode()
+        ).hexdigest()
 
     async def fetch(self, request: FetchRequest) -> FetchResult:
         if not self.enabled:
@@ -126,6 +152,13 @@ class FirecrawlBackend:
                 request.request_id,
                 FetchFailureKind.INVALID_RESPONSE,
                 "Firecrawl backend currently accepts approved HTML pages only",
+            )
+        if self.json_extraction is not None and request.timeout_seconds < _JSON_MIN_TIMEOUT_SECONDS:
+            return _failure(
+                request.request_id,
+                FetchFailureKind.POLICY_BLOCKED,
+                f"Firecrawl JSON extraction needs a timeout of at least "
+                f"{_JSON_MIN_TIMEOUT_SECONDS}s (its documented default for the json format)",
             )
         decision = self.preflight.check(request, self.policy, robots=self.robots)
         if not decision.allowed:
@@ -146,7 +179,7 @@ class FirecrawlBackend:
         if control is not None:
             claim = control.claim(
                 request,
-                policy_hash=_policy_hash(self.policy),
+                policy_hash=self._request_policy_hash(),
                 estimated_credits=self.estimated_credits,
                 now=self.now(),
             )
@@ -184,6 +217,7 @@ class FirecrawlBackend:
                         timeout_seconds=float(request.timeout_seconds),
                         max_response_bytes=request.max_bytes + _PROVIDER_ENVELOPE_ALLOWANCE,
                         max_age_ms=0 if request.forced_freshness else DEFAULT_MAX_AGE_MS,
+                        json_extraction=self.json_extraction,
                     )
                 ),
                 timeout=request.timeout_seconds,
@@ -383,6 +417,17 @@ class FirecrawlBackend:
                 metadata.get("cachedAt") if isinstance(metadata.get("cachedAt"), str) else None
             ),
         }
+        if self.json_extraction is not None:
+            extracted = data.get("json")
+            warning = data.get("warning")
+            envelope_payload["structured_extraction"] = {
+                "mode": "firecrawl_json_v2",
+                "fingerprint": self.json_extraction.fingerprint,
+                "status": "ok" if isinstance(extracted, dict) else "missing",
+                "warning": warning[:500] if isinstance(warning, str) else None,
+                "data": extracted if isinstance(extracted, dict) else None,
+                "credits_expected": HTML_SCRAPE_CREDITS + JSON_EXTRACTION_EXTRA_CREDITS,
+            }
         envelope_bytes = json.dumps(envelope_payload, sort_keys=True, separators=(",", ":")).encode(
             "utf-8"
         )
@@ -449,6 +494,15 @@ class FirecrawlBackend:
     @staticmethod
     def _credits(data: Mapping[str, Any]) -> int | None:
         metadata = _mapping(data.get("metadata"))
-        provider = _mapping(metadata.get("provider")) if metadata is not None else None
-        value = provider.get("creditsCost") if provider is not None else None
-        return value if isinstance(value, int) and value >= 0 else None
+        if metadata is None:
+            return None
+        # A real v2 response reports the charge as metadata.creditsUsed (observed on a live
+        # capture); provider-routed scrapes report provider.creditsCost instead.
+        provider = _mapping(metadata.get("provider"))
+        for value in (
+            metadata.get("creditsUsed"),
+            provider.get("creditsCost") if provider is not None else None,
+        ):
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                return value
+        return None

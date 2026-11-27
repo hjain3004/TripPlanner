@@ -73,7 +73,11 @@ class DiscoveryCandidate(BaseModel):
     decided_at: date | None = None
 
     _hint_url = field_validator("hint_url")(_https_url)
-    _issuer_url = field_validator("issuer_url_to_verify")(_https_url)
+
+    @field_validator("issuer_url_to_verify")
+    @classmethod
+    def _issuer_url(cls, value: str | None) -> str | None:
+        return None if value is None else _https_url(value)
 
     @model_validator(mode="after")
     def _decision_fields(self) -> DiscoveryCandidate:

@@ -14,7 +14,7 @@ import sqlite3
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from ingestion.contracts import FetchRequest, FetchResult, SourcePolicyRecord, WatchTarget
@@ -45,10 +45,19 @@ class AcquisitionControlLimits:
     per_month_credits: int
     pricing_version: str
     extraction_intent: str = "raw_html"
+    # A lifetime cap across every run and month, persisted in the database. ``opening_used`` is
+    # what was spent before this ledger existed (an operator attestation recorded once and never
+    # lowered); the cap and the opening figure are authoritative from the database afterwards.
+    lifetime_credits: int | None = None
+    lifetime_opening_used: int = 0
 
     def __post_init__(self) -> None:
         if min(self.per_request_credits, self.per_run_credits, self.per_month_credits) < 0:
             raise ValueError("acquisition credit limits cannot be negative")
+        if self.lifetime_credits is not None and self.lifetime_credits < 0:
+            raise ValueError("the lifetime credit allowance cannot be negative")
+        if self.lifetime_opening_used < 0:
+            raise ValueError("opening credits used cannot be negative")
         if not self.pricing_version:
             raise ValueError("acquisition pricing_version is required")
         if not self.extraction_intent:
@@ -89,6 +98,79 @@ class DurableAcquisitionControl:
     def __init__(self, store: FinancialIngestionStore, *, limits: AcquisitionControlLimits) -> None:
         self._store = store
         self._limits = limits
+
+    # ------------------------------------------------------------------ lifetime allowance
+
+    def _ensure_lifetime_allowance(self, connection: Any) -> None:
+        """Record the lifetime cap once; later runs cannot loosen it by passing other numbers.
+
+        Runs inside the caller's transaction so lock contention surfaces on the same typed path as
+        every other reservation, and a database that never used a cap gains no table.
+        """
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS credit_allowance ("
+            "id INTEGER PRIMARY KEY CHECK (id = 1), lifetime_cap INTEGER NOT NULL, "
+            "opening_used INTEGER NOT NULL, recorded_at TEXT NOT NULL, note TEXT NOT NULL)"
+        )
+        if self._limits.lifetime_credits is not None:
+            connection.execute(
+                "INSERT OR IGNORE INTO credit_allowance "
+                "(id, lifetime_cap, opening_used, recorded_at, note) VALUES (1, ?, ?, ?, ?)",
+                (
+                    self._limits.lifetime_credits,
+                    self._limits.lifetime_opening_used,
+                    datetime.now(UTC).isoformat(),
+                    "initial allowance recorded from operator configuration",
+                ),
+            )
+
+    def raise_lifetime_cap(self, new_cap: int, *, operator: str, note: str) -> None:
+        """An explicit, attributed increase. The cap can never be lowered below what is spent."""
+        if not operator.strip() or not note.strip():
+            raise ValueError("an operator and a note are required to change the allowance")
+        status = self.lifetime_status()
+        if status is None:
+            raise ValueError("no lifetime allowance is recorded")
+        if new_cap < int(str(status["used"])):
+            raise ValueError("the cap cannot be set below the credits already used")
+        with self._store._connect() as connection:  # noqa: SLF001
+            connection.execute(
+                "UPDATE credit_allowance SET lifetime_cap = ?, recorded_at = ?, note = ? "
+                "WHERE id = 1",
+                (new_cap, datetime.now(UTC).isoformat(), f"{operator}: {note}"[:300]),
+            )
+
+    def lifetime_status(self) -> dict[str, object] | None:
+        with self._store._connect() as connection:  # noqa: SLF001
+            exists = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'credit_allowance'"
+            ).fetchone()
+            row = (
+                connection.execute(
+                    "SELECT lifetime_cap, opening_used, recorded_at, note FROM credit_allowance "
+                    "WHERE id = 1"
+                ).fetchone()
+                if exists
+                else None
+            )
+            if row is None:
+                return None
+            tracked = int(
+                connection.execute(
+                    "SELECT COALESCE(SUM(COALESCE(charged_credits, estimated_credits)), 0) "
+                    "FROM acquisition_requests WHERE state != 'blocked'"
+                ).fetchone()[0]
+            )
+        used = int(row["opening_used"]) + tracked
+        return {
+            "lifetime_cap": int(row["lifetime_cap"]),
+            "opening_used": int(row["opening_used"]),
+            "tracked_used": tracked,
+            "used": used,
+            "remaining": int(row["lifetime_cap"]) - used,
+            "recorded_at": row["recorded_at"],
+            "note": row["note"],
+        }
 
     @staticmethod
     def _month_key(now: datetime) -> str:
@@ -285,6 +367,7 @@ class DurableAcquisitionControl:
         try:
             with self._store._connect() as connection:  # noqa: SLF001
                 connection.execute("BEGIN IMMEDIATE")
+                self._ensure_lifetime_allowance(connection)
                 prior = connection.execute(
                     "SELECT fingerprint, state, result_payload, safe_diagnostic "
                     "FROM acquisition_requests "
@@ -341,6 +424,30 @@ class DurableAcquisitionControl:
                         timestamp=timestamp,
                         diagnostic="monthly credit allowance is exhausted",
                     )
+
+                allowance = connection.execute(
+                    "SELECT lifetime_cap, opening_used FROM credit_allowance WHERE id = 1"
+                ).fetchone()
+                if allowance is not None:
+                    lifetime_usage = int(allowance["opening_used"]) + int(
+                        connection.execute(
+                            "SELECT COALESCE(SUM(COALESCE(charged_credits, estimated_credits)), 0) "
+                            "FROM acquisition_requests WHERE state != 'blocked'"
+                        ).fetchone()[0]
+                    )
+                    if lifetime_usage + estimated_credits > int(allowance["lifetime_cap"]):
+                        return self._record_blocked(
+                            connection,
+                            request=request,
+                            canonical_url=canonical_url,
+                            fingerprint=fingerprint,
+                            policy_hash=policy_hash,
+                            domain=domain,
+                            month_key=month_key,
+                            estimated_credits=estimated_credits,
+                            timestamp=timestamp,
+                            diagnostic="lifetime credit allowance is exhausted",
+                        )
 
                 slot = connection.execute(
                     "SELECT next_dispatch_at FROM acquisition_domain_reservations WHERE domain = ?",

@@ -156,8 +156,7 @@ def test_an_offer_has_exactly_one_bonus_kind() -> None:
         synthetic_offer(bonus_flat_minor=100)  # both points and flat
     with pytest.raises(ValidationError):
         synthetic_offer(bonus_points=None, bonus_currency_id=None)  # neither
-    with pytest.raises(ValidationError):
-        synthetic_offer(bonus_currency_id=None)  # points without a currency
+    assert synthetic_offer(bonus_currency_id=None).bonus_currency_id is None
     with pytest.raises(ValidationError):
         synthetic_offer(bonus_points=None, bonus_flat_minor=100)  # flat naming a currency
     with pytest.raises(ValidationError):

@@ -725,6 +725,12 @@ export function savedTripErrorHandler(
 }
 
 // --- Spec 18 Case A welcome-window status (mirrors api/welcome.py) -------------
+// Synthetic response limitation for approved offers whose availability is unresolved.
+export const WELCOME_INCOMPLETE_TERMS_FIXTURE: WelcomeWindowReport["limitations"][number] = {
+  code: "OFFER_TERMS_INCOMPLETE",
+  message: "The offer has incomplete terms, so its applicability cannot be determined.",
+};
+
 //
 // With no approved offer data shipped, the real route answers `unknown` /
 // NO_APPROVED_OFFER, so that is what this mock answers: it never invents a window, a
@@ -847,6 +853,53 @@ export function acquisitionErrorHandler(fixture: AcquisitionErrorFixture) {
       ? HttpResponse.json({ detail: spec.detail }, { status: spec.status })
       : acquisitionError(spec.status, spec.code, "Mocked acquisition failure."),
   );
+}
+
+/**
+ * An approved offer exists for the candidate card, but its published terms do not state an input
+ * the assessment needs (approval or delivery time, annual fee). That is a typed refusal of its
+ * own, distinct from "no approved offer": nothing is guessed and no suggestion is made.
+ */
+export function acquisitionIncompleteTermsHandler() {
+  return http.post("*/account/acquisition/trips/:tripId/revisions/:revision", ({ params }) => {
+    const tripId = Array.isArray(params.tripId) ? params.tripId[0] : params.tripId;
+    const revision = Number(Array.isArray(params.revision) ? params.revision[0] : params.revision);
+    const report: AcquisitionAssessmentReport = {
+      trip_id: tripId,
+      revision,
+      as_of: "2026-10-30",
+      held_cards_strategy: {
+        card_ids: [],
+        gross_minor: 0,
+        discounts_minor: 0,
+        rewards_value_minor: 0,
+        forex_fees_minor: 0,
+        effective_cost_minor: 0,
+        total_benefit_minor: 0,
+        currency: "INR",
+      },
+      suggestions: [],
+      refusals: [
+        {
+          card_id: "axis-atlas",
+          card_name: "Axis Atlas",
+          offer_id: "axis-atlas-welcome-example",
+          reason: "OFFER_TERMS_INCOMPLETE",
+          message:
+            "An approved offer exists for this card, but its published terms do not state expected_approval_days, annual_fee_minor, so a new-card assessment cannot be computed from it.",
+          details: {
+            offer_id: "axis-atlas-welcome-example",
+            unknown_terms: ["expected_approval_days", "annual_fee_minor"],
+          },
+        },
+      ],
+      limitations: [],
+      assumptions: [
+        "This assessment is informational only and does not constitute a recommendation to apply.",
+      ],
+    };
+    return HttpResponse.json(report, { status: 200 });
+  });
 }
 
 export const handlers = [
