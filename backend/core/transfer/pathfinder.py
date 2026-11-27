@@ -23,6 +23,11 @@ from core.transfer.arithmetic import (
     redemption_value_micro,
 )
 from core.transfer.checklist import build_checklist
+from core.transfer.pooling import (
+    PoolingConfig,
+    effective_valuation_map,
+    solve_pooled_transfer,
+)
 
 REDEEM_MARGIN_BP = 11_500
 BASIS_POINTS = 10_000
@@ -176,7 +181,57 @@ def _all_relevant_edges(kb: KnowledgeBase, source_ids: list[str]) -> list[Transf
     return [by_id[key] for key in sorted(by_id)]
 
 
-def _recommend(plans: list[TransferPlan], baseline_valuations: dict[str, int]) -> Recommendation:
+def _collect_edges_up_to_hops(
+    kb: KnowledgeBase, source_ids: list[str], max_hops: int
+) -> list[TransferEdge]:
+    by_id: dict[str, TransferEdge] = {}
+    frontier = sorted(set(source_ids))
+    visited = set(frontier)
+    for _ in range(max_hops):
+        if not frontier:
+            break
+        batch = kb.edges_from(frontier)
+        next_nodes: set[str] = set()
+        for edge in batch:
+            by_id[edge.id] = edge
+            if edge.to_id not in visited:
+                visited.add(edge.to_id)
+                next_nodes.add(edge.to_id)
+        frontier = sorted(next_nodes)
+    return [by_id[key] for key in sorted(by_id)]
+
+
+def _single_path_pooling_violation(
+    path: list[TransferEdge],
+    steps: list[TransferStep],
+    cfg: PoolingConfig,
+) -> str | None:
+    if len(path) > cfg.max_transfers:
+        return f"Path exceeds max_transfers ({len(path)} > {cfg.max_transfers})."
+    if cfg.deadline_hours is not None:
+        total_hours = sum(edge.transfer_time_hours_max for edge in path)
+        if total_hours > cfg.deadline_hours:
+            return f"Path worst-case latency {total_hours}h exceeds {cfg.deadline_hours}h deadline."
+    edge_sources = {edge.id: step.amount_source for edge, step in zip(path, steps, strict=True)}
+    for edge in path:
+        cap = cfg.edge_max_transfer.get(edge.id)
+        if cap is not None and edge_sources[edge.id] > cap:
+            return f"Edge {edge.id} transfer {edge_sources[edge.id]} exceeds cap {cap}."
+    for group_cap in cfg.grouped_caps:
+        used = sum(edge_sources.get(eid, 0) for eid in dict.fromkeys(group_cap.edge_ids))
+        if used > group_cap.max_source_points:
+            return (
+                f"Grouped cap {group_cap.group_id} exceeded: "
+                f"{used} > {group_cap.max_source_points}."
+            )
+    return None
+
+
+def _recommend(
+    plans: list[TransferPlan],
+    baseline_valuations: dict[str, int],
+    plan_baselines: dict[str, int] | None = None,
+) -> Recommendation:
     for plan in plans:
         if plan.dominated:
             continue
@@ -188,7 +243,11 @@ def _recommend(plans: list[TransferPlan], baseline_valuations: dict[str, int]) -
                 plan_id=plan.id,
                 reason="Existing miles cover the award and savings are positive.",
             )
-        baseline = baseline_valuations[plan.source_currency]
+        baseline = (
+            plan_baselines[plan.id]
+            if plan_baselines is not None and plan.id in plan_baselines
+            else baseline_valuations[plan.source_currency]
+        )
         if plan.value_per_point_micro * BASIS_POINTS >= baseline * REDEEM_MARGIN_BP:
             return Recommendation(
                 kind=RecommendationKind.REDEEM,
@@ -220,6 +279,9 @@ def find_transfer_plans(
     baseline_valuations: dict[str, int],
     cash_price_minor: int,
     on_date: date,
+    *,
+    allow_pooling: bool = False,
+    pooling_config: PoolingConfig | None = None,
 ) -> TransferAdvice:
     awards = kb.award_entries(target.origin, target.destination, target.cabin, target.trip_type)
     if not awards:
@@ -232,12 +294,25 @@ def find_transfer_plans(
             ),
         )
 
+    pooling_active = allow_pooling or pooling_config is not None
+    cfg = pooling_config or PoolingConfig()
+    eff_valuations = (
+        effective_valuation_map(baseline_valuations, cfg.expiry_discounts)
+        if pooling_active
+        else baseline_valuations
+    )
+
     source_ids = sorted(wallet.points_balances)
-    edges = _all_relevant_edges(kb, source_ids)
+    edges = (
+        _collect_edges_up_to_hops(kb, source_ids, cfg.max_transfers)
+        if pooling_active
+        else _all_relevant_edges(kb, source_ids)
+    )
     active_bonuses = kb.bonuses_active([edge.id for edge in edges], on_date)
     plans: list[TransferPlan] = []
     infeasible: list[InfeasiblePlan] = []
     checklist_bonus_rows: dict[str, TransferBonus] = {}
+    plan_baselines: dict[str, int] = {}
 
     for award in sorted(awards, key=lambda row: row.id):
         program = kb.program(award.program_id)
@@ -290,6 +365,7 @@ def find_transfer_plans(
             )
             continue
 
+        seen_step_signatures: set[tuple[tuple[str, str, int, int], ...]] = set()
         for path in _paths(source_ids, award.program_id, edges):
             bonuses = _active_bonus_by_edge(path, active_bonuses)
             source_required = _required_source(need_net, path, bonuses)
@@ -323,15 +399,38 @@ def find_transfer_plans(
                 )
                 continue
             steps = _forward_steps(source_required, path, bonuses)
+            if pooling_active:
+                violation = _single_path_pooling_violation(path, steps, cfg)
+                if violation is not None:
+                    infeasible.append(
+                        InfeasiblePlan(
+                            award_id=award.id,
+                            best_path=path_ids,
+                            shortfall_points=1,
+                            shortfall_currency=source_id,
+                            note=violation,
+                        )
+                    )
+                    continue
             destination_received = steps[-1].amount_dest
-            value_per_point = redemption_value_micro(cash_price_minor, total_fees, source_required)
-            opportunity_cost = opportunity_cost_minor(
-                source_required, baseline_valuations[source_id]
+            fixed_fee_minor = (
+                sum(cfg.edge_fixed_fees_minor.get(edge.id, 0) for edge in path)
+                if pooling_active
+                else 0
             )
-            effective_cost = total_fees + opportunity_cost
+            effective_total_fees = total_fees + fixed_fee_minor
+            value_per_point = redemption_value_micro(
+                cash_price_minor, effective_total_fees, source_required
+            )
+            opp_valuation = (
+                eff_valuations[source_id] if pooling_active else baseline_valuations[source_id]
+            )
+            opportunity_cost = opportunity_cost_minor(source_required, opp_valuation)
+            effective_cost = effective_total_fees + opportunity_cost
             savings = cash_price_minor - effective_cost
+            plan_id = f"{award.id}:{'+'.join(path_ids)}"
             plan = TransferPlan(
-                id=f"{award.id}:{'+'.join(path_ids)}",
+                id=plan_id,
                 award=award,
                 travelers=target.travelers,
                 steps=steps,
@@ -339,13 +438,13 @@ def find_transfer_plans(
                 source_currency=source_id,
                 existing_miles_used=existing_used,
                 leftover_miles=destination_received - need_net,
-                total_fees_minor=total_fees,
+                total_fees_minor=effective_total_fees,
                 value_per_point_micro=value_per_point,
                 effective_redemption_cost_minor=effective_cost,
                 savings_vs_cash_minor=savings,
                 provenance_flags=_provenance_flags(
                     TransferPlan(
-                        id=f"{award.id}:{'+'.join(path_ids)}",
+                        id=plan_id,
                         award=award,
                         travelers=target.travelers,
                         steps=steps,
@@ -353,7 +452,7 @@ def find_transfer_plans(
                         source_currency=source_id,
                         existing_miles_used=existing_used,
                         leftover_miles=destination_received - need_net,
-                        total_fees_minor=total_fees,
+                        total_fees_minor=effective_total_fees,
                         value_per_point_micro=value_per_point,
                         effective_redemption_cost_minor=effective_cost,
                         savings_vs_cash_minor=savings,
@@ -367,11 +466,40 @@ def find_transfer_plans(
                 ],
             )
             checklist_bonus_rows.update(bonuses)
+            if pooling_active:
+                plan_baselines[plan_id] = opp_valuation
+                seen_step_signatures.add(
+                    tuple((s.from_id, s.to_id, s.amount_source, s.amount_dest) for s in steps)
+                )
             plans.append(plan)
+
+        if pooling_active:
+            pooled = solve_pooled_transfer(
+                award=award,
+                target=target,
+                program=program,
+                wallet=wallet,
+                edges=edges,
+                bonuses=active_bonuses,
+                baseline_valuations=baseline_valuations,
+                award_total_fees_minor=total_fees,
+                cash_price_minor=cash_price_minor,
+                config=cfg,
+            )
+            if pooled is not None:
+                sig = tuple(
+                    (s.from_id, s.to_id, s.amount_source, s.amount_dest) for s in pooled.plan.steps
+                )
+                if sig not in seen_step_signatures:
+                    plan_baselines[pooled.plan.id] = pooled.blended_baseline_micro
+                    plans.append(pooled.plan)
 
     ranked = _mark_dominated(plans)
     completed: list[TransferPlan] = []
     for plan in ranked:
+        if plan.checklist_steps:
+            completed.append(plan)
+            continue
         program = kb.program(plan.award.program_id)
         plan_bonuses = {
             step.bonus_applied: checklist_bonus_rows[step.bonus_applied]
@@ -389,5 +517,9 @@ def find_transfer_plans(
             infeasible,
             key=lambda row: (row.award_id, "+".join(row.best_path), row.shortfall_currency),
         ),
-        recommendation=_recommend(completed, baseline_valuations),
+        recommendation=_recommend(
+            completed,
+            baseline_valuations,
+            plan_baselines if pooling_active else None,
+        ),
     )
