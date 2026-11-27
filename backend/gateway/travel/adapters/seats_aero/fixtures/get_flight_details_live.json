@@ -1,0 +1,17 @@
+{
+  "provider": "seats_aero",
+  "tool": "get_flight_details",
+  "request_args": {
+    "flight_ref": "3JoLQ3ObwbZMOAQvaMQoRkKadXo",
+    "seats": 1
+  },
+  "captured_at": "2026-11-27T09:43:00Z",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"flight\":{\"flight_ref\":\"3JoLQ3ObwbZMOAQvaMQoRkKadXo\",\"origin\":\"DEL\",\"destination\":\"SIN\",\"cabin\":\"economy\",\"departs_at\":\"2026-12-28 19:30\",\"arrives_at\":\"2026-12-29 08:40\",\"stops\":1,\"flights\":\"AI2985, AI2105\",\"miles_price\":35000,\"mileage_program\":\"united\",\"aircraft\":[\"Airbus A320neo\",\"Airbus A321\"],\"operating_carriers\":[\"AI\"],\"taxes\":\"$22.46 USD\",\"duration_minutes\":640,\"amenities\":[{\"flight\":\"AI2985\",\"origin\":\"DEL\",\"destination\":\"BOM\",\"seat\":\"standard\",\"wifi\":\"none\",\"seat_pitch\":\"28\"},{\"flight\":\"AI2105\",\"origin\":\"BOM\",\"destination\":\"SIN\",\"seat\":\"standard\",\"wifi\":\"paid\",\"seat_pitch\":\"29\"}],\"minutes_old\":4389,\"remaining_seats\":1},\"segments\":[{\"origin\":\"DEL\",\"destination\":\"BOM\",\"flight\":\"AI2985\",\"cabin\":\"economy\",\"departs_at\":\"2026-12-28 19:30\",\"arrives_at\":\"2026-12-28 21:55\",\"aircraft\":\"Airbus A320neo\",\"duration_minutes\":145},{\"origin\":\"BOM\",\"destination\":\"SIN\",\"flight\":\"AI2105\",\"cabin\":\"economy\",\"departs_at\":\"2026-12-29 00:20\",\"arrives_at\":\"2026-12-29 08:40\",\"aircraft\":\"Airbus A321\",\"duration_minutes\":350}],\"url\":\"https://seats.aero/i/3JoLQ3ObwbZMOAQvaMQoRkKadXo\",\"warning\":\"Times are airport-local. Cached availability can change. Confirm the price and seats with the mileage program before transferring points.\"}",
+      "annotations": null,
+      "meta": null
+    }
+  ]
+}

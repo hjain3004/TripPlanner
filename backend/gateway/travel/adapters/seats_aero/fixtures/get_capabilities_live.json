@@ -1,0 +1,13 @@
+{
+  "provider": "seats_aero",
+  "tool": "get_capabilities",
+  "captured_at": "2026-11-27T09:42:00Z",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"booking\":false,\"cached_search\":true,\"create_alerts\":false,\"daily_requests_per_ip\":1000,\"expire_alerts\":false,\"live_search\":false,\"max_advance_days\":60,\"max_date_range_days\":60,\"max_results\":50,\"read_alerts\":false,\"scope\":\"seats.reference.read seats.awards.read\"}",
+      "annotations": null,
+      "meta": null
+    }
+  ]
+}
