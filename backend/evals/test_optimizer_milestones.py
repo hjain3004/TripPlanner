@@ -247,7 +247,7 @@ def test_default_entrypoint_returns_actual_existing_optimizer_result() -> None:
     assert optimize_trip(trip, wallet, kb).model_dump() == optimize(trip, wallet, kb).model_dump()
 
 
-def test_active_trip_adapter_uses_kernel_values_and_refuses_capped_rules() -> None:
+def test_active_trip_adapter_uses_kernel_values_for_uncapped_and_capped_rules() -> None:
     from core.db import KnowledgeBase, load_kb
     from core.models import CostedTrip, SpendLineItem, UserWallet
     from core.optimizer.milp_solver import MilestoneSolution, optimize_trip
@@ -278,8 +278,9 @@ def test_active_trip_adapter_uses_kernel_values_and_refuses_capped_rules() -> No
     assert isinstance(result, MilestoneSolution)
     assert result.chosen[0].card_id == cards[0].id
     assert result.achieved_milestones == (0,)
-    with pytest.raises(ValueError, match="block-aware"):
-        optimize_trip(trip, wallet, source, (milestone,))
+    capped_result = optimize_trip(trip, wallet, source, (milestone,))
+    assert isinstance(capped_result, MilestoneSolution)
+    assert capped_result.chosen[0].card_id == cards[0].id
 
 
 def test_frozen_per_transaction_floor_is_not_concave() -> None:
@@ -315,3 +316,239 @@ def test_zero_mode_is_identical_for_each_kernel_golden(case_path) -> None:
     assert optimize_trip(trip, wallet, kb, prefs=prefs).model_dump() == (
         optimize(trip, wallet, kb, prefs).model_dump()
     )
+
+
+def test_capped_trip_preserves_per_line_floor_and_cap_fallthrough() -> None:
+    from core.db import KnowledgeBase, load_kb
+    from core.models import (
+        CostedTrip,
+        EarnRate,
+        PointValuation,
+        RewardCap,
+        RewardRule,
+        SpendLineItem,
+        UserWallet,
+    )
+    from core.optimizer.milp_solver import MilestoneSolution, optimize_trip
+
+    source = load_kb()
+    card = source.cards()[0].model_copy(
+        update={
+            "id": "synthetic-a",
+            "base_earn": EarnRate(points=1, per_amount_minor=100, currency="INR"),
+        }
+    )
+    valuation = PointValuation(
+        id="synthetic-value",
+        card_id=card.id,
+        path="cashback",
+        value_micro_major_per_point=10_000,
+        currency="INR",
+        provenance=PROVENANCE,
+    )
+    rule = RewardRule(
+        id="synthetic-cap",
+        card_id=card.id,
+        description="synthetic",
+        earn=EarnRate(points=3, per_amount_minor=100, currency="INR"),
+        categories=[SpendCategory.DINING],
+        cap=RewardCap(max_points=3, period="offer_period"),
+        provenance=PROVENANCE,
+    )
+    kb = KnowledgeBase.from_models(
+        cards=[card], reward_rules=[rule], offers=[], point_valuations=[valuation]
+    )
+    lines = [
+        SpendLineItem(
+            id=f"line-{n}",
+            label="synthetic",
+            category=SpendCategory.DINING,
+            amount_minor=100,
+            currency="INR",
+            available_channels=[Channel.POS_DOMESTIC],
+        )
+        for n in (1, 2)
+    ]
+    trip = CostedTrip(booking_date=date(2026, 1, 1), trip_start_date=date(2026, 1, 2), lines=lines)
+    milestone = SpendMilestone(
+        card_id=card.id,
+        threshold_minor=200,
+        fee_waiver_minor=5,
+        eligible_categories=(SpendCategory.DINING,),
+        period_type="annual",
+        provenance=PROVENANCE,
+    )
+    result = optimize_trip(trip, UserWallet(card_ids=[card.id]), kb, (milestone,))
+    assert isinstance(result, MilestoneSolution)
+    assert [b.nominal_minor for b in result.chosen] == [3, 1]
+    assert result.objective_scaled == 9 * 100_000
+
+
+@pytest.mark.parametrize("cap_points", [1, 2, 3, 4, 5, 7])
+def test_capped_trip_matches_exhaustive_kernel_oracle(cap_points: int) -> None:
+    from itertools import product
+
+    from core.db import KnowledgeBase, load_kb
+    from core.models import (
+        CostedTrip,
+        EarnRate,
+        PointValuation,
+        RewardCap,
+        RewardRule,
+        SpendLineItem,
+        UserWallet,
+    )
+    from core.optimizer.allocate import _commit, _line_options, _on_date_fn, _pool_sizes
+    from core.optimizer.milp_solver import MilestoneSolution, optimize_trip
+
+    source = load_kb()
+    base = source.cards()[0]
+    cards = [
+        base.model_copy(
+            update={
+                "id": name,
+                "base_earn": EarnRate(points=base_points, per_amount_minor=100, currency="INR"),
+            }
+        )
+        for name, base_points in [("a", 1), ("b", 2)]
+    ]
+    valuations = [
+        PointValuation(
+            id=f"v-{card.id}",
+            card_id=card.id,
+            path="cashback",
+            value_micro_major_per_point=10_000,
+            currency="INR",
+            provenance=PROVENANCE,
+        )
+        for card in cards
+    ]
+    rule = RewardRule(
+        id="limited",
+        card_id="a",
+        description="synthetic",
+        earn=EarnRate(points=3, per_amount_minor=100, currency="INR"),
+        categories=[SpendCategory.DINING],
+        cap=RewardCap(max_points=cap_points, period="offer_period"),
+        provenance=PROVENANCE,
+    )
+    kb = KnowledgeBase.from_models(
+        cards=cards, reward_rules=[rule], offers=[], point_valuations=valuations
+    )
+    lines = [
+        SpendLineItem(
+            id=f"line-{i}",
+            label="synthetic",
+            category=SpendCategory.DINING,
+            amount_minor=amount,
+            currency="INR",
+            available_channels=[Channel.POS_DOMESTIC],
+        )
+        for i, amount in enumerate((99, 175, 200))
+    ]
+    trip = CostedTrip(booking_date=date(2026, 1, 1), trip_start_date=date(2026, 1, 2), lines=lines)
+    wallet = UserWallet(card_ids=["a", "b"])
+    milestone = SpendMilestone(
+        card_id="a",
+        threshold_minor=200,
+        fee_waiver_minor=4,
+        eligible_categories=(SpendCategory.DINING,),
+        period_type="annual",
+        provenance=PROVENANCE,
+    )
+    expected = []
+    for assignment in product(("a", "b"), repeat=len(lines)):
+        pools = _pool_sizes(kb, wallet)
+        uses: dict[tuple[str, str], int] = {}
+        total = 0
+        qualifying = 0
+        for line, card_id in zip(lines, assignment, strict=True):
+            options = _line_options(kb, line, wallet, pools, uses, _on_date_fn(trip))
+            option = next(o for o in options if o.card_id == card_id)
+            total += option.benefit_minor
+            if card_id == "a":
+                qualifying += option.post_amount_minor
+            _commit(option, pools, uses)
+        expected.append(total + (4 if qualifying >= 200 else 0))
+    result = optimize_trip(trip, wallet, kb, (milestone,))
+    assert isinstance(result, MilestoneSolution)
+    assert result.objective_scaled == max(expected) * 100_000
+
+
+def test_shared_cap_allocation_optimizes_execution_order() -> None:
+    from core.db import KnowledgeBase, load_kb
+    from core.models import (
+        CostedTrip,
+        EarnRate,
+        PointValuation,
+        RewardCap,
+        RewardRule,
+        SpendLineItem,
+        UserWallet,
+    )
+    from core.optimizer.milp_solver import MilestoneSolution, optimize_trip
+
+    card = (
+        load_kb()
+        .cards()[0]
+        .model_copy(
+            update={
+                "id": "a",
+                "base_earn": EarnRate(points=0, per_amount_minor=100, currency="INR"),
+            }
+        )
+    )
+    valuation = PointValuation(
+        id="v",
+        card_id="a",
+        path="cashback",
+        value_micro_major_per_point=10_000,
+        currency="INR",
+        provenance=PROVENANCE,
+    )
+    cap = RewardCap(max_points=3, period="offer_period", shared_cap_group="shared")
+    rules = [
+        RewardRule(
+            id=name,
+            card_id="a",
+            description="synthetic",
+            earn=EarnRate(points=points, per_amount_minor=100, currency="INR"),
+            categories=[category],
+            cap=cap,
+            provenance=PROVENANCE,
+        )
+        for name, points, category in [
+            ("low", 1, SpendCategory.DINING),
+            ("high", 3, SpendCategory.FLIGHTS),
+        ]
+    ]
+    kb = KnowledgeBase.from_models(
+        cards=[card], reward_rules=rules, offers=[], point_valuations=[valuation]
+    )
+    lines = [
+        SpendLineItem(
+            id=identifier,
+            label="synthetic",
+            category=category,
+            amount_minor=100,
+            currency="INR",
+            available_channels=[Channel.POS_DOMESTIC],
+        )
+        for identifier, category in [
+            ("a-low", SpendCategory.DINING),
+            ("z-high", SpendCategory.FLIGHTS),
+        ]
+    ]
+    trip = CostedTrip(booking_date=date(2026, 1, 1), trip_start_date=date(2026, 1, 2), lines=lines)
+    milestone = SpendMilestone(
+        card_id="a",
+        threshold_minor=200,
+        fee_waiver_minor=1,
+        eligible_categories=(SpendCategory.DINING, SpendCategory.FLIGHTS),
+        period_type="annual",
+        provenance=PROVENANCE,
+    )
+    result = optimize_trip(trip, UserWallet(card_ids=["a"]), kb, (milestone,))
+    assert isinstance(result, MilestoneSolution)
+    assert result.objective_scaled == 4 * 100_000
+    assert result.execution_order == ("z-high", "a-low")
