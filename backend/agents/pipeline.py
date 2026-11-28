@@ -15,7 +15,14 @@ from agents.confirmed_trip import (
 from agents.critic import run_critic
 from agents.estimator import estimate_costed_trip
 from agents.explainer import run_explainer
-from agents.gateway_estimator import GatewayEstimateResult, estimate_confirmed_inventory
+from agents.gateway_estimator import (
+    GatewayEstimateResult,
+    LiveGatewayEstimate,
+    estimate_confirmed_inventory,
+    estimate_costed_trip_with_live_gateway,
+    evaluate_live_awards,
+    reprice_live_estimate_for_itinerary,
+)
 from agents.intake import run_intake
 from agents.kernel import run_kernel
 from agents.llm import LLMClient
@@ -29,7 +36,9 @@ from core.models import UserWallet
 from core.trip_models import TripSpec
 from gateway.catalog.activate import active_catalog_summary
 from gateway.catalog.regions import get_region
+from gateway.travel.live_orchestrator import GatewayProviderFactories
 from gateway.travel.product import TravelInventorySnapshot
+from gateway.travel.registry import gateway_live_enabled_from_env
 from gateway.travel.service import TravelInventoryService
 from gateway.weather.planning import WeatherContextService
 
@@ -86,6 +95,8 @@ def run_pipeline(
     weather_service: WeatherContextService | None = None,
     authority: TripSpec | None = None,
     wallet_override: UserWallet | None = None,
+    gateway_factories: GatewayProviderFactories | None = None,
+    gateway_budget_db_path: Path | str | None = None,
 ) -> PlanResponse:
     trace_id = uuid4().hex
     trace = TraceRecorder(trace_id, trace_dir)
@@ -179,6 +190,8 @@ def run_pipeline(
         on_stage(3, "costing")
     confirmed_snapshot: TravelInventorySnapshot | None = None
     gateway_estimate: GatewayEstimateResult | None = None
+    live_estimate: LiveGatewayEstimate | None = None
+    live_gateway_active = gateway_live_enabled_from_env()
     if confirmed_input is not None and inventory_service is not None:
         import asyncio
 
@@ -189,12 +202,35 @@ def run_pipeline(
             spec, itinerary, kb, confirmed_snapshot, booking_date=booking_date
         )
         estimate = gateway_estimate.estimate
+    elif live_gateway_active:
+        live_estimate = estimate_costed_trip_with_live_gateway(
+            spec,
+            itinerary,
+            kb,
+            booking_date=booking_date,
+            plan_id=trace_id,
+            provider_factories=gateway_factories,
+            budget_db_path=gateway_budget_db_path,
+        )
+        estimate = live_estimate.estimate
     else:
         estimate = estimate_costed_trip(spec, itinerary, kb, booking_date=booking_date)
     trace.record("estimator", estimate)
     if on_stage is not None:
         on_stage(4, "optimizing")
     kernel = run_kernel(spec, estimate, kb, booking_date=booking_date)
+    if live_estimate is not None and live_estimate.award_quotes:
+        merged_advice = evaluate_live_awards(
+            spec,
+            estimate,
+            kb,
+            kernel.transfer_advice,
+            live_estimate.award_quotes,
+            booking_date=booking_date,
+            cash_flight_is_round_trip=live_estimate.flight_is_round_trip,
+        )
+        if merged_advice is not None:
+            kernel = kernel.model_copy(update={"transfer_advice": merged_advice})
     trace.record("optimizer", kernel)
 
     critic_caveats: list[str] = []
@@ -241,10 +277,31 @@ def run_pipeline(
                 spec, itinerary, kb, confirmed_snapshot, booking_date=booking_date
             )
             estimate = gateway_estimate.estimate
+        elif live_estimate is not None:
+            live_estimate = reprice_live_estimate_for_itinerary(
+                spec,
+                itinerary,
+                kb,
+                live_estimate,
+                booking_date=booking_date,
+            )
+            estimate = live_estimate.estimate
         else:
             estimate = estimate_costed_trip(spec, itinerary, kb, booking_date=booking_date)
         trace.record("estimator", estimate, attributes={"revision_count": loop_index + 1})
         kernel = run_kernel(spec, estimate, kb, booking_date=booking_date)
+        if live_estimate is not None and live_estimate.award_quotes:
+            merged_advice = evaluate_live_awards(
+                spec,
+                estimate,
+                kb,
+                kernel.transfer_advice,
+                live_estimate.award_quotes,
+                booking_date=booking_date,
+                cash_flight_is_round_trip=live_estimate.flight_is_round_trip,
+            )
+            if merged_advice is not None:
+                kernel = kernel.model_copy(update={"transfer_advice": merged_advice})
         trace.record("optimizer", kernel, attributes={"revision_count": loop_index + 1})
 
     if on_stage is not None:
@@ -264,6 +321,16 @@ def run_pipeline(
         report = report.model_copy(update={"travel_inventory": gateway_estimate.summary})
         if on_inventory is not None:
             on_inventory(gateway_estimate)
+    elif live_estimate is not None:
+        merged_warnings = sorted(
+            {*report.provenance_warnings, *live_estimate.provenance_flags}
+        )
+        report = report.model_copy(
+            update={
+                "travel_inventory": live_estimate.inventory_summary,
+                "provenance_warnings": merged_warnings,
+            }
+        )
     if weather_service is not None:
         report = report.model_copy(
             update={
