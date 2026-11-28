@@ -49,6 +49,17 @@ def _mcp_provider_enabled_from_env(prefix: str) -> bool:
     return os.environ.get(f"TRIPWISE_{prefix}_LIVE_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def gateway_kill_switch_active() -> bool:
+    return os.environ.get("TRIPWISE_GATEWAY_KILL_SWITCH", "").strip().lower() in _TRUTHY
+
+
+def gateway_live_enabled_from_env() -> bool:
+    """Read-once pipeline gateway activation gate; kill switch wins unconditionally."""
+    if gateway_kill_switch_active():
+        return False
+    return os.environ.get("TRIPWISE_GATEWAY_LIVE_ENABLED", "").strip().lower() in _TRUTHY
+
+
 Domain = Literal["flight", "flight_trend", "hotel", "award", "fx", "poi"]
 SourceMethod = Literal[
     "sample", "official_api", "provider_mcp", "community_mcp", "scraper_wrapper", "open_data"
