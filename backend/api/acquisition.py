@@ -22,7 +22,7 @@ from datetime import date
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import OperationalError
 
 from accounts.models import ACCOUNTS_SCHEMA_VERSION, User
@@ -34,10 +34,22 @@ from api.welcome import get_as_of, get_offer_catalog
 from core.db import KnowledgeBase
 from welcome.acquisition import compute_acquisition_assessment
 from welcome.catalog import OfferCatalog
-from welcome.models import AcquisitionAssessmentIn, AcquisitionAssessmentReport
+from welcome.models import AcquisitionAssessmentIn as CoreAcquisitionAssessmentIn
+from welcome.models import AcquisitionAssessmentReport
 from welcome.status import StoredPlanUnreadableError, parse_stored_plan
 
 router = APIRouter(prefix="/account", tags=["card-acquisition"])
+
+
+class AcquisitionAssessmentIn(CoreAcquisitionAssessmentIn):
+    """API payload extending Case B assessment with optional OPT-1 retrieval parameters."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    top_m: int | None = Field(default=None, ge=1, le=50)
+    home_country: Literal["IN", "AE", "US"] | None = None
+    closed_card_ids: list[str] | None = None
+    open_card_ids: list[str] | None = None
 
 AcquisitionErrorCode = Literal[
     "TRIP_NOT_FOUND",
@@ -136,6 +148,10 @@ def post_acquisition_assessment(
             "This revision has no readable computed assignments.",
         ) from exc
 
+    core_payload = CoreAcquisitionAssessmentIn(
+        candidate_card_id=payload.candidate_card_id,
+        payment_timing=payload.payment_timing,
+    )
     return compute_acquisition_assessment(
         trip_id=trip_id,
         revision=revision,
@@ -144,5 +160,11 @@ def post_acquisition_assessment(
         catalog=catalog,
         plan=plan,
         user_held_card_ids=user_held_card_ids,
-        payload=payload,
+        payload=core_payload,
+        top_m=payload.top_m,
+        home_country=payload.home_country,
+        closed_card_ids=(
+            set(payload.closed_card_ids) if payload.closed_card_ids is not None else None
+        ),
+        open_card_ids=set(payload.open_card_ids) if payload.open_card_ids is not None else None,
     )
