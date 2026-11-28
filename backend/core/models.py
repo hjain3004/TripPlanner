@@ -47,12 +47,14 @@ class SpendCategory(StrEnum):
     FOREX_GENERAL = "forex_general"  # generic intl POS spend
     OTA = "ota"
     INSURANCE = "insurance"
+    CAR_RENTAL = "car_rental"
     OTHER = "other"
 
 
 class Channel(StrEnum):
     DIRECT_AIRLINE = "direct_airline"
     DIRECT_HOTEL = "direct_hotel"
+    DIRECT_CAR_RENTAL = "direct_car_rental"
     OTA_GENERIC = "ota_generic"  # MMT, Cleartrip, Agoda
     BANK_PORTAL = "bank_portal"  # issuer travel portal (SmartBuy-class)
     POS_ABROAD = "pos_abroad"  # physical/online spend in destination currency

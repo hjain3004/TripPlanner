@@ -5320,6 +5320,7 @@
         "enum": [
           "direct_airline",
           "direct_hotel",
+          "direct_car_rental",
           "ota_generic",
           "bank_portal",
           "pos_abroad",
@@ -12694,6 +12695,7 @@
           "forex_general",
           "ota",
           "insurance",
+          "car_rental",
           "other"
         ],
         "title": "SpendCategory"

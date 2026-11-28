@@ -830,7 +830,7 @@ export type CardProductOut = {
 /**
  * Channel
  */
-export type Channel = 'direct_airline' | 'direct_hotel' | 'ota_generic' | 'bank_portal' | 'pos_abroad' | 'pos_domestic';
+export type Channel = 'direct_airline' | 'direct_hotel' | 'direct_car_rental' | 'ota_generic' | 'bank_portal' | 'pos_abroad' | 'pos_domestic';
 
 /**
  * ClimateSummary
@@ -4699,7 +4699,7 @@ export type SolverMetadata = {
 /**
  * SpendCategory
  */
-export type SpendCategory = 'flights' | 'hotels' | 'dining' | 'grocery' | 'transit' | 'attractions' | 'shopping' | 'forex_general' | 'ota' | 'insurance' | 'other';
+export type SpendCategory = 'flights' | 'hotels' | 'dining' | 'grocery' | 'transit' | 'attractions' | 'shopping' | 'forex_general' | 'ota' | 'insurance' | 'car_rental' | 'other';
 
 /**
  * SpendLineItem
