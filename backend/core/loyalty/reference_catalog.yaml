@@ -1,0 +1,1734 @@
+# Unverified reference catalog of airline/hotel loyalty ecosystems & transfer edges.
+# Every entry carries verified_by="UNVERIFIED" and needs_verification=true until human-verified.
+generated_date: 2026-11-27
+
+programs:
+  # --- Card & Flexible Bank Point Currencies ---
+  - id: chase-ur
+    kind: card_currency
+    name: Chase Ultimate Rewards
+    booking_url: https://creditcards.chase.com/rewards-credit-cards/sapphire
+    provenance:
+      source_url: https://creditcards.chase.com/rewards-credit-cards/sapphire
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+      notes: Reference US bank currency; confirm live transfer partners before transferring.
+  - id: amex-mr-us
+    kind: card_currency
+    name: American Express Membership Rewards (US)
+    booking_url: https://www.americanexpress.com/en-us/rewards/membership-rewards/
+    provenance:
+      source_url: https://www.americanexpress.com/en-us/rewards/membership-rewards/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+      notes: Reference US bank currency; confirm live ratios in account before transferring.
+  - id: capital-one-miles
+    kind: card_currency
+    name: Capital One Miles
+    booking_url: https://www.capitalone.com/credit-cards/travel/
+    provenance:
+      source_url: https://www.capitalone.com/credit-cards/travel/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+      notes: Reference US bank currency; unverified reference ratios.
+  - id: citi-typ
+    kind: card_currency
+    name: Citi ThankYou Points
+    booking_url: https://www.thankyou.com/
+    provenance:
+      source_url: https://www.thankyou.com/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+      notes: Reference US bank currency; premium card required for full 1:1 airline ratios.
+  - id: bilt-rewards
+    kind: card_currency
+    name: Bilt Rewards
+    booking_url: https://www.biltrewards.com/
+    provenance:
+      source_url: https://www.biltrewards.com/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+      notes: Reference US loyalty currency; unverified reference ratios.
+  - id: hdfc-infinia
+    kind: card_currency
+    name: HDFC Bank Infinia / Diners Club Black Points
+    booking_url: https://www.hdfcbank.com/personal/pay/cards/credit-cards
+    provenance:
+      source_url: https://www.hdfcbank.com/personal/pay/cards/credit-cards
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+      notes: India issuer currency; SmartBuy/NetBanking live ratios vary by card variant.
+  - id: axis-magnus
+    kind: card_currency
+    name: Axis Bank EDGE Rewards (Magnus / Reserve)
+    booking_url: https://www.axisbank.com/retail/cards/credit-card
+    provenance:
+      source_url: https://www.axisbank.com/retail/cards/credit-card
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+      notes: India issuer currency; Group A/B annual transfer caps apply.
+  - id: axis-atlas
+    kind: card_currency
+    name: Axis Bank EDGE Miles (Atlas)
+    booking_url: https://www.axisbank.com/retail/cards/credit-card/atlas-credit-card
+    provenance:
+      source_url: https://www.axisbank.com/retail/cards/credit-card/atlas-credit-card
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+      notes: India issuer currency; 1 EDGE Mile = 2 partner points subject to Group A/B caps.
+  - id: amex-mr-in
+    kind: card_currency
+    name: American Express Membership Rewards (India)
+    booking_url: https://www.americanexpress.com/en-in/rewards/membership-rewards/
+    provenance:
+      source_url: https://www.americanexpress.com/en-in/rewards/membership-rewards/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+      notes: India Amex MR currency; verify Marriott/airline ratios before transferring.
+  - id: emirates-nbd
+    kind: card_currency
+    name: Emirates NBD Skywards / Plus Points
+    booking_url: https://www.emiratesnbd.com/en/cards/credit-cards
+    provenance:
+      source_url: https://www.emiratesnbd.com/en/cards/credit-cards
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.6
+      notes: UAE issuer currency; confirm eligible card tier before transferring.
+  - id: adcb-touchpoints
+    kind: card_currency
+    name: ADCB TouchPoints
+    booking_url: https://www.adcb.com/en/personal/cards/credit-cards/
+    provenance:
+      source_url: https://www.adcb.com/en/personal/cards/credit-cards/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.6
+      notes: UAE issuer currency; unverified reference ratios.
+  - id: fab-rewards
+    kind: card_currency
+    name: First Abu Dhabi Bank (FAB) Rewards
+    booking_url: https://www.bankfab.com/en-ae/personal/credit-cards
+    provenance:
+      source_url: https://www.bankfab.com/en-ae/personal/credit-cards
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.6
+      notes: UAE issuer currency; unverified reference ratios.
+
+  # --- Airline Frequent Flyer Programs ---
+  - id: krisflyer
+    kind: airline
+    name: Singapore Airlines KrisFlyer
+    alliance: Star Alliance
+    booking_url: https://www.singaporeair.com/en_UK/ppsclub-krisflyer/
+    provenance:
+      source_url: https://www.singaporeair.com/en_UK/ppsclub-krisflyer/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: aeroplan
+    kind: airline
+    name: Air Canada Aeroplan
+    alliance: Star Alliance
+    booking_url: https://www.aircanada.com/ca/en/aco/home/aeroplan.html
+    provenance:
+      source_url: https://www.aircanada.com/ca/en/aco/home/aeroplan.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: united-mileageplus
+    kind: airline
+    name: United MileagePlus
+    alliance: Star Alliance
+    booking_url: https://www.united.com/en/us/fly/mileageplus.html
+    provenance:
+      source_url: https://www.united.com/en/us/fly/mileageplus.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: ba-avios
+    kind: airline
+    name: British Airways Executive Club (Avios)
+    alliance: oneworld
+    booking_url: https://www.britishairways.com/content/executive-club
+    provenance:
+      source_url: https://www.britishairways.com/content/executive-club
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: qatar-avios
+    kind: airline
+    name: Qatar Airways Privilege Club (Avios)
+    alliance: oneworld
+    booking_url: https://www.qatarairways.com/en/Privilege-Club.html
+    provenance:
+      source_url: https://www.qatarairways.com/en/Privilege-Club.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: flying-blue
+    kind: airline
+    name: Air France-KLM Flying Blue
+    alliance: SkyTeam
+    booking_url: https://www.flyingblue.com/
+    provenance:
+      source_url: https://www.flyingblue.com/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: virgin-atlantic
+    kind: airline
+    name: Virgin Atlantic Flying Club
+    alliance: SkyTeam
+    booking_url: https://flywith.virginatlantic.com/gb/en/flying-club.html
+    provenance:
+      source_url: https://flywith.virginatlantic.com/gb/en/flying-club.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: emirates-skywards
+    kind: airline
+    name: Emirates Skywards
+    alliance: null
+    booking_url: https://www.emirates.com/english/skywards/
+    provenance:
+      source_url: https://www.emirates.com/english/skywards/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: turkish-miles-smiles
+    kind: airline
+    name: Turkish Airlines Miles&Smiles
+    alliance: Star Alliance
+    booking_url: https://www.turkishairlines.com/en-int/miles-and-smiles/
+    provenance:
+      source_url: https://www.turkishairlines.com/en-int/miles-and-smiles/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: cathay-asia-miles
+    kind: airline
+    name: Cathay Pacific Asia Miles
+    alliance: oneworld
+    booking_url: https://www.cathaypacific.com/cx/en_US/membership.html
+    provenance:
+      source_url: https://www.cathaypacific.com/cx/en_US/membership.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: ana-mileage-club
+    kind: airline
+    name: ANA Mileage Club
+    alliance: Star Alliance
+    booking_url: https://www.ana.co.jp/en/us/amc/
+    provenance:
+      source_url: https://www.ana.co.jp/en/us/amc/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: jal-mileage-bank
+    kind: airline
+    name: JAL Mileage Bank
+    alliance: oneworld
+    booking_url: https://www.jal.co.jp/jp/en/jalmile/
+    provenance:
+      source_url: https://www.jal.co.jp/jp/en/jalmile/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: maharaja-club
+    kind: airline
+    name: Air India Maharaja Club
+    alliance: Star Alliance
+    booking_url: https://www.airindia.com/in/en/maharaja-club.html
+    provenance:
+      source_url: https://www.airindia.com/in/en/maharaja-club.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: avianca-lifemiles
+    kind: airline
+    name: Avianca LifeMiles
+    alliance: Star Alliance
+    booking_url: https://www.lifemiles.com/
+    provenance:
+      source_url: https://www.lifemiles.com/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+  - id: virgin-australia
+    kind: airline
+    name: Virgin Australia Velocity Frequent Flyer
+    alliance: null
+    booking_url: https://www.velocityfrequentflyer.com/
+    provenance:
+      source_url: https://www.velocityfrequentflyer.com/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+  - id: qantas-ff
+    kind: airline
+    name: Qantas Frequent Flyer
+    alliance: oneworld
+    booking_url: https://www.qantas.com/au/en/frequent-flyer.html
+    provenance:
+      source_url: https://www.qantas.com/au/en/frequent-flyer.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+  - id: alaska-mileage-plan
+    kind: airline
+    name: Alaska Airlines Atmos / Mileage Plan
+    alliance: oneworld
+    booking_url: https://www.alaskaair.com/content/mileage-plan
+    provenance:
+      source_url: https://www.alaskaair.com/content/mileage-plan
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+
+  # --- Hotel Loyalty Programs ---
+  - id: marriott-bonvoy
+    kind: hotel
+    name: Marriott Bonvoy
+    booking_url: https://www.marriott.com/loyalty.mi
+    provenance:
+      source_url: https://www.marriott.com/loyalty.mi
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: world-of-hyatt
+    kind: hotel
+    name: World of Hyatt
+    booking_url: https://world.hyatt.com/
+    provenance:
+      source_url: https://world.hyatt.com/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: hilton-honors
+    kind: hotel
+    name: Hilton Honors
+    booking_url: https://www.hilton.com/en/hilton-honors/
+    provenance:
+      source_url: https://www.hilton.com/en/hilton-honors/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: ihg-one-rewards
+    kind: hotel
+    name: IHG One Rewards
+    booking_url: https://www.ihg.com/onerewards/
+    provenance:
+      source_url: https://www.ihg.com/onerewards/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: accor-all
+    kind: hotel
+    name: ALL - Accor Live Limitless
+    booking_url: https://all.accor.com/
+    provenance:
+      source_url: https://all.accor.com/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - id: shangri-la-circle
+    kind: hotel
+    name: Shangri-La Circle
+    booking_url: https://www.shangri-la.com/en/corporate/shangrilacircle/
+    provenance:
+      source_url: https://www.shangri-la.com/en/corporate/shangrilacircle/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+  - id: gha-discovery
+    kind: hotel
+    name: GHA DISCOVERY
+    booking_url: https://www.ghadiscovery.com/
+    provenance:
+      source_url: https://www.ghadiscovery.com/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+  - id: taj-innercircle
+    kind: hotel
+    name: Taj InnerCircle / Tata NeuPass
+    booking_url: https://www.tajhotels.com/en-in/neupass
+    provenance:
+      source_url: https://www.tajhotels.com/en-in/neupass
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+  - id: club-itc
+    kind: hotel
+    name: Club ITC
+    booking_url: https://www.itchotels.com/in/en/clubitc
+    provenance:
+      source_url: https://www.itchotels.com/in/en/clubitc
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+  - id: wyndham-rewards
+    kind: hotel
+    name: Wyndham Rewards
+    booking_url: https://www.wyndhamhotels.com/wyndham-rewards
+    provenance:
+      source_url: https://www.wyndhamhotels.com/wyndham-rewards
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+  - id: choice-privileges
+    kind: hotel
+    name: Choice Privileges
+    booking_url: https://www.choicehotels.com/choice-privileges
+    provenance:
+      source_url: https://www.choicehotels.com/choice-privileges
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+  - id: radisson-rewards
+    kind: hotel
+    name: Radisson Rewards
+    booking_url: https://www.radissonhotels.com/en-us/rewards
+    provenance:
+      source_url: https://www.radissonhotels.com/en-us/rewards
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+
+transfer_edges:
+  # --- Chase Ultimate Rewards ---
+  - id: ref-chase-ur-aeroplan
+    from_id: chase-ur
+    to_id: aeroplan
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 24
+    provenance:
+      source_url: https://creditcards.chase.com/rewards-credit-cards/sapphire
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-chase-ur-krisflyer
+    from_id: chase-ur
+    to_id: krisflyer
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 48
+    provenance:
+      source_url: https://creditcards.chase.com/rewards-credit-cards/sapphire
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-chase-ur-united
+    from_id: chase-ur
+    to_id: united-mileageplus
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 2
+    provenance:
+      source_url: https://creditcards.chase.com/rewards-credit-cards/sapphire
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-chase-ur-hyatt
+    from_id: chase-ur
+    to_id: world-of-hyatt
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 2
+    provenance:
+      source_url: https://creditcards.chase.com/rewards-credit-cards/sapphire
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-chase-ur-ba-avios
+    from_id: chase-ur
+    to_id: ba-avios
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 24
+    provenance:
+      source_url: https://creditcards.chase.com/rewards-credit-cards/sapphire
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+
+  # --- Amex Membership Rewards (US) ---
+  - id: ref-amex-us-aeroplan
+    from_id: amex-mr-us
+    to_id: aeroplan
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 24
+    provenance:
+      source_url: https://www.americanexpress.com/en-us/rewards/membership-rewards/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-amex-us-krisflyer
+    from_id: amex-mr-us
+    to_id: krisflyer
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 12
+    transfer_time_hours_max: 48
+    provenance:
+      source_url: https://www.americanexpress.com/en-us/rewards/membership-rewards/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-amex-us-ana
+    from_id: amex-mr-us
+    to_id: ana-mileage-club
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 48
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.americanexpress.com/en-us/rewards/membership-rewards/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-amex-us-hilton
+    from_id: amex-mr-us
+    to_id: hilton-honors
+    ratio_from: 1
+    ratio_to: 2
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 24
+    provenance:
+      source_url: https://www.americanexpress.com/en-us/rewards/membership-rewards/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-amex-us-marriott
+    from_id: amex-mr-us
+    to_id: marriott-bonvoy
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 24
+    provenance:
+      source_url: https://www.americanexpress.com/en-us/rewards/membership-rewards/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+
+  # --- Capital One Miles ---
+  - id: ref-cap1-aeroplan
+    from_id: capital-one-miles
+    to_id: aeroplan
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 100
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 24
+    provenance:
+      source_url: https://www.capitalone.com/credit-cards/travel/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-cap1-krisflyer
+    from_id: capital-one-miles
+    to_id: krisflyer
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 100
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 48
+    provenance:
+      source_url: https://www.capitalone.com/credit-cards/travel/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-cap1-turkish
+    from_id: capital-one-miles
+    to_id: turkish-miles-smiles
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 100
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 48
+    provenance:
+      source_url: https://www.capitalone.com/credit-cards/travel/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+
+  # --- Citi ThankYou Points ---
+  - id: ref-citi-krisflyer
+    from_id: citi-typ
+    to_id: krisflyer
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 48
+    provenance:
+      source_url: https://www.thankyou.com/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-citi-qatar
+    from_id: citi-typ
+    to_id: qatar-avios
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 24
+    provenance:
+      source_url: https://www.thankyou.com/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-citi-accor
+    from_id: citi-typ
+    to_id: accor-all
+    ratio_from: 2
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 48
+    provenance:
+      source_url: https://www.thankyou.com/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+
+  # --- Bilt Rewards ---
+  - id: ref-bilt-aeroplan
+    from_id: bilt-rewards
+    to_id: aeroplan
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 24
+    provenance:
+      source_url: https://www.biltrewards.com/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-bilt-hyatt
+    from_id: bilt-rewards
+    to_id: world-of-hyatt
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 24
+    provenance:
+      source_url: https://www.biltrewards.com/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+  - id: ref-bilt-jal
+    from_id: bilt-rewards
+    to_id: jal-mileage-bank
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 48
+    provenance:
+      source_url: https://www.biltrewards.com/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+
+  # --- India Issuers (HDFC Infinia, Axis Magnus, Axis Atlas, Amex India) ---
+  - id: ref-hdfc-infinia-krisflyer
+    from_id: hdfc-infinia
+    to_id: krisflyer
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 100
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.hdfcbank.com/personal/pay/cards/credit-cards
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+  - id: ref-hdfc-infinia-ba-avios
+    from_id: hdfc-infinia
+    to_id: ba-avios
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 100
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.hdfcbank.com/personal/pay/cards/credit-cards
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+  - id: ref-hdfc-infinia-accor
+    from_id: hdfc-infinia
+    to_id: accor-all
+    ratio_from: 2
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 100
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.hdfcbank.com/personal/pay/cards/credit-cards
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.6
+  - id: ref-axis-magnus-krisflyer
+    from_id: axis-magnus
+    to_id: krisflyer
+    ratio_from: 5
+    ratio_to: 4
+    min_transfer: 500
+    increment: 100
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.axisbank.com/retail/cards/credit-card
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+  - id: ref-axis-magnus-accor
+    from_id: axis-magnus
+    to_id: accor-all
+    ratio_from: 5
+    ratio_to: 4
+    min_transfer: 500
+    increment: 100
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.axisbank.com/retail/cards/credit-card
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+  - id: ref-axis-atlas-krisflyer
+    from_id: axis-atlas
+    to_id: krisflyer
+    ratio_from: 1
+    ratio_to: 2
+    min_transfer: 500
+    increment: 100
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.axisbank.com/retail/cards/credit-card/atlas-credit-card
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+  - id: ref-axis-atlas-accor
+    from_id: axis-atlas
+    to_id: accor-all
+    ratio_from: 1
+    ratio_to: 2
+    min_transfer: 500
+    increment: 100
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.axisbank.com/retail/cards/credit-card/atlas-credit-card
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+  - id: ref-axis-atlas-marriott
+    from_id: axis-atlas
+    to_id: marriott-bonvoy
+    ratio_from: 1
+    ratio_to: 2
+    min_transfer: 500
+    increment: 100
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.axisbank.com/retail/cards/credit-card/atlas-credit-card
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+  - id: ref-amex-in-marriott
+    from_id: amex-mr-in
+    to_id: marriott-bonvoy
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 100
+    increment: 100
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 48
+    provenance:
+      source_url: https://www.americanexpress.com/en-in/rewards/membership-rewards/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+  - id: ref-amex-in-krisflyer
+    from_id: amex-mr-in
+    to_id: krisflyer
+    ratio_from: 2
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 1000
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.americanexpress.com/en-in/rewards/membership-rewards/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.65
+
+  # --- UAE Issuers (Emirates NBD, ADCB, FAB) ---
+  - id: ref-enbd-emirates
+    from_id: emirates-nbd
+    to_id: emirates-skywards
+    ratio_from: 1
+    ratio_to: 1
+    min_transfer: 1000
+    increment: 500
+    transfer_time_hours_typical: 0
+    transfer_time_hours_max: 24
+    provenance:
+      source_url: https://www.emiratesnbd.com/en/cards/credit-cards
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.6
+  - id: ref-adcb-emirates
+    from_id: adcb-touchpoints
+    to_id: emirates-skywards
+    ratio_from: 4
+    ratio_to: 1
+    min_transfer: 5000
+    increment: 1000
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.adcb.com/en/personal/cards/credit-cards/
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.6
+  - id: ref-fab-accor
+    from_id: fab-rewards
+    to_id: accor-all
+    ratio_from: 5
+    ratio_to: 1
+    min_transfer: 5000
+    increment: 1000
+    transfer_time_hours_typical: 24
+    transfer_time_hours_max: 72
+    provenance:
+      source_url: https://www.bankfab.com/en-ae/personal/credit-cards
+      source_type: manual_curation
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.6
+
+hotel_brand_rules:
+  - chain_id: marriott_bonvoy
+    chain_name: Marriott Bonvoy
+    program_id: marriott-bonvoy
+    brand_aliases:
+      - JW Marriott
+      - The Ritz-Carlton
+      - Ritz-Carlton
+      - St. Regis
+      - W Hotels
+      - W Hotel
+      - Westin
+      - Sheraton
+      - Le Méridien
+      - Courtyard by Marriott
+      - Courtyard Marriott
+      - Fairfield by Marriott
+      - Fairfield Inn
+      - Residence Inn
+      - Aloft
+      - Moxy
+      - Autograph Collection
+      - Tribute Portfolio
+      - The Luxury Collection
+      - Luxury Collection
+      - Four Points by Sheraton
+      - Four Points
+      - Renaissance Hotel
+      - Renaissance Resort
+      - Marriott
+    base_points_per_usd_minor_or_unit: 10
+    provenance:
+      source_url: https://www.marriott.com/loyalty/earn/hotels.mi
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+  - chain_id: world_of_hyatt
+    chain_name: World of Hyatt
+    program_id: world-of-hyatt
+    brand_aliases:
+      - World of Hyatt
+      - Park Hyatt
+      - Grand Hyatt
+      - Hyatt Regency
+      - Hyatt Place
+      - Hyatt House
+      - Hyatt Centric
+      - Caption by Hyatt
+      - Andaz
+      - Alila
+      - Miraval
+      - Thompson Hotel
+      - Thompson Hotels
+      - Hyatt
+    base_points_per_usd_minor_or_unit: 5
+    provenance:
+      source_url: https://world.hyatt.com/content/gp/en/program-overview.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+  - chain_id: hilton_honors
+    chain_name: Hilton Honors
+    program_id: hilton-honors
+    brand_aliases:
+      - Waldorf Astoria
+      - Conrad Hotels
+      - Conrad
+      - LXR Hotels
+      - Canopy by Hilton
+      - Curio Collection
+      - Curio by Hilton
+      - DoubleTree by Hilton
+      - DoubleTree
+      - Embassy Suites
+      - Hampton by Hilton
+      - Hampton Inn
+      - Hilton Garden Inn
+      - Homewood Suites
+      - Tapestry Collection
+      - Tapestry by Hilton
+      - Tru by Hilton
+      - Tempo by Hilton
+      - Hilton
+    base_points_per_usd_minor_or_unit: 10
+    provenance:
+      source_url: https://www.hilton.com/en/hilton-honors/benefit-terms/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+  - chain_id: ihg_one_rewards
+    chain_name: IHG One Rewards
+    program_id: ihg-one-rewards
+    brand_aliases:
+      - InterContinental
+      - Six Senses
+      - Regent Singapore
+      - Regent Phu Quoc
+      - Regent Hong Kong
+      - Regent Taipei
+      - Regent Carlton Cannes
+      - Kimpton
+      - Hotel Indigo
+      - Crowne Plaza
+      - Holiday Inn Express
+      - Holiday Inn
+      - Staybridge Suites
+      - Staybridge
+      - voco
+      - EVEN Hotels
+      - EVEN Hotel
+      - IHG
+    base_points_per_usd_minor_or_unit: 10
+    provenance:
+      source_url: https://www.ihg.com/onerewards/content/us/en/earn-rewards
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+  - chain_id: accor_all
+    chain_name: Accor ALL
+    program_id: accor-all
+    brand_aliases:
+      - Raffles
+      - Fairmont
+      - Sofitel
+      - Pullman
+      - Swissôtel
+      - Mövenpick
+      - Novotel
+      - Mercure
+      - ibis Styles
+      - ibis Budget
+      - ibis
+      - Banyan Tree
+      - MGallery
+      - Accor
+    base_points_per_usd_minor_or_unit: 3
+    provenance:
+      source_url: https://all.accor.com/loyalty-program/reasonstojoin/index.en.shtml
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+
+  - chain_id: shangri_la_circle
+    chain_name: Shangri-La Circle
+    program_id: shangri-la-circle
+    brand_aliases:
+      - Shangri-La
+      - Kerry Hotel
+      - JEN by Shangri-La
+      - Hotel Jen
+      - Traders Hotel
+    base_points_per_usd_minor_or_unit: 1
+    provenance:
+      source_url: https://www.shangri-la.com/en/corporate/shangrilacircle/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+
+  - chain_id: gha_discovery
+    chain_name: GHA DISCOVERY
+    program_id: gha-discovery
+    brand_aliases:
+      - Pan Pacific
+      - PARKROYAL COLLECTION
+      - PARKROYAL
+      - Kempinski
+      - Anantara
+      - Capella
+      - Marco Polo Hotels
+      - GHA Discovery
+    base_points_per_usd_minor_or_unit: 4
+    provenance:
+      source_url: https://www.ghadiscovery.com/about-gha-discovery
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+
+  - chain_id: taj_innercircle
+    chain_name: Taj InnerCircle / Tata NeuPass
+    program_id: taj-innercircle
+    brand_aliases:
+      - The Taj Mahal Palace
+      - Taj Mahal Palace
+      - Taj Lands End
+      - Taj Lake Palace
+      - Taj Exotica
+      - Taj Santacruz
+      - Taj Bengal
+      - Taj Connemara
+      - Taj Rambagh Palace
+      - Taj Falaknuma Palace
+      - Taj Holiday Village
+      - Vivanta
+      - SeleQtions
+    base_points_per_usd_minor_or_unit: 4
+    provenance:
+      source_url: https://www.tajhotels.com/en-in/neupass
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+
+  - chain_id: club_itc
+    chain_name: ITC Hotels / Club ITC
+    program_id: club-itc
+    brand_aliases:
+      - ITC Grand
+      - ITC Maurya
+      - ITC Maratha
+      - ITC Sonar
+      - ITC Gardenia
+      - ITC Windsor
+      - ITC Royal Bengal
+      - ITC Kohenur
+      - ITC Ratnadipa
+      - Welcomhotel
+      - WelcomHeritage
+    base_points_per_usd_minor_or_unit: 3
+    provenance:
+      source_url: https://www.itchotels.com/in/en/clubitc
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+
+  - chain_id: wyndham_rewards
+    chain_name: Wyndham Rewards
+    program_id: wyndham-rewards
+    brand_aliases:
+      - Wyndham Grand
+      - Wyndham
+      - Ramada Encore
+      - Ramada
+      - La Quinta
+      - Days Inn
+      - Super 8
+      - TRYP by Wyndham
+      - Wingate by Wyndham
+    base_points_per_usd_minor_or_unit: 10
+    provenance:
+      source_url: https://www.wyndhamhotels.com/wyndham-rewards
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+
+  - chain_id: choice_privileges
+    chain_name: Choice Privileges
+    program_id: choice-privileges
+    brand_aliases:
+      - Choice Hotels
+      - Cambria Hotel
+      - Ascend Hotel Collection
+      - Comfort Inn
+      - Comfort Suites
+      - Quality Inn
+      - Clarion Hotel
+      - Sleep Inn
+    base_points_per_usd_minor_or_unit: 10
+    provenance:
+      source_url: https://www.choicehotels.com/choice-privileges
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.75
+
+  - chain_id: radisson_rewards
+    chain_name: Radisson Rewards
+    program_id: radisson-rewards
+    brand_aliases:
+      - Radisson Collection
+      - Radisson Blu
+      - Radisson RED
+      - Radisson Individuals
+      - Radisson
+      - Park Plaza
+      - Park Inn by Radisson
+      - Country Inn & Suites
+    base_points_per_usd_minor_or_unit: 20
+    provenance:
+      source_url: https://www.radissonhotels.com/en-us/rewards
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.7
+
+hotel_award_stay_rules:
+  - program_id: marriott-bonvoy
+    free_night_every_n: 5
+    requires_status_or_card: null
+    free_night_selection: lowest_in_block
+    provenance:
+      source_url: https://www.marriott.com/loyalty/redeem/hotels/free-night.mi
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.85
+  - program_id: hilton-honors
+    free_night_every_n: 5
+    requires_status_or_card: Hilton Honors Silver, Gold, or Diamond elite status
+    free_night_selection: lowest_in_block
+    provenance:
+      source_url: https://www.hilton.com/en/hilton-honors/benefit-terms/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.85
+  - program_id: ihg-one-rewards
+    free_night_every_n: 4
+    requires_status_or_card: Eligible IHG One Rewards co-branded credit card
+    free_night_selection: fourth_night_exact
+    provenance:
+      source_url: https://www.ihg.com/onerewards/content/us/en/credit-card
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.85
+  - program_id: world-of-hyatt
+    free_night_every_n: null
+    requires_status_or_card: null
+    free_night_selection: lowest_in_block
+    provenance:
+      source_url: https://world.hyatt.com/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.85
+  - program_id: accor-all
+    free_night_every_n: null
+    requires_status_or_card: null
+    free_night_selection: lowest_in_block
+    provenance:
+      source_url: https://all.accor.com/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+alliance_partner_edges:
+  # --- Singapore Airlines (SQ) ---
+  - operating_carrier_iata: SQ
+    operating_carrier_name: Singapore Airlines
+    booking_program_id: krisflyer
+    alliance_or_bilateral: Star Alliance
+    notes: Own program; broadest long-haul premium cabin availability.
+    provenance:
+      source_url: https://www.singaporeair.com/en_UK/ppsclub-krisflyer/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.85
+  - operating_carrier_iata: SQ
+    operating_carrier_name: Singapore Airlines
+    booking_program_id: aeroplan
+    alliance_or_bilateral: Star Alliance
+    notes: Partner distance-band pricing; often unlocks SQ business space visible on Aeroplan.
+    provenance:
+      source_url: https://www.aircanada.com/ca/en/aco/home/aeroplan/partners.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.85
+  - operating_carrier_iata: SQ
+    operating_carrier_name: Singapore Airlines
+    booking_program_id: united-mileageplus
+    alliance_or_bilateral: Star Alliance
+    notes: Economy & regional Star Alliance award inventory.
+    provenance:
+      source_url: https://www.united.com/en/us/fly/mileageplus/partners/star-alliance.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: SQ
+    operating_carrier_name: Singapore Airlines
+    booking_program_id: avianca-lifemiles
+    alliance_or_bilateral: Star Alliance
+    notes: No fuel surcharges; partner award visibility varies.
+    provenance:
+      source_url: https://www.lifemiles.com/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: SQ
+    operating_carrier_name: Singapore Airlines
+    booking_program_id: virgin-australia
+    alliance_or_bilateral: bilateral
+    notes: Bilateral Velocity Frequent Flyer / KrisFlyer partnership.
+    provenance:
+      source_url: https://www.velocityfrequentflyer.com/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+  # --- Air India (AI) ---
+  - operating_carrier_iata: AI
+    operating_carrier_name: Air India
+    booking_program_id: maharaja-club
+    alliance_or_bilateral: Star Alliance
+    notes: Own program.
+    provenance:
+      source_url: https://www.airindia.com/in/en/maharaja-club.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: AI
+    operating_carrier_name: Air India
+    booking_program_id: aeroplan
+    alliance_or_bilateral: Star Alliance
+    notes: Commonly bookable on India-SG and India-North America via Aeroplan.
+    provenance:
+      source_url: https://www.aircanada.com/ca/en/aco/home/aeroplan/partners.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: AI
+    operating_carrier_name: Air India
+    booking_program_id: united-mileageplus
+    alliance_or_bilateral: Star Alliance
+    notes: Star Alliance partner redemptions with low carrier-imposed fees.
+    provenance:
+      source_url: https://www.united.com/en/us/fly/mileageplus/partners/star-alliance.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+  # --- ANA (NH) ---
+  - operating_carrier_iata: NH
+    operating_carrier_name: All Nippon Airways
+    booking_program_id: ana-mileage-club
+    alliance_or_bilateral: Star Alliance
+    notes: Own program.
+    provenance:
+      source_url: https://www.ana.co.jp/en/us/amc/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.85
+  - operating_carrier_iata: NH
+    operating_carrier_name: All Nippon Airways
+    booking_program_id: virgin-atlantic
+    alliance_or_bilateral: bilateral
+    notes: Classic bilateral partner award chart on ANA metal.
+    provenance:
+      source_url: https://flywith.virginatlantic.com/gb/en/flying-club/airline-partners/all-nippon-airways.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: NH
+    operating_carrier_name: All Nippon Airways
+    booking_program_id: aeroplan
+    alliance_or_bilateral: Star Alliance
+    provenance:
+      source_url: https://www.aircanada.com/ca/en/aco/home/aeroplan/partners.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: NH
+    operating_carrier_name: All Nippon Airways
+    booking_program_id: united-mileageplus
+    alliance_or_bilateral: Star Alliance
+    provenance:
+      source_url: https://www.united.com/en/us/fly/mileageplus/partners/star-alliance.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+  # --- Lufthansa (LH) ---
+  - operating_carrier_iata: LH
+    operating_carrier_name: Lufthansa
+    booking_program_id: aeroplan
+    alliance_or_bilateral: Star Alliance
+    provenance:
+      source_url: https://www.aircanada.com/ca/en/aco/home/aeroplan/partners.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: LH
+    operating_carrier_name: Lufthansa
+    booking_program_id: united-mileageplus
+    alliance_or_bilateral: Star Alliance
+    provenance:
+      source_url: https://www.united.com/en/us/fly/mileageplus/partners/star-alliance.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: LH
+    operating_carrier_name: Lufthansa
+    booking_program_id: turkish-miles-smiles
+    alliance_or_bilateral: Star Alliance
+    provenance:
+      source_url: https://www.turkishairlines.com/en-int/miles-and-smiles/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+  # --- Qatar Airways (QR) ---
+  - operating_carrier_iata: QR
+    operating_carrier_name: Qatar Airways
+    booking_program_id: qatar-avios
+    alliance_or_bilateral: oneworld
+    notes: Own Avios program.
+    provenance:
+      source_url: https://www.qatarairways.com/en/Privilege-Club.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.85
+  - operating_carrier_iata: QR
+    operating_carrier_name: Qatar Airways
+    booking_program_id: ba-avios
+    alliance_or_bilateral: oneworld
+    notes: Shared Avios currency ecosystem with 1:1 member Avios linking.
+    provenance:
+      source_url: https://www.britishairways.com/content/executive-club
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.85
+  - operating_carrier_iata: QR
+    operating_carrier_name: Qatar Airways
+    booking_program_id: cathay-asia-miles
+    alliance_or_bilateral: oneworld
+    provenance:
+      source_url: https://www.cathaypacific.com/cx/en_US/membership.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: QR
+    operating_carrier_name: Qatar Airways
+    booking_program_id: alaska-mileage-plan
+    alliance_or_bilateral: oneworld
+    provenance:
+      source_url: https://www.alaskaair.com/content/mileage-plan
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+  # --- British Airways (BA) & Qantas (QF) ---
+  - operating_carrier_iata: BA
+    operating_carrier_name: British Airways
+    booking_program_id: ba-avios
+    alliance_or_bilateral: oneworld
+    provenance:
+      source_url: https://www.britishairways.com/content/executive-club
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.85
+  - operating_carrier_iata: BA
+    operating_carrier_name: British Airways
+    booking_program_id: qatar-avios
+    alliance_or_bilateral: oneworld
+    provenance:
+      source_url: https://www.qatarairways.com/en/Privilege-Club.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: BA
+    operating_carrier_name: British Airways
+    booking_program_id: cathay-asia-miles
+    alliance_or_bilateral: oneworld
+    provenance:
+      source_url: https://www.cathaypacific.com/cx/en_US/membership.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: QF
+    operating_carrier_name: Qantas
+    booking_program_id: qantas-ff
+    alliance_or_bilateral: oneworld
+    provenance:
+      source_url: https://www.qantas.com/au/en/frequent-flyer.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: QF
+    operating_carrier_name: Qantas
+    booking_program_id: ba-avios
+    alliance_or_bilateral: oneworld
+    provenance:
+      source_url: https://www.britishairways.com/content/executive-club
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+  # --- Emirates (EK) (Bilateral) ---
+  - operating_carrier_iata: EK
+    operating_carrier_name: Emirates
+    booking_program_id: emirates-skywards
+    alliance_or_bilateral: bilateral
+    notes: Own program; Emirates is not a member of a global alliance.
+    provenance:
+      source_url: https://www.emirates.com/english/skywards/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.85
+  - operating_carrier_iata: EK
+    operating_carrier_name: Emirates
+    booking_program_id: aeroplan
+    alliance_or_bilateral: bilateral
+    notes: Bilateral Aeroplan/Emirates award partnership.
+    provenance:
+      source_url: https://www.aircanada.com/ca/en/aco/home/aeroplan/partners.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: EK
+    operating_carrier_name: Emirates
+    booking_program_id: qantas-ff
+    alliance_or_bilateral: bilateral
+    notes: Bilateral Qantas/Emirates Classic Flight Reward partnership.
+    provenance:
+      source_url: https://www.qantas.com/au/en/frequent-flyer/partners/emirates.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+
+  # --- SkyTeam (AF / KL / VS) ---
+  - operating_carrier_iata: AF
+    operating_carrier_name: Air France
+    booking_program_id: flying-blue
+    alliance_or_bilateral: SkyTeam
+    provenance:
+      source_url: https://www.flyingblue.com/
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
+  - operating_carrier_iata: AF
+    operating_carrier_name: Air France
+    booking_program_id: virgin-atlantic
+    alliance_or_bilateral: SkyTeam
+    provenance:
+      source_url: https://flywith.virginatlantic.com/gb/en/flying-club.html
+      source_type: official_page
+      last_verified: 2026-11-27
+      verified_by: UNVERIFIED
+      needs_verification: true
+      confidence: 0.8
