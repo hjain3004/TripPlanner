@@ -16,6 +16,9 @@ import type {
   AcquisitionApiErrorBody,
   AcquisitionAssessmentIn,
   AcquisitionAssessmentReport,
+  ExplainAuditResponse,
+  InfeasibilityCoreResult,
+  OptimizeV2Response,
   WelcomeStatusApiErrorBody,
   WelcomeStatusIn,
   WelcomeWindowReport,
@@ -1639,6 +1642,89 @@ export const handlers = [
       ],
     };
     return HttpResponse.json(report, { status: 200 });
+  }),
+
+  // --- Optimization Engine v2 (OPT-2 / OPT-3 / OPT-4) ---
+  http.post("*/opt/transfers/pooled", async () => {
+    const sample = createRedeemReport().transfer_advice;
+    return HttpResponse.json(sample, { status: 200 });
+  }),
+
+  http.post("*/opt/optimize-v2", async () => {
+    const happy = createHappyReport();
+    const res: OptimizeV2Response = {
+      mode: "opt3_milp",
+      status: "optimal",
+      objective_scaled: 162000000000,
+      gamma: 0,
+      execution_order: ["flights", "hotel"],
+      assignments: happy.optimizer_result.assignments.map((a) => ({
+        line_id: a.line.id,
+        card_id: a.card_id,
+        channel: a.channel,
+        spend_minor: a.line.amount_minor,
+        nominal_benefit_minor: a.benefit_minor,
+        floor_benefit_minor: a.benefit_minor,
+        bundle_id: `${a.line.id}:0`,
+      })),
+      achieved_milestone_indices: [],
+      achieved_milestones: [],
+      optimizer_result: null,
+    };
+    return HttpResponse.json(res, { status: 200 });
+  }),
+
+  http.post("*/opt/explain-audit", async () => {
+    const happy = createHappyReport();
+    const res: ExplainAuditResponse = {
+      optimizer_result: happy.optimizer_result,
+      explanation: {
+        cap_ledger: [],
+        excluded_rules: [],
+        grouped_transfer_caps: [],
+        milestone_deltas: [],
+        valuation_breakevens: [],
+      },
+      audit_certificate: {
+        certificate_version: "xaior-v1",
+        catalog_snapshot_hash: "0".repeat(64),
+        trip_snapshot_hash: "1".repeat(64),
+        result_hash: "2".repeat(64),
+        rule_provenance: [],
+        any_needs_verification: true,
+        min_confidence: 0.5,
+        earliest_last_verified: "2026-07-07",
+        solver: {
+          backend: "greedy_sweep_v1",
+          seed: 1,
+          num_workers: 1,
+          optimality_status: "heuristic_bounded",
+        },
+        robustness: {
+          gamma: 0,
+          recourse_floors: { "voyager-prime": 500000 },
+          nominal_assumed_paths: { "voyager-prime": "transfer_airline" },
+        },
+        revolver_apr_excluded: true,
+        zero_affiliate_weight: true,
+        zero_paid_promotion: true,
+      },
+    };
+    return HttpResponse.json(res, { status: 200 });
+  }),
+
+  http.post("*/opt/diagnose-infeasibility", async () => {
+    const res: InfeasibilityCoreResult = {
+      is_feasible: false,
+      solver_backend: "ortools_cp_sat",
+      solver_seed: 1,
+      num_workers: 1,
+      conflict_core: [],
+      relaxations: [],
+      quickxplain_probes: 1,
+      summary: "Synthetic infeasibility core fixture.",
+    };
+    return HttpResponse.json(res, { status: 200 });
   }),
 ];
 

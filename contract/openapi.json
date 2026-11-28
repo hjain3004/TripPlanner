@@ -1981,6 +1981,189 @@
         }
       }
     },
+    "/opt/transfers/pooled": {
+      "post": {
+        "tags": [
+          "optimization-v2"
+        ],
+        "summary": "Post Pooled Transfers",
+        "description": "Plan single-source and pooled multi-currency award transfers (OPT-2).",
+        "operationId": "post_pooled_transfers_opt_transfers_pooled_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PooledTransferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferAdvice"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/opt/optimize-v2": {
+      "post": {
+        "tags": [
+          "optimization-v2"
+        ],
+        "summary": "Post Optimize V2",
+        "description": "Run OPT-3 exact milestone + Gamma-robust solver (or frozen allocator when inactive).",
+        "operationId": "post_optimize_v2_opt_optimize_v2_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptimizeV2Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizeV2Response"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/opt/explain-audit": {
+      "post": {
+        "tags": [
+          "optimization-v2"
+        ],
+        "summary": "Post Explain Audit",
+        "description": "Compute plan allocation alongside always-on explanations and XAIOR audit certificate.",
+        "operationId": "post_explain_audit_opt_explain_audit_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExplainAuditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplainAuditResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/opt/diagnose-infeasibility": {
+      "post": {
+        "tags": [
+          "optimization-v2"
+        ],
+        "summary": "Post Diagnose Infeasibility",
+        "description": "Compute subset-minimal conflict core (QUICKXPLAIN) and minimal discrete relaxations.",
+        "operationId": "post_diagnose_infeasibility_opt_diagnose_infeasibility_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TransferInfeasibilityRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MilestoneInfeasibilityRequest"
+                  }
+                ],
+                "title": "Payload",
+                "discriminator": {
+                  "propertyName": "kind",
+                  "mapping": {
+                    "transfer": "#/components/schemas/TransferInfeasibilityRequest",
+                    "milestone": "#/components/schemas/MilestoneInfeasibilityRequest"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InfeasibilityCoreResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/planning/sessions/{session_id}/workspace": {
       "post": {
         "tags": [
@@ -3669,12 +3852,69 @@
                 "type": "null"
               }
             ]
+          },
+          "top_m": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 50.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top M"
+          },
+          "home_country": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "IN",
+                  "AE",
+                  "US"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Country"
+          },
+          "closed_card_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Card Ids"
+          },
+          "open_card_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Card Ids"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "title": "AcquisitionAssessmentIn",
-        "description": "Request payload to assess an unheld card welcome offer against a saved revision."
+        "description": "API payload extending Case B assessment with optional OPT-1 retrieval parameters."
       },
       "AcquisitionAssessmentReport": {
         "properties": {
@@ -4219,6 +4459,48 @@
         ],
         "title": "AddItem"
       },
+      "AlwaysOnExplanation": {
+        "properties": {
+          "cap_ledger": {
+            "items": {
+              "$ref": "#/components/schemas/CapPoolLedgerEntry"
+            },
+            "type": "array",
+            "title": "Cap Ledger"
+          },
+          "excluded_rules": {
+            "items": {
+              "$ref": "#/components/schemas/ExcludedRuleEntry"
+            },
+            "type": "array",
+            "title": "Excluded Rules"
+          },
+          "grouped_transfer_caps": {
+            "items": {
+              "$ref": "#/components/schemas/GroupedTransferCapEntry"
+            },
+            "type": "array",
+            "title": "Grouped Transfer Caps"
+          },
+          "milestone_deltas": {
+            "items": {
+              "$ref": "#/components/schemas/MilestoneSpendDelta"
+            },
+            "type": "array",
+            "title": "Milestone Deltas"
+          },
+          "valuation_breakevens": {
+            "items": {
+              "$ref": "#/components/schemas/ValuationBreakeven"
+            },
+            "type": "array",
+            "title": "Valuation Breakevens"
+          }
+        },
+        "type": "object",
+        "title": "AlwaysOnExplanation",
+        "description": "Deterministic counterfactual & constraint ledger emitted with every plan."
+      },
       "AmendRequest": {
         "properties": {
           "question_id": {
@@ -4645,6 +4927,55 @@
         ],
         "title": "AwardChartEntry"
       },
+      "AwardTarget": {
+        "properties": {
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "destination": {
+            "type": "string",
+            "title": "Destination"
+          },
+          "cabin": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "premium",
+              "business",
+              "first"
+            ],
+            "title": "Cabin"
+          },
+          "trip_type": {
+            "type": "string",
+            "enum": [
+              "one_way",
+              "round_trip"
+            ],
+            "title": "Trip Type"
+          },
+          "travelers": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Travelers"
+          },
+          "home_currency": {
+            "type": "string",
+            "title": "Home Currency",
+            "default": "INR"
+          }
+        },
+        "type": "object",
+        "required": [
+          "origin",
+          "destination",
+          "cabin",
+          "trip_type",
+          "travelers"
+        ],
+        "title": "AwardTarget"
+      },
       "BackRequest": {
         "properties": {
           "expected_version": {
@@ -4902,6 +5233,57 @@
         ],
         "title": "CandidateTimingAssessment",
         "description": "Timing gate evaluation for a candidate card (spec 18 \u00a74)."
+      },
+      "CapPoolLedgerEntry": {
+        "properties": {
+          "pool_key": {
+            "type": "string",
+            "title": "Pool Key"
+          },
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "initial_points": {
+            "type": "integer",
+            "title": "Initial Points"
+          },
+          "consumed_points": {
+            "type": "integer",
+            "title": "Consumed Points"
+          },
+          "remaining_points": {
+            "type": "integer",
+            "title": "Remaining Points"
+          },
+          "binding": {
+            "type": "boolean",
+            "title": "Binding"
+          },
+          "affected_line_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Affected Line Ids"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pool_key",
+          "card_id",
+          "initial_points",
+          "consumed_points",
+          "remaining_points",
+          "binding",
+          "summary"
+        ],
+        "title": "CapPoolLedgerEntry",
+        "description": "Cap pool consumption and binding status for held-card earn rules."
       },
       "CardProductOut": {
         "properties": {
@@ -5750,6 +6132,101 @@
         ],
         "title": "DailyWeather"
       },
+      "DecisionAuditCertificate": {
+        "properties": {
+          "certificate_version": {
+            "type": "string",
+            "const": "xaior-v1",
+            "title": "Certificate Version",
+            "default": "xaior-v1"
+          },
+          "catalog_snapshot_hash": {
+            "type": "string",
+            "title": "Catalog Snapshot Hash"
+          },
+          "trip_snapshot_hash": {
+            "type": "string",
+            "title": "Trip Snapshot Hash"
+          },
+          "result_hash": {
+            "type": "string",
+            "title": "Result Hash"
+          },
+          "rule_provenance": {
+            "items": {
+              "$ref": "#/components/schemas/RuleProvenanceEntry"
+            },
+            "type": "array",
+            "title": "Rule Provenance"
+          },
+          "any_needs_verification": {
+            "type": "boolean",
+            "title": "Any Needs Verification"
+          },
+          "min_confidence": {
+            "type": "number",
+            "title": "Min Confidence"
+          },
+          "earliest_last_verified": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Last Verified"
+          },
+          "solver": {
+            "$ref": "#/components/schemas/SolverMetadata"
+          },
+          "robustness": {
+            "$ref": "#/components/schemas/RobustnessDisclosure"
+          },
+          "transactor_apr_warning": {
+            "type": "string",
+            "title": "Transactor Apr Warning",
+            "default": "Assumes full statement balance payoff by the due date (0% revolving APR). Carrying a revolving balance or paying interest charges typically exceeds card reward yields and invalidates net benefit calculations."
+          },
+          "revolver_apr_excluded": {
+            "type": "boolean",
+            "const": true,
+            "title": "Revolver Apr Excluded",
+            "default": true
+          },
+          "zero_affiliate_weight": {
+            "type": "boolean",
+            "const": true,
+            "title": "Zero Affiliate Weight",
+            "default": true
+          },
+          "zero_paid_promotion": {
+            "type": "boolean",
+            "const": true,
+            "title": "Zero Paid Promotion",
+            "default": true
+          },
+          "zero_affiliate_attestation": {
+            "type": "string",
+            "title": "Zero Affiliate Attestation",
+            "default": "All card, channel, and transfer rankings are computed exclusively from deterministic card earn rules, verified offer terms, and the user's explicit optimization objective, with zero affiliate, commission, or popularity weights."
+          }
+        },
+        "type": "object",
+        "required": [
+          "catalog_snapshot_hash",
+          "trip_snapshot_hash",
+          "result_hash",
+          "any_needs_verification",
+          "min_confidence",
+          "solver",
+          "robustness"
+        ],
+        "title": "DecisionAuditCertificate",
+        "description": "Deterministic XAIOR Decision Audit Certificate (De Bock et al., EJOR 2024)."
+      },
       "DecisionIn": {
         "properties": {
           "client_event_id": {
@@ -5997,6 +6474,53 @@
         ],
         "title": "EvidenceMeta"
       },
+      "ExcludedRuleEntry": {
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id"
+          },
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "line_id": {
+            "type": "string",
+            "title": "Line Id"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "excluded_category",
+              "excluded_mcc",
+              "mcc_unverified",
+              "currency_mismatch",
+              "channel_mismatch",
+              "expired"
+            ],
+            "title": "Reason"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_id",
+          "card_id",
+          "line_id",
+          "reason",
+          "detail",
+          "summary"
+        ],
+        "title": "ExcludedRuleEntry",
+        "description": "Explains why an accelerated rule on a held card was excluded for a spend line."
+      },
       "ExperiencePreferences": {
         "properties": {
           "interests": {
@@ -6109,6 +6633,129 @@
           "iconic_local_balance"
         ],
         "title": "ExperiencesFoodPayload"
+      },
+      "ExpiryDiscount": {
+        "properties": {
+          "source_currency": {
+            "type": "string",
+            "title": "Source Currency"
+          },
+          "hazard_bp": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Hazard Bp"
+          },
+          "horizon_steps": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Horizon Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_currency",
+          "hazard_bp",
+          "horizon_steps"
+        ],
+        "title": "ExpiryDiscount",
+        "description": "Sun-Zhang finite-horizon expiry parameters for one currency."
+      },
+      "ExplainAuditRequest": {
+        "properties": {
+          "trip": {
+            "$ref": "#/components/schemas/CostedTrip"
+          },
+          "wallet": {
+            "$ref": "#/components/schemas/UserWallet"
+          },
+          "prefs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OptimizationPrefs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transfer_advice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransferAdvice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "milestones": {
+            "items": {
+              "$ref": "#/components/schemas/SpendMilestoneSpec"
+            },
+            "type": "array",
+            "title": "Milestones"
+          },
+          "group_caps": {
+            "items": {
+              "$ref": "#/components/schemas/TransferGroupCapSpec"
+            },
+            "type": "array",
+            "title": "Group Caps"
+          },
+          "line_mccs": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Mccs"
+          },
+          "gamma": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Gamma",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "trip",
+          "wallet"
+        ],
+        "title": "ExplainAuditRequest",
+        "description": "Request payload for OPT-4 deterministic explanation and XAIOR audit certificate."
+      },
+      "ExplainAuditResponse": {
+        "properties": {
+          "optimizer_result": {
+            "$ref": "#/components/schemas/OptimizerResult"
+          },
+          "explanation": {
+            "$ref": "#/components/schemas/AlwaysOnExplanation"
+          },
+          "audit_certificate": {
+            "$ref": "#/components/schemas/DecisionAuditCertificate"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "optimizer_result",
+          "explanation",
+          "audit_certificate"
+        ],
+        "title": "ExplainAuditResponse",
+        "description": "Optimizer result paired with always-on counterfactuals and XAIOR certificate."
       },
       "FinalReport": {
         "properties": {
@@ -7018,6 +7665,60 @@
         ],
         "title": "GatewayDiagnostic"
       },
+      "GroupedTransferCapEntry": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "source_currency": {
+            "type": "string",
+            "title": "Source Currency"
+          },
+          "max_source_units": {
+            "type": "integer",
+            "title": "Max Source Units"
+          },
+          "used_prior_units": {
+            "type": "integer",
+            "title": "Used Prior Units"
+          },
+          "used_plan_units": {
+            "type": "integer",
+            "title": "Used Plan Units"
+          },
+          "remaining_units": {
+            "type": "integer",
+            "title": "Remaining Units"
+          },
+          "over_limit_units": {
+            "type": "integer",
+            "title": "Over Limit Units"
+          },
+          "binding": {
+            "type": "boolean",
+            "title": "Binding"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id",
+          "source_currency",
+          "max_source_units",
+          "used_prior_units",
+          "used_plan_units",
+          "remaining_units",
+          "over_limit_units",
+          "binding",
+          "summary"
+        ],
+        "title": "GroupedTransferCapEntry",
+        "description": "Grouped transfer-cap usage and remaining headroom."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -7563,6 +8264,116 @@
         ],
         "title": "HotelSelectionRecord",
         "description": "The accepted hotel choice, separate from provider evidence."
+      },
+      "InfeasibilityCoreResult": {
+        "properties": {
+          "is_feasible": {
+            "type": "boolean",
+            "title": "Is Feasible"
+          },
+          "solver_backend": {
+            "type": "string",
+            "title": "Solver Backend"
+          },
+          "solver_seed": {
+            "type": "integer",
+            "title": "Solver Seed",
+            "default": 1
+          },
+          "num_workers": {
+            "type": "integer",
+            "title": "Num Workers",
+            "default": 1
+          },
+          "conflict_core": {
+            "items": {
+              "$ref": "#/components/schemas/InfeasibleConstraint"
+            },
+            "type": "array",
+            "title": "Conflict Core"
+          },
+          "relaxations": {
+            "items": {
+              "$ref": "#/components/schemas/MinimalRelaxation"
+            },
+            "type": "array",
+            "title": "Relaxations"
+          },
+          "quickxplain_probes": {
+            "type": "integer",
+            "title": "Quickxplain Probes",
+            "default": 0
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_feasible",
+          "solver_backend",
+          "summary"
+        ],
+        "title": "InfeasibilityCoreResult",
+        "description": "Subset-minimal infeasibility explanation (QUICKXPLAIN) + minimal relaxations."
+      },
+      "InfeasibleConstraint": {
+        "properties": {
+          "constraint_id": {
+            "type": "string",
+            "title": "Constraint Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "award_goal",
+              "source_balance",
+              "group_cap",
+              "deadline",
+              "max_transfers",
+              "edge_min",
+              "milestone_threshold",
+              "card_cap",
+              "budget_cap",
+              "custom"
+            ],
+            "title": "Kind"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "lhs_label": {
+            "type": "string",
+            "title": "Lhs Label",
+            "default": ""
+          },
+          "rhs_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rhs Value"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "constraint_id",
+          "kind",
+          "description"
+        ],
+        "title": "InfeasibleConstraint",
+        "description": "One member of a subset-minimal unsatisfiable core."
       },
       "InfeasiblePlan": {
         "properties": {
@@ -8346,6 +9157,180 @@
         ],
         "title": "LineAssignment"
       },
+      "MilestoneInfeasibilityRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "milestone",
+            "title": "Kind",
+            "default": "milestone"
+          },
+          "trip": {
+            "$ref": "#/components/schemas/CostedTrip"
+          },
+          "wallet": {
+            "$ref": "#/components/schemas/UserWallet"
+          },
+          "milestones": {
+            "items": {
+              "$ref": "#/components/schemas/SpendMilestoneSpec"
+            },
+            "type": "array",
+            "title": "Milestones"
+          },
+          "total_budget_cap_minor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Budget Cap Minor"
+          },
+          "card_spend_caps_minor": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Spend Caps Minor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "trip",
+          "wallet",
+          "milestones"
+        ],
+        "title": "MilestoneInfeasibilityRequest",
+        "description": "QUICKXPLAIN diagnosis request for conflicting card spend milestones/caps."
+      },
+      "MilestoneSpendDelta": {
+        "properties": {
+          "milestone_id": {
+            "type": "string",
+            "title": "Milestone Id"
+          },
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "reward_kind": {
+            "type": "string",
+            "enum": [
+              "bonus_points",
+              "fee_waiver"
+            ],
+            "title": "Reward Kind"
+          },
+          "threshold_minor": {
+            "type": "integer",
+            "title": "Threshold Minor"
+          },
+          "prior_spend_minor": {
+            "type": "integer",
+            "title": "Prior Spend Minor"
+          },
+          "trip_eligible_spend_minor": {
+            "type": "integer",
+            "title": "Trip Eligible Spend Minor"
+          },
+          "total_eligible_spend_minor": {
+            "type": "integer",
+            "title": "Total Eligible Spend Minor"
+          },
+          "spend_delta_minor": {
+            "type": "integer",
+            "title": "Spend Delta Minor"
+          },
+          "unlocked": {
+            "type": "boolean",
+            "title": "Unlocked"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "milestone_id",
+          "card_id",
+          "reward_kind",
+          "threshold_minor",
+          "prior_spend_minor",
+          "trip_eligible_spend_minor",
+          "total_eligible_spend_minor",
+          "spend_delta_minor",
+          "unlocked",
+          "currency",
+          "summary"
+        ],
+        "title": "MilestoneSpendDelta",
+        "description": "Exact RHS spend delta required to unlock a milestone or fee waiver."
+      },
+      "MinimalRelaxation": {
+        "properties": {
+          "constraint_id": {
+            "type": "string",
+            "title": "Constraint Id"
+          },
+          "current_rhs": {
+            "type": "integer",
+            "title": "Current Rhs"
+          },
+          "relaxed_rhs": {
+            "type": "integer",
+            "title": "Relaxed Rhs"
+          },
+          "delta": {
+            "type": "integer",
+            "title": "Delta"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "increase",
+              "decrease"
+            ],
+            "title": "Direction"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "constraint_id",
+          "current_rhs",
+          "relaxed_rhs",
+          "delta",
+          "direction",
+          "unit",
+          "summary"
+        ],
+        "title": "MinimalRelaxation",
+        "description": "Minimal RHS relaxation for a core constraint that restores feasibility."
+      },
       "MoveItem": {
         "properties": {
           "op": {
@@ -8618,6 +9603,206 @@
         },
         "type": "object",
         "title": "OptimizationPrefs"
+      },
+      "OptimizeV2Assignment": {
+        "properties": {
+          "line_id": {
+            "type": "string",
+            "title": "Line Id"
+          },
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "spend_minor": {
+            "type": "integer",
+            "title": "Spend Minor"
+          },
+          "nominal_benefit_minor": {
+            "type": "integer",
+            "title": "Nominal Benefit Minor"
+          },
+          "floor_benefit_minor": {
+            "type": "integer",
+            "title": "Floor Benefit Minor"
+          },
+          "bundle_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bundle Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line_id",
+          "card_id",
+          "channel",
+          "spend_minor",
+          "nominal_benefit_minor",
+          "floor_benefit_minor"
+        ],
+        "title": "OptimizeV2Assignment",
+        "description": "Per-line selected card/channel and benefit breakdown from OPT-3/frozen optimization."
+      },
+      "OptimizeV2Request": {
+        "properties": {
+          "trip": {
+            "$ref": "#/components/schemas/CostedTrip"
+          },
+          "wallet": {
+            "$ref": "#/components/schemas/UserWallet"
+          },
+          "prefs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OptimizationPrefs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "milestones": {
+            "items": {
+              "$ref": "#/components/schemas/SpendMilestone"
+            },
+            "type": "array",
+            "title": "Milestones"
+          },
+          "gamma": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Gamma",
+            "default": 0
+          },
+          "valuation_floors_micro": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valuation Floors Micro"
+          },
+          "floor_provenance": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/Provenance"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Provenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "trip",
+          "wallet"
+        ],
+        "title": "OptimizeV2Request",
+        "description": "Request payload for OPT-3 milestones and Bertsimas-Sim Gamma-robust optimization."
+      },
+      "OptimizeV2Response": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "kernel_frozen",
+              "opt3_milp"
+            ],
+            "title": "Mode"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "optimal",
+              "frozen_deterministic"
+            ],
+            "title": "Status"
+          },
+          "objective_scaled": {
+            "type": "integer",
+            "title": "Objective Scaled"
+          },
+          "gamma": {
+            "type": "integer",
+            "title": "Gamma"
+          },
+          "execution_order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Execution Order"
+          },
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/OptimizeV2Assignment"
+            },
+            "type": "array",
+            "title": "Assignments"
+          },
+          "achieved_milestone_indices": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Achieved Milestone Indices"
+          },
+          "achieved_milestones": {
+            "items": {
+              "$ref": "#/components/schemas/SpendMilestone"
+            },
+            "type": "array",
+            "title": "Achieved Milestones"
+          },
+          "optimizer_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OptimizerResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode",
+          "status",
+          "objective_scaled",
+          "gamma",
+          "execution_order",
+          "assignments",
+          "achieved_milestone_indices",
+          "achieved_milestones"
+        ],
+        "title": "OptimizeV2Response",
+        "description": "Normalized response for OPT-3 milestones/robustness and frozen fallback."
       },
       "OptimizerResult": {
         "properties": {
@@ -9106,6 +10291,141 @@
           "abandoned"
         ],
         "title": "PlanningSessionStatus"
+      },
+      "PooledTransferRequest": {
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/AwardTarget"
+          },
+          "wallet": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserWallet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "points_balances": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points Balances"
+          },
+          "baseline_valuations": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Baseline Valuations"
+          },
+          "cash_price_minor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Cash Price Minor"
+          },
+          "on_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Date"
+          },
+          "pooling_config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PoolingConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target",
+          "cash_price_minor"
+        ],
+        "title": "PooledTransferRequest",
+        "description": "Request payload for OPT-2 pooled multi-currency transfer optimization."
+      },
+      "PoolingConfig": {
+        "properties": {
+          "deadline_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline Hours"
+          },
+          "max_transfers": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Max Transfers",
+            "default": 3
+          },
+          "grouped_caps": {
+            "items": {
+              "$ref": "#/components/schemas/TransferGroupCap"
+            },
+            "type": "array",
+            "title": "Grouped Caps",
+            "default": []
+          },
+          "edge_fixed_fees_minor": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Edge Fixed Fees Minor"
+          },
+          "edge_max_transfer": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Edge Max Transfer"
+          },
+          "expiry_discounts": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ExpiryDiscount"
+            },
+            "type": "object",
+            "title": "Expiry Discounts"
+          },
+          "max_time_seconds": {
+            "type": "integer",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Max Time Seconds",
+            "default": 2
+          }
+        },
+        "type": "object",
+        "title": "PoolingConfig",
+        "description": "Deterministic configuration for multi-currency pooled transfer optimization."
       },
       "PostPlanError": {
         "properties": {
@@ -10645,6 +11965,105 @@
         "type": "object",
         "title": "RhythmPreferences"
       },
+      "RobustnessDisclosure": {
+        "properties": {
+          "gamma": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Gamma",
+            "default": 0
+          },
+          "recourse_floors": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Recourse Floors"
+          },
+          "nominal_assumed_paths": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Nominal Assumed Paths"
+          }
+        },
+        "type": "object",
+        "title": "RobustnessDisclosure",
+        "description": "Active uncertainty budget Gamma and guaranteed cash/portal recourse floors."
+      },
+      "RuleProvenanceEntry": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "card",
+              "reward_rule",
+              "offer",
+              "point_valuation",
+              "transfer_edge",
+              "transfer_bonus",
+              "award_chart",
+              "spend_milestone",
+              "fx_rate"
+            ],
+            "title": "Kind"
+          },
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "last_verified": {
+            "type": "string",
+            "format": "date",
+            "title": "Last Verified"
+          },
+          "verified_by": {
+            "type": "string",
+            "title": "Verified By"
+          },
+          "needs_verification": {
+            "type": "boolean",
+            "title": "Needs Verification"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "version_fingerprint": {
+            "type": "string",
+            "title": "Version Fingerprint"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "entity_id",
+          "source_type",
+          "last_verified",
+          "verified_by",
+          "needs_verification",
+          "confidence",
+          "version_fingerprint"
+        ],
+        "title": "RuleProvenanceEntry",
+        "description": "Provenance record for a financial fact used or evaluated during planning."
+      },
       "RunnerUp": {
         "properties": {
           "card_id": {
@@ -11215,6 +12634,53 @@
         ],
         "title": "SkipRequest"
       },
+      "SolverMetadata": {
+        "properties": {
+          "backend": {
+            "type": "string",
+            "title": "Backend"
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Seed"
+          },
+          "num_workers": {
+            "type": "integer",
+            "title": "Num Workers"
+          },
+          "optimality_status": {
+            "type": "string",
+            "enum": [
+              "optimal",
+              "feasible",
+              "heuristic_bounded",
+              "infeasible",
+              "unknown"
+            ],
+            "title": "Optimality Status"
+          },
+          "max_time_in_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Time In Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "backend",
+          "seed",
+          "num_workers",
+          "optimality_status"
+        ],
+        "title": "SolverMetadata",
+        "description": "Deterministic solver configuration and optimality status."
+      },
       "SpendCategory": {
         "type": "string",
         "enum": [
@@ -11288,6 +12754,199 @@
         ],
         "title": "SpendLineItem",
         "description": "A normalized unit of spend (spec 02 \u00a73)."
+      },
+      "SpendMilestone": {
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Card Id"
+          },
+          "threshold_minor": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Threshold Minor"
+          },
+          "bonus_points": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Points"
+          },
+          "fee_waiver_minor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Waiver Minor"
+          },
+          "eligible_categories": {
+            "items": {
+              "$ref": "#/components/schemas/SpendCategory"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Eligible Categories"
+          },
+          "period_type": {
+            "type": "string",
+            "enum": [
+              "annual",
+              "quarterly",
+              "monthly",
+              "statement_cycle"
+            ],
+            "title": "Period Type"
+          },
+          "prior_spend_minor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Prior Spend Minor",
+            "default": 0
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "card_id",
+          "threshold_minor",
+          "eligible_categories",
+          "period_type",
+          "provenance"
+        ],
+        "title": "SpendMilestone"
+      },
+      "SpendMilestoneSpec": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "threshold_minor": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Threshold Minor"
+          },
+          "prior_spend_minor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Prior Spend Minor",
+            "default": 0
+          },
+          "reward_kind": {
+            "type": "string",
+            "enum": [
+              "bonus_points",
+              "fee_waiver"
+            ],
+            "title": "Reward Kind",
+            "default": "fee_waiver"
+          },
+          "bonus_points": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Bonus Points",
+            "default": 0
+          },
+          "fee_waiver_minor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Fee Waiver Minor",
+            "default": 0
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "INR"
+          },
+          "eligible_categories": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SpendCategory"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligible Categories"
+          },
+          "excluded_categories": {
+            "items": {
+              "$ref": "#/components/schemas/SpendCategory"
+            },
+            "type": "array",
+            "title": "Excluded Categories"
+          },
+          "eligible_channels": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Channel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligible Channels"
+          },
+          "period_type": {
+            "type": "string",
+            "enum": [
+              "annual",
+              "quarterly",
+              "monthly",
+              "trip_window"
+            ],
+            "title": "Period Type",
+            "default": "annual"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Provenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "card_id",
+          "description",
+          "threshold_minor"
+        ],
+        "title": "SpendMilestoneSpec",
+        "description": "Spend milestone or annual fee waiver specification for counterfactual deltas."
       },
       "StayPreferences": {
         "properties": {
@@ -11421,6 +13080,163 @@
           "recommendation"
         ],
         "title": "TransferAdvice"
+      },
+      "TransferGroupCap": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "edge_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Edge Ids"
+          },
+          "max_source_points": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Max Source Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id",
+          "edge_ids",
+          "max_source_points"
+        ],
+        "title": "TransferGroupCap",
+        "description": "Aggregate source-point cap spanning one named group of transfer edges."
+      },
+      "TransferGroupCapSpec": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "source_currency": {
+            "type": "string",
+            "title": "Source Currency"
+          },
+          "edge_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Edge Ids"
+          },
+          "max_source_units": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Max Source Units"
+          },
+          "used_source_units_prior": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Used Source Units Prior",
+            "default": 0
+          },
+          "period": {
+            "type": "string",
+            "enum": [
+              "annual",
+              "monthly",
+              "cycle"
+            ],
+            "title": "Period",
+            "default": "annual"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id",
+          "source_currency",
+          "edge_ids",
+          "max_source_units"
+        ],
+        "title": "TransferGroupCapSpec",
+        "description": "Grouped transfer cap across one or more partner transfer edges."
+      },
+      "TransferInfeasibilityRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "transfer",
+            "title": "Kind",
+            "default": "transfer"
+          },
+          "target_program_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Target Program Id"
+          },
+          "required_miles": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Required Miles"
+          },
+          "wallet": {
+            "$ref": "#/components/schemas/UserWallet"
+          },
+          "on_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Date"
+          },
+          "max_transfer_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Transfer Hours"
+          },
+          "max_transfers": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Transfers"
+          },
+          "group_caps": {
+            "items": {
+              "$ref": "#/components/schemas/TransferGroupCapSpec"
+            },
+            "type": "array",
+            "title": "Group Caps"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target_program_id",
+          "required_miles",
+          "wallet"
+        ],
+        "title": "TransferInfeasibilityRequest",
+        "description": "QUICKXPLAIN diagnosis request for an unsatisfiable transfer goal."
       },
       "TransferPlan": {
         "properties": {
@@ -12471,6 +14287,127 @@
           "type"
         ],
         "title": "ValidationIssue"
+      },
+      "ValuationBreakeven": {
+        "properties": {
+          "line_id": {
+            "type": "string",
+            "title": "Line Id"
+          },
+          "chosen_card_id": {
+            "type": "string",
+            "title": "Chosen Card Id"
+          },
+          "chosen_channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "chosen_points": {
+            "type": "integer",
+            "title": "Chosen Points"
+          },
+          "chosen_valuation_micro": {
+            "type": "integer",
+            "title": "Chosen Valuation Micro"
+          },
+          "chosen_benefit_minor": {
+            "type": "integer",
+            "title": "Chosen Benefit Minor"
+          },
+          "runner_card_id": {
+            "type": "string",
+            "title": "Runner Card Id"
+          },
+          "runner_channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "runner_points": {
+            "type": "integer",
+            "title": "Runner Points"
+          },
+          "runner_valuation_micro": {
+            "type": "integer",
+            "title": "Runner Valuation Micro"
+          },
+          "runner_benefit_minor": {
+            "type": "integer",
+            "title": "Runner Benefit Minor"
+          },
+          "runner_partner_label": {
+            "type": "string",
+            "title": "Runner Partner Label"
+          },
+          "shared_currency": {
+            "type": "boolean",
+            "title": "Shared Currency"
+          },
+          "reachable": {
+            "type": "boolean",
+            "title": "Reachable"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "above",
+              "below",
+              "unreachable"
+            ],
+            "title": "Direction"
+          },
+          "breakeven_micro_major_per_point": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Breakeven Micro Major Per Point"
+          },
+          "delta_vs_current_micro": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Vs Current Micro"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "line_id",
+          "chosen_card_id",
+          "chosen_channel",
+          "chosen_points",
+          "chosen_valuation_micro",
+          "chosen_benefit_minor",
+          "runner_card_id",
+          "runner_channel",
+          "runner_points",
+          "runner_valuation_micro",
+          "runner_benefit_minor",
+          "runner_partner_label",
+          "shared_currency",
+          "reachable",
+          "direction",
+          "breakeven_micro_major_per_point",
+          "delta_vs_current_micro",
+          "currency",
+          "summary"
+        ],
+        "title": "ValuationBreakeven",
+        "description": "Forel-style single-shot relative valuation breakeven (chosen vs runner-up)."
       },
       "VersionRequest": {
         "properties": {

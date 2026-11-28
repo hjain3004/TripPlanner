@@ -21,7 +21,7 @@ export type AcquisitionApiErrorBody = {
 /**
  * AcquisitionAssessmentIn
  *
- * Request payload to assess an unheld card welcome offer against a saved revision.
+ * API payload extending Case B assessment with optional OPT-1 retrieval parameters.
  */
 export type AcquisitionAssessmentIn = {
     /**
@@ -29,6 +29,22 @@ export type AcquisitionAssessmentIn = {
      */
     candidate_card_id?: string | null;
     payment_timing?: PaymentTimingIn | null;
+    /**
+     * Top M
+     */
+    top_m?: number | null;
+    /**
+     * Home Country
+     */
+    home_country?: 'IN' | 'AE' | 'US' | null;
+    /**
+     * Closed Card Ids
+     */
+    closed_card_ids?: Array<string> | null;
+    /**
+     * Open Card Ids
+     */
+    open_card_ids?: Array<string> | null;
 };
 
 /**
@@ -355,6 +371,34 @@ export type AddItem = {
 };
 
 /**
+ * AlwaysOnExplanation
+ *
+ * Deterministic counterfactual & constraint ledger emitted with every plan.
+ */
+export type AlwaysOnExplanation = {
+    /**
+     * Cap Ledger
+     */
+    cap_ledger?: Array<CapPoolLedgerEntry>;
+    /**
+     * Excluded Rules
+     */
+    excluded_rules?: Array<ExcludedRuleEntry>;
+    /**
+     * Grouped Transfer Caps
+     */
+    grouped_transfer_caps?: Array<GroupedTransferCapEntry>;
+    /**
+     * Milestone Deltas
+     */
+    milestone_deltas?: Array<MilestoneSpendDelta>;
+    /**
+     * Valuation Breakevens
+     */
+    valuation_breakevens?: Array<ValuationBreakeven>;
+};
+
+/**
  * AmendRequest
  */
 export type AmendRequest = {
@@ -546,6 +590,36 @@ export type AwardChartEntry = {
 };
 
 /**
+ * AwardTarget
+ */
+export type AwardTarget = {
+    /**
+     * Origin
+     */
+    origin: string;
+    /**
+     * Destination
+     */
+    destination: string;
+    /**
+     * Cabin
+     */
+    cabin: 'economy' | 'premium' | 'business' | 'first';
+    /**
+     * Trip Type
+     */
+    trip_type: 'one_way' | 'round_trip';
+    /**
+     * Travelers
+     */
+    travelers: number;
+    /**
+     * Home Currency
+     */
+    home_currency?: string;
+};
+
+/**
  * BackRequest
  */
 export type BackRequest = {
@@ -687,6 +761,46 @@ export type CandidateTimingAssessment = {
      * Spend Within Window
      */
     spend_within_window: boolean;
+};
+
+/**
+ * CapPoolLedgerEntry
+ *
+ * Cap pool consumption and binding status for held-card earn rules.
+ */
+export type CapPoolLedgerEntry = {
+    /**
+     * Pool Key
+     */
+    pool_key: string;
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Initial Points
+     */
+    initial_points: number;
+    /**
+     * Consumed Points
+     */
+    consumed_points: number;
+    /**
+     * Remaining Points
+     */
+    remaining_points: number;
+    /**
+     * Binding
+     */
+    binding: boolean;
+    /**
+     * Affected Line Ids
+     */
+    affected_line_ids?: Array<string>;
+    /**
+     * Summary
+     */
+    summary: string;
 };
 
 /**
@@ -1105,6 +1219,68 @@ export type DailyWeather = {
 };
 
 /**
+ * DecisionAuditCertificate
+ *
+ * Deterministic XAIOR Decision Audit Certificate (De Bock et al., EJOR 2024).
+ */
+export type DecisionAuditCertificate = {
+    /**
+     * Certificate Version
+     */
+    certificate_version?: 'xaior-v1';
+    /**
+     * Catalog Snapshot Hash
+     */
+    catalog_snapshot_hash: string;
+    /**
+     * Trip Snapshot Hash
+     */
+    trip_snapshot_hash: string;
+    /**
+     * Result Hash
+     */
+    result_hash: string;
+    /**
+     * Rule Provenance
+     */
+    rule_provenance?: Array<RuleProvenanceEntry>;
+    /**
+     * Any Needs Verification
+     */
+    any_needs_verification: boolean;
+    /**
+     * Min Confidence
+     */
+    min_confidence: number;
+    /**
+     * Earliest Last Verified
+     */
+    earliest_last_verified?: string | null;
+    solver: SolverMetadata;
+    robustness: RobustnessDisclosure;
+    /**
+     * Transactor Apr Warning
+     */
+    transactor_apr_warning?: string;
+    /**
+     * Revolver Apr Excluded
+     */
+    revolver_apr_excluded?: true;
+    /**
+     * Zero Affiliate Weight
+     */
+    zero_affiliate_weight?: true;
+    /**
+     * Zero Paid Promotion
+     */
+    zero_paid_promotion?: true;
+    /**
+     * Zero Affiliate Attestation
+     */
+    zero_affiliate_attestation?: string;
+};
+
+/**
  * DecisionIn
  */
 export type DecisionIn = {
@@ -1233,6 +1409,38 @@ export type EvidenceMeta = {
 };
 
 /**
+ * ExcludedRuleEntry
+ *
+ * Explains why an accelerated rule on a held card was excluded for a spend line.
+ */
+export type ExcludedRuleEntry = {
+    /**
+     * Rule Id
+     */
+    rule_id: string;
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Line Id
+     */
+    line_id: string;
+    /**
+     * Reason
+     */
+    reason: 'excluded_category' | 'excluded_mcc' | 'mcc_unverified' | 'currency_mismatch' | 'channel_mismatch' | 'expired';
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Summary
+     */
+    summary: string;
+};
+
+/**
  * ExperiencePreferences
  */
 export type ExperiencePreferences = {
@@ -1267,6 +1475,67 @@ export type ExperiencesFoodPayload = {
      * Shopping
      */
     shopping?: boolean | null;
+};
+
+/**
+ * ExpiryDiscount
+ *
+ * Sun-Zhang finite-horizon expiry parameters for one currency.
+ */
+export type ExpiryDiscount = {
+    /**
+     * Source Currency
+     */
+    source_currency: string;
+    /**
+     * Hazard Bp
+     */
+    hazard_bp: number;
+    /**
+     * Horizon Steps
+     */
+    horizon_steps: number;
+};
+
+/**
+ * ExplainAuditRequest
+ *
+ * Request payload for OPT-4 deterministic explanation and XAIOR audit certificate.
+ */
+export type ExplainAuditRequest = {
+    trip: CostedTrip;
+    wallet: UserWallet;
+    prefs?: OptimizationPrefs | null;
+    transfer_advice?: TransferAdvice | null;
+    /**
+     * Milestones
+     */
+    milestones?: Array<SpendMilestoneSpec>;
+    /**
+     * Group Caps
+     */
+    group_caps?: Array<TransferGroupCapSpec>;
+    /**
+     * Line Mccs
+     */
+    line_mccs?: {
+        [key: string]: number;
+    } | null;
+    /**
+     * Gamma
+     */
+    gamma?: number;
+};
+
+/**
+ * ExplainAuditResponse
+ *
+ * Optimizer result paired with always-on counterfactuals and XAIOR certificate.
+ */
+export type ExplainAuditResponse = {
+    optimizer_result: OptimizerResult;
+    explanation: AlwaysOnExplanation;
+    audit_certificate: DecisionAuditCertificate;
 };
 
 /**
@@ -1675,6 +1944,50 @@ export type GatewayDiagnostic = {
 };
 
 /**
+ * GroupedTransferCapEntry
+ *
+ * Grouped transfer-cap usage and remaining headroom.
+ */
+export type GroupedTransferCapEntry = {
+    /**
+     * Group Id
+     */
+    group_id: string;
+    /**
+     * Source Currency
+     */
+    source_currency: string;
+    /**
+     * Max Source Units
+     */
+    max_source_units: number;
+    /**
+     * Used Prior Units
+     */
+    used_prior_units: number;
+    /**
+     * Used Plan Units
+     */
+    used_plan_units: number;
+    /**
+     * Remaining Units
+     */
+    remaining_units: number;
+    /**
+     * Over Limit Units
+     */
+    over_limit_units: number;
+    /**
+     * Binding
+     */
+    binding: boolean;
+    /**
+     * Summary
+     */
+    summary: string;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -1975,6 +2288,78 @@ export type HotelSelectionRecord = {
      * Trip Id
      */
     trip_id?: string | null;
+};
+
+/**
+ * InfeasibilityCoreResult
+ *
+ * Subset-minimal infeasibility explanation (QUICKXPLAIN) + minimal relaxations.
+ */
+export type InfeasibilityCoreResult = {
+    /**
+     * Is Feasible
+     */
+    is_feasible: boolean;
+    /**
+     * Solver Backend
+     */
+    solver_backend: string;
+    /**
+     * Solver Seed
+     */
+    solver_seed?: number;
+    /**
+     * Num Workers
+     */
+    num_workers?: number;
+    /**
+     * Conflict Core
+     */
+    conflict_core?: Array<InfeasibleConstraint>;
+    /**
+     * Relaxations
+     */
+    relaxations?: Array<MinimalRelaxation>;
+    /**
+     * Quickxplain Probes
+     */
+    quickxplain_probes?: number;
+    /**
+     * Summary
+     */
+    summary: string;
+};
+
+/**
+ * InfeasibleConstraint
+ *
+ * One member of a subset-minimal unsatisfiable core.
+ */
+export type InfeasibleConstraint = {
+    /**
+     * Constraint Id
+     */
+    constraint_id: string;
+    /**
+     * Kind
+     */
+    kind: 'award_goal' | 'source_balance' | 'group_cap' | 'deadline' | 'max_transfers' | 'edge_min' | 'milestone_threshold' | 'card_cap' | 'budget_cap' | 'custom';
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Lhs Label
+     */
+    lhs_label?: string;
+    /**
+     * Rhs Value
+     */
+    rhs_value?: number | null;
+    /**
+     * Unit
+     */
+    unit?: string;
 };
 
 /**
@@ -2357,6 +2742,122 @@ export type LineAssignment = {
 };
 
 /**
+ * MilestoneInfeasibilityRequest
+ *
+ * QUICKXPLAIN diagnosis request for conflicting card spend milestones/caps.
+ */
+export type MilestoneInfeasibilityRequest = {
+    /**
+     * Kind
+     */
+    kind?: 'milestone';
+    trip: CostedTrip;
+    wallet: UserWallet;
+    /**
+     * Milestones
+     */
+    milestones: Array<SpendMilestoneSpec>;
+    /**
+     * Total Budget Cap Minor
+     */
+    total_budget_cap_minor?: number | null;
+    /**
+     * Card Spend Caps Minor
+     */
+    card_spend_caps_minor?: {
+        [key: string]: number;
+    } | null;
+};
+
+/**
+ * MilestoneSpendDelta
+ *
+ * Exact RHS spend delta required to unlock a milestone or fee waiver.
+ */
+export type MilestoneSpendDelta = {
+    /**
+     * Milestone Id
+     */
+    milestone_id: string;
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Reward Kind
+     */
+    reward_kind: 'bonus_points' | 'fee_waiver';
+    /**
+     * Threshold Minor
+     */
+    threshold_minor: number;
+    /**
+     * Prior Spend Minor
+     */
+    prior_spend_minor: number;
+    /**
+     * Trip Eligible Spend Minor
+     */
+    trip_eligible_spend_minor: number;
+    /**
+     * Total Eligible Spend Minor
+     */
+    total_eligible_spend_minor: number;
+    /**
+     * Spend Delta Minor
+     */
+    spend_delta_minor: number;
+    /**
+     * Unlocked
+     */
+    unlocked: boolean;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Summary
+     */
+    summary: string;
+};
+
+/**
+ * MinimalRelaxation
+ *
+ * Minimal RHS relaxation for a core constraint that restores feasibility.
+ */
+export type MinimalRelaxation = {
+    /**
+     * Constraint Id
+     */
+    constraint_id: string;
+    /**
+     * Current Rhs
+     */
+    current_rhs: number;
+    /**
+     * Relaxed Rhs
+     */
+    relaxed_rhs: number;
+    /**
+     * Delta
+     */
+    delta: number;
+    /**
+     * Direction
+     */
+    direction: 'increase' | 'decrease';
+    /**
+     * Unit
+     */
+    unit: string;
+    /**
+     * Summary
+     */
+    summary: string;
+};
+
+/**
  * MoveItem
  */
 export type MoveItem = {
@@ -2503,6 +3004,111 @@ export type OptimizationPrefs = {
      * Objective
      */
     objective?: 'max_savings' | 'min_cash_outlay' | 'min_forex' | 'simplicity';
+};
+
+/**
+ * OptimizeV2Assignment
+ *
+ * Per-line selected card/channel and benefit breakdown from OPT-3/frozen optimization.
+ */
+export type OptimizeV2Assignment = {
+    /**
+     * Line Id
+     */
+    line_id: string;
+    /**
+     * Card Id
+     */
+    card_id: string;
+    channel: Channel;
+    /**
+     * Spend Minor
+     */
+    spend_minor: number;
+    /**
+     * Nominal Benefit Minor
+     */
+    nominal_benefit_minor: number;
+    /**
+     * Floor Benefit Minor
+     */
+    floor_benefit_minor: number;
+    /**
+     * Bundle Id
+     */
+    bundle_id?: string | null;
+};
+
+/**
+ * OptimizeV2Request
+ *
+ * Request payload for OPT-3 milestones and Bertsimas-Sim Gamma-robust optimization.
+ */
+export type OptimizeV2Request = {
+    trip: CostedTrip;
+    wallet: UserWallet;
+    prefs?: OptimizationPrefs | null;
+    /**
+     * Milestones
+     */
+    milestones?: Array<SpendMilestone>;
+    /**
+     * Gamma
+     */
+    gamma?: number;
+    /**
+     * Valuation Floors Micro
+     */
+    valuation_floors_micro?: {
+        [key: string]: number;
+    } | null;
+    /**
+     * Floor Provenance
+     */
+    floor_provenance?: {
+        [key: string]: Provenance;
+    } | null;
+};
+
+/**
+ * OptimizeV2Response
+ *
+ * Normalized response for OPT-3 milestones/robustness and frozen fallback.
+ */
+export type OptimizeV2Response = {
+    /**
+     * Mode
+     */
+    mode: 'kernel_frozen' | 'opt3_milp';
+    /**
+     * Status
+     */
+    status: 'optimal' | 'frozen_deterministic';
+    /**
+     * Objective Scaled
+     */
+    objective_scaled: number;
+    /**
+     * Gamma
+     */
+    gamma: number;
+    /**
+     * Execution Order
+     */
+    execution_order: Array<string>;
+    /**
+     * Assignments
+     */
+    assignments: Array<OptimizeV2Assignment>;
+    /**
+     * Achieved Milestone Indices
+     */
+    achieved_milestone_indices: Array<number>;
+    /**
+     * Achieved Milestones
+     */
+    achieved_milestones: Array<SpendMilestone>;
+    optimizer_result?: OptimizerResult | null;
 };
 
 /**
@@ -2786,6 +3392,79 @@ export type PlanJobStatus = {
  * PlanningSessionStatus
  */
 export type PlanningSessionStatus = 'interviewing' | 'awaiting_assistant' | 'reviewing' | 'confirmed' | 'planning' | 'complete' | 'failed' | 'abandoned';
+
+/**
+ * PooledTransferRequest
+ *
+ * Request payload for OPT-2 pooled multi-currency transfer optimization.
+ */
+export type PooledTransferRequest = {
+    target: AwardTarget;
+    wallet?: UserWallet | null;
+    /**
+     * Points Balances
+     */
+    points_balances?: {
+        [key: string]: number;
+    } | null;
+    /**
+     * Baseline Valuations
+     */
+    baseline_valuations?: {
+        [key: string]: number;
+    };
+    /**
+     * Cash Price Minor
+     */
+    cash_price_minor: number;
+    /**
+     * On Date
+     */
+    on_date?: string | null;
+    pooling_config?: PoolingConfig | null;
+};
+
+/**
+ * PoolingConfig
+ *
+ * Deterministic configuration for multi-currency pooled transfer optimization.
+ */
+export type PoolingConfig = {
+    /**
+     * Deadline Hours
+     */
+    deadline_hours?: number | null;
+    /**
+     * Max Transfers
+     */
+    max_transfers?: number;
+    /**
+     * Grouped Caps
+     */
+    grouped_caps?: Array<TransferGroupCap>;
+    /**
+     * Edge Fixed Fees Minor
+     */
+    edge_fixed_fees_minor?: {
+        [key: string]: number;
+    };
+    /**
+     * Edge Max Transfer
+     */
+    edge_max_transfer?: {
+        [key: string]: number;
+    };
+    /**
+     * Expiry Discounts
+     */
+    expiry_discounts?: {
+        [key: string]: ExpiryDiscount;
+    };
+    /**
+     * Max Time Seconds
+     */
+    max_time_seconds?: number;
+};
 
 /**
  * PostPlanError
@@ -3607,6 +4286,74 @@ export type RhythmPreferences = {
 };
 
 /**
+ * RobustnessDisclosure
+ *
+ * Active uncertainty budget Gamma and guaranteed cash/portal recourse floors.
+ */
+export type RobustnessDisclosure = {
+    /**
+     * Gamma
+     */
+    gamma?: number;
+    /**
+     * Recourse Floors
+     */
+    recourse_floors?: {
+        [key: string]: number;
+    };
+    /**
+     * Nominal Assumed Paths
+     */
+    nominal_assumed_paths?: {
+        [key: string]: string;
+    };
+};
+
+/**
+ * RuleProvenanceEntry
+ *
+ * Provenance record for a financial fact used or evaluated during planning.
+ */
+export type RuleProvenanceEntry = {
+    /**
+     * Kind
+     */
+    kind: 'card' | 'reward_rule' | 'offer' | 'point_valuation' | 'transfer_edge' | 'transfer_bonus' | 'award_chart' | 'spend_milestone' | 'fx_rate';
+    /**
+     * Entity Id
+     */
+    entity_id: string;
+    /**
+     * Source Url
+     */
+    source_url?: string | null;
+    /**
+     * Source Type
+     */
+    source_type: string;
+    /**
+     * Last Verified
+     */
+    last_verified: string;
+    /**
+     * Verified By
+     */
+    verified_by: string;
+    /**
+     * Needs Verification
+     */
+    needs_verification: boolean;
+    /**
+     * Confidence
+     */
+    confidence: number;
+    /**
+     * Version Fingerprint
+     */
+    version_fingerprint: string;
+};
+
+/**
  * RunnerUp
  *
  * Second-best option for a line, for the report's 'why not X?' section.
@@ -3922,6 +4669,34 @@ export type SkipRequest = {
 };
 
 /**
+ * SolverMetadata
+ *
+ * Deterministic solver configuration and optimality status.
+ */
+export type SolverMetadata = {
+    /**
+     * Backend
+     */
+    backend: string;
+    /**
+     * Seed
+     */
+    seed: number;
+    /**
+     * Num Workers
+     */
+    num_workers: number;
+    /**
+     * Optimality Status
+     */
+    optimality_status: 'optimal' | 'feasible' | 'heuristic_bounded' | 'infeasible' | 'unknown';
+    /**
+     * Max Time In Seconds
+     */
+    max_time_in_seconds?: number | null;
+};
+
+/**
  * SpendCategory
  */
 export type SpendCategory = 'flights' | 'hotels' | 'dining' | 'grocery' | 'transit' | 'attractions' | 'shopping' | 'forex_general' | 'ota' | 'insurance' | 'other';
@@ -3961,6 +4736,102 @@ export type SpendLineItem = {
      * Splittable
      */
     splittable?: boolean;
+};
+
+/**
+ * SpendMilestone
+ */
+export type SpendMilestone = {
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Threshold Minor
+     */
+    threshold_minor: number;
+    /**
+     * Bonus Points
+     */
+    bonus_points?: number | null;
+    /**
+     * Fee Waiver Minor
+     */
+    fee_waiver_minor?: number | null;
+    /**
+     * Eligible Categories
+     */
+    eligible_categories: Array<SpendCategory>;
+    /**
+     * Period Type
+     */
+    period_type: 'annual' | 'quarterly' | 'monthly' | 'statement_cycle';
+    /**
+     * Prior Spend Minor
+     */
+    prior_spend_minor?: number;
+    provenance: Provenance;
+};
+
+/**
+ * SpendMilestoneSpec
+ *
+ * Spend milestone or annual fee waiver specification for counterfactual deltas.
+ */
+export type SpendMilestoneSpec = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Threshold Minor
+     */
+    threshold_minor: number;
+    /**
+     * Prior Spend Minor
+     */
+    prior_spend_minor?: number;
+    /**
+     * Reward Kind
+     */
+    reward_kind?: 'bonus_points' | 'fee_waiver';
+    /**
+     * Bonus Points
+     */
+    bonus_points?: number;
+    /**
+     * Fee Waiver Minor
+     */
+    fee_waiver_minor?: number;
+    /**
+     * Currency
+     */
+    currency?: string;
+    /**
+     * Eligible Categories
+     */
+    eligible_categories?: Array<SpendCategory> | null;
+    /**
+     * Excluded Categories
+     */
+    excluded_categories?: Array<SpendCategory>;
+    /**
+     * Eligible Channels
+     */
+    eligible_channels?: Array<Channel> | null;
+    /**
+     * Period Type
+     */
+    period_type?: 'annual' | 'quarterly' | 'monthly' | 'trip_window';
+    provenance?: Provenance | null;
 };
 
 /**
@@ -4013,6 +4884,99 @@ export type TransferAdvice = {
      */
     infeasible: Array<InfeasiblePlan>;
     recommendation: Recommendation;
+};
+
+/**
+ * TransferGroupCap
+ *
+ * Aggregate source-point cap spanning one named group of transfer edges.
+ */
+export type TransferGroupCap = {
+    /**
+     * Group Id
+     */
+    group_id: string;
+    /**
+     * Edge Ids
+     */
+    edge_ids: Array<string>;
+    /**
+     * Max Source Points
+     */
+    max_source_points: number;
+};
+
+/**
+ * TransferGroupCapSpec
+ *
+ * Grouped transfer cap across one or more partner transfer edges.
+ */
+export type TransferGroupCapSpec = {
+    /**
+     * Group Id
+     */
+    group_id: string;
+    /**
+     * Description
+     */
+    description?: string;
+    /**
+     * Source Currency
+     */
+    source_currency: string;
+    /**
+     * Edge Ids
+     */
+    edge_ids: Array<string>;
+    /**
+     * Max Source Units
+     */
+    max_source_units: number;
+    /**
+     * Used Source Units Prior
+     */
+    used_source_units_prior?: number;
+    /**
+     * Period
+     */
+    period?: 'annual' | 'monthly' | 'cycle';
+};
+
+/**
+ * TransferInfeasibilityRequest
+ *
+ * QUICKXPLAIN diagnosis request for an unsatisfiable transfer goal.
+ */
+export type TransferInfeasibilityRequest = {
+    /**
+     * Kind
+     */
+    kind?: 'transfer';
+    /**
+     * Target Program Id
+     */
+    target_program_id: string;
+    /**
+     * Required Miles
+     */
+    required_miles: number;
+    wallet: UserWallet;
+    /**
+     * On Date
+     */
+    on_date?: string | null;
+    /**
+     * Max Transfer Hours
+     */
+    max_transfer_hours?: number | null;
+    /**
+     * Max Transfers
+     */
+    max_transfers?: number | null;
+    /**
+     * Group Caps
+     */
+    group_caps?: Array<TransferGroupCapSpec>;
 };
 
 /**
@@ -4631,6 +5595,84 @@ export type ValidationIssue = {
      * Type
      */
     type: string;
+};
+
+/**
+ * ValuationBreakeven
+ *
+ * Forel-style single-shot relative valuation breakeven (chosen vs runner-up).
+ */
+export type ValuationBreakeven = {
+    /**
+     * Line Id
+     */
+    line_id: string;
+    /**
+     * Chosen Card Id
+     */
+    chosen_card_id: string;
+    chosen_channel: Channel;
+    /**
+     * Chosen Points
+     */
+    chosen_points: number;
+    /**
+     * Chosen Valuation Micro
+     */
+    chosen_valuation_micro: number;
+    /**
+     * Chosen Benefit Minor
+     */
+    chosen_benefit_minor: number;
+    /**
+     * Runner Card Id
+     */
+    runner_card_id: string;
+    runner_channel: Channel;
+    /**
+     * Runner Points
+     */
+    runner_points: number;
+    /**
+     * Runner Valuation Micro
+     */
+    runner_valuation_micro: number;
+    /**
+     * Runner Benefit Minor
+     */
+    runner_benefit_minor: number;
+    /**
+     * Runner Partner Label
+     */
+    runner_partner_label: string;
+    /**
+     * Shared Currency
+     */
+    shared_currency: boolean;
+    /**
+     * Reachable
+     */
+    reachable: boolean;
+    /**
+     * Direction
+     */
+    direction: 'above' | 'below' | 'unreachable';
+    /**
+     * Breakeven Micro Major Per Point
+     */
+    breakeven_micro_major_per_point: number | null;
+    /**
+     * Delta Vs Current Micro
+     */
+    delta_vs_current_micro: number | null;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Summary
+     */
+    summary: string;
 };
 
 /**
@@ -6236,6 +7278,113 @@ export type PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevis
 };
 
 export type PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostResponse = PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostResponses[keyof PostAcquisitionAssessmentAccountAcquisitionTripsTripIdRevisionsRevisionPostResponses];
+
+export type PostPooledTransfersOptTransfersPooledPostData = {
+    body: PooledTransferRequest;
+    path?: never;
+    query?: never;
+    url: '/opt/transfers/pooled';
+};
+
+export type PostPooledTransfersOptTransfersPooledPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PostPooledTransfersOptTransfersPooledPostError = PostPooledTransfersOptTransfersPooledPostErrors[keyof PostPooledTransfersOptTransfersPooledPostErrors];
+
+export type PostPooledTransfersOptTransfersPooledPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TransferAdvice;
+};
+
+export type PostPooledTransfersOptTransfersPooledPostResponse = PostPooledTransfersOptTransfersPooledPostResponses[keyof PostPooledTransfersOptTransfersPooledPostResponses];
+
+export type PostOptimizeV2OptOptimizeV2PostData = {
+    body: OptimizeV2Request;
+    path?: never;
+    query?: never;
+    url: '/opt/optimize-v2';
+};
+
+export type PostOptimizeV2OptOptimizeV2PostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PostOptimizeV2OptOptimizeV2PostError = PostOptimizeV2OptOptimizeV2PostErrors[keyof PostOptimizeV2OptOptimizeV2PostErrors];
+
+export type PostOptimizeV2OptOptimizeV2PostResponses = {
+    /**
+     * Successful Response
+     */
+    200: OptimizeV2Response;
+};
+
+export type PostOptimizeV2OptOptimizeV2PostResponse = PostOptimizeV2OptOptimizeV2PostResponses[keyof PostOptimizeV2OptOptimizeV2PostResponses];
+
+export type PostExplainAuditOptExplainAuditPostData = {
+    body: ExplainAuditRequest;
+    path?: never;
+    query?: never;
+    url: '/opt/explain-audit';
+};
+
+export type PostExplainAuditOptExplainAuditPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PostExplainAuditOptExplainAuditPostError = PostExplainAuditOptExplainAuditPostErrors[keyof PostExplainAuditOptExplainAuditPostErrors];
+
+export type PostExplainAuditOptExplainAuditPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ExplainAuditResponse;
+};
+
+export type PostExplainAuditOptExplainAuditPostResponse = PostExplainAuditOptExplainAuditPostResponses[keyof PostExplainAuditOptExplainAuditPostResponses];
+
+export type PostDiagnoseInfeasibilityOptDiagnoseInfeasibilityPostData = {
+    /**
+     * Payload
+     */
+    body: ({
+        kind: 'transfer';
+    } & TransferInfeasibilityRequest) | ({
+        kind: 'milestone';
+    } & MilestoneInfeasibilityRequest);
+    path?: never;
+    query?: never;
+    url: '/opt/diagnose-infeasibility';
+};
+
+export type PostDiagnoseInfeasibilityOptDiagnoseInfeasibilityPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PostDiagnoseInfeasibilityOptDiagnoseInfeasibilityPostError = PostDiagnoseInfeasibilityOptDiagnoseInfeasibilityPostErrors[keyof PostDiagnoseInfeasibilityOptDiagnoseInfeasibilityPostErrors];
+
+export type PostDiagnoseInfeasibilityOptDiagnoseInfeasibilityPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: InfeasibilityCoreResult;
+};
+
+export type PostDiagnoseInfeasibilityOptDiagnoseInfeasibilityPostResponse = PostDiagnoseInfeasibilityOptDiagnoseInfeasibilityPostResponses[keyof PostDiagnoseInfeasibilityOptDiagnoseInfeasibilityPostResponses];
 
 export type GetWorkspacePlanningSessionsSessionIdWorkspaceGetData = {
     body?: never;
